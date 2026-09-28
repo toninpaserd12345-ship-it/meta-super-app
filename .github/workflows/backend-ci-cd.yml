@@ -123,7 +123,11 @@ jobs:
             # ເຂົ້າໄປທີ່ໂຟນເດີໂປຣເຈັກ (ທີ່ເຮົາຫາກໍ Copy ໄຟລ໌ໄປໄວ້)
             cd meta-super-app
             
-            # ດຶງ Image ໃໝ່ ແລະ ສັ່ງອັບເດດສະເພາະ Container ທີ່ມີການປ່ຽນແປງ (Backend) ໂດຍບໍ່ເຮັດໃຫ້ DB ດັບ
+            # ດຶງ Image ໃໝ່
             docker pull ghcr.io/toninpaserd12345-ship-it/meta-super-app/backend:latest
+            
+            # ແກ້ບັນຫາ Bug ຂອງ docker-compose ເກົ່າ (ContainerConfig error) ໂດຍການລຶບສະເພາະ api ອອກກ່ອນແລ້ວສ້າງໃໝ່
+            docker-compose -p meta-super-app -f docker-compose.prod.yml stop api
+            docker-compose -p meta-super-app -f docker-compose.prod.yml rm -f api
             docker-compose -p meta-super-app -f docker-compose.prod.yml up -d
             
