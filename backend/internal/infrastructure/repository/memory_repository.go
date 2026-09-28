@@ -70,3 +70,16 @@ func (r *MemoryRepository) FindMembership(ctx context.Context, userID, accountID
 	}
 	return nil, errors.New("membership not found")
 }
+
+func (r *MemoryRepository) CreateUser(ctx context.Context, user *domain.User) error { return nil }
+func (r *MemoryRepository) ListMembers(ctx context.Context, accountID string) ([]domain.MembershipUser, error) { return nil, nil }
+func (r *MemoryRepository) AddMember(ctx context.Context, accountID, userID string, role domain.Role, claims []domain.Permission) error { return nil }
+func (r *MemoryRepository) UpdateMemberRole(ctx context.Context, accountID, userID string, role domain.Role, claims []domain.Permission) error { return nil }
+func (r *MemoryRepository) RemoveMember(ctx context.Context, accountID, userID string) error { return nil }
+
+func (r *MemoryRepository) ListPlans(ctx context.Context) ([]domain.Plan, error) { return nil, nil }
+func (r *MemoryRepository) GetSubscription(ctx context.Context, accountID string) (*domain.Subscription, error) { return nil, nil }
+func (r *MemoryRepository) UpsertSubscription(ctx context.Context, sub *domain.Subscription) error { return nil }
+func (r *MemoryRepository) CreateTransaction(ctx context.Context, txn *domain.Transaction) error { return nil }
+func (r *MemoryRepository) UpdateTransactionStatus(ctx context.Context, txnID string, status string) error { return nil }
+func (r *MemoryRepository) ListTransactions(ctx context.Context, accountID string) ([]domain.Transaction, error) { return nil, nil }

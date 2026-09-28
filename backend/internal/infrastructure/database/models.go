@@ -36,3 +36,37 @@ type MembershipClaimModel struct {
 	MembershipID string `gorm:"type:uuid;not null;uniqueIndex:idx_membership_claim"`
 	Claim        string `gorm:"size:100;not null;uniqueIndex:idx_membership_claim"`
 }
+
+type PlanModel struct {
+	ID         string `gorm:"size:50;primaryKey"` // e.g., "free", "pro"
+	Name       string `gorm:"size:100;not null"`
+	Price      int    // Price in local currency (e.g., LAK) or USD cents
+	MaxUsers   int
+	MaxPages   int
+	IsActive   bool
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+}
+
+type SubscriptionModel struct {
+	ID               string       `gorm:"type:uuid;primaryKey"`
+	AccountID        string       `gorm:"type:uuid;uniqueIndex;not null"`
+	PlanID           string       `gorm:"size:50;not null"`
+	Status           string       `gorm:"size:50;not null"` // e.g., "active", "expired", "canceled"
+	CurrentPeriodEnd time.Time    `gorm:"not null"`
+	Plan             PlanModel    `gorm:"foreignKey:PlanID"`
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+}
+
+type TransactionModel struct {
+	ID             string            `gorm:"type:uuid;primaryKey"`
+	AccountID      string            `gorm:"type:uuid;not null"`
+	Amount         int               `gorm:"not null"`
+	Currency       string            `gorm:"size:10;not null"`
+	Status         string            `gorm:"size:50;not null"` // e.g., "pending", "completed", "failed"
+	PaymentMethod  string            `gorm:"size:50"`
+	Reference      string            `gorm:"size:255"`         // Transfer ref or Stripe Session ID
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}

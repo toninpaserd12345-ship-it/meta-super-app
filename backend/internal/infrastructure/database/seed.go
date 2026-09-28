@@ -48,6 +48,19 @@ func SeedAdmin(db *gorm.DB, hasher Hasher, email, password, accountName string) 
 	})
 }
 
+func SeedPlans(db *gorm.DB) error {
+	plans := []PlanModel{
+		{ID: "free", Name: "Free Plan", Price: 0, MaxUsers: 3, MaxPages: 1, IsActive: true},
+		{ID: "pro", Name: "Pro Plan", Price: 500000, MaxUsers: 10, MaxPages: 10, IsActive: true},
+	}
+	for _, p := range plans {
+		if err := db.Where("id = ?", p.ID).FirstOrCreate(&p).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func slugify(value string) string {
 	var b strings.Builder
 	dash := false

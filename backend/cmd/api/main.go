@@ -27,6 +27,7 @@ func main() {
 	passwords := security.NewBcrypt(12)
 	var users domain.UserRepository
 	var accounts domain.AccountRepository
+	var billingRepo domain.BillingRepository
 	if cfg.StorageDriver == "postgres" {
 		db, openErr := database.Open(cfg.DatabaseURL)
 		if openErr != nil {
@@ -43,8 +44,12 @@ func main() {
 			slog.Error("seed failed", "error", err)
 			os.Exit(1)
 		}
+		if err = database.SeedPlans(db); err != nil {
+			slog.Error("seed plans failed", "error", err)
+			os.Exit(1)
+		}
 		repo := repository.NewGorm(db)
-		users, accounts = repo, repo
+		users, accounts, billingRepo = repo, repo, repo
 	} else {
 		mockPassword := cfg.SeedAdminPassword
 		if mockPassword == "" {
@@ -56,7 +61,7 @@ func main() {
 			os.Exit(1)
 		}
 		repo := repository.NewMemory(hash)
-		users, accounts = repo, repo
+		users, accounts, billingRepo = repo, repo, repo
 	}
 	tokens := security.NewJWT(cfg.JWTSecret, cfg.JWTIssuer, cfg.AccessTokenTTL)
 	auth := usecase.NewAuth(users, accounts, passwords, tokens)
@@ -67,7 +72,9 @@ func main() {
 		metaConnector = metainfra.NewGraphConnector(metainfra.GraphConfig{AppID: cfg.MetaAppID, AppSecret: cfg.MetaAppSecret, RedirectURI: cfg.MetaRedirectURI, Version: cfg.MetaGraphVersion, WebhookFields: cfg.MetaWebhookFields, WebhookVerifyToken: cfg.MetaWebhookVerifyToken, StateFile: cfg.MetaStateFile})
 	}
 	meta := usecase.NewMeta(metaConnector)
-	app := httpx.NewHandler(auth, meta, tokens, metaMode, cfg.MetaFrontendRedirect, "00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002").App()
+	team := usecase.NewTeam(accounts, users, passwords)
+	billing := usecase.NewBilling(billingRepo)
+	app := httpx.NewHandler(auth, meta, team, billing, tokens, metaMode, cfg.MetaFrontendRedirect, "00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002").App()
 	go func() {
 		slog.Info("Fiber API listening", "address", cfg.HTTPAddr, "environment", cfg.Environment, "storage", cfg.StorageDriver, "meta", metaMode)
 		if err := app.Listen(cfg.HTTPAddr); err != nil {

@@ -22,6 +22,8 @@ import (
 type Handler struct {
 	auth                                        *usecase.Auth
 	meta                                        *usecase.Meta
+	team                                        *usecase.Team
+	billing                                     *usecase.Billing
 	tokens                                      domain.TokenService
 	metaMode, metaFrontendRedirect              string
 	facebookLoginUserID, facebookLoginAccountID string
@@ -34,8 +36,8 @@ type loginTicket struct {
 	ExpiresAt time.Time
 }
 
-func NewHandler(auth *usecase.Auth, meta *usecase.Meta, tokens domain.TokenService, metaMode, metaFrontendRedirect, facebookLoginUserID, facebookLoginAccountID string) *Handler {
-	return &Handler{auth: auth, meta: meta, tokens: tokens, metaMode: metaMode, metaFrontendRedirect: metaFrontendRedirect, facebookLoginUserID: facebookLoginUserID, facebookLoginAccountID: facebookLoginAccountID, tickets: make(map[string]loginTicket)}
+func NewHandler(auth *usecase.Auth, meta *usecase.Meta, team *usecase.Team, billing *usecase.Billing, tokens domain.TokenService, metaMode, metaFrontendRedirect, facebookLoginUserID, facebookLoginAccountID string) *Handler {
+	return &Handler{auth: auth, meta: meta, team: team, billing: billing, tokens: tokens, metaMode: metaMode, metaFrontendRedirect: metaFrontendRedirect, facebookLoginUserID: facebookLoginUserID, facebookLoginAccountID: facebookLoginAccountID, tickets: make(map[string]loginTicket)}
 }
 
 func (h *Handler) App() *fiber.App {
@@ -70,6 +72,18 @@ func (h *Handler) App() *fiber.App {
 	auth.Post("/api/v1/products", requireAccount(h.auth, domain.ClaimPagesConnect), h.saveProduct)
 	auth.Get("/api/v1/reply-flows", requireAccount(h.auth, domain.ClaimPagesRead), h.replyFlows)
 	auth.Post("/api/v1/reply-flows", requireAccount(h.auth, domain.ClaimPagesConnect), h.saveReplyFlow)
+	
+	// Team Management
+	auth.Get("/api/v1/team", requireAccount(h.auth, "users:read"), h.teamList)
+	auth.Post("/api/v1/team/invite", requireAccount(h.auth, "users:invite"), h.teamInvite)
+	auth.Put("/api/v1/team/:userID", requireAccount(h.auth, "users:update"), h.teamUpdateRole)
+	auth.Delete("/api/v1/team/:userID", requireAccount(h.auth, "users:remove"), h.teamRemove)
+	
+	// Billing
+	auth.Get("/api/v1/billing/plans", requireAccount(h.auth, "dashboard:read"), h.billingPlans)
+	auth.Get("/api/v1/billing/subscription", requireAccount(h.auth, "billing:read"), h.billingSubscription)
+	auth.Post("/api/v1/billing/checkout", requireAccount(h.auth, "billing:read"), h.billingCheckout)
+	
 	return app
 }
 
