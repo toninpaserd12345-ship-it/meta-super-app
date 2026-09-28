@@ -26,7 +26,7 @@ export default defineNuxtConfig({
     ssr: { noExternal: ['vuetify'] },
   },
   runtimeConfig: {
-    apiBaseUrl: '',
+    apiBaseUrl: 'https://api2.157.230.245.52.nip.io',
     apiLoginPath: '/auth/login',
     apiMePath: '/auth/me',
     sessionCookieName: 'app_session',
