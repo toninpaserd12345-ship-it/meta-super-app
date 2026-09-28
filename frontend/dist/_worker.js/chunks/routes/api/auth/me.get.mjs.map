@@ -1,0 +1,1 @@
+{"version":3,"file":"me.get.mjs","sources":["../../../../../../server/api/auth/me.get.ts"],"names":["me_get","defineEventHandler","async","event","user","activeAccount","getAuthContext"],"mappings":"uHAEA,MAAAA,EAAeC,EAAmBC,MAAOC,IACvC,MAAMC,KAAEA,EAAAC,cAAMA,SAAwBC,EAAeH,GACrD,MAAO,CAAEC,OAAMC"}

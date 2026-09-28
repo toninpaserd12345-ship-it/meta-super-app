@@ -1,0 +1,22 @@
+{
+  "name": "meta-super-app",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "nuxt build",
+    "preview": "nuxt preview",
+    "typecheck": "nuxt typecheck",
+    "deploy": "NITRO_PRESET=cloudflare-pages nuxt build && npx wrangler pages deploy dist --project-name=meta-super-app-frontend"
+  },
+  "dependencies": {
+    "@mdi/font": "^7.4.47",
+    "nuxt": "^4.5.2",
+    "vuetify": "^4.2.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2",
+    "vite-plugin-vuetify": "^2.1.3",
+    "vue-tsc": "^3.0.6"
+  }
+}
