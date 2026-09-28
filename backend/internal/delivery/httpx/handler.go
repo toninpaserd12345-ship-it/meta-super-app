@@ -41,7 +41,7 @@ func NewHandler(auth *usecase.Auth, meta *usecase.Meta, tokens domain.TokenServi
 func (h *Handler) App() *fiber.App {
 	app := fiber.New(fiber.Config{AppName: "Meta Super App API", ErrorHandler: errorHandler, BodyLimit: 1 << 20, ReadTimeout: 20_000_000_000, WriteTimeout: 20_000_000_000, IdleTimeout: 60_000_000_000})
 	app.Use(logger.New(logger.Config{
-		Format: "[${time}] ${ip} | ${status} | ${latency} | ${method} | ${path}\nRequest Body: ${body}\nResponse Body: ${resBody}\n",
+		Format: "========== [${time}] ==========\n${ip} | ${status} | ${latency} | ${method} | ${path}\nQuery Params: ${queryParams}\nRequest Headers: ${reqHeaders}\nRequest Body: ${body}\nResponse Headers: ${resHeaders}\nResponse Body: ${resBody}\n===================================\n",
 	}), recover.New(), requestid.New(), responsetime.New(), helmet.New())
 	app.Use(func(c fiber.Ctx) error { c.Set(fiber.HeaderCacheControl, "no-store"); return c.Next() })
 	app.Get("/health", func(c fiber.Ctx) error { return c.JSON(fiber.Map{"status": "ok"}) })
