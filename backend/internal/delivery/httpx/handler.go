@@ -11,6 +11,7 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/helmet"
+	"github.com/gofiber/fiber/v3/middleware/logger"
 	"github.com/gofiber/fiber/v3/middleware/recover"
 	"github.com/gofiber/fiber/v3/middleware/requestid"
 	"github.com/gofiber/fiber/v3/middleware/responsetime"
@@ -39,7 +40,7 @@ func NewHandler(auth *usecase.Auth, meta *usecase.Meta, tokens domain.TokenServi
 
 func (h *Handler) App() *fiber.App {
 	app := fiber.New(fiber.Config{AppName: "Meta Super App API", ErrorHandler: errorHandler, BodyLimit: 1 << 20, ReadTimeout: 20_000_000_000, WriteTimeout: 20_000_000_000, IdleTimeout: 60_000_000_000})
-	app.Use(recover.New(), requestid.New(), responsetime.New(), helmet.New())
+	app.Use(logger.New(), recover.New(), requestid.New(), responsetime.New(), helmet.New())
 	app.Use(func(c fiber.Ctx) error { c.Set(fiber.HeaderCacheControl, "no-store"); return c.Next() })
 	app.Get("/health", func(c fiber.Ctx) error { return c.JSON(fiber.Map{"status": "ok"}) })
 	app.Post("/auth/login", h.login)

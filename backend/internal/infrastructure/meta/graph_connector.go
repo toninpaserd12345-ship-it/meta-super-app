@@ -196,6 +196,7 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 	if event.Object != "page" {
 		return errors.New("unsupported webhook object")
 	}
+	slog.Info("Webhook received", "object", event.Object, "body", string(body))
 	digest := sha256.Sum256(body)
 	key := hex.EncodeToString(digest[:])
 	g.mu.Lock()
