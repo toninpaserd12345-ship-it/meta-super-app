@@ -98,6 +98,18 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Copy docker-compose file to Droplet
+        uses: appleboy/scp-action@v0.1.7 # ກັອບປີ້ໄຟລ໌ໄປໄວ້ໃນເຊີບເວີ
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: ${{ secrets.DO_USERNAME }}
+          key: ${{ secrets.DO_SSH_KEY }}
+          source: "docker-compose.prod.yml"
+          target: "meta-super-app"
+
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3 # ໃຊ້ Action ສຳລັບ SSH ເຂົ້າເຊີບເວີ
         with:
@@ -108,13 +120,12 @@ jobs:
             # ໃຫ້ເຊີບເວີ Login ເຂົ້າ GHCR ອັດຕະໂນມັດ
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             
-            # ດຶງ Docker Image ອັນໃໝ່ລ່າສຸດລົງມາໃນເຊີບເວີ
+            # ເຂົ້າໄປທີ່ໂຟນເດີໂປຣເຈັກ (ທີ່ເຮົາຫາກໍ Copy ໄຟລ໌ໄປໄວ້)
+            cd meta-super-app
+            
+            # ດຶງ Image ໃໝ່ ແລະ ລັນທັງ Database ແລະ Backend ພ້ອມກັນດ້ວຍ Docker Compose
             docker pull ghcr.io/${{ github.repository }}/backend:latest
             
-            # ຖ້າທ່ານໃຊ້ docker-compose.yml ເທິງ Droplet ໃຫ້ໃຊ້ຄຳສັ່ງລຸ່ມນີ້ (ລຶບ # ອອກ) depending on your setup:
-            # cd /path/to/your/project && docker compose up -d api
-            
-            # ຫຼື ຖ້າລັນ Docker ແບບທຳມະດາ: (ປິດໂຕເກົ່າ, ລຶບຖິ້ມ, ແລ້ວລັນໂຕໃໝ່ຂຶ້ນມາແທນ)
-            docker stop api || true
-            docker rm api || true
-            docker run -d -p 8080:8080 --name api --restart unless-stopped ghcr.io/${{ github.repository }}/backend:latest
+            # Export ຕົວປ່ຽນ GITHUB_REPOSITORY ເພື່ອໃຫ້ docker-compose ໃຊ້ໄດ້
+            export GITHUB_REPOSITORY=${{ github.repository }}
+            docker compose -f docker-compose.prod.yml up -d
