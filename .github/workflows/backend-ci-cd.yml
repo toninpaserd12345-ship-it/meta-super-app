@@ -125,5 +125,5 @@ jobs:
             
             # ດຶງ Image ໃໝ່ ແລະ ສັ່ງອັບເດດສະເພາະ Container ທີ່ມີການປ່ຽນແປງ (Backend) ໂດຍບໍ່ເຮັດໃຫ້ DB ດັບ
             docker pull ghcr.io/toninpaserd12345-ship-it/meta-super-app/backend:latest
-            docker-compose -f docker-compose.prod.yml up -d
+            docker-compose -p meta-super-app -f docker-compose.prod.yml up -d
             
