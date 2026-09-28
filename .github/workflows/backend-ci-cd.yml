@@ -125,6 +125,6 @@ jobs:
             
             # ດຶງ Image ໃໝ່ ແລະ ລັນທັງ Database ແລະ Backend ພ້ອມກັນດ້ວຍ Docker Compose
             docker pull ghcr.io/toninpaserd12345-ship-it/meta-super-app/backend:latest
-            docker compose -f docker-compose.prod.yml down
-            docker compose -f docker-compose.prod.yml up -d
+            docker-compose -f docker-compose.prod.yml down
+            docker-compose -f docker-compose.prod.yml up -d
             
