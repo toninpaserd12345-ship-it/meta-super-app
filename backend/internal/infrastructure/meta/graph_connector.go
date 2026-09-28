@@ -1,6 +1,7 @@
 package meta
 
 import (
+	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/rand"
@@ -196,7 +197,13 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 	if event.Object != "page" {
 		return errors.New("unsupported webhook object")
 	}
-	slog.Info("Webhook received", "object", event.Object, "body", string(body))
+	slog.Info("Webhook received from Meta:")
+	var prettyJSON bytes.Buffer
+	if err := json.Indent(&prettyJSON, body, "", "  "); err == nil {
+		fmt.Println(prettyJSON.String())
+	} else {
+		fmt.Println(string(body))
+	}
 	digest := sha256.Sum256(body)
 	key := hex.EncodeToString(digest[:])
 	g.mu.Lock()
