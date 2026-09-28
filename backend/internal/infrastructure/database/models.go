@@ -48,6 +48,23 @@ type PlanModel struct {
 	UpdatedAt  time.Time
 }
 
+type ReplySetModel struct {
+	ID        string           `gorm:"type:uuid;primaryKey"`
+	AccountID string           `gorm:"type:uuid;not null;index"`
+	Name      string           `gorm:"size:255;not null"`
+	Items     []ReplyItemModel `gorm:"foreignKey:ReplySetID;constraint:OnDelete:CASCADE"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+type ReplyItemModel struct {
+	ID         string `gorm:"type:uuid;primaryKey"`
+	ReplySetID string `gorm:"type:uuid;not null;index"`
+	Type       string `gorm:"size:20;not null"`   // "text", "image", "video", "audio"
+	Content    string `gorm:"type:text;not null"` // Text message OR URL of the media
+	OrderIndex int    `gorm:"not null"`           // Used for sorting front/back
+}
+
 type SubscriptionModel struct {
 	ID               string       `gorm:"type:uuid;primaryKey"`
 	AccountID        string       `gorm:"type:uuid;uniqueIndex;not null"`

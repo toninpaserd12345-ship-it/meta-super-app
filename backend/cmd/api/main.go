@@ -29,6 +29,7 @@ func main() {
 	var users domain.UserRepository
 	var accounts domain.AccountRepository
 	var billingRepo domain.BillingRepository
+	var replyRepo domain.ReplyRepository
 	if cfg.StorageDriver == "postgres" {
 		db, openErr := database.Open(cfg.DatabaseURL)
 		if openErr != nil {
@@ -50,7 +51,7 @@ func main() {
 			os.Exit(1)
 		}
 		repo := repository.NewGorm(db)
-		users, accounts, billingRepo = repo, repo, repo
+		users, accounts, billingRepo, replyRepo = repo, repo, repo, repo
 	} else {
 		mockPassword := cfg.SeedAdminPassword
 		if mockPassword == "" {
@@ -62,7 +63,7 @@ func main() {
 			os.Exit(1)
 		}
 		repo := repository.NewMemory(hash)
-		users, accounts, billingRepo = repo, repo, repo
+		users, accounts, billingRepo, replyRepo = repo, repo, repo, repo
 	}
 	tokens := security.NewJWT(cfg.JWTSecret, cfg.JWTIssuer, cfg.AccessTokenTTL)
 	auth := usecase.NewAuth(users, accounts, passwords, tokens)
@@ -84,7 +85,10 @@ func main() {
 	}
 	storageUseCase := usecase.NewStorageUseCase(storageRepo)
 
-	app := httpx.NewHandler(auth, meta, team, billing, storageUseCase, tokens, metaMode, cfg.MetaFrontendRedirect, "00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002").App()
+	// Initialize Reply System
+	replyUseCase := usecase.NewReply(replyRepo)
+
+	app := httpx.NewHandler(auth, meta, team, billing, storageUseCase, replyUseCase, tokens, metaMode, cfg.MetaFrontendRedirect, "00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002").App()
 	go func() {
 		slog.Info("Fiber API listening", "address", cfg.HTTPAddr, "environment", cfg.Environment, "storage", cfg.StorageDriver, "meta", metaMode)
 		if err := app.Listen(cfg.HTTPAddr); err != nil {

@@ -25,6 +25,7 @@ type Handler struct {
 	team                                        *usecase.Team
 	billing                                     *usecase.Billing
 	Storage                                     *usecase.StorageUseCase
+	Reply                                       *usecase.Reply
 	tokens                                      domain.TokenService
 	metaMode, metaFrontendRedirect              string
 	facebookLoginUserID, facebookLoginAccountID string
@@ -37,8 +38,8 @@ type loginTicket struct {
 	ExpiresAt time.Time
 }
 
-func NewHandler(auth *usecase.Auth, meta *usecase.Meta, team *usecase.Team, billing *usecase.Billing, storage *usecase.StorageUseCase, tokens domain.TokenService, metaMode, metaFrontendRedirect, facebookLoginUserID, facebookLoginAccountID string) *Handler {
-	return &Handler{auth: auth, meta: meta, team: team, billing: billing, Storage: storage, tokens: tokens, metaMode: metaMode, metaFrontendRedirect: metaFrontendRedirect, facebookLoginUserID: facebookLoginUserID, facebookLoginAccountID: facebookLoginAccountID, tickets: make(map[string]loginTicket)}
+func NewHandler(auth *usecase.Auth, meta *usecase.Meta, team *usecase.Team, billing *usecase.Billing, storage *usecase.StorageUseCase, reply *usecase.Reply, tokens domain.TokenService, metaMode, metaFrontendRedirect, facebookLoginUserID, facebookLoginAccountID string) *Handler {
+	return &Handler{auth: auth, meta: meta, team: team, billing: billing, Storage: storage, Reply: reply, tokens: tokens, metaMode: metaMode, metaFrontendRedirect: metaFrontendRedirect, facebookLoginUserID: facebookLoginUserID, facebookLoginAccountID: facebookLoginAccountID, tickets: make(map[string]loginTicket)}
 }
 
 func (h *Handler) App() *fiber.App {
@@ -61,6 +62,14 @@ func (h *Handler) App() *fiber.App {
 	
 	// Storage
 	auth.Post("/api/v1/storage/upload", h.UploadFile)
+	
+	// Quick Replies
+	auth.Get("/api/v1/replies", h.GetReplySets)
+	auth.Get("/api/v1/replies/:id", h.GetReplySet)
+	auth.Post("/api/v1/replies", h.CreateReplySet)
+	auth.Put("/api/v1/replies/:id", h.UpdateReplySet)
+	auth.Delete("/api/v1/replies/:id", h.DeleteReplySet)
+	auth.Put("/api/v1/replies/:id/items", h.UpdateReplyItems)
 
 	auth.Get("/api/v1/meta/pages", requireAccount(h.auth, domain.ClaimPagesRead), h.metaPages)
 	auth.Post("/api/v1/meta/oauth/start", requireAccount(h.auth, domain.ClaimPagesConnect), h.startMetaOAuth)
