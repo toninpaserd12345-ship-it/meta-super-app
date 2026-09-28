@@ -125,12 +125,6 @@ jobs:
             
             # ດຶງ Image ໃໝ່ ແລະ ລັນທັງ Database ແລະ Backend ພ້ອມກັນດ້ວຍ Docker Compose
             docker pull ghcr.io/toninpaserd12345-ship-it/meta-super-app/backend:latest
+            docker compose -f docker-compose.prod.yml down
+            docker compose -f docker-compose.prod.yml up -d
             
-            # Export ຕົວປ່ຽນ GITHUB_REPOSITORY ເພື່ອໃຫ້ docker-compose ໃຊ້ໄດ້
-            export GITHUB_REPOSITORY=meta-super-app
-            
-            if docker compose version > /dev/null 2>&1; then
-              docker compose -f docker-compose.prod.yml up -d
-            else
-              docker-compose -f docker-compose.prod.yml up -d
-            fi
