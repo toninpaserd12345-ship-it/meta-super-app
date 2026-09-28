@@ -24,6 +24,7 @@ type Handler struct {
 	meta                                        *usecase.Meta
 	team                                        *usecase.Team
 	billing                                     *usecase.Billing
+	Storage                                     *usecase.StorageUseCase
 	tokens                                      domain.TokenService
 	metaMode, metaFrontendRedirect              string
 	facebookLoginUserID, facebookLoginAccountID string
@@ -36,8 +37,8 @@ type loginTicket struct {
 	ExpiresAt time.Time
 }
 
-func NewHandler(auth *usecase.Auth, meta *usecase.Meta, team *usecase.Team, billing *usecase.Billing, tokens domain.TokenService, metaMode, metaFrontendRedirect, facebookLoginUserID, facebookLoginAccountID string) *Handler {
-	return &Handler{auth: auth, meta: meta, team: team, billing: billing, tokens: tokens, metaMode: metaMode, metaFrontendRedirect: metaFrontendRedirect, facebookLoginUserID: facebookLoginUserID, facebookLoginAccountID: facebookLoginAccountID, tickets: make(map[string]loginTicket)}
+func NewHandler(auth *usecase.Auth, meta *usecase.Meta, team *usecase.Team, billing *usecase.Billing, storage *usecase.StorageUseCase, tokens domain.TokenService, metaMode, metaFrontendRedirect, facebookLoginUserID, facebookLoginAccountID string) *Handler {
+	return &Handler{auth: auth, meta: meta, team: team, billing: billing, Storage: storage, tokens: tokens, metaMode: metaMode, metaFrontendRedirect: metaFrontendRedirect, facebookLoginUserID: facebookLoginUserID, facebookLoginAccountID: facebookLoginAccountID, tickets: make(map[string]loginTicket)}
 }
 
 func (h *Handler) App() *fiber.App {
@@ -57,6 +58,10 @@ func (h *Handler) App() *fiber.App {
 	auth.Get("/auth/me", h.me)
 	auth.Get("/api/v1/accounts", h.accounts)
 	auth.Get("/api/v1/dashboard", requireAccount(h.auth, "dashboard:read"), h.dashboard)
+	
+	// Storage
+	auth.Post("/api/v1/storage/upload", h.UploadFile)
+
 	auth.Get("/api/v1/meta/pages", requireAccount(h.auth, domain.ClaimPagesRead), h.metaPages)
 	auth.Post("/api/v1/meta/oauth/start", requireAccount(h.auth, domain.ClaimPagesConnect), h.startMetaOAuth)
 	auth.Post("/api/v1/meta/pages/connect", requireAccount(h.auth, domain.ClaimPagesConnect), h.connectMetaPage)

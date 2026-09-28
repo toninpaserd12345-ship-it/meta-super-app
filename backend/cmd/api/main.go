@@ -15,6 +15,7 @@ import (
 	metainfra "github.com/meta-super-app/backend/internal/infrastructure/meta"
 	"github.com/meta-super-app/backend/internal/infrastructure/repository"
 	"github.com/meta-super-app/backend/internal/infrastructure/security"
+	"github.com/meta-super-app/backend/internal/infrastructure/storage"
 	"github.com/meta-super-app/backend/internal/usecase"
 )
 
@@ -74,7 +75,16 @@ func main() {
 	meta := usecase.NewMeta(metaConnector)
 	team := usecase.NewTeam(accounts, users, passwords)
 	billing := usecase.NewBilling(billingRepo)
-	app := httpx.NewHandler(auth, meta, team, billing, tokens, metaMode, cfg.MetaFrontendRedirect, "00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002").App()
+	
+	// Initialize Storage (R2)
+	ctxR2 := context.Background()
+	storageRepo, err := storage.NewR2StorageService(ctxR2, cfg.R2AccountID, cfg.R2AccessKeyID, cfg.R2SecretAccessKey, cfg.R2BucketName, cfg.R2PublicURL)
+	if err != nil {
+		slog.Warn("Storage service not initialized (missing config or error)", "error", err)
+	}
+	storageUseCase := usecase.NewStorageUseCase(storageRepo)
+
+	app := httpx.NewHandler(auth, meta, team, billing, storageUseCase, tokens, metaMode, cfg.MetaFrontendRedirect, "00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002").App()
 	go func() {
 		slog.Info("Fiber API listening", "address", cfg.HTTPAddr, "environment", cfg.Environment, "storage", cfg.StorageDriver, "meta", metaMode)
 		if err := app.Listen(cfg.HTTPAddr); err != nil {
