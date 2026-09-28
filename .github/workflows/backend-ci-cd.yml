@@ -111,7 +111,7 @@ jobs:
             # ດຶງ Docker Image ອັນໃໝ່ລ່າສຸດລົງມາໃນເຊີບເວີ
             docker pull ghcr.io/${{ github.repository }}/backend:latest
             
-            # ຖ້າທ່ານໃຊ້ docker-compose.yml ເທິງ Droplet ໃຫ້ໃຊ້ຄຳສັ່ງລຸ່ມນີ້ (ລຶບ # ອອກ)
+            # ຖ້າທ່ານໃຊ້ docker-compose.yml ເທິງ Droplet ໃຫ້ໃຊ້ຄຳສັ່ງລຸ່ມນີ້ (ລຶບ # ອອກ) depending on your setup:
             # cd /path/to/your/project && docker compose up -d api
             
             # ຫຼື ຖ້າລັນ Docker ແບບທຳມະດາ: (ປິດໂຕເກົ່າ, ລຶບຖິ້ມ, ແລ້ວລັນໂຕໃໝ່ຂຶ້ນມາແທນ)
