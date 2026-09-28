@@ -123,8 +123,7 @@ jobs:
             # ເຂົ້າໄປທີ່ໂຟນເດີໂປຣເຈັກ (ທີ່ເຮົາຫາກໍ Copy ໄຟລ໌ໄປໄວ້)
             cd meta-super-app
             
-            # ດຶງ Image ໃໝ່ ແລະ ລັນທັງ Database ແລະ Backend ພ້ອມກັນດ້ວຍ Docker Compose
+            # ດຶງ Image ໃໝ່ ແລະ ສັ່ງອັບເດດສະເພາະ Container ທີ່ມີການປ່ຽນແປງ (Backend) ໂດຍບໍ່ເຮັດໃຫ້ DB ດັບ
             docker pull ghcr.io/toninpaserd12345-ship-it/meta-super-app/backend:latest
-            docker-compose -f docker-compose.prod.yml down
             docker-compose -f docker-compose.prod.yml up -d
             
