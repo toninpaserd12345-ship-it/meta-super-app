@@ -15,6 +15,8 @@ const notice = ref('')
 const noticeType = ref<'success' | 'error'>('success')
 const form = reactive<Product>({ id: '', name: '', price: '', description: '', imageUrl: '' })
 
+const fileInput = ref<HTMLInputElement>()
+
 function openCreate() {
   Object.assign(form, { id: '', name: '', price: '', description: '', imageUrl: '' })
   dialog.value = true
@@ -35,6 +37,7 @@ async function uploadProductImage(event: Event) {
   const input = event.target as HTMLInputElement
   if (!input.files?.length) return
   const file = input.files[0]
+  if (!file) return
   uploading.value = true
   notice.value = ''
   try {
@@ -111,7 +114,7 @@ async function saveProduct() {
             <v-progress-circular v-if="uploading" indeterminate color="primary" class="upload-loader"/>
           </div>
           <div class="upload-actions">
-            <v-btn variant="outlined" size="small" prepend-icon="mdi-upload" :loading="uploading" @click="$refs.fileInput.click()">Upload image</v-btn>
+            <v-btn variant="outlined" size="small" prepend-icon="mdi-upload" :loading="uploading" @click="fileInput?.click()">Upload image</v-btn>
             <input ref="fileInput" type="file" accept="image/*" hidden @change="uploadProductImage">
             <div class="text-caption text-grey mt-1">Or paste a URL below:</div>
           </div>
