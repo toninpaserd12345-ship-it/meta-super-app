@@ -27,9 +27,12 @@ services:
       - R2_PUBLIC_URL=${R2_PUBLIC_URL}
     ports:
       - "8080:8080"
+    volumes:
+      - api_data:/data
     depends_on:
       postgres:
         condition: service_healthy
 
 volumes:
   postgres_data:
+  api_data:
