@@ -13,7 +13,7 @@ const items = computed(() => appNavigation.filter(item => !item.claim || can(ite
         <v-icon :icon="item.icon" size="21"/><span>{{ item.label }}</span>
       </NuxtLink>
     </nav>
-    <div class="version-badge">Version 1.0.2 (New UI)</div>
+    <div class="version-badge">Version 1.0.3 (New UI)</div>
     <button class="signout" @click="logout"><v-icon icon="mdi-logout" size="20"/><span>Sign out</span></button>
   </aside>
 </template>
