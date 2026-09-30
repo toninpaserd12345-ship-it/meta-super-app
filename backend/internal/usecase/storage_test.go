@@ -29,6 +29,14 @@ func (f *fakeStorageService) DeleteFile(_ context.Context, fileURL string) error
 	return nil
 }
 
+func (f *fakeStorageService) GetPublicURL(path string) string {
+	return "https://cdn.example.com/" + path
+}
+
+func (f *fakeStorageService) StripPublicURL(fullURL string) string {
+	return strings.TrimPrefix(fullURL, "https://cdn.example.com/")
+}
+
 func TestStorageUseCaseWithoutStorageReturnsSafeErrors(t *testing.T) {
 	service := NewStorageUseCase(nil)
 
