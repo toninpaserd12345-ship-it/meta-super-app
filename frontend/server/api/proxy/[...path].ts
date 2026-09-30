@@ -11,6 +11,12 @@ export default defineEventHandler(async (event) => {
     const context = await getAuthContext(event)
     const requiredClaim = claimForRequest(path, event.method)
     if (requiredClaim) requireClaim(context, requiredClaim)
+
+    // Disable caching for proxy requests
+    setHeader(event, 'Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
+    setHeader(event, 'Pragma', 'no-cache')
+    setHeader(event, 'Expires', '0')
+
     const contentType = getHeader(event, 'content-type') || ''
     const requestBody = ['GET', 'HEAD'].includes(event.method)
       ? undefined
