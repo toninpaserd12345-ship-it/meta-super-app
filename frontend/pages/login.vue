@@ -33,7 +33,7 @@ async function loginWithFacebook(){facebookLoading.value=true;errorMessage.value
           <v-btn color="#1877F2" size="x-large" block prepend-icon="mdi-facebook" :loading="facebookLoading" class="facebook-btn" @click="loginWithFacebook">Continue with Facebook</v-btn>
           <div class="facebook-note"><v-icon icon="mdi-shield-lock-outline" size="18"/><span>We never receive your Facebook password. Authentication is handled securely by Meta.</span></div>
         </div>
-        <footer>© {{ new Date().getFullYear() }} Meta Super App · Privacy · Security · <strong>Version 1.0.1 (New UI)</strong></footer>
+        <footer>© {{ new Date().getFullYear() }} Meta Super App · Privacy · Security · <strong>Version 1.0.2 (New UI)</strong></footer>
       </section>
     </section>
   </main>
