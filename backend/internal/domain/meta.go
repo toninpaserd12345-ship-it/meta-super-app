@@ -86,6 +86,12 @@ type ReplyStep struct {
 	Enabled bool   `json:"enabled"`
 }
 
+type AutomationProvider interface {
+	FindActiveRuleForTrigger(ctx context.Context, pageID, triggerType, triggerValue string) (*AutomationRule, error)
+	GetKeywordRules(ctx context.Context, pageID string) ([]AutomationRule, error)
+	GetReplySetItems(ctx context.Context, replySetID string, accountID string) ([]ReplyItem, error)
+}
+
 type MetaConnector interface {
 	AuthorizationURL(context.Context, string, string, []string) (string, error)
 	CompleteAuthorization(context.Context, string, string) (*MetaOAuthResult, error)
@@ -105,4 +111,5 @@ type MetaConnector interface {
 	SaveReplyFlow(context.Context, string, string, ReplyFlow) (*ReplyFlow, error)
 	VerifyWebhook(string) bool
 	ReceiveWebhook(context.Context, []byte, string) error
+	SetAutomationProvider(AutomationProvider)
 }

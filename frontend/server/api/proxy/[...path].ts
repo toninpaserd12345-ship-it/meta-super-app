@@ -11,16 +11,23 @@ export default defineEventHandler(async (event) => {
     const context = await getAuthContext(event)
     const requiredClaim = claimForRequest(path, event.method)
     if (requiredClaim) requireClaim(context, requiredClaim)
+    const contentType = getHeader(event, 'content-type') || ''
+    const requestBody = ['GET', 'HEAD'].includes(event.method)
+      ? undefined
+      : contentType.startsWith('multipart/form-data')
+        ? await readRawBody(event, false)
+        : await readBody(event)
     // A standalone client avoids Nitro trying to resolve the dynamic upstream
     // URL against every locally typed server route in development mode.
     return await ofetch(getUpstreamUrl(event, path), {
       method: event.method as any,
       query: getQuery(event),
-      body: ['GET', 'HEAD'].includes(event.method) ? undefined : await readBody(event),
+      body: requestBody,
       headers: {
         Authorization: `Bearer ${getSessionToken(event)}`,
         'X-Account-ID': context.activeAccount.id,
         Accept: 'application/json',
+        ...(contentType ? { 'Content-Type': contentType } : {}),
       },
       timeout: 15_000,
     })

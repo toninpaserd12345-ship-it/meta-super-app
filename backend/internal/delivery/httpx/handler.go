@@ -26,6 +26,7 @@ type Handler struct {
 	billing                                     *usecase.Billing
 	Storage                                     *usecase.StorageUseCase
 	Reply                                       *usecase.Reply
+	Automation                                  *usecase.Automation
 	tokens                                      domain.TokenService
 	metaMode, metaFrontendRedirect              string
 	facebookLoginUserID, facebookLoginAccountID string
@@ -38,14 +39,16 @@ type loginTicket struct {
 	ExpiresAt time.Time
 }
 
-func NewHandler(auth *usecase.Auth, meta *usecase.Meta, team *usecase.Team, billing *usecase.Billing, storage *usecase.StorageUseCase, reply *usecase.Reply, tokens domain.TokenService, metaMode, metaFrontendRedirect, facebookLoginUserID, facebookLoginAccountID string) *Handler {
-	return &Handler{auth: auth, meta: meta, team: team, billing: billing, Storage: storage, Reply: reply, tokens: tokens, metaMode: metaMode, metaFrontendRedirect: metaFrontendRedirect, facebookLoginUserID: facebookLoginUserID, facebookLoginAccountID: facebookLoginAccountID, tickets: make(map[string]loginTicket)}
+func NewHandler(auth *usecase.Auth, meta *usecase.Meta, team *usecase.Team, billing *usecase.Billing, storage *usecase.StorageUseCase, reply *usecase.Reply, automation *usecase.Automation, tokens domain.TokenService, metaMode, metaFrontendRedirect, facebookLoginUserID, facebookLoginAccountID string) *Handler {
+	return &Handler{auth: auth, meta: meta, team: team, billing: billing, Storage: storage, Reply: reply, Automation: automation, tokens: tokens, metaMode: metaMode, metaFrontendRedirect: metaFrontendRedirect, facebookLoginUserID: facebookLoginUserID, facebookLoginAccountID: facebookLoginAccountID, tickets: make(map[string]loginTicket)}
 }
 
 func (h *Handler) App() *fiber.App {
 	app := fiber.New(fiber.Config{AppName: "Meta Super App API", ErrorHandler: errorHandler, BodyLimit: 1 << 20, ReadTimeout: 20_000_000_000, WriteTimeout: 20_000_000_000, IdleTimeout: 60_000_000_000})
 	app.Use(logger.New(logger.Config{
-		Format: "========== [${time}] ==========\n${ip} | ${status} | ${latency} | ${method} | ${path}\nQuery Params: ${queryParams}\nRequest Headers: ${reqHeaders}\nRequest Body: ${body}\nResponse Headers: ${resHeaders}\nResponse Body: ${resBody}\n===================================\n",
+		// Never log request/response bodies or authorization headers. Login bodies,
+		// JWTs, Meta access tokens and webhook payloads may contain secrets.
+		Format: "${time} ${ip} ${status} ${latency} ${method} ${path}\n",
 	}), recover.New(), requestid.New(), responsetime.New(), helmet.New())
 	app.Use(func(c fiber.Ctx) error { c.Set(fiber.HeaderCacheControl, "no-store"); return c.Next() })
 	app.Get("/health", func(c fiber.Ctx) error { return c.JSON(fiber.Map{"status": "ok"}) })
@@ -59,17 +62,23 @@ func (h *Handler) App() *fiber.App {
 	auth.Get("/auth/me", h.me)
 	auth.Get("/api/v1/accounts", h.accounts)
 	auth.Get("/api/v1/dashboard", requireAccount(h.auth, "dashboard:read"), h.dashboard)
-	
+
 	// Storage
-	auth.Post("/api/v1/storage/upload", h.UploadFile)
-	
+	auth.Post("/api/v1/storage/upload", requireAccount(h.auth, domain.ClaimPagesConnect), h.UploadFile)
+
 	// Quick Replies
-	auth.Get("/api/v1/replies", h.GetReplySets)
-	auth.Get("/api/v1/replies/:id", h.GetReplySet)
-	auth.Post("/api/v1/replies", h.CreateReplySet)
-	auth.Put("/api/v1/replies/:id", h.UpdateReplySet)
-	auth.Delete("/api/v1/replies/:id", h.DeleteReplySet)
-	auth.Put("/api/v1/replies/:id/items", h.UpdateReplyItems)
+	auth.Get("/api/v1/replies", requireAccount(h.auth, domain.ClaimPagesRead), h.GetReplySets)
+	auth.Get("/api/v1/replies/:id", requireAccount(h.auth, domain.ClaimPagesRead), h.GetReplySet)
+	auth.Post("/api/v1/replies", requireAccount(h.auth, domain.ClaimPagesConnect), h.CreateReplySet)
+	auth.Put("/api/v1/replies/:id", requireAccount(h.auth, domain.ClaimPagesConnect), h.UpdateReplySet)
+	auth.Delete("/api/v1/replies/:id", requireAccount(h.auth, domain.ClaimPagesConnect), h.DeleteReplySet)
+	auth.Put("/api/v1/replies/:id/items", requireAccount(h.auth, domain.ClaimPagesConnect), h.UpdateReplyItems)
+
+	// Post/Ad Automation
+	auth.Get("/api/v1/automation/rules", requireAccount(h.auth, domain.ClaimPagesRead), h.GetAutomationRules)
+	auth.Post("/api/v1/automation/rules", requireAccount(h.auth, domain.ClaimPagesConnect), h.CreateAutomationRule)
+	auth.Put("/api/v1/automation/rules/:id", requireAccount(h.auth, domain.ClaimPagesConnect), h.UpdateAutomationRule)
+	auth.Delete("/api/v1/automation/rules/:id", requireAccount(h.auth, domain.ClaimPagesConnect), h.DeleteAutomationRule)
 
 	auth.Get("/api/v1/meta/pages", requireAccount(h.auth, domain.ClaimPagesRead), h.metaPages)
 	auth.Post("/api/v1/meta/oauth/start", requireAccount(h.auth, domain.ClaimPagesConnect), h.startMetaOAuth)
@@ -86,18 +95,18 @@ func (h *Handler) App() *fiber.App {
 	auth.Post("/api/v1/products", requireAccount(h.auth, domain.ClaimPagesConnect), h.saveProduct)
 	auth.Get("/api/v1/reply-flows", requireAccount(h.auth, domain.ClaimPagesRead), h.replyFlows)
 	auth.Post("/api/v1/reply-flows", requireAccount(h.auth, domain.ClaimPagesConnect), h.saveReplyFlow)
-	
+
 	// Team Management
 	auth.Get("/api/v1/team", requireAccount(h.auth, "users:read"), h.teamList)
 	auth.Post("/api/v1/team/invite", requireAccount(h.auth, "users:invite"), h.teamInvite)
 	auth.Put("/api/v1/team/:userID", requireAccount(h.auth, "users:update"), h.teamUpdateRole)
 	auth.Delete("/api/v1/team/:userID", requireAccount(h.auth, "users:remove"), h.teamRemove)
-	
+
 	// Billing
 	auth.Get("/api/v1/billing/plans", requireAccount(h.auth, "dashboard:read"), h.billingPlans)
 	auth.Get("/api/v1/billing/subscription", requireAccount(h.auth, "billing:read"), h.billingSubscription)
 	auth.Post("/api/v1/billing/checkout", requireAccount(h.auth, "billing:read"), h.billingCheckout)
-	
+
 	return app
 }
 

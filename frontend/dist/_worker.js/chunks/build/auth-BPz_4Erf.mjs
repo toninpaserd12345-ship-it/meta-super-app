@@ -1,0 +1,2 @@
+import{d as r,e as s,n as t}from"../virtual/entry.mjs";import{u as e}from"./useAuth-DfJpjv-W.mjs";import"../nitro/nitro.mjs";import"../routes/renderer.mjs";import"../_/shared.esm-bundler.mjs";import"./asyncData-D6B9PnWz.mjs";var a=r(async()=>{let r,a;const{user:m,fetchUser:o}=e();if(m.value||([r,a]=s(()=>o()),r=await r,a()),!m.value)return t("/login")});export{a as default};
+//# sourceMappingURL=auth-BPz_4Erf.mjs.map

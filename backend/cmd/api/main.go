@@ -30,6 +30,7 @@ func main() {
 	var accounts domain.AccountRepository
 	var billingRepo domain.BillingRepository
 	var replyRepo domain.ReplyRepository
+	var automationRepo domain.AutomationRepository
 	if cfg.StorageDriver == "postgres" {
 		db, openErr := database.Open(cfg.DatabaseURL)
 		if openErr != nil {
@@ -51,7 +52,7 @@ func main() {
 			os.Exit(1)
 		}
 		repo := repository.NewGorm(db)
-		users, accounts, billingRepo, replyRepo = repo, repo, repo, repo
+		users, accounts, billingRepo, replyRepo, automationRepo = repo, repo, repo, repo, repo
 	} else {
 		mockPassword := cfg.SeedAdminPassword
 		if mockPassword == "" {
@@ -63,7 +64,7 @@ func main() {
 			os.Exit(1)
 		}
 		repo := repository.NewMemory(hash)
-		users, accounts, billingRepo, replyRepo = repo, repo, repo, repo
+		users, accounts, billingRepo, replyRepo, automationRepo = repo, repo, repo, repo, repo
 	}
 	tokens := security.NewJWT(cfg.JWTSecret, cfg.JWTIssuer, cfg.AccessTokenTTL)
 	auth := usecase.NewAuth(users, accounts, passwords, tokens)
@@ -76,7 +77,7 @@ func main() {
 	meta := usecase.NewMeta(metaConnector)
 	team := usecase.NewTeam(accounts, users, passwords)
 	billing := usecase.NewBilling(billingRepo)
-	
+
 	// Initialize Storage (R2)
 	ctxR2 := context.Background()
 	storageRepo, err := storage.NewR2StorageService(ctxR2, cfg.R2AccountID, cfg.R2AccessKeyID, cfg.R2SecretAccessKey, cfg.R2BucketName, cfg.R2PublicURL)
@@ -88,7 +89,16 @@ func main() {
 	// Initialize Reply System
 	replyUseCase := usecase.NewReply(replyRepo)
 
-	app := httpx.NewHandler(auth, meta, team, billing, storageUseCase, replyUseCase, tokens, metaMode, cfg.MetaFrontendRedirect, "00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002").App()
+	// Initialize Automation System
+	automationUseCase := usecase.NewAutomation(automationRepo)
+
+	appProvider := &appAutomationProvider{
+		automation: automationUseCase,
+		reply:      replyUseCase,
+	}
+	metaConnector.SetAutomationProvider(appProvider)
+
+	app := httpx.NewHandler(auth, meta, team, billing, storageUseCase, replyUseCase, automationUseCase, tokens, metaMode, cfg.MetaFrontendRedirect, "00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002").App()
 	go func() {
 		slog.Info("Fiber API listening", "address", cfg.HTTPAddr, "environment", cfg.Environment, "storage", cfg.StorageDriver, "meta", metaMode)
 		if err := app.Listen(cfg.HTTPAddr); err != nil {
@@ -110,4 +120,21 @@ func main() {
 	case <-ctx.Done():
 		slog.Error("shutdown timed out")
 	}
+}
+
+type appAutomationProvider struct {
+	automation *usecase.Automation
+	reply      *usecase.Reply
+}
+
+func (p *appAutomationProvider) FindActiveRuleForTrigger(ctx context.Context, pageID, triggerType, triggerValue string) (*domain.AutomationRule, error) {
+	return p.automation.FindActiveRuleForTrigger(ctx, pageID, triggerType, triggerValue)
+}
+
+func (p *appAutomationProvider) GetKeywordRules(ctx context.Context, pageID string) ([]domain.AutomationRule, error) {
+	return p.automation.GetKeywordRules(ctx, pageID)
+}
+
+func (p *appAutomationProvider) GetReplySetItems(ctx context.Context, replySetID string, accountID string) ([]domain.ReplyItem, error) {
+	return p.reply.GetReplySetItems(ctx, replySetID, accountID)
 }

@@ -22,6 +22,11 @@ type MockConnector struct {
 	bindings   map[string]map[string]domain.ProductBinding
 	products   map[string]map[string]domain.Product
 	replyFlows map[string]map[string]domain.ReplyFlow
+	automation domain.AutomationProvider
+}
+
+func (m *MockConnector) SetAutomationProvider(p domain.AutomationProvider) {
+	m.automation = p
 }
 
 func NewMockConnector() *MockConnector {

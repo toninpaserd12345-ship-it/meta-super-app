@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const { fetchApi } = useApi()
+const fetchApi = (url: string, options?: any) => $fetch(url, options)
 
 const members = ref<any[]>([])
 const loading = ref(true)
@@ -13,7 +13,7 @@ const inviteResult = ref<any>(null)
 const loadMembers = async () => {
   loading.value = true
   try {
-    members.value = await fetchApi('/api/v1/team')
+    members.value = await fetchApi('/api/v1/team') as any[]
   } catch (err: any) {
     console.error(err)
   } finally {

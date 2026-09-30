@@ -10,12 +10,19 @@ type createReplySetRequest struct {
 	Name string `json:"name"`
 }
 
+type updateReplyItemRequest struct {
+	Type       string `json:"type"`
+	Content    string `json:"content"`
+	OrderIndex int    `json:"orderIndex"`
+	IsEnabled  *bool  `json:"isEnabled"`
+}
+
 type updateReplyItemsRequest struct {
-	Items []domain.ReplyItem `json:"items"`
+	Items []updateReplyItemRequest `json:"items"`
 }
 
 func (h *Handler) GetReplySets(c fiber.Ctx) error {
-	accountID := c.Locals("account_id").(string)
+	accountID := c.Locals("accountID").(string)
 
 	sets, err := h.Reply.GetSets(c.Context(), accountID)
 	if err != nil {
@@ -26,7 +33,7 @@ func (h *Handler) GetReplySets(c fiber.Ctx) error {
 }
 
 func (h *Handler) GetReplySet(c fiber.Ctx) error {
-	accountID := c.Locals("account_id").(string)
+	accountID := c.Locals("accountID").(string)
 	setID := c.Params("id")
 
 	set, err := h.Reply.GetSet(c.Context(), setID, accountID)
@@ -38,7 +45,7 @@ func (h *Handler) GetReplySet(c fiber.Ctx) error {
 }
 
 func (h *Handler) CreateReplySet(c fiber.Ctx) error {
-	accountID := c.Locals("account_id").(string)
+	accountID := c.Locals("accountID").(string)
 
 	var req createReplySetRequest
 	if err := c.Bind().JSON(&req); err != nil {
@@ -54,7 +61,7 @@ func (h *Handler) CreateReplySet(c fiber.Ctx) error {
 }
 
 func (h *Handler) UpdateReplySet(c fiber.Ctx) error {
-	accountID := c.Locals("account_id").(string)
+	accountID := c.Locals("accountID").(string)
 	setID := c.Params("id")
 
 	var req createReplySetRequest
@@ -71,10 +78,21 @@ func (h *Handler) UpdateReplySet(c fiber.Ctx) error {
 }
 
 func (h *Handler) DeleteReplySet(c fiber.Ctx) error {
-	accountID := c.Locals("account_id").(string)
+	accountID := c.Locals("accountID").(string)
 	setID := c.Params("id")
+	rules, err := h.Automation.GetRules(c.Context(), accountID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	for _, rule := range rules {
+		if rule.ReplySetID == setID {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+				"error": "This Reply Set is used by an Auto Reply. Remove that automation before deleting the set.",
+			})
+		}
+	}
 
-	err := h.Reply.DeleteSet(c.Context(), setID, accountID)
+	err = h.Reply.DeleteSet(c.Context(), setID, accountID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -83,7 +101,7 @@ func (h *Handler) DeleteReplySet(c fiber.Ctx) error {
 }
 
 func (h *Handler) UpdateReplyItems(c fiber.Ctx) error {
-	accountID := c.Locals("account_id").(string)
+	accountID := c.Locals("accountID").(string)
 	setID := c.Params("id")
 
 	var req updateReplyItemsRequest
@@ -91,7 +109,41 @@ func (h *Handler) UpdateReplyItems(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
-	err := h.Reply.UpdateItems(c.Context(), setID, accountID, req.Items)
+	items := make([]domain.ReplyItem, len(req.Items))
+	for index, item := range req.Items {
+		enabled := true
+		if item.IsEnabled != nil {
+			enabled = *item.IsEnabled
+		}
+		items[index] = domain.ReplyItem{
+			Type:       item.Type,
+			Content:    item.Content,
+			OrderIndex: item.OrderIndex,
+			IsEnabled:  enabled,
+		}
+	}
+	hasEnabledItem := false
+	for _, item := range items {
+		if item.IsEnabled {
+			hasEnabledItem = true
+			break
+		}
+	}
+	if !hasEnabledItem {
+		rules, err := h.Automation.GetRules(c.Context(), accountID)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		}
+		for _, rule := range rules {
+			if rule.ReplySetID == setID && rule.IsActive {
+				return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+					"error": "Pause or remove active Auto Replies before disabling every message in this set.",
+				})
+			}
+		}
+	}
+
+	err := h.Reply.UpdateItems(c.Context(), setID, accountID, items)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}

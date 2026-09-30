@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/meta-super-app/backend/internal/domain"
 )
@@ -80,10 +81,18 @@ func (u *Reply) UpdateItems(ctx context.Context, setID string, accountID string,
 		if item.Type != "text" && item.Type != "image" && item.Type != "video" && item.Type != "audio" {
 			return fmt.Errorf("invalid item type at index %d", i)
 		}
-		if item.Content == "" {
+		if item.IsEnabled && strings.TrimSpace(item.Content) == "" {
 			return fmt.Errorf("empty content at index %d", i)
 		}
 	}
 
 	return u.repo.UpdateItems(ctx, setID, items)
+}
+
+func (u *Reply) GetReplySetItems(ctx context.Context, setID string, accountID string) ([]domain.ReplyItem, error) {
+	set, err := u.GetSet(ctx, setID, accountID)
+	if err != nil {
+		return nil, err
+	}
+	return set.Items, nil
 }

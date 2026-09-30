@@ -38,14 +38,14 @@ type MembershipClaimModel struct {
 }
 
 type PlanModel struct {
-	ID         string `gorm:"size:50;primaryKey"` // e.g., "free", "pro"
-	Name       string `gorm:"size:100;not null"`
-	Price      int    // Price in local currency (e.g., LAK) or USD cents
-	MaxUsers   int
-	MaxPages   int
-	IsActive   bool
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	ID        string `gorm:"size:50;primaryKey"` // e.g., "free", "pro"
+	Name      string `gorm:"size:100;not null"`
+	Price     int    // Price in local currency (e.g., LAK) or USD cents
+	MaxUsers  int
+	MaxPages  int
+	IsActive  bool
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 type ReplySetModel struct {
@@ -63,27 +63,43 @@ type ReplyItemModel struct {
 	Type       string `gorm:"size:20;not null"`   // "text", "image", "video", "audio"
 	Content    string `gorm:"type:text;not null"` // Text message OR URL of the media
 	OrderIndex int    `gorm:"not null"`           // Used for sorting front/back
+	IsEnabled  bool   `gorm:"not null;default:true"`
+}
+
+type AutomationRuleModel struct {
+	ID           string `gorm:"type:uuid;primaryKey"`
+	AccountID    string `gorm:"type:uuid;index;not null"`
+	PageID       string `gorm:"index"`
+	TriggerType  string `gorm:"size:50;not null"` // post, ad, keyword
+	TriggerValue string `gorm:"size:255;index"`
+	// ProductID stays nullable in storage for rules created before product-aware
+	// automation existed. The API requires it for every new or updated rule.
+	ProductID  string `gorm:"size:255;index"`
+	ReplySetID string `gorm:"type:uuid;not null"`
+	IsActive   bool   `gorm:"default:true"`
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 }
 
 type SubscriptionModel struct {
-	ID               string       `gorm:"type:uuid;primaryKey"`
-	AccountID        string       `gorm:"type:uuid;uniqueIndex;not null"`
-	PlanID           string       `gorm:"size:50;not null"`
-	Status           string       `gorm:"size:50;not null"` // e.g., "active", "expired", "canceled"
-	CurrentPeriodEnd time.Time    `gorm:"not null"`
-	Plan             PlanModel    `gorm:"foreignKey:PlanID"`
+	ID               string    `gorm:"type:uuid;primaryKey"`
+	AccountID        string    `gorm:"type:uuid;uniqueIndex;not null"`
+	PlanID           string    `gorm:"size:50;not null"`
+	Status           string    `gorm:"size:50;not null"` // e.g., "active", "expired", "canceled"
+	CurrentPeriodEnd time.Time `gorm:"not null"`
+	Plan             PlanModel `gorm:"foreignKey:PlanID"`
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 }
 
 type TransactionModel struct {
-	ID             string            `gorm:"type:uuid;primaryKey"`
-	AccountID      string            `gorm:"type:uuid;not null"`
-	Amount         int               `gorm:"not null"`
-	Currency       string            `gorm:"size:10;not null"`
-	Status         string            `gorm:"size:50;not null"` // e.g., "pending", "completed", "failed"
-	PaymentMethod  string            `gorm:"size:50"`
-	Reference      string            `gorm:"size:255"`         // Transfer ref or Stripe Session ID
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	ID            string `gorm:"type:uuid;primaryKey"`
+	AccountID     string `gorm:"type:uuid;not null"`
+	Amount        int    `gorm:"not null"`
+	Currency      string `gorm:"size:10;not null"`
+	Status        string `gorm:"size:50;not null"` // e.g., "pending", "completed", "failed"
+	PaymentMethod string `gorm:"size:50"`
+	Reference     string `gorm:"size:255"` // Transfer ref or Stripe Session ID
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }

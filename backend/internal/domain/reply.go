@@ -6,20 +6,21 @@ import (
 )
 
 type ReplySet struct {
-	ID        string
-	AccountID string
-	Name      string
-	Items     []ReplyItem
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID        string      `json:"id"`
+	AccountID string      `json:"accountId"`
+	Name      string      `json:"name"`
+	Items     []ReplyItem `json:"items"`
+	CreatedAt time.Time   `json:"createdAt"`
+	UpdatedAt time.Time   `json:"updatedAt"`
 }
 
 type ReplyItem struct {
-	ID         string
-	ReplySetID string
-	Type       string // "text", "image", "video", "audio"
-	Content    string
-	OrderIndex int
+	ID         string `json:"id"`
+	ReplySetID string `json:"replySetId"`
+	Type       string `json:"type"` // "text", "image", "video", "audio"
+	Content    string `json:"content"`
+	OrderIndex int    `json:"orderIndex"`
+	IsEnabled  bool   `json:"isEnabled"`
 }
 
 type ReplyRepository interface {
@@ -28,6 +29,6 @@ type ReplyRepository interface {
 	GetSetByID(ctx context.Context, setID string) (*ReplySet, error)
 	UpdateSet(ctx context.Context, set *ReplySet) error
 	DeleteSet(ctx context.Context, setID string) error
-	
+
 	UpdateItems(ctx context.Context, setID string, items []ReplyItem) error
 }

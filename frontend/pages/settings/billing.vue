@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const { fetchApi } = useApi()
+const fetchApi = (url: string, options?: any) => $fetch(url, options)
 
 const plans = ref<any[]>([])
 const subscription = ref<any>(null)
@@ -17,7 +17,7 @@ const loadBilling = async () => {
       fetchApi('/api/v1/billing/plans'),
       fetchApi('/api/v1/billing/subscription')
     ])
-    plans.value = plansData
+    plans.value = plansData as any[]
     subscription.value = subData
   } catch (err: any) {
     console.error(err)

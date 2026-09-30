@@ -60,6 +60,11 @@ type GraphConnector struct {
 	conversations map[string]string
 	deliverySteps map[string]bool
 	inFlight      map[string]bool
+	automation    domain.AutomationProvider
+}
+
+func (g *GraphConnector) SetAutomationProvider(p domain.AutomationProvider) {
+	g.automation = p
 }
 
 func NewGraphConnector(cfg GraphConfig) *GraphConnector {
@@ -224,26 +229,39 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 			if change.Field != "feed" || change.Value.Item != "comment" || change.Value.Verb != "add" || change.Value.PostID == "" || change.Value.CommentID == "" || change.Value.From.ID == "" {
 				continue
 			}
-			key, seenKey := bindingKey(entry.ID, "post", change.Value.PostID), entry.ID+":"+change.Value.From.ID
+			seenKey := entry.ID + ":" + change.Value.From.ID
+			var rule *domain.AutomationRule
+			if g.automation != nil {
+				rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, "post", change.Value.PostID)
+			}
+			found := rule != nil
+
 			g.mu.Lock()
-			binding, found := g.bindings[key]
-			_, alreadyReplied := g.firstReplies[seenKey]
+			lastReplyTime, alreadyReplied := g.firstReplies[seenKey]
+			isSpamming := false
+			if alreadyReplied {
+				isSpamming = time.Since(lastReplyTime) < 24*time.Hour
+			}
+
 			busy := g.inFlight[seenKey]
-			if found && !alreadyReplied && !busy {
+			if found && !isSpamming && !busy {
 				g.inFlight[seenKey] = true
 			}
 			g.mu.Unlock()
 			page, pageFound := g.findPage(entry.ID)
-			if !found || alreadyReplied || busy || !pageFound {
+			if !found || isSpamming || busy || !pageFound {
 				continue
 			}
-			if !matchesKeywords(change.Value.Message, binding.Keywords) {
-				g.releaseReply(seenKey)
-				continue
+
+			var items []domain.ReplyItem
+			if g.automation != nil {
+				items, _ = g.automation.GetReplySetItems(ctx, rule.ReplySetID, rule.AccountID)
 			}
+			items = g.resolveReplyItems(rule, items)
+
 			texts := []string{}
-			for _, step := range replySteps(binding) {
-				if step.Type == "text" {
+			for _, step := range items {
+				if step.IsEnabled && step.Type == "text" {
 					texts = append(texts, step.Content)
 				}
 			}
@@ -252,6 +270,13 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 				continue
 			}
 			text := strings.Join(texts, "\n\n")
+
+			// Reply to comment publicly
+			if err := g.replyToComment(ctx, page, change.Value.CommentID, text); err != nil {
+				slog.Error("automatic comment reply failed", "page_id", entry.ID, "post_id", change.Value.PostID, "comment_id", change.Value.CommentID, "error", err)
+			}
+
+			// Reply privately
 			if err := g.sendPrivateReply(ctx, page, change.Value.CommentID, text); err != nil {
 				slog.Error("automatic private product reply failed", "page_id", entry.ID, "post_id", change.Value.PostID, "comment_id", change.Value.CommentID, "error", err)
 				g.releaseReply(seenKey)
@@ -289,37 +314,83 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 				resolvedKey = g.conversations[seenKey]
 				g.mu.RUnlock()
 			}
-			if resolvedKey == "" {
+
+			var rule *domain.AutomationRule
+			if g.automation != nil {
+				if ref != nil {
+					// Try fetching by post or ad
+					rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, sourceType, sourceID)
+				} else {
+					// Check for keyword trigger
+					msgText := strings.TrimSpace(message.Message.Text)
+					if msgText != "" {
+						keywordRules, _ := g.automation.GetKeywordRules(ctx, entry.ID)
+						for _, kr := range keywordRules {
+							if matchesKeywords(msgText, []string{kr.TriggerValue}) {
+								rule = &kr
+								break
+							}
+						}
+					}
+				}
+			}
+
+			found := rule != nil
+			if !found && resolvedKey == "" {
 				continue
 			}
+
 			g.mu.Lock()
-			binding, found := g.bindings[resolvedKey]
 			if found && ref != nil {
 				g.conversations[seenKey] = resolvedKey
 			}
-			_, alreadyReplied := g.firstReplies[seenKey]
+			lastReplyTime, alreadyReplied := g.firstReplies[seenKey]
+
+			// For keyword triggers, we only rate-limit to once every 1 minute to avoid spamming
+			// For ad/post triggers (first-message), we rate limit to once every 24 hours.
+			isSpamming := false
+			if alreadyReplied {
+				if rule != nil && rule.TriggerType == "keyword" {
+					isSpamming = time.Since(lastReplyTime) < time.Minute
+				} else {
+					isSpamming = time.Since(lastReplyTime) < 24*time.Hour
+				}
+			}
+
 			busy := g.inFlight[seenKey]
-			if found && !alreadyReplied && !busy {
+			if found && !isSpamming && !busy {
 				g.inFlight[seenKey] = true
 			}
 			g.mu.Unlock()
 			page, pageFound := g.findPage(entry.ID)
-			if !found || alreadyReplied || busy || !pageFound {
+			if !found || isSpamming || busy || !pageFound {
 				continue
 			}
-			if !matchesKeywords(message.Message.Text, binding.Keywords) {
-				g.releaseReply(seenKey)
-				continue
+
+			var items []domain.ReplyItem
+			if g.automation != nil {
+				items, _ = g.automation.GetReplySetItems(ctx, rule.ReplySetID, rule.AccountID)
 			}
+			items = g.resolveReplyItems(rule, items)
+
 			sendFailed := false
-			for index, step := range replySteps(binding) {
-				stepKey := seenKey + ":" + resolvedKey + ":" + step.Code
+			for index, step := range items {
+				if !step.IsEnabled {
+					continue
+				}
+				stepKey := seenKey + ":" + resolvedKey + ":" + step.ID
 				g.mu.RLock()
 				stepDone := g.deliverySteps[stepKey]
 				g.mu.RUnlock()
 				if stepDone {
 					continue
 				}
+
+				// Add a slight delay between sending multiple steps to simulate typing/make it feel natural
+				if index > 0 {
+					time.Sleep(1500 * time.Millisecond)
+				}
+
 				var err error
 				if step.Type == "text" {
 					err = g.sendMessage(ctx, page, message.Sender.ID, step.Content)
@@ -363,6 +434,26 @@ func (g *GraphConnector) releaseReply(seenKey string) {
 	g.mu.Lock()
 	delete(g.inFlight, seenKey)
 	g.mu.Unlock()
+}
+
+func (g *GraphConnector) resolveReplyItems(rule *domain.AutomationRule, items []domain.ReplyItem) []domain.ReplyItem {
+	if rule == nil || rule.ProductID == "" {
+		return append([]domain.ReplyItem(nil), items...)
+	}
+	g.mu.RLock()
+	product, found := g.products[rule.AccountID][rule.ProductID]
+	g.mu.RUnlock()
+	resolved := make([]domain.ReplyItem, len(items))
+	copy(resolved, items)
+	if !found {
+		return resolved
+	}
+	for index := range resolved {
+		resolved[index].Content = strings.ReplaceAll(resolved[index].Content, "{{product.name}}", product.Name)
+		resolved[index].Content = strings.ReplaceAll(resolved[index].Content, "{{product.price}}", product.Price)
+		resolved[index].Content = strings.ReplaceAll(resolved[index].Content, "{{product.description}}", product.Description)
+	}
+	return resolved
 }
 
 func productReply(binding domain.ProductBinding) string {
@@ -1015,6 +1106,32 @@ func (g *GraphConnector) sendMedia(ctx context.Context, page graphPage, recipien
 func (g *GraphConnector) sendPrivateReply(ctx context.Context, page graphPage, commentID, text string) error {
 	form := url.Values{"message": {text}, "access_token": {page.AccessToken}}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://graph.facebook.com/"+g.cfg.Version+"/"+url.PathEscape(commentID)+"/private_replies", strings.NewReader(form.Encode()))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err := g.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return err
+	}
+	var envelope struct {
+		Error *graphError `json:"error"`
+	}
+	_ = json.Unmarshal(body, &envelope)
+	if resp.StatusCode >= 400 || envelope.Error != nil {
+		return graphResponseError(resp.StatusCode, envelope.Error)
+	}
+	return nil
+}
+
+func (g *GraphConnector) replyToComment(ctx context.Context, page graphPage, commentID, text string) error {
+	form := url.Values{"message": {text}, "access_token": {page.AccessToken}}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://graph.facebook.com/"+g.cfg.Version+"/"+url.PathEscape(commentID)+"/comments", strings.NewReader(form.Encode()))
 	if err != nil {
 		return err
 	}

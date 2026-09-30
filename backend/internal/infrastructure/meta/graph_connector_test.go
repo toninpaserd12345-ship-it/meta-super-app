@@ -92,3 +92,33 @@ func TestReplyStepsUsesProductFallback(t *testing.T) {
 		t.Fatalf("unexpected fallback: %#v", got)
 	}
 }
+
+func TestResolveReplyItemsExpandsProductVariablesWithoutMutatingSource(t *testing.T) {
+	connector := NewGraphConnector(GraphConfig{})
+	connector.products["account-1"] = map[string]domain.Product{
+		"product-1": {
+			ID:          "product-1",
+			Name:        "Durian A",
+			Price:       "250,000 LAK",
+			Description: "Fresh today",
+		},
+	}
+	rule := &domain.AutomationRule{AccountID: "account-1", ProductID: "product-1"}
+	items := []domain.ReplyItem{{
+		ID:        "item-1",
+		Type:      "text",
+		Content:   "{{product.name}} — {{product.price}} — {{product.description}}",
+		IsEnabled: true,
+	}}
+
+	got := connector.resolveReplyItems(rule, items)
+	if got[0].Content != "Durian A — 250,000 LAK — Fresh today" {
+		t.Fatalf("resolved content = %q", got[0].Content)
+	}
+	if items[0].Content != "{{product.name}} — {{product.price}} — {{product.description}}" {
+		t.Fatalf("source items were mutated: %#v", items)
+	}
+	if !got[0].IsEnabled {
+		t.Fatal("enabled state was not preserved")
+	}
+}

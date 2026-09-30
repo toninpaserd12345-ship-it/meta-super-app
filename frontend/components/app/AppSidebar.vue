@@ -9,7 +9,7 @@ const items = computed(() => appNavigation.filter(item => !item.claim || can(ite
   <aside class="app-sidebar">
     <NuxtLink to="/" class="brand"><span>M</span><strong>Meta</strong></NuxtLink>
     <nav aria-label="Main navigation">
-      <NuxtLink v-for="item in items" :key="item.to" :to="item.to" :class="{ active: route.path === item.to }" :title="item.label">
+      <NuxtLink v-for="item in items" :key="item.to" :to="item.to" :class="{ active: item.to === '/' ? route.path === '/' : route.path.startsWith(item.to) }" :title="item.label">
         <v-icon :icon="item.icon" size="21"/><span>{{ item.label }}</span>
       </NuxtLink>
     </nav>

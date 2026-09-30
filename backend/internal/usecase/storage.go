@@ -20,15 +20,23 @@ func NewStorageUseCase(storage domain.StorageService) *StorageUseCase {
 
 // UploadFile validates and uploads a file
 func (u *StorageUseCase) UploadFile(ctx context.Context, file *multipart.FileHeader, folder string) (string, error) {
-	// Validate file size (e.g., max 10MB)
-	if file.Size > 10*1024*1024 {
-		return "", fmt.Errorf("file size exceeds 10MB limit")
+	if u.storage == nil {
+		return "", fmt.Errorf("media storage is not configured; use a public HTTPS URL instead")
+	}
+	// Keep uploads within a practical Messenger attachment size.
+	if file.Size > 25*1024*1024 {
+		return "", fmt.Errorf("file size exceeds 25MB limit")
 	}
 
-	// Validate content type
 	contentType := file.Header.Get("Content-Type")
-	if contentType != "image/jpeg" && contentType != "image/png" && contentType != "image/gif" && contentType != "image/webp" {
-		return "", fmt.Errorf("invalid file type: only JPEG, PNG, GIF, and WEBP are allowed")
+	allowedTypes := map[string]bool{
+		"image/jpeg": true, "image/png": true, "image/gif": true, "image/webp": true,
+		"video/mp4": true, "video/webm": true, "video/quicktime": true,
+		"audio/mpeg": true, "audio/mp4": true, "audio/wav": true, "audio/x-wav": true,
+		"audio/ogg": true, "audio/webm": true, "audio/aac": true,
+	}
+	if !allowedTypes[contentType] {
+		return "", fmt.Errorf("unsupported media type %q; upload an image, MP4/WebM video, or common audio file", contentType)
 	}
 
 	return u.storage.UploadFile(ctx, file, folder)
@@ -36,5 +44,8 @@ func (u *StorageUseCase) UploadFile(ctx context.Context, file *multipart.FileHea
 
 // DeleteFile deletes a file from storage
 func (u *StorageUseCase) DeleteFile(ctx context.Context, fileURL string) error {
+	if u.storage == nil {
+		return fmt.Errorf("media storage is not configured")
+	}
 	return u.storage.DeleteFile(ctx, fileURL)
 }
