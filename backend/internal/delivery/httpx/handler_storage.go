@@ -15,12 +15,13 @@ func (h *Handler) UploadFile(c fiber.Ctx) error {
 	folder := c.FormValue("folder", "general")
 
 	// Call UseCase
-	url, err := h.Storage.UploadFile(c.Context(), file, folder)
+	path, err := h.Storage.UploadFile(c.Context(), file, folder)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	return c.JSON(fiber.Map{
-		"url": url,
+		"path": path,
+		"url":  h.Storage.GetPublicURL(path),
 	})
 }

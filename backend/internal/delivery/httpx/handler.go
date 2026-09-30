@@ -117,6 +117,11 @@ func (h *Handler) products(c fiber.Ctx) error {
 	if err != nil {
 		return usecaseError(c, err)
 	}
+	for i := range items {
+		if items[i].ImageUrl != "" {
+			items[i].ImageUrl = h.Storage.GetPublicURL(items[i].ImageUrl)
+		}
+	}
 	return c.JSON(fiber.Map{"items": items, "storage": "memory"})
 }
 
@@ -125,11 +130,19 @@ func (h *Handler) saveProduct(c fiber.Ctx) error {
 	if err := c.Bind().JSON(&body); err != nil {
 		return fail(c, 400, "invalid_request", "Product is invalid.")
 	}
+	
+	if body.ImageUrl != "" {
+		body.ImageUrl = h.Storage.StripPublicURL(body.ImageUrl)
+	}
+
 	ctx, cancel := requestContext(c)
 	defer cancel()
 	item, err := h.meta.SaveProduct(ctx, userID(c), c.Locals("accountID").(string), body)
 	if err != nil {
 		return fail(c, 400, "product_failed", err.Error())
+	}
+	if item.ImageUrl != "" {
+		item.ImageUrl = h.Storage.GetPublicURL(item.ImageUrl)
 	}
 	return c.JSON(fiber.Map{"item": item})
 }

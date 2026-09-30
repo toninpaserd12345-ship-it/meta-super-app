@@ -95,11 +95,22 @@ func (s *R2StorageService) UploadFile(ctx context.Context, fileHeader *multipart
 		return "", fmt.Errorf("failed to upload file to R2: %w", err)
 	}
 
-	if s.publicURL != "" {
-		return fmt.Sprintf("%s/%s", s.publicURL, objectKey), nil
-	}
-
 	return objectKey, nil
+}
+
+func (s *R2StorageService) GetPublicURL(path string) string {
+	if s.publicURL == "" || path == "" || strings.HasPrefix(path, "http") {
+		return path
+	}
+	return fmt.Sprintf("%s/%s", s.publicURL, path)
+}
+
+func (s *R2StorageService) StripPublicURL(fullURL string) string {
+	if s.publicURL != "" && strings.HasPrefix(fullURL, s.publicURL) {
+		path := strings.TrimPrefix(fullURL, s.publicURL)
+		return strings.TrimPrefix(path, "/")
+	}
+	return fullURL
 }
 
 func (s *R2StorageService) DeleteFile(ctx context.Context, fileURL string) error {

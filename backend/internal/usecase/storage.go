@@ -49,3 +49,19 @@ func (u *StorageUseCase) DeleteFile(ctx context.Context, fileURL string) error {
 	}
 	return u.storage.DeleteFile(ctx, fileURL)
 }
+
+// GetPublicURL returns the full URL for the frontend
+func (u *StorageUseCase) GetPublicURL(path string) string {
+	if u.storage == nil {
+		return path
+	}
+	return u.storage.GetPublicURL(path)
+}
+
+// StripPublicURL removes the full URL before saving to DB
+func (u *StorageUseCase) StripPublicURL(fullURL string) string {
+	if u.storage == nil {
+		return fullURL
+	}
+	return u.storage.StripPublicURL(fullURL)
+}

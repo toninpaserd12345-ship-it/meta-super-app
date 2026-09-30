@@ -11,4 +11,8 @@ type StorageService interface {
 	UploadFile(ctx context.Context, file *multipart.FileHeader, folder string) (string, error)
 	// DeleteFile deletes a file by its URL or key
 	DeleteFile(ctx context.Context, fileURL string) error
+	// GetPublicURL returns the full public URL for a given path
+	GetPublicURL(path string) string
+	// StripPublicURL removes the public URL prefix if present
+	StripPublicURL(fullURL string) string
 }
