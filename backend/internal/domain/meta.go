@@ -61,6 +61,8 @@ type ProductBinding struct {
 	ProductName string      `json:"productName"`
 	Price       string      `json:"price"`
 	Description string      `json:"description"`
+	ImageUrl    string `json:"imageUrl"`
+
 	Messages    []ReplyStep `json:"messages,omitempty"`
 	Keywords    []string    `json:"keywords,omitempty"`
 }
@@ -70,6 +72,8 @@ type Product struct {
 	Name        string `json:"name"`
 	Price       string `json:"price"`
 	Description string `json:"description"`
+	ImageUrl    string `json:"imageUrl"`
+
 }
 
 type ReplyFlow struct {

@@ -7,6 +7,7 @@ export interface Product {
   name: string
   price: string
   description: string
+  imageUrl?: string
 }
 
 export type ReplyItemType = 'text' | 'image' | 'video' | 'audio'
