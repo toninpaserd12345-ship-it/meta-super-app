@@ -108,7 +108,7 @@ func (h *Handler) validateAutomationReferences(c fiber.Ctx, accountID, productID
 	if !hasEnabledItem {
 		return fmt.Errorf("the selected Reply Set needs at least one enabled message")
 	}
-	products, err := h.meta.ListProducts(ctx, userID(c), accountID)
+	products, err := h.Product.ListProducts(ctx, userID(c), accountID)
 	if err != nil {
 		return fmt.Errorf("could not verify the selected Product: %w", err)
 	}

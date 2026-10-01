@@ -81,6 +81,17 @@ type AutomationRuleModel struct {
 	UpdatedAt  time.Time
 }
 
+type ProductModel struct {
+	ID          string `gorm:"type:uuid;primaryKey"`
+	AccountID   string `gorm:"type:uuid;index;not null"`
+	Name        string `gorm:"size:120;not null"`
+	Price       string `gorm:"size:60;not null"`
+	Description string `gorm:"size:1000"`
+	ImageUrl    string `gorm:"size:1000"`
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
 type SubscriptionModel struct {
 	ID               string    `gorm:"type:uuid;primaryKey"`
 	AccountID        string    `gorm:"type:uuid;uniqueIndex;not null"`

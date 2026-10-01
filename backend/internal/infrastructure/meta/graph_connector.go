@@ -983,36 +983,6 @@ func (g *GraphConnector) SaveProductBindings(_ context.Context, _, accountID str
 	return prepared, nil
 }
 
-func (g *GraphConnector) ListProducts(_ context.Context, _, accountID string) ([]domain.Product, error) {
-	g.mu.RLock()
-	defer g.mu.RUnlock()
-	result := []domain.Product{}
-	for _, item := range g.products[accountID] {
-		result = append(result, item)
-	}
-	return result, nil
-}
-
-func (g *GraphConnector) SaveProduct(_ context.Context, _, accountID string, product domain.Product) (*domain.Product, error) {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	if product.ID == "" {
-		value := make([]byte, 12)
-		if _, err := rand.Read(value); err != nil {
-			return nil, err
-		}
-		product.ID = base64.RawURLEncoding.EncodeToString(value)
-	}
-	if g.products[accountID] == nil {
-		g.products[accountID] = map[string]domain.Product{}
-	}
-	g.products[accountID][product.ID] = product
-	if err := g.persistStateLocked(); err != nil {
-		return nil, fmt.Errorf("persist product: %w", err)
-	}
-	copy := product
-	return &copy, nil
-}
 
 func (g *GraphConnector) ListReplyFlows(_ context.Context, _, accountID string) ([]domain.ReplyFlow, error) {
 	g.mu.RLock()

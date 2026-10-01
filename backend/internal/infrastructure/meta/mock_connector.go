@@ -32,28 +32,6 @@ func (m *MockConnector) SetAutomationProvider(p domain.AutomationProvider) {
 func NewMockConnector() *MockConnector {
 	return &MockConnector{connected: make(map[string]map[string]bool), bindings: make(map[string]map[string]domain.ProductBinding), products: make(map[string]map[string]domain.Product), replyFlows: make(map[string]map[string]domain.ReplyFlow)}
 }
-func (m *MockConnector) ListProducts(_ context.Context, _, accountID string) ([]domain.Product, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	result := []domain.Product{}
-	for _, item := range m.products[accountID] {
-		result = append(result, item)
-	}
-	return result, nil
-}
-func (m *MockConnector) SaveProduct(_ context.Context, _, accountID string, product domain.Product) (*domain.Product, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if product.ID == "" {
-		product.ID = product.Name
-	}
-	if m.products[accountID] == nil {
-		m.products[accountID] = map[string]domain.Product{}
-	}
-	m.products[accountID][product.ID] = product
-	copy := product
-	return &copy, nil
-}
 func (m *MockConnector) ListReplyFlows(_ context.Context, _, accountID string) ([]domain.ReplyFlow, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/meta-super-app/backend/internal/domain"
+	"github.com/meta-super-app/backend/internal/infrastructure/database"
 )
 
 // MemoryRepository is a development adapter implementing the same domain
@@ -17,6 +18,7 @@ type MemoryRepository struct {
 	users           map[string]domain.User
 	replySets       map[string]domain.ReplySet
 	automationRules map[string]domain.AutomationRule
+	products        map[string]database.ProductModel
 }
 
 func NewMemory(passwordHash string) *MemoryRepository {
@@ -24,7 +26,7 @@ func NewMemory(passwordHash string) *MemoryRepository {
 	userID, accountID := "00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002"
 	account := domain.Account{ID: accountID, Name: "Demo Company", Slug: "demo-company", CreatedAt: time.Now()}
 	user := domain.User{ID: userID, Name: "System Admin", Email: "admin@example.com", Password: passwordHash, Accounts: []domain.Membership{{Account: account, Role: domain.RoleOwner, Claims: append([]domain.Permission(nil), domain.DefaultRoleClaims[domain.RoleOwner]...)}}}
-	return &MemoryRepository{users: map[string]domain.User{userID: user}, replySets: make(map[string]domain.ReplySet), automationRules: make(map[string]domain.AutomationRule)}
+	return &MemoryRepository{users: map[string]domain.User{userID: user}, replySets: make(map[string]domain.ReplySet), automationRules: make(map[string]domain.AutomationRule), products: make(map[string]database.ProductModel)}
 }
 
 func (r *MemoryRepository) FindByEmail(_ context.Context, email string) (*domain.User, error) {

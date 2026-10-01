@@ -31,6 +31,7 @@ func main() {
 	var billingRepo domain.BillingRepository
 	var replyRepo domain.ReplyRepository
 	var automationRepo domain.AutomationRepository
+	var productRepo domain.ProductRepository
 	if cfg.StorageDriver == "postgres" {
 		db, openErr := database.Open(cfg.DatabaseURL)
 		if openErr != nil {
@@ -52,7 +53,7 @@ func main() {
 			os.Exit(1)
 		}
 		repo := repository.NewGorm(db)
-		users, accounts, billingRepo, replyRepo, automationRepo = repo, repo, repo, repo, repo
+		users, accounts, billingRepo, replyRepo, automationRepo, productRepo = repo, repo, repo, repo, repo, repo
 	} else {
 		mockPassword := cfg.SeedAdminPassword
 		if mockPassword == "" {
@@ -64,7 +65,7 @@ func main() {
 			os.Exit(1)
 		}
 		repo := repository.NewMemory(hash)
-		users, accounts, billingRepo, replyRepo, automationRepo = repo, repo, repo, repo, repo
+		users, accounts, billingRepo, replyRepo, automationRepo, productRepo = repo, repo, repo, repo, repo, repo
 	}
 	tokens := security.NewJWT(cfg.JWTSecret, cfg.JWTIssuer, cfg.AccessTokenTTL)
 	auth := usecase.NewAuth(users, accounts, passwords, tokens)
@@ -91,6 +92,7 @@ func main() {
 
 	// Initialize Automation System
 	automationUseCase := usecase.NewAutomation(automationRepo)
+	productUseCase := usecase.NewProduct(productRepo)
 
 	appProvider := &appAutomationProvider{
 		automation: automationUseCase,
@@ -98,7 +100,7 @@ func main() {
 	}
 	metaConnector.SetAutomationProvider(appProvider)
 
-	app := httpx.NewHandler(auth, meta, team, billing, storageUseCase, replyUseCase, automationUseCase, tokens, metaMode, cfg.MetaFrontendRedirect, "00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002").App()
+	app := httpx.NewHandler(auth, meta, team, billing, storageUseCase, replyUseCase, automationUseCase, productUseCase, tokens, metaMode, cfg.MetaFrontendRedirect, "00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002").App()
 	go func() {
 		slog.Info("Fiber API listening", "address", cfg.HTTPAddr, "environment", cfg.Environment, "storage", cfg.StorageDriver, "meta", metaMode)
 		if err := app.Listen(cfg.HTTPAddr); err != nil {

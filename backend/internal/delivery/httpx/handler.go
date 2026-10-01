@@ -27,6 +27,7 @@ type Handler struct {
 	Storage                                     *usecase.StorageUseCase
 	Reply                                       *usecase.Reply
 	Automation                                  *usecase.Automation
+	Product                                     *usecase.Product
 	tokens                                      domain.TokenService
 	metaMode, metaFrontendRedirect              string
 	facebookLoginUserID, facebookLoginAccountID string
@@ -39,8 +40,8 @@ type loginTicket struct {
 	ExpiresAt time.Time
 }
 
-func NewHandler(auth *usecase.Auth, meta *usecase.Meta, team *usecase.Team, billing *usecase.Billing, storage *usecase.StorageUseCase, reply *usecase.Reply, automation *usecase.Automation, tokens domain.TokenService, metaMode, metaFrontendRedirect, facebookLoginUserID, facebookLoginAccountID string) *Handler {
-	return &Handler{auth: auth, meta: meta, team: team, billing: billing, Storage: storage, Reply: reply, Automation: automation, tokens: tokens, metaMode: metaMode, metaFrontendRedirect: metaFrontendRedirect, facebookLoginUserID: facebookLoginUserID, facebookLoginAccountID: facebookLoginAccountID, tickets: make(map[string]loginTicket)}
+func NewHandler(auth *usecase.Auth, meta *usecase.Meta, team *usecase.Team, billing *usecase.Billing, storage *usecase.StorageUseCase, reply *usecase.Reply, automation *usecase.Automation, product *usecase.Product, tokens domain.TokenService, metaMode, metaFrontendRedirect, facebookLoginUserID, facebookLoginAccountID string) *Handler {
+	return &Handler{auth: auth, meta: meta, team: team, billing: billing, Storage: storage, Reply: reply, Automation: automation, Product: product, tokens: tokens, metaMode: metaMode, metaFrontendRedirect: metaFrontendRedirect, facebookLoginUserID: facebookLoginUserID, facebookLoginAccountID: facebookLoginAccountID, tickets: make(map[string]loginTicket)}
 }
 
 func (h *Handler) App() *fiber.App {
@@ -113,7 +114,7 @@ func (h *Handler) App() *fiber.App {
 func (h *Handler) products(c fiber.Ctx) error {
 	ctx, cancel := requestContext(c)
 	defer cancel()
-	items, err := h.meta.ListProducts(ctx, userID(c), c.Locals("accountID").(string))
+	items, err := h.Product.ListProducts(ctx, userID(c), c.Locals("accountID").(string))
 	if err != nil {
 		return usecaseError(c, err)
 	}
@@ -122,7 +123,7 @@ func (h *Handler) products(c fiber.Ctx) error {
 			items[i].ImageUrl = h.Storage.GetPublicURL(items[i].ImageUrl)
 		}
 	}
-	return c.JSON(fiber.Map{"items": items, "storage": "memory"})
+	return c.JSON(fiber.Map{"items": items, "storage": "database"})
 }
 
 func (h *Handler) saveProduct(c fiber.Ctx) error {
@@ -137,7 +138,7 @@ func (h *Handler) saveProduct(c fiber.Ctx) error {
 
 	ctx, cancel := requestContext(c)
 	defer cancel()
-	item, err := h.meta.SaveProduct(ctx, userID(c), c.Locals("accountID").(string), body)
+	item, err := h.Product.SaveProduct(ctx, userID(c), c.Locals("accountID").(string), body)
 	if err != nil {
 		return fail(c, 400, "product_failed", err.Error())
 	}

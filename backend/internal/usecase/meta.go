@@ -84,19 +84,7 @@ func (u *Meta) SaveProductBindings(ctx context.Context, userID, accountID string
 	}
 	return u.connector.SaveProductBindings(ctx, userID, accountID, bindings)
 }
-func (u *Meta) ListProducts(ctx context.Context, userID, accountID string) ([]domain.Product, error) {
-	return u.connector.ListProducts(ctx, userID, accountID)
-}
-func (u *Meta) SaveProduct(ctx context.Context, userID, accountID string, product domain.Product) (*domain.Product, error) {
-	product.Name, product.Price, product.Description = strings.TrimSpace(product.Name), strings.TrimSpace(product.Price), strings.TrimSpace(product.Description)
-	if product.Name == "" || product.Price == "" {
-		return nil, errors.New("product name and price are required")
-	}
-	if len(product.Name) > 120 || len(product.Price) > 60 || len(product.Description) > 1000 {
-		return nil, errors.New("product fields exceed the allowed length")
-	}
-	return u.connector.SaveProduct(ctx, userID, accountID, product)
-}
+
 func (u *Meta) ListReplyFlows(ctx context.Context, userID, accountID string) ([]domain.ReplyFlow, error) {
 	return u.connector.ListReplyFlows(ctx, userID, accountID)
 }

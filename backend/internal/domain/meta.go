@@ -109,8 +109,7 @@ type MetaConnector interface {
 	ListProductBindings(context.Context, string, string) ([]ProductBinding, error)
 	SaveProductBinding(context.Context, string, string, ProductBinding) (*ProductBinding, error)
 	SaveProductBindings(context.Context, string, string, []ProductBinding) ([]ProductBinding, error)
-	ListProducts(context.Context, string, string) ([]Product, error)
-	SaveProduct(context.Context, string, string, Product) (*Product, error)
+
 	ListReplyFlows(context.Context, string, string) ([]ReplyFlow, error)
 	SaveReplyFlow(context.Context, string, string, ReplyFlow) (*ReplyFlow, error)
 	VerifyWebhook(string) bool
