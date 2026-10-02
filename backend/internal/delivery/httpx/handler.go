@@ -89,14 +89,8 @@ func (h *Handler) App() *fiber.App {
 	auth.Get("/api/v1/meta/ad-accounts", requireAccount(h.auth, domain.ClaimPagesRead), h.metaAdAccounts)
 	auth.Get("/api/v1/meta/ad-accounts/:adAccountID/campaigns", requireAccount(h.auth, domain.ClaimPagesRead), h.metaCampaigns)
 	auth.Get("/api/v1/meta/campaigns/:campaignID/ads", requireAccount(h.auth, domain.ClaimPagesRead), h.metaAds)
-	auth.Get("/api/v1/meta/product-bindings", requireAccount(h.auth, domain.ClaimPagesRead), h.productBindings)
-	auth.Post("/api/v1/meta/product-bindings", requireAccount(h.auth, domain.ClaimPagesConnect), h.saveProductBinding)
-	auth.Post("/api/v1/meta/product-bindings/batch", requireAccount(h.auth, domain.ClaimPagesConnect), h.saveProductBindings)
 	auth.Get("/api/v1/products", requireAccount(h.auth, domain.ClaimPagesRead), h.products)
 	auth.Post("/api/v1/products", requireAccount(h.auth, domain.ClaimPagesConnect), h.saveProduct)
-	auth.Get("/api/v1/reply-flows", requireAccount(h.auth, domain.ClaimPagesRead), h.replyFlows)
-	auth.Post("/api/v1/reply-flows", requireAccount(h.auth, domain.ClaimPagesConnect), h.saveReplyFlow)
-
 	// Team Management
 	auth.Get("/api/v1/team", requireAccount(h.auth, "users:read"), h.teamList)
 	auth.Post("/api/v1/team/invite", requireAccount(h.auth, "users:invite"), h.teamInvite)
@@ -148,29 +142,7 @@ func (h *Handler) saveProduct(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"item": item})
 }
 
-func (h *Handler) replyFlows(c fiber.Ctx) error {
-	ctx, cancel := requestContext(c)
-	defer cancel()
-	items, err := h.meta.ListReplyFlows(ctx, userID(c), c.Locals("accountID").(string))
-	if err != nil {
-		return usecaseError(c, err)
-	}
-	return c.JSON(fiber.Map{"items": items, "storage": "memory"})
-}
 
-func (h *Handler) saveReplyFlow(c fiber.Ctx) error {
-	var body domain.ReplyFlow
-	if err := c.Bind().JSON(&body); err != nil {
-		return fail(c, 400, "invalid_request", "Reply flow is invalid.")
-	}
-	ctx, cancel := requestContext(c)
-	defer cancel()
-	item, err := h.meta.SaveReplyFlow(ctx, userID(c), c.Locals("accountID").(string), body)
-	if err != nil {
-		return fail(c, 400, "reply_flow_failed", err.Error())
-	}
-	return c.JSON(fiber.Map{"item": item})
-}
 
 func (h *Handler) login(c fiber.Ctx) error {
 	var body struct {
@@ -385,41 +357,4 @@ func (h *Handler) metaAds(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"items": items})
 }
 
-func (h *Handler) productBindings(c fiber.Ctx) error {
-	ctx, cancel := requestContext(c)
-	defer cancel()
-	items, err := h.meta.ListProductBindings(ctx, userID(c), c.Locals("accountID").(string))
-	if err != nil {
-		return usecaseError(c, err)
-	}
-	return c.JSON(fiber.Map{"items": items, "storage": "memory", "replyPolicy": "first-message-per-user"})
-}
 
-func (h *Handler) saveProductBinding(c fiber.Ctx) error {
-	var body domain.ProductBinding
-	if err := c.Bind().JSON(&body); err != nil {
-		return fail(c, 400, "invalid_request", "Product binding is invalid.")
-	}
-	ctx, cancel := requestContext(c)
-	defer cancel()
-	item, err := h.meta.SaveProductBinding(ctx, userID(c), c.Locals("accountID").(string), body)
-	if err != nil {
-		return fail(c, 400, "binding_failed", err.Error())
-	}
-	return c.JSON(fiber.Map{"item": item})
-}
-func (h *Handler) saveProductBindings(c fiber.Ctx) error {
-	var body struct {
-		Items []domain.ProductBinding `json:"items"`
-	}
-	if err := c.Bind().JSON(&body); err != nil {
-		return fail(c, 400, "invalid_request", "Automation batch is invalid.")
-	}
-	ctx, cancel := requestContext(c)
-	defer cancel()
-	items, err := h.meta.SaveProductBindings(ctx, userID(c), c.Locals("accountID").(string), body.Items)
-	if err != nil {
-		return fail(c, 400, "batch_binding_failed", err.Error())
-	}
-	return c.JSON(fiber.Map{"items": items, "count": len(items)})
-}

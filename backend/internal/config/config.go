@@ -33,7 +33,7 @@ func Load() (Config, error) {
 	cfg := Config{
 		Environment:            value("APP_ENV", "development"),
 		HTTPAddr:               value("HTTP_ADDR", ":8080"),
-		StorageDriver:          value("STORAGE_DRIVER", "memory"),
+		StorageDriver:          "postgres",
 		DatabaseURL:            os.Getenv("DATABASE_URL"),
 		JWTSecret:              os.Getenv("JWT_SECRET"),
 		JWTIssuer:              value("JWT_ISSUER", "meta-super-app"),
@@ -56,11 +56,15 @@ func Load() (Config, error) {
 		R2BucketName:           os.Getenv("R2_BUCKET_NAME"),
 		R2PublicURL:            os.Getenv("R2_PUBLIC_URL"),
 	}
-	if cfg.StorageDriver != "memory" && cfg.StorageDriver != "postgres" {
-		return Config{}, fmt.Errorf("STORAGE_DRIVER must be memory or postgres")
+
+	if cfg.DatabaseURL == "" {
+		return Config{}, fmt.Errorf("DATABASE_URL is required in .env")
 	}
-	if cfg.StorageDriver == "postgres" && cfg.DatabaseURL == "" {
-		return Config{}, fmt.Errorf("DATABASE_URL is required for postgres storage")
+	if cfg.MetaAppID == "" {
+		return Config{}, fmt.Errorf("META_APP_ID is required in .env")
+	}
+	if cfg.MetaAppSecret == "" {
+		return Config{}, fmt.Errorf("META_APP_SECRET is required in .env")
 	}
 	if len(cfg.JWTSecret) < 32 {
 		return Config{}, fmt.Errorf("JWT_SECRET must contain at least 32 characters")

@@ -32,49 +32,33 @@ func main() {
 	var replyRepo domain.ReplyRepository
 	var automationRepo domain.AutomationRepository
 	var productRepo domain.ProductRepository
-	if cfg.StorageDriver == "postgres" {
-		db, openErr := database.Open(cfg.DatabaseURL)
-		if openErr != nil {
-			slog.Error("database failed", "error", openErr)
-			os.Exit(1)
-		}
-		if cfg.AutoMigrate {
-			if err = database.Migrate(db); err != nil {
-				slog.Error("migration failed", "error", err)
-				os.Exit(1)
-			}
-		}
-		if err = database.SeedAdmin(db, passwords, cfg.SeedAdminEmail, cfg.SeedAdminPassword, cfg.SeedAccountName); err != nil {
-			slog.Error("seed failed", "error", err)
-			os.Exit(1)
-		}
-		if err = database.SeedPlans(db); err != nil {
-			slog.Error("seed plans failed", "error", err)
-			os.Exit(1)
-		}
-		repo := repository.NewGorm(db)
-		users, accounts, billingRepo, replyRepo, automationRepo, productRepo = repo, repo, repo, repo, repo, repo
-	} else {
-		mockPassword := cfg.SeedAdminPassword
-		if mockPassword == "" {
-			mockPassword = "password123"
-		}
-		hash, hashErr := passwords.Hash(mockPassword)
-		if hashErr != nil {
-			slog.Error("mock password failed", "error", hashErr)
-			os.Exit(1)
-		}
-		repo := repository.NewMemory(hash)
-		users, accounts, billingRepo, replyRepo, automationRepo, productRepo = repo, repo, repo, repo, repo, repo
+
+	db, openErr := database.Open(cfg.DatabaseURL)
+	if openErr != nil {
+		slog.Error("database failed", "error", openErr)
+		os.Exit(1)
 	}
+	if cfg.AutoMigrate {
+		if err = database.Migrate(db); err != nil {
+			slog.Error("migration failed", "error", err)
+			os.Exit(1)
+		}
+	}
+	if err = database.SeedAdmin(db, passwords, cfg.SeedAdminEmail, cfg.SeedAdminPassword, cfg.SeedAccountName); err != nil {
+		slog.Error("seed failed", "error", err)
+		os.Exit(1)
+	}
+	if err = database.SeedPlans(db); err != nil {
+		slog.Error("seed plans failed", "error", err)
+		os.Exit(1)
+	}
+	repo := repository.NewGorm(db)
+	users, accounts, billingRepo, replyRepo, automationRepo, productRepo = repo, repo, repo, repo, repo, repo
+
 	tokens := security.NewJWT(cfg.JWTSecret, cfg.JWTIssuer, cfg.AccessTokenTTL)
 	auth := usecase.NewAuth(users, accounts, passwords, tokens)
-	metaMode := "mock"
-	var metaConnector domain.MetaConnector = metainfra.NewMockConnector()
-	if cfg.MetaAppID != "" && cfg.MetaAppSecret != "" {
-		metaMode = "live"
-		metaConnector = metainfra.NewGraphConnector(metainfra.GraphConfig{AppID: cfg.MetaAppID, AppSecret: cfg.MetaAppSecret, RedirectURI: cfg.MetaRedirectURI, Version: cfg.MetaGraphVersion, WebhookFields: cfg.MetaWebhookFields, WebhookVerifyToken: cfg.MetaWebhookVerifyToken, StateFile: cfg.MetaStateFile})
-	}
+	metaMode := "live"
+	metaConnector := metainfra.NewGraphConnector(metainfra.GraphConfig{AppID: cfg.MetaAppID, AppSecret: cfg.MetaAppSecret, RedirectURI: cfg.MetaRedirectURI, Version: cfg.MetaGraphVersion, WebhookFields: cfg.MetaWebhookFields, WebhookVerifyToken: cfg.MetaWebhookVerifyToken, StateFile: cfg.MetaStateFile})
 	meta := usecase.NewMeta(metaConnector)
 	team := usecase.NewTeam(accounts, users, passwords)
 	billing := usecase.NewBilling(billingRepo)

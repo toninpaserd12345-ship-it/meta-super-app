@@ -106,12 +106,6 @@ type MetaConnector interface {
 	ListAdAccounts(context.Context, string, string) ([]MetaAdAccount, error)
 	ListCampaigns(context.Context, string, string, string) ([]MetaCampaign, error)
 	ListAds(context.Context, string, string, string) ([]MetaAd, error)
-	ListProductBindings(context.Context, string, string) ([]ProductBinding, error)
-	SaveProductBinding(context.Context, string, string, ProductBinding) (*ProductBinding, error)
-	SaveProductBindings(context.Context, string, string, []ProductBinding) ([]ProductBinding, error)
-
-	ListReplyFlows(context.Context, string, string) ([]ReplyFlow, error)
-	SaveReplyFlow(context.Context, string, string, ReplyFlow) (*ReplyFlow, error)
 	VerifyWebhook(string) bool
 	ReceiveWebhook(context.Context, []byte, string) error
 	SetAutomationProvider(AutomationProvider)
