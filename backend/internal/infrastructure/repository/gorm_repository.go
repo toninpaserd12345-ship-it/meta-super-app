@@ -74,7 +74,6 @@ func (r *GormRepository) FindByFacebookID(ctx context.Context, fbid string) (*do
 	var m database.UserModel
 	if err := r.db.WithContext(ctx).Where("facebook_id = ?", fbid).First(&m).Error; err != nil {
 		return nil, mapError(err)
-		return nil, err
 	}
 	return &domain.User{ID: m.ID, Name: m.Name, Email: m.Email, Password: m.PasswordHash, FacebookID: m.FacebookID}, nil
 }
