@@ -14,11 +14,17 @@ const userIDKey = "authenticatedUserID"
 
 func authenticate(tokens domain.TokenService) fiber.Handler {
 	return func(c fiber.Ctx) error {
+		token := ""
 		parts := strings.Fields(c.Get(fiber.HeaderAuthorization))
-		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+		if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") {
+			token = parts[1]
+		} else if c.Query("token") != "" {
+			token = c.Query("token")
+		}
+		if token == "" {
 			return fail(c, 401, "unauthorized", "Bearer token is required.")
 		}
-		claims, err := tokens.Parse(parts[1])
+		claims, err := tokens.Parse(token)
 		if err != nil {
 			return fail(c, 401, "unauthorized", "Token is invalid or expired.")
 		}

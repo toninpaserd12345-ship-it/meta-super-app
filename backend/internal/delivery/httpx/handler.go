@@ -66,6 +66,7 @@ func (h *Handler) App() *fiber.App {
 	auth := app.Group("", authenticate(h.tokens))
 	auth.Get("/auth/me", h.me)
 	auth.Get("/api/v1/accounts", h.accounts)
+	auth.Get("/api/v1/chat/history", requireAccount(h.auth, domain.ClaimPagesRead), h.getChatHistory)
 	auth.Post("/api/v1/chat/send", requireAccount(h.auth, domain.ClaimPagesConnect), h.sendChatMessage)
 	auth.Get("/api/v1/chat/stream", requireAccount(h.auth, domain.ClaimPagesRead), h.chatStream)
 	auth.Get("/api/v1/dashboard", requireAccount(h.auth, "dashboard:read"), h.dashboard)
