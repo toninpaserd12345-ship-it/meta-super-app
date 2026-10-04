@@ -110,7 +110,7 @@ type SubscriptionModel struct {
 
 type TransactionModel struct {
 	ID            string       `gorm:"type:uuid;primaryKey"`
-	AccountID     string       `gorm:"type:uuid;not null"`
+	AccountID     string       `gorm:"type:uuid;not null;index"`
 	Account       AccountModel `gorm:"foreignKey:AccountID;constraint:OnDelete:CASCADE"`
 	Amount        int          `gorm:"not null"`
 	Currency      string       `gorm:"size:10;not null"`
