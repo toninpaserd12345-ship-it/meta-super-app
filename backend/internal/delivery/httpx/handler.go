@@ -11,6 +11,7 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/helmet"
+	"github.com/gofiber/fiber/v3/middleware/cors"
 	"github.com/gofiber/fiber/v3/middleware/logger"
 	"github.com/gofiber/fiber/v3/middleware/recover"
 	"github.com/gofiber/fiber/v3/middleware/requestid"
@@ -50,7 +51,7 @@ func (h *Handler) App() *fiber.App {
 		// Never log request/response bodies or authorization headers. Login bodies,
 		// JWTs, Meta access tokens and webhook payloads may contain secrets.
 		Format: "${time} ${ip} ${status} ${latency} ${method} ${path}\n",
-	}), recover.New(), requestid.New(), responsetime.New(), helmet.New(), cors.New(cors.Config{AllowOrigins: "*", AllowHeaders: "Origin, Content-Type, Accept, Authorization, X-Account-ID"}))
+	}), recover.New(), requestid.New(), responsetime.New(), helmet.New(), cors.New(cors.Config{AllowOrigins: []string{"*"}, AllowHeaders: []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Account-ID"}}))
 	app.Use(func(c fiber.Ctx) error { c.Set(fiber.HeaderCacheControl, "no-store"); return c.Next() })
 	app.Get("/health", func(c fiber.Ctx) error { return c.JSON(fiber.Map{"status": "ok"}) })
 	app.Post("/auth/login", h.login)

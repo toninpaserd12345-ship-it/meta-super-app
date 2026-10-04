@@ -106,7 +106,7 @@ func (u *Auth) Membership(ctx context.Context, userID, accountID string) (*domai
 
 func (u *Auth) LoginOrCreateByFacebook(ctx context.Context, fbid, name, email string) (*LoginOutput, error) {
 	user, err := u.users.FindByFacebookID(ctx, fbid)
-	if err == domain.ErrUserNotFound {
+	if err != nil && strings.Contains(err.Error(), "not found") {
 		user, err = u.users.RegisterFacebookUser(ctx, fbid, name, email)
 	}
 	if err != nil {

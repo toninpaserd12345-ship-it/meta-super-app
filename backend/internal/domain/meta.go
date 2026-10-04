@@ -16,8 +16,12 @@ type MetaPage struct {
 }
 
 type MetaOAuthResult struct {
-	UserID    string
-	AccountID string
+	UserID      string
+	AccountID   string
+	AccessToken string
+	FacebookID  string
+	Name        string
+	Email       string
 }
 
 type MetaPost struct {

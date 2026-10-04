@@ -73,9 +73,7 @@ func mapError(err error) error {
 func (r *GormRepository) FindByFacebookID(ctx context.Context, fbid string) (*domain.User, error) {
 	var m database.UserModel
 	if err := r.db.WithContext(ctx).Where("facebook_id = ?", fbid).First(&m).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, domain.ErrUserNotFound
-		}
+		return nil, mapError(err)
 		return nil, err
 	}
 	return &domain.User{ID: m.ID, Name: m.Name, Email: m.Email, Password: m.PasswordHash, FacebookID: m.FacebookID}, nil

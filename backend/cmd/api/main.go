@@ -84,7 +84,7 @@ func main() {
 	}
 	metaConnector.SetAutomationProvider(appProvider)
 
-	app := httpx.NewHandler(auth, meta, team, billing, storageUseCase, replyUseCase, automationUseCase, productUseCase, tokens, metaMode, cfg.MetaFrontendRedirect.App()
+	app := httpx.NewHandler(auth, meta, team, billing, storageUseCase, replyUseCase, automationUseCase, productUseCase, tokens, metaMode, cfg.MetaFrontendRedirect).App()
 	go func() {
 		slog.Info("Fiber API listening", "address", cfg.HTTPAddr, "environment", cfg.Environment, "storage", cfg.StorageDriver, "meta", metaMode)
 		if err := app.Listen(cfg.HTTPAddr); err != nil {
