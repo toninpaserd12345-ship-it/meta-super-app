@@ -88,21 +88,126 @@ async function activateSelected(){
     </v-card-text><v-card-actions class="picker-actions"><v-btn variant="text" @click="selectedPermissions=[]">Required only</v-btn><v-spacer/><v-btn color="primary" prepend-icon="mdi-facebook" :loading="authorizing" @click="permissionsOpen=false;connectFacebook()">Continue with Facebook</v-btn></v-card-actions></v-card>
   </v-dialog>
 
-  <v-dialog v-model="pickerOpen" max-width="920" persistent scrollable>
-    <v-card class="picker-card">
-      <v-card-title class="picker-head"><div><small>FACEBOOK</small><h2>Add connections</h2></div><v-btn icon="mdi-close" variant="text" :disabled="activating" @click="pickerOpen=false"/></v-card-title>
-      <v-card-text class="picker-body">
-        <div class="picker-toolbar"><div><strong>Select Pages to activate</strong><span>{{selected.length}} selected</span></div><v-text-field v-model="search" prepend-inner-icon="mdi-magnify" label="Search Pages" density="compact" hide-details clearable/></div>
-        <div v-if="availablePages.length" class="picker-grid">
-          <label v-for="page in availablePages" :key="page.id" class="picker-page" :class="{'is-selected':selected.includes(page.id)}">
-            <v-checkbox-btn v-model="selected" :value="page.id" color="primary"/>
-            <v-avatar size="52" color="primary"><v-img v-if="page.pictureUrl" :src="page.pictureUrl"/><v-icon v-else icon="mdi-facebook" color="white"/></v-avatar>
-            <span><strong>{{page.name}}</strong><small>{{page.category}} · {{page.id}}</small></span>
-          </label>
+    <v-dialog v-model="pickerOpen" max-width="1000" persistent scrollable>
+    <v-card class="picker-card pc-wrapper">
+      <div class="pc-header">
+        <h3 class="pc-title">ເພີ່ມການເຊື່ອມຕໍ່</h3>
+        <v-btn icon="mdi-close" variant="text" size="small" :disabled="activating" @click="pickerOpen=false"/>
+      </div>
+      
+      <div class="pc-body">
+        <div class="pc-sidebar">
+          <div class="pc-nav-item active">
+            <v-icon color="warning" size="20">mdi-clock-outline</v-icon>
+            <span>ລໍຖ້າການເປີດໃຊ້ງານ</span>
+          </div>
+          <div class="pc-nav-item">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/b/b8/2021_Facebook_icon.svg" width="20" height="20" alt="FB"/>
+            <span>Facebook</span>
+          </div>
+          <div class="pc-nav-item">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/9/95/Instagram_logo_2022.svg" width="20" height="20" alt="IG"/>
+            <span>Instagram</span>
+          </div>
+          <div class="pc-nav-item">
+            <v-icon size="20">mdi-at</v-icon>
+            <span>Threads</span>
+            <span class="pc-badge-beta">Beta</span>
+          </div>
+          <div class="pc-nav-item">
+            <v-icon size="20" color="black">mdi-music-note</v-icon>
+            <span>TikTok</span>
+          </div>
+          <div class="pc-nav-item">
+            <v-icon size="20" color="success">mdi-whatsapp</v-icon>
+            <span>WhatsApp</span>
+          </div>
+          <div class="pc-nav-item">
+            <v-icon size="20" color="info">mdi-telegram</v-icon>
+            <span>Telegram</span>
+          </div>
+          <div class="pc-nav-item">
+            <v-icon size="20" color="blue-darken-4">mdi-alpha-b-circle</v-icon>
+            <span>Booking</span>
+            <span class="pc-badge-beta">Beta</span>
+          </div>
+          <div class="pc-nav-item">
+            <v-icon size="20" color="red">mdi-home-heart</v-icon>
+            <span>Airbnb</span>
+            <span class="pc-badge-beta">Beta</span>
+          </div>
+          <div class="pc-nav-item">
+            <v-icon size="20" color="red">mdi-youtube</v-icon>
+            <span>YouTube</span>
+            <span class="pc-badge-beta">Beta</span>
+          </div>
+          <div class="pc-nav-item">
+            <v-icon size="20" color="orange">mdi-shopping</v-icon>
+            <span>Shopee</span>
+          </div>
+          <div class="pc-nav-item">
+            <v-icon size="20" color="green">mdi-chat</v-icon>
+            <span>Line</span>
+          </div>
         </div>
-        <v-alert v-else type="info" variant="tonal">All available Pages are already active.</v-alert>
-      </v-card-text>
-      <v-card-actions class="picker-actions"><v-btn variant="text" :disabled="activating" @click="selected=[]">Clear selection</v-btn><v-spacer/><v-btn color="primary" prepend-icon="mdi-lightning-bolt" :disabled="!selected.length" :loading="activating" @click="activateSelected">Activate {{selected.length||''}}</v-btn></v-card-actions>
+        
+        <div class="pc-main">
+          <div class="pc-main-head">
+            <div class="pc-main-title">ເລືອກເພຈເພື່ອເປີດໃຊ້ງານ</div>
+            <div class="pc-search-box">
+              <v-icon size="18" color="grey">mdi-magnify</v-icon>
+              <input type="text" v-model="search" placeholder="ຄົ້ນຫາໜ້າ" />
+              <v-icon size="18" color="grey">mdi-filter-variant</v-icon>
+            </div>
+          </div>
+          
+          <div class="pc-tabs-container">
+            <div class="pc-tabs">
+              <div class="pc-tab active">
+                ລໍຖ້າການເປີດໃຊ້ງານ <span class="pc-tab-badge">{{availablePages.length}}</span>
+              </div>
+              <div class="pc-tab text-muted">
+                ໜ້າທີ່ຊ່ອນຢູ່
+              </div>
+            </div>
+            <div class="pc-conn-code">
+              <v-icon size="16" color="primary">mdi-key-outline</v-icon>
+              <span class="text-primary" style="font-size:13px; font-weight:600; cursor:pointer;">ຣຫັດເຊື່ອມຕໍ່</span>
+            </div>
+          </div>
+          
+          <div class="pc-content">
+            <div v-if="availablePages.length" class="pc-grid">
+              <div v-for="page in availablePages" :key="page.id" class="pc-card" :class="{'selected':selected.includes(page.id)}" @click="selected.includes(page.id)?selected=selected.filter(id=>id!==page.id):selected.push(page.id)">
+                <div class="pc-card-avatar">
+                  <v-img v-if="page.pictureUrl" :src="page.pictureUrl" cover></v-img>
+                  <v-icon v-else icon="mdi-account" color="grey" size="32"></v-icon>
+                </div>
+                <div class="pc-card-info">
+                  <div class="pc-card-name">{{page.name}}</div>
+                  <div class="pc-card-sub">
+                    <v-icon icon="mdi-facebook" color="blue" size="14"></v-icon>
+                    <span>{{page.id}}</span>
+                  </div>
+                </div>
+                <v-checkbox-btn :model-value="selected.includes(page.id)" color="primary" class="pc-card-check" @click.stop/>
+              </div>
+            </div>
+            <div v-else class="pc-empty">
+              <v-alert type="info" variant="tonal" class="w-100">ບໍ່ມີເພຈທີ່ລໍຖ້າການເປີດໃຊ້ງານ (All available Pages are active).</v-alert>
+            </div>
+          </div>
+          
+          <div class="pc-footer">
+            <div class="pc-footer-left" @click="selected.length === availablePages.length ? selected=[] : selected=availablePages.map(p=>p.id)">
+              <v-icon size="18" class="mr-2">mdi-checkbox-multiple-marked-outline</v-icon>
+              <span>ເລືອກທັງໝົດ / ບໍ່ເລືອກທັງໝົດ</span>
+              <div class="pc-hotkey"><v-icon size="14">mdi-apple-keyboard-command</v-icon> A</div>
+            </div>
+            <v-btn color="primary" prepend-icon="mdi-lightning-bolt" size="large" :disabled="!selected.length" :loading="activating" @click="activateSelected" class="text-none px-6" style="border-radius: 8px;">ເປີດໃຊ້ງານ</v-btn>
+          </div>
+        </div>
+      </div>
     </v-card>
   </v-dialog>
 </template>
@@ -112,4 +217,41 @@ async function activateSelected(){
 @media(max-width:640px){.intro{display:grid;padding:20px}.intro-actions{display:grid;grid-template-columns:1fr 1fr;width:100%}.intro-actions :deep(.v-chip){grid-column:1/-1;width:max-content}.intro-actions :deep(.v-btn:last-child){grid-column:1/-1}.connection-summary{grid-template-columns:repeat(3,1fr);gap:7px}.connection-summary button{min-height:68px;justify-content:center;padding:9px 5px}.connection-summary button>i{display:none}.connection-summary small{font-size:7px}.connection-summary strong{font-size:18px}.page-card{grid-template-columns:auto 1fr;padding:17px}.page-action{grid-column:1/-1}.page-action :deep(.v-btn),.page-toggle{width:100%}.page-toggle{justify-content:space-between}.token-row{gap:3px}.token-chip{font-size:8px!important}}
 .picker-card{border-radius:var(--radius-lg)!important}.picker-head{display:flex;align-items:center;justify-content:space-between;padding:22px 24px;border-bottom:1px solid var(--color-border)}.picker-head small{color:var(--color-primary);font-size:10px;font-weight:800;letter-spacing:.14em}.picker-head h2{margin:2px 0 0;font-size:20px}.picker-body{padding:22px 24px!important}.picker-toolbar{display:grid;grid-template-columns:1fr minmax(240px,320px);align-items:center;gap:20px;margin-bottom:18px}.picker-toolbar div{display:grid;gap:3px}.picker-toolbar span{color:var(--color-text-muted);font-size:12px}.picker-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.picker-page{display:grid;grid-template-columns:auto auto 1fr;align-items:center;gap:12px;padding:14px;border:1px solid var(--color-border);border-radius:14px;cursor:pointer;transition:.18s ease}.picker-page:hover,.picker-page.is-selected{border-color:var(--color-primary);background:var(--color-primary-soft)}.picker-page>span{display:grid;min-width:0}.picker-page strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.picker-page small{overflow:hidden;color:var(--color-text-muted);font-size:11px;text-overflow:ellipsis;white-space:nowrap}.picker-actions{padding:16px 24px;border-top:1px solid var(--color-border)}
 @media(max-width:700px){.picker-toolbar,.picker-grid{grid-template-columns:1fr}.picker-head,.picker-actions{padding-inline:16px}}
+
+.pc-wrapper { display:flex; flex-direction:column; background:#ffffff!important; border-radius:12px!important; overflow:hidden; }
+.pc-header { display:flex; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid #ebedf0; }
+.pc-title { margin:0; font-size:16px; font-weight:600; color:#1a1a1a; }
+.pc-body { display:flex; min-height:500px; max-height:75vh; }
+.pc-sidebar { width:220px; background:#f7f8fa; border-right:1px solid #ebedf0; display:flex; flex-direction:column; padding:12px 10px; overflow-y:auto; }
+.pc-nav-item { display:flex; align-items:center; gap:12px; padding:10px 14px; border-radius:8px; cursor:pointer; font-size:14px; color:#4a4a4a; font-weight:500; transition:background 0.2s; margin-bottom:4px; }
+.pc-nav-item:hover { background:#eff1f4; }
+.pc-nav-item.active { background:#ffffff; color:#1a1a1a; box-shadow:0 1px 3px rgba(0,0,0,0.05); }
+.pc-badge-beta { font-size:10px; background:#ffecb3; color:#f57c00; padding:2px 6px; border-radius:4px; margin-left:auto; font-weight:bold; }
+.pc-main { flex:1; display:flex; flex-direction:column; background:#ffffff; }
+.pc-main-head { display:flex; align-items:center; justify-content:space-between; padding:16px 24px 8px; }
+.pc-main-title { font-size:14px; font-weight:600; color:#1a1a1a; }
+.pc-search-box { display:flex; align-items:center; background:#f2f3f5; border-radius:8px; padding:6px 12px; gap:8px; width:220px; }
+.pc-search-box input { border:none; background:transparent; outline:none; font-size:13px; flex:1; width:100%; }
+.pc-tabs-container { display:flex; align-items:center; justify-content:space-between; padding:0 24px; border-bottom:1px solid #ebedf0; }
+.pc-tabs { display:flex; gap:24px; }
+.pc-tab { padding:12px 0; font-size:14px; font-weight:500; color:#77798b; cursor:pointer; position:relative; display:flex; align-items:center; gap:6px; }
+.pc-tab.active { color:#1877f2; }
+.pc-tab.active::after { content:''; position:absolute; bottom:-1px; left:0; right:0; height:2px; background:#1877f2; border-radius:2px 2px 0 0; }
+.pc-tab-badge { background:#ff4d4f; color:white; font-size:11px; padding:0 6px; border-radius:10px; font-weight:bold; line-height:16px; }
+.pc-conn-code { display:flex; align-items:center; gap:4px; }
+.pc-content { flex:1; padding:20px 24px; overflow-y:auto; background:#fbfcfd; }
+.pc-grid { display:grid; grid-template-columns:repeat(2, 1fr); gap:16px; }
+.pc-card { display:flex; align-items:center; padding:14px; background:#ffffff; border:1px solid #ebedf0; border-radius:8px; cursor:pointer; transition:all 0.2s; position:relative; }
+.pc-card:hover { border-color:#d0d5dc; box-shadow:0 2px 8px rgba(0,0,0,0.04); }
+.pc-card.selected { border-color:#1877f2; }
+.pc-card-avatar { width:44px; height:44px; border-radius:50%; overflow:hidden; background:#f0f2f5; display:flex; align-items:center; justify-content:center; margin-right:12px; flex-shrink:0; border:1px solid #0000001a; }
+.pc-card-info { flex:1; min-width:0; }
+.pc-card-name { font-size:14px; font-weight:600; color:#1a1a1a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:2px; }
+.pc-card-sub { display:flex; align-items:center; gap:4px; font-size:12px; color:#65676b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pc-card-check { position:absolute; right:12px; pointer-events:none; }
+.pc-empty { display:flex; align-items:center; justify-content:center; height:100%; }
+.pc-footer { padding:16px 24px; display:flex; align-items:center; justify-content:space-between; border-top:1px solid #ebedf0; background:#ffffff; }
+.pc-footer-left { display:flex; align-items:center; font-size:13px; color:#65676b; cursor:pointer; user-select:none; }
+.pc-hotkey { display:flex; align-items:center; gap:2px; background:#f2f3f5; border:1px solid #d0d5dc; padding:2px 6px; border-radius:4px; font-size:11px; margin-left:8px; font-weight:600; color:#1a1a1a; }
+
 </style>
