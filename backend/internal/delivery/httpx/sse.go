@@ -6,6 +6,7 @@ import (
 	"io"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/meta-super-app/backend/internal/usecase"
 )
 
 func (h *Handler) chatStream(c fiber.Ctx) error {
@@ -43,4 +44,36 @@ func (h *Handler) chatStream(c fiber.Ctx) error {
 	}()
 
 	return c.SendStream(r)
+}
+
+
+func (h *Handler) sendChatMessage(c fiber.Ctx) error {
+	var body struct {
+		PageID      string `json:"page_id"`
+		RecipientID string `json:"recipient_id"`
+		Message     string `json:"message"`
+	}
+	if err := c.Bind().JSON(&body); err != nil {
+		return fail(c, fiber.StatusBadRequest, "invalid_request", err.Error())
+	}
+	accountID := c.Locals("accountID").(string)
+	
+	if err := h.meta.SendMessage(c.Context(), accountID, body.PageID, body.RecipientID, body.Message); err != nil {
+		return fail(c, fiber.StatusInternalServerError, "send_failed", err.Error())
+	}
+	
+	// Also broadcast the message back so it shows up in the UI immediately
+	if h.Stream != nil {
+		h.Stream.Broadcast(accountID, usecase.ChatEvent{
+			AccountID: accountID,
+			PageID:    body.PageID,
+			SenderID:  body.RecipientID, // In the UI, SenderID is used to group the chat. Even though WE are the sender, group it by recipient.
+			Message:   body.Message,
+			Type:      "text",
+			Timestamp: "now",
+			Platform:  "system", // indicating we sent it
+		})
+	}
+	
+	return c.JSON(fiber.Map{"status": "success"})
 }

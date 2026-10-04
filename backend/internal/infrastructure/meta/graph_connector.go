@@ -407,9 +407,9 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 
 				var err error
 				if step.Type == "text" {
-					err = g.sendMessage(ctx, page, message.Sender.ID, step.Content)
+					err = g.SendMessage(ctx, rule.AccountID, page.ID, message.Sender.ID, step.Content)
 				} else {
-					err = g.sendMedia(ctx, page, message.Sender.ID, step.Type, step.Content)
+					err = g.SendMedia(ctx, rule.AccountID, page.ID, message.Sender.ID, step.Type, step.Content)
 				}
 				if err != nil {
 					slog.Error("automatic flow message failed", "page_id", entry.ID, "sender_id", message.Sender.ID, "source_id", sourceID, "step", index+1, "error", err)
@@ -1051,7 +1051,12 @@ func (g *GraphConnector) SaveReplyFlow(_ context.Context, _, accountID string, f
 	return &copy, nil
 }
 
-func (g *GraphConnector) sendMessage(ctx context.Context, page graphPage, recipientID, text string) error {
+func (g *GraphConnector) SendMessage(ctx context.Context, accountID, pageID, recipientID, text string) error {
+	_, page, found := g.findPage(pageID)
+	if !found {
+		return errors.New("meta page not found or not connected")
+	}
+
 	if page.Category == "WhatsApp" {
 		return g.sendWhatsAppMessage(ctx, page.ID, page.AccessToken, recipientID, text)
 	}
@@ -1069,21 +1074,18 @@ func (g *GraphConnector) sendMessage(ctx context.Context, page graphPage, recipi
 		return err
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	if err != nil {
-		return err
-	}
-	var envelope struct {
-		Error *graphError `json:"error"`
-	}
-	_ = json.Unmarshal(body, &envelope)
-	if resp.StatusCode >= 400 || envelope.Error != nil {
-		return graphResponseError(resp.StatusCode, envelope.Error)
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		return fmt.Errorf("facebook send message failed: %s", string(body))
 	}
 	return nil
 }
 
-func (g *GraphConnector) sendMedia(ctx context.Context, page graphPage, recipientID, mediaType, mediaURL string) error {
+func (g *GraphConnector) SendMedia(ctx context.Context, accountID, pageID, recipientID, mediaType, mediaURL string) error {
+	_, page, found := g.findPage(pageID)
+	if !found {
+		return errors.New("meta page not found")
+	}
 	if page.Category == "WhatsApp" {
 		return g.sendWhatsAppMedia(ctx, page.ID, page.AccessToken, recipientID, mediaType, mediaURL)
 	}

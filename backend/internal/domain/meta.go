@@ -101,6 +101,7 @@ type AutomationProvider interface {
 }
 
 type MetaConnector interface {
+	SendMessage(ctx context.Context, accountID, pageID, recipientID, text string) error
 	AuthorizationURL(context.Context, string, string, []string) (string, error)
 	CompleteAuthorization(context.Context, string, string) (*MetaOAuthResult, error)
 	ListPages(context.Context, string, string) ([]MetaPage, error)

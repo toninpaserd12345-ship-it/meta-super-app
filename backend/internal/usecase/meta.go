@@ -60,3 +60,7 @@ func (u *Meta) VerifyWebhook(token string) bool { return u.connector.VerifyWebho
 func (u *Meta) ReceiveWebhook(ctx context.Context, body []byte, signature string) error {
 	return u.connector.ReceiveWebhook(ctx, body, signature)
 }
+
+func (u *Meta) SendMessage(ctx context.Context, accountID, pageID, recipientID, text string) error {
+	return u.connector.SendMessage(ctx, accountID, pageID, recipientID, text)
+}
