@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"github.com/meta-super-app/backend/internal/usecase"
 )
 
 // SendWhatsAppMessage sends a text message via WhatsApp Business API
@@ -138,7 +139,22 @@ func (g *GraphConnector) processWhatsAppWebhook(ctx context.Context, body []byte
 					continue
 				}
 
-				slog.Info("WhatsApp message received", "phone_number_id", phoneNumberID, "sender", senderPhone, "text", textBody)
+								slog.Info("WhatsApp message received", "phone_number_id", phoneNumberID, "sender", senderPhone, "text", textBody)
+
+				if g.chatStream != nil {
+					accountID, _, found := g.findPage(phoneNumberID)
+					if found {
+						g.chatStream.Broadcast(accountID, usecase.ChatEvent{
+							AccountID: accountID,
+							PageID:    phoneNumberID,
+							SenderID:  senderPhone,
+							Message:   textBody,
+							Type:      "text",
+							Timestamp: message.Timestamp,
+							Platform:  "whatsapp",
+						})
+					}
+				}
 
 				// NOTE: In the future, we need to map phoneNumberID to an AccessToken from the database.
 				// For now, this validates that the backend can parse and detect the trigger keywords.

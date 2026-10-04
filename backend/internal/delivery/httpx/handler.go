@@ -29,6 +29,8 @@ type Handler struct {
 	Reply                                       *usecase.Reply
 	Automation                                  *usecase.Automation
 	Product                                     *usecase.Product
+	Stream                                      *usecase.ChatStream
+
 	tokens                                      domain.TokenService
 	metaMode, metaFrontendRedirect              string
 	// facebookLoginUserID, facebookLoginAccountID string (Removed)
@@ -58,11 +60,13 @@ func (h *Handler) App() *fiber.App {
 	app.Post("/auth/facebook/start", h.startFacebookLogin)
 	app.Post("/auth/facebook/exchange", h.exchangeFacebookLogin)
 	app.Get("/api/v1/meta/oauth/callback", h.completeMetaOAuth)
+	
 	app.Get("/api/v1/meta/webhook", h.verifyMetaWebhook)
 	app.Post("/api/v1/meta/webhook", h.receiveMetaWebhook)
 	auth := app.Group("", authenticate(h.tokens))
 	auth.Get("/auth/me", h.me)
 	auth.Get("/api/v1/accounts", h.accounts)
+	auth.Get("/api/v1/chat/stream", requireAccount(h.auth, domain.ClaimPagesRead), h.chatStream)
 	auth.Get("/api/v1/dashboard", requireAccount(h.auth, "dashboard:read"), h.dashboard)
 
 	// Storage

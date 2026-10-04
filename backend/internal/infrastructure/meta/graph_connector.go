@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/meta-super-app/backend/internal/domain"
+	"github.com/meta-super-app/backend/internal/usecase"
 )
 
 type GraphConfig struct {
@@ -47,6 +48,7 @@ type graphPage struct {
 }
 
 type GraphConnector struct {
+	chatStream *usecase.ChatStream
 	cfg           GraphConfig
 	client        *http.Client
 	mu            sync.RWMutex
@@ -61,6 +63,10 @@ type GraphConnector struct {
 	deliverySteps map[string]bool
 	inFlight      map[string]bool
 	automation    domain.AutomationProvider
+}
+
+func (g *GraphConnector) SetChatStream(c *usecase.ChatStream) {
+	g.chatStream = c
 }
 
 func (g *GraphConnector) SetAutomationProvider(p domain.AutomationProvider) {
@@ -256,7 +262,7 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 				g.inFlight[seenKey] = true
 			}
 			g.mu.Unlock()
-			page, pageFound := g.findPage(entry.ID)
+			_, page, pageFound := g.findPage(entry.ID)
 			if !found || isSpamming || busy || !pageFound {
 				continue
 			}
@@ -370,7 +376,7 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 				g.inFlight[seenKey] = true
 			}
 			g.mu.Unlock()
-			page, pageFound := g.findPage(entry.ID)
+			_, page, pageFound := g.findPage(entry.ID)
 			if !found || isSpamming || busy || !pageFound {
 				continue
 			}
@@ -502,13 +508,13 @@ func matchesKeywords(text string, keywords []string) bool {
 	return false
 }
 
-func (g *GraphConnector) findPage(pageID string) (graphPage, bool) {
-	for _, session := range g.sessions {
+func (g *GraphConnector) findPage(pageID string) (string, graphPage, bool) {
+	for accID, session := range g.sessions {
 		if page, ok := session.Pages[pageID]; ok {
-			return page, true
+			return accID, page, true
 		}
 	}
-	return graphPage{}, false
+	return "", graphPage{}, false
 }
 
 func (g *GraphConnector) AuthorizationURL(_ context.Context, userID, accountID string, requested []string) (string, error) {
