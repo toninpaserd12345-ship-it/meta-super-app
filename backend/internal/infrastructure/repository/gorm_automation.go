@@ -20,7 +20,12 @@ func (r *GormRepository) CreateRule(ctx context.Context, rule *domain.Automation
 		PageID:       rule.PageID,
 		TriggerType:  rule.TriggerType,
 		TriggerValue: rule.TriggerValue,
-		ProductID:    rule.ProductID,
+		ProductID:    func() *string {
+			if rule.ProductID == "" {
+				return nil
+			}
+			return &rule.ProductID
+		}(),
 		ReplySetID:   rule.ReplySetID,
 		IsActive:     true,
 	}
@@ -86,7 +91,7 @@ func (r *GormRepository) UpdateRule(ctx context.Context, rule *domain.Automation
 	return r.db.WithContext(ctx).Model(&database.AutomationRuleModel{}).Where("id = ?", rule.ID).Updates(map[string]interface{}{
 		"trigger_type":  rule.TriggerType,
 		"trigger_value": rule.TriggerValue,
-		"product_id":    rule.ProductID,
+		"product_id":    func() *string { if rule.ProductID == "" { return nil } else { return &rule.ProductID } }(),
 		"reply_set_id":  rule.ReplySetID,
 		"is_active":     rule.IsActive,
 	}).Error
@@ -103,7 +108,12 @@ func toDomainAutomationRule(m database.AutomationRuleModel) domain.AutomationRul
 		PageID:       m.PageID,
 		TriggerType:  m.TriggerType,
 		TriggerValue: m.TriggerValue,
-		ProductID:    m.ProductID,
+		ProductID:    func() string {
+			if m.ProductID == nil {
+				return ""
+			}
+			return *m.ProductID
+		}(),
 		ReplySetID:   m.ReplySetID,
 		IsActive:     m.IsActive,
 		CreatedAt:    m.CreatedAt,

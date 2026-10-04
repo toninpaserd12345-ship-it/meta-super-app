@@ -7,7 +7,6 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -71,14 +70,8 @@ func (s *R2StorageService) UploadFile(ctx context.Context, fileHeader *multipart
 	
 	newFilename := uuid.New().String() + ext
 	
-	// Construct the object key (path in bucket)
-	var objectKey string
-	if folder != "" {
-		folder = strings.Trim(folder, "/")
-		objectKey = fmt.Sprintf("%s/%s/%s", folder, time.Now().Format("2006/01"), newFilename)
-	} else {
-		objectKey = fmt.Sprintf("uploads/%s/%s", time.Now().Format("2006/01"), newFilename)
-	}
+	// Construct the object key (path in bucket). We only store the filename to support easy migration.
+	objectKey := newFilename
 
 	contentType := fileHeader.Header.Get("Content-Type")
 	if contentType == "" {

@@ -88,7 +88,7 @@ type AutomationRuleModel struct {
 	PageID       string        `gorm:"index"`
 	TriggerType  string        `gorm:"size:50;not null"` // post, ad, keyword
 	TriggerValue string        `gorm:"size:255;index"`
-	ProductID    string        `gorm:"type:uuid;index"`
+	ProductID    *string       `gorm:"type:uuid;index"`
 	Product      *ProductModel  `gorm:"foreignKey:ProductID;constraint:OnDelete:SET NULL"`
 	ReplySetID   string        `gorm:"type:uuid;not null"`
 	ReplySet     ReplySetModel `gorm:"foreignKey:ReplySetID;constraint:OnDelete:CASCADE"`

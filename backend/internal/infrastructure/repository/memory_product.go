@@ -2,8 +2,7 @@ package repository
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/base64"
+	"github.com/google/uuid"
 	"errors"
 
 	"github.com/meta-super-app/backend/internal/domain"
@@ -33,11 +32,7 @@ func (r *MemoryRepository) SaveProduct(ctx context.Context, accountID string, pr
 	defer r.mu.Unlock()
 	
 	if product.ID == "" {
-		value := make([]byte, 12)
-		if _, err := rand.Read(value); err != nil {
-			return nil, err
-		}
-		product.ID = base64.RawURLEncoding.EncodeToString(value)
+		product.ID = uuid.NewString()
 	} else {
 		// Check if exists
 		existing, ok := r.products[product.ID]

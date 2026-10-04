@@ -2,8 +2,7 @@ package repository
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/base64"
+	"github.com/google/uuid"
 	"errors"
 
 	"github.com/meta-super-app/backend/internal/domain"
@@ -33,11 +32,7 @@ func (r *GormRepository) SaveProduct(ctx context.Context, accountID string, prod
 	isCreate := false
 	if product.ID == "" {
 		isCreate = true
-		value := make([]byte, 12)
-		if _, err := rand.Read(value); err != nil {
-			return nil, err
-		}
-		product.ID = base64.RawURLEncoding.EncodeToString(value)
+		product.ID = uuid.NewString()
 	}
 
 	model := database.ProductModel{
@@ -55,7 +50,7 @@ func (r *GormRepository) SaveProduct(ctx context.Context, accountID string, prod
 		}
 	} else {
 		// Update existing
-		res := r.db.WithContext(ctx).Model(&database.ProductModel{}).Where("id = ? AND account_id = ?", product.ID, accountID).Updates(model)
+		res := r.db.WithContext(ctx).Model(&database.ProductModel{}).Where("id = ? AND account_id = ?", product.ID, accountID).Select("*").Updates(model)
 		if res.Error != nil {
 			return nil, res.Error
 		}
