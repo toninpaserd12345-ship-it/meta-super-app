@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"fmt"
 	"context"
 	"errors"
 	"strings"
@@ -106,11 +107,15 @@ func (u *Auth) Membership(ctx context.Context, userID, accountID string) (*domai
 
 func (u *Auth) LoginOrCreateByFacebook(ctx context.Context, fbid, name, email string) (*LoginOutput, error) {
 	user, err := u.users.FindByFacebookID(ctx, fbid)
-	if err != nil && strings.Contains(err.Error(), "not found") {
-		user, err = u.users.RegisterFacebookUser(ctx, fbid, name, email)
-	}
 	if err != nil {
-		return nil, err
+		if strings.Contains(err.Error(), "not found") {
+			user, err = u.users.RegisterFacebookUser(ctx, fbid, name, email)
+			if err != nil {
+				return nil, fmt.Errorf("failed to register fb user: %w", err)
+			}
+		} else {
+			return nil, fmt.Errorf("failed to find by fb id: %w", err)
+		}
 	}
 	token, err := u.tokens.Issue(user.ID)
 	if err != nil {
