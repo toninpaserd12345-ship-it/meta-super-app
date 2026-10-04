@@ -47,6 +47,10 @@ func (u *Auth) Login(ctx context.Context, in LoginInput) (*LoginOutput, error) {
 	if err != nil {
 		return nil, err
 	}
+	user.Accounts, err = u.accounts.ListForUser(ctx, user.ID)
+	if err != nil {
+		return nil, err
+	}
 	token, err := u.tokens.Issue(user.ID)
 	if err != nil {
 		return nil, err
@@ -56,6 +60,10 @@ func (u *Auth) Login(ctx context.Context, in LoginInput) (*LoginOutput, error) {
 
 func (u *Auth) LoginByUserID(ctx context.Context, userID string) (*LoginOutput, error) {
 	user, err := u.Me(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	user.Accounts, err = u.accounts.ListForUser(ctx, user.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -116,6 +124,10 @@ func (u *Auth) LoginOrCreateByFacebook(ctx context.Context, fbid, name, email st
 		} else {
 			return nil, fmt.Errorf("failed to find by fb id: %w", err)
 		}
+	}
+	user.Accounts, err = u.accounts.ListForUser(ctx, user.ID)
+	if err != nil {
+		return nil, err
 	}
 	token, err := u.tokens.Issue(user.ID)
 	if err != nil {
