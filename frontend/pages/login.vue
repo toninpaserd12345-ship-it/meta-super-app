@@ -8,7 +8,23 @@ const facebookLoading = ref(false)
 const facebookResult = useRoute().query.facebook
 if(facebookResult==='error')errorMessage.value='Facebook sign-in could not be completed. Please start again.'
 if(facebookResult==='expired')errorMessage.value='This Facebook connection request expired. Click Continue with Facebook to start a new request.'
+const emailLoading = ref(false)
+const email = ref('')
+const password = ref('')
+
 async function loginWithFacebook(){facebookLoading.value=true;errorMessage.value='';try{const result=await $fetch<{authorizationUrl:string}>('/api/auth/facebook/start',{method:'POST'});window.location.assign(result.authorizationUrl)}catch{errorMessage.value='Unable to start Facebook Login.';facebookLoading.value=false}}
+
+async function loginWithEmail(){
+  if(!email.value || !password.value) { errorMessage.value = 'Email and password are required.'; return; }
+  emailLoading.value=true;errorMessage.value='';
+  try {
+    await $fetch('/api/auth/login',{method:'POST', body: { email: email.value, password: password.value }});
+    navigateTo('/meta-pages')
+  } catch(err: any) {
+    errorMessage.value = err.statusMessage || err.message || 'Login failed.';
+    emailLoading.value=false;
+  }
+}
 </script>
 
 <template>
@@ -28,8 +44,23 @@ async function loginWithFacebook(){facebookLoading.value=true;errorMessage.value
         <div class="mobile-brand"><span>M</span><strong>Meta Super App</strong></div>
         <div class="form-wrap">
           <div class="welcome-icon"><v-icon icon="mdi-hand-wave-outline" size="25"/></div>
-          <p class="form-kicker">WELCOME</p><h2>Connect your Facebook</h2><p class="form-subtitle">Continue securely with Facebook to access and manage your Pages.</p>
+          <p class="form-kicker">WELCOME</p><h2>Sign in to Workspace</h2><p class="form-subtitle">Log in as Staff or continue securely with Facebook as Owner.</p>
           <v-alert v-if="errorMessage" type="error" variant="tonal" density="comfortable" closable class="error-alert mb-5" @click:close="errorMessage = ''">{{ errorMessage }}</v-alert>
+          
+          <form class="login-form mb-5" @submit.prevent="loginWithEmail">
+            <div class="form-group">
+              <label>Email Address</label>
+              <input type="email" v-model="email" required placeholder="name@example.com" class="login-input" />
+            </div>
+            <div class="form-group mt-3">
+              <label>Password</label>
+              <input type="password" v-model="password" required placeholder="Enter password" class="login-input" />
+            </div>
+            <button type="submit" class="btn-primary sign-in-btn mt-4 full-width" :disabled="emailLoading">{{ emailLoading ? 'Signing in...' : 'Sign In' }}</button>
+          </form>
+          
+          <div class="divider"><span>OR</span></div>
+
           <v-btn color="#1877F2" size="x-large" block prepend-icon="mdi-facebook" :loading="facebookLoading" class="facebook-btn" @click="loginWithFacebook">Continue with Facebook</v-btn>
           <div class="facebook-note"><v-icon icon="mdi-shield-lock-outline" size="18"/><span>We never receive your Facebook password. Authentication is handled securely by Meta.</span></div>
         </div>
@@ -46,4 +77,37 @@ async function loginWithFacebook(){facebookLoading.value=true;errorMessage.value
 .local-badge{display:flex;align-items:center;gap:8px;margin:-17px 0 22px;padding:10px 12px;color:var(--color-primary);background:var(--color-primary-soft);border:1px solid var(--color-primary-softer);border-radius:var(--radius-md);font-size:11px}
 .facebook-btn{height:54px!important;color:#fff!important;text-transform:none;letter-spacing:0;font-weight:750;box-shadow:0 10px 24px rgba(24,119,242,.22)!important}
 .facebook-note{display:flex;align-items:flex-start;gap:9px;margin-top:18px;padding:13px;color:var(--color-text-secondary);background:var(--color-surface-soft);border-radius:12px;font-size:11px;line-height:1.55}
+.login-input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface-soft);
+  color: var(--color-text);
+  margin-top: 6px;
+  font-size: 14px;
+}
+.login-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(91, 80, 230, 0.15);
+}
+.divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 20px 0;
+  color: var(--color-text-faint);
+  font-size: 12px;
+  font-weight: 600;
+}
+.divider::before, .divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid var(--color-border);
+}
+.divider span {
+  padding: 0 10px;
+}
+.full-width { width: 100%; }
 </style>
