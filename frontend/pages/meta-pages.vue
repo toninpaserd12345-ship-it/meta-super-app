@@ -10,7 +10,11 @@ const { data, pending, error, refresh } = await useApi<PageList>('/proxy/api/v1/
 const toggling = ref<string|null>(null)
 const authorizing = ref(false)
 const activating = ref(false)
+
 const pickerOpen = ref(false)
+const activePlatform = ref('all') // 'all', 'facebook', 'instagram', 'whatsapp', etc.
+const activeView = ref('pending') // 'pending' or 'hidden'
+
 const permissionsOpen = ref(false)
 const selectedPermissions = ref<string[]>([])
 const optionalPermissions=[
@@ -25,7 +29,28 @@ const messageType = ref<'success'|'error'>('success')
 const pages=computed(()=>data.value?.items||[])
 const activePages=computed(()=>pages.value.filter(page=>page.connected))
 const inactivePages=computed(()=>pages.value.filter(page=>!page.connected))
-const availablePages=computed(()=>inactivePages.value.filter(page=>page.name.toLowerCase().includes(search.value.toLowerCase())))
+
+const availablePages=computed(()=>{
+  let list = inactivePages.value
+  if (search.value) {
+    list = list.filter(page=>page.name.toLowerCase().includes(search.value.toLowerCase()))
+  }
+  // In a real multi-platform app, you'd filter by page.platform === activePlatform.value
+  // Since we currently only have Meta pages, we just show them if 'all' or 'facebook' or 'instagram' is selected
+  // We'll simulate it for now.
+  if (activePlatform.value !== 'all') {
+     // If activePlatform is facebook, show pages where category doesn't imply IG/WA
+     if (activePlatform.value === 'instagram') {
+        list = list.filter(p => p.category.toLowerCase().includes('instagram'))
+     } else if (activePlatform.value === 'facebook') {
+        list = list.filter(p => !p.category.toLowerCase().includes('instagram'))
+     } else {
+        list = [] // Other platforms not implemented yet
+     }
+  }
+  return list
+})
+
 const visiblePages=computed(()=>pages.value.filter(page=>statusFilter.value==='all'||(statusFilter.value==='active'?page.connected:!page.connected)))
 if(route.query.meta==='connected'){messageType.value='success';message.value='Facebook connected successfully. Choose the Pages you want to activate.';pickerOpen.value=availablePages.value.length>0;await navigateTo('/meta-pages',{replace:true})}
 if(route.query.meta==='error'){messageType.value='error';message.value=String(route.query.reason||'Facebook authorization failed.');await navigateTo('/meta-pages',{replace:true})}
@@ -96,56 +121,57 @@ async function activateSelected(){
       </div>
       
       <div class="pc-body">
+        
         <div class="pc-sidebar">
-          <div class="pc-nav-item active">
+          <div class="pc-nav-item" :class="{active: activePlatform==='all'}" @click="activePlatform='all'">
             <v-icon color="warning" size="20">mdi-clock-outline</v-icon>
             <span>ລໍຖ້າການເປີດໃຊ້ງານ</span>
           </div>
-          <div class="pc-nav-item">
+          <div class="pc-nav-item" :class="{active: activePlatform==='facebook'}" @click="activePlatform='facebook'">
             <img src="https://upload.wikimedia.org/wikipedia/commons/b/b8/2021_Facebook_icon.svg" width="20" height="20" alt="FB"/>
             <span>Facebook</span>
           </div>
-          <div class="pc-nav-item">
+          <div class="pc-nav-item" :class="{active: activePlatform==='instagram'}" @click="activePlatform='instagram'">
             <img src="https://upload.wikimedia.org/wikipedia/commons/9/95/Instagram_logo_2022.svg" width="20" height="20" alt="IG"/>
             <span>Instagram</span>
           </div>
-          <div class="pc-nav-item">
+          <div class="pc-nav-item" :class="{active: activePlatform==='threads'}" @click="activePlatform='threads'">
             <v-icon size="20">mdi-at</v-icon>
             <span>Threads</span>
             <span class="pc-badge-beta">Beta</span>
           </div>
-          <div class="pc-nav-item">
+          <div class="pc-nav-item" :class="{active: activePlatform==='tiktok'}" @click="activePlatform='tiktok'">
             <v-icon size="20" color="black">mdi-music-note</v-icon>
             <span>TikTok</span>
           </div>
-          <div class="pc-nav-item">
+          <div class="pc-nav-item" :class="{active: activePlatform==='whatsapp'}" @click="activePlatform='whatsapp'">
             <v-icon size="20" color="success">mdi-whatsapp</v-icon>
             <span>WhatsApp</span>
           </div>
-          <div class="pc-nav-item">
+          <div class="pc-nav-item" :class="{active: activePlatform==='telegram'}" @click="activePlatform='telegram'">
             <v-icon size="20" color="info">mdi-telegram</v-icon>
             <span>Telegram</span>
           </div>
-          <div class="pc-nav-item">
+          <div class="pc-nav-item" :class="{active: activePlatform==='booking'}" @click="activePlatform='booking'">
             <v-icon size="20" color="blue-darken-4">mdi-alpha-b-circle</v-icon>
             <span>Booking</span>
             <span class="pc-badge-beta">Beta</span>
           </div>
-          <div class="pc-nav-item">
+          <div class="pc-nav-item" :class="{active: activePlatform==='airbnb'}" @click="activePlatform='airbnb'">
             <v-icon size="20" color="red">mdi-home-heart</v-icon>
             <span>Airbnb</span>
             <span class="pc-badge-beta">Beta</span>
           </div>
-          <div class="pc-nav-item">
+          <div class="pc-nav-item" :class="{active: activePlatform==='youtube'}" @click="activePlatform='youtube'">
             <v-icon size="20" color="red">mdi-youtube</v-icon>
             <span>YouTube</span>
             <span class="pc-badge-beta">Beta</span>
           </div>
-          <div class="pc-nav-item">
+          <div class="pc-nav-item" :class="{active: activePlatform==='shopee'}" @click="activePlatform='shopee'">
             <v-icon size="20" color="orange">mdi-shopping</v-icon>
             <span>Shopee</span>
           </div>
-          <div class="pc-nav-item">
+          <div class="pc-nav-item" :class="{active: activePlatform==='line'}" @click="activePlatform='line'">
             <v-icon size="20" color="green">mdi-chat</v-icon>
             <span>Line</span>
           </div>
@@ -163,10 +189,10 @@ async function activateSelected(){
           
           <div class="pc-tabs-container">
             <div class="pc-tabs">
-              <div class="pc-tab active">
-                ລໍຖ້າການເປີດໃຊ້ງານ <span class="pc-tab-badge">{{availablePages.length}}</span>
+              <div class="pc-tab" :class="{active: activeView==='pending'}" @click="activeView='pending'">
+                ລໍຖ້າການເປີດໃຊ້ງານ <span class="pc-tab-badge" v-if="availablePages.length">{{availablePages.length}}</span>
               </div>
-              <div class="pc-tab text-muted">
+              <div class="pc-tab" :class="{active: activeView==='hidden'}" @click="activeView='hidden'">
                 ໜ້າທີ່ຊ່ອນຢູ່
               </div>
             </div>
@@ -177,7 +203,15 @@ async function activateSelected(){
           </div>
           
           <div class="pc-content">
-            <div v-if="availablePages.length" class="pc-grid">
+            <div v-if="activePlatform !== 'all' && activePlatform !== 'facebook' && activePlatform !== 'instagram'" class="pc-empty" style="flex-direction:column; gap:16px;">
+               <v-icon size="64" color="grey-lighten-1">mdi-power-plug-off</v-icon>
+               <h3 style="color:#666;">ຍັງບໍ່ໄດ້ເຊື່ອມຕໍ່ {{activePlatform.charAt(0).toUpperCase() + activePlatform.slice(1)}}</h3>
+               <v-btn color="primary" variant="flat">ເຊື່ອມຕໍ່ບັນຊີ {{activePlatform}}</v-btn>
+            </div>
+            <div v-else-if="activeView === 'hidden'" class="pc-empty">
+              <v-alert type="info" variant="tonal" class="w-100">ບໍ່ມີໜ້າທີ່ຊ່ອນຢູ່</v-alert>
+            </div>
+            <div v-else-if="availablePages.length" class="pc-grid">
               <div v-for="page in availablePages" :key="page.id" class="pc-card" :class="{'selected':selected.includes(page.id)}" @click="selected.includes(page.id)?selected=selected.filter(id=>id!==page.id):selected.push(page.id)">
                 <div class="pc-card-avatar">
                   <v-img v-if="page.pictureUrl" :src="page.pictureUrl" cover></v-img>
@@ -197,7 +231,7 @@ async function activateSelected(){
               <v-alert type="info" variant="tonal" class="w-100">ບໍ່ມີເພຈທີ່ລໍຖ້າການເປີດໃຊ້ງານ (All available Pages are active).</v-alert>
             </div>
           </div>
-          
+
           <div class="pc-footer">
             <div class="pc-footer-left" @click="selected.length === availablePages.length ? selected=[] : selected=availablePages.map(p=>p.id)">
               <v-icon size="18" class="mr-2">mdi-checkbox-multiple-marked-outline</v-icon>
