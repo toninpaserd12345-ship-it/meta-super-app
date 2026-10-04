@@ -41,16 +41,16 @@ func main() {
 	if cfg.AutoMigrate {
 		if err = database.Migrate(db); err != nil {
 			slog.Error("migration failed", "error", err)
-			os.Exit(1)
+			
 		}
 	}
 	if err = database.SeedAdmin(db, passwords, cfg.SeedAdminEmail, cfg.SeedAdminPassword, cfg.SeedAccountName); err != nil {
 		slog.Error("seed failed", "error", err)
-		os.Exit(1)
+		
 	}
 	if err = database.SeedPlans(db); err != nil {
 		slog.Error("seed plans failed", "error", err)
-		os.Exit(1)
+		
 	}
 	repo := repository.NewGorm(db)
 	users, accounts, billingRepo, replyRepo, automationRepo, productRepo = repo, repo, repo, repo, repo, repo
