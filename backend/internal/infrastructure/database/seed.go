@@ -27,8 +27,8 @@ func SeedAdmin(db *gorm.DB, hasher Hasher, email, password, accountName string) 
 		if err != nil {
 			return err
 		}
-		user := UserModel{ID: uuid.NewString(), Name: "System Admin", Email: strings.ToLower(email), PasswordHash: hash}
-		account := AccountModel{ID: uuid.NewString(), Name: accountName, Slug: slugify(accountName)}
+		user := UserModel{ID: "00000000-0000-4000-8000-000000000001", Name: "System Admin", Email: strings.ToLower(email), PasswordHash: hash}
+		account := AccountModel{ID: "00000000-0000-4000-8000-000000000002", Name: accountName, Slug: slugify(accountName)}
 		membership := MembershipModel{ID: uuid.NewString(), UserID: user.ID, AccountID: account.ID, Role: string(domain.RoleOwner)}
 		if err = tx.Create(&user).Error; err != nil {
 			return err
