@@ -512,8 +512,8 @@ func (g *GraphConnector) findPage(pageID string) (graphPage, bool) {
 }
 
 func (g *GraphConnector) AuthorizationURL(_ context.Context, userID, accountID string, requested []string) (string, error) {
-	allowed := map[string]bool{"pages_show_list": true, "pages_manage_metadata": true, "pages_read_engagement": true, "pages_messaging": true, "pages_manage_posts": true, "read_insights": true, "ads_read": true, "business_management": true}
-	base := []string{"pages_show_list", "pages_manage_metadata", "pages_read_engagement", "pages_messaging", "ads_read", "business_management"}
+	allowed := map[string]bool{"pages_show_list": true, "pages_manage_metadata": true, "pages_read_engagement": true, "pages_messaging": true, "pages_manage_posts": true, "read_insights": true, "ads_read": true, "business_management": true, "whatsapp_business_management": true, "whatsapp_business_messaging": true}
+	base := []string{"pages_show_list", "pages_manage_metadata", "pages_read_engagement", "pages_messaging", "ads_read", "business_management", "whatsapp_business_management", "whatsapp_business_messaging"}
 	seen := map[string]bool{}
 	scopes := make([]string, 0, len(base)+len(requested))
 	for _, scope := range append(base, requested...) {
@@ -670,6 +670,11 @@ func (g *GraphConnector) debugToken(ctx context.Context, token string) (*debugTo
 }
 
 func (g *GraphConnector) isPageSubscribed(ctx context.Context, page graphPage) (bool, error) {
+	if page.Category == "WhatsApp" {
+		// WhatsApp webhooks are configured at the App level, not per phone number.
+		// If it's in the list, it's virtually connected or we can just say true if we have the token.
+		return page.Connected, nil
+	}
 	query := url.Values{"access_token": {page.AccessToken}}
 	var response struct {
 		Data []struct {
@@ -699,40 +704,49 @@ func (g *GraphConnector) ConnectPage(ctx context.Context, _ string, accountID, p
 	if !ok {
 		return nil, errors.New("meta page not found")
 	}
-	form := url.Values{"access_token": {page.AccessToken}}
-	if fields := strings.TrimSpace(g.cfg.WebhookFields); fields != "" {
-		form.Set("subscribed_fields", fields)
+
+	if page.Category != "WhatsApp" {
+		form := url.Values{"access_token": {page.AccessToken}}
+		if fields := strings.TrimSpace(g.cfg.WebhookFields); fields != "" {
+			form.Set("subscribed_fields", fields)
+		}
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://graph.facebook.com/"+g.cfg.Version+"/"+url.PathEscape(pageID)+"/subscribed_apps", strings.NewReader(form.Encode()))
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		resp, err := g.client.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		defer resp.Body.Close()
+		body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+		if err != nil {
+			return nil, err
+		}
+		var envelope struct {
+			Success bool        `json:"success"`
+			Error   *graphError `json:"error"`
+		}
+		_ = json.Unmarshal(body, &envelope)
+		if resp.StatusCode >= 400 || envelope.Error != nil {
+			return nil, graphResponseError(resp.StatusCode, envelope.Error)
+		}
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://graph.facebook.com/"+g.cfg.Version+"/"+url.PathEscape(pageID)+"/subscribed_apps", strings.NewReader(form.Encode()))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := g.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	var result struct {
-		Success bool        `json:"success"`
-		Error   *graphError `json:"error"`
-	}
-	if err = json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, err
-	}
-	if resp.StatusCode >= 400 || result.Error != nil || !result.Success {
-		return nil, graphResponseError(resp.StatusCode, result.Error)
-	}
-	page.Connected, page.WebhookStatus = true, "subscribed"
+
 	g.mu.Lock()
-	session.Pages[pageID] = page
-	persistErr := g.persistStateLocked()
-	g.mu.Unlock()
-	if persistErr != nil {
-		return nil, fmt.Errorf("persist page connection: %w", persistErr)
+	page.Connected = true
+	if page.Category != "WhatsApp" {
+		page.WebhookStatus = "subscribed"
+	} else {
+		page.WebhookStatus = "app_level"
 	}
-	copy := page.MetaPage
-	return &copy, nil
+	session.Pages[pageID] = page
+	_ = g.persistStateLocked()
+	g.mu.Unlock()
+	
+	ret := page.MetaPage
+	return &ret, nil
 }
 
 func (g *GraphConnector) DisconnectPage(ctx context.Context, _ string, accountID, pageID string) (*domain.MetaPage, error) {
@@ -747,37 +761,40 @@ func (g *GraphConnector) DisconnectPage(ctx context.Context, _ string, accountID
 	if !ok {
 		return nil, errors.New("meta page not found")
 	}
-	form := url.Values{"access_token": {page.AccessToken}}
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, "https://graph.facebook.com/"+g.cfg.Version+"/"+url.PathEscape(pageID)+"/subscribed_apps", strings.NewReader(form.Encode()))
-	if err != nil {
-		return nil, err
+
+	if page.Category != "WhatsApp" {
+		req, err := http.NewRequestWithContext(ctx, http.MethodDelete, "https://graph.facebook.com/"+g.cfg.Version+"/"+url.PathEscape(pageID)+"/subscribed_apps?access_token="+url.QueryEscape(page.AccessToken), nil)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := g.client.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		defer resp.Body.Close()
+		body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+		if err != nil {
+			return nil, err
+		}
+		var envelope struct {
+			Success bool        `json:"success"`
+			Error   *graphError `json:"error"`
+		}
+		_ = json.Unmarshal(body, &envelope)
+		if resp.StatusCode >= 400 || envelope.Error != nil {
+			return nil, graphResponseError(resp.StatusCode, envelope.Error)
+		}
 	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := g.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	var result struct {
-		Success bool        `json:"success"`
-		Error   *graphError `json:"error"`
-	}
-	if err = json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, err
-	}
-	if resp.StatusCode >= 400 || result.Error != nil || !result.Success {
-		return nil, graphResponseError(resp.StatusCode, result.Error)
-	}
-	page.Connected, page.WebhookStatus = false, "disconnected"
+
 	g.mu.Lock()
+	page.Connected = false
+	page.WebhookStatus = ""
 	session.Pages[pageID] = page
-	persistErr := g.persistStateLocked()
+	_ = g.persistStateLocked()
 	g.mu.Unlock()
-	if persistErr != nil {
-		return nil, fmt.Errorf("persist page disconnection: %w", persistErr)
-	}
-	copy := page.MetaPage
-	return &copy, nil
+	
+	ret := page.MetaPage
+	return &ret, nil
 }
 
 func (g *GraphConnector) ListPosts(ctx context.Context, _ string, accountID, pageID string) ([]domain.MetaPost, error) {
@@ -1029,6 +1046,9 @@ func (g *GraphConnector) SaveReplyFlow(_ context.Context, _, accountID string, f
 }
 
 func (g *GraphConnector) sendMessage(ctx context.Context, page graphPage, recipientID, text string) error {
+	if page.Category == "WhatsApp" {
+		return g.sendWhatsAppMessage(ctx, page.ID, page.AccessToken, recipientID, text)
+	}
 	payload, err := json.Marshal(map[string]any{"recipient": map[string]string{"id": recipientID}, "messaging_type": "RESPONSE", "message": map[string]string{"text": text}})
 	if err != nil {
 		return err
@@ -1058,6 +1078,9 @@ func (g *GraphConnector) sendMessage(ctx context.Context, page graphPage, recipi
 }
 
 func (g *GraphConnector) sendMedia(ctx context.Context, page graphPage, recipientID, mediaType, mediaURL string) error {
+	if page.Category == "WhatsApp" {
+		return g.sendWhatsAppMedia(ctx, page.ID, page.AccessToken, recipientID, mediaType, mediaURL)
+	}
 	payload, err := json.Marshal(map[string]any{"recipient": map[string]string{"id": recipientID}, "messaging_type": "RESPONSE", "message": map[string]any{"attachment": map[string]any{"type": mediaType, "payload": map[string]any{"url": mediaURL, "is_reusable": true}}}})
 	if err != nil {
 		return err
@@ -1157,10 +1180,61 @@ func (g *GraphConnector) fetchPages(ctx context.Context, token string) (map[stri
 	if err := g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/me/accounts?"+query.Encode(), &response); err != nil {
 		return nil, err
 	}
-	pages := make(map[string]graphPage, len(response.Data))
+	pages := make(map[string]graphPage)
 	for _, item := range response.Data {
 		pages[item.ID] = graphPage{MetaPage: domain.MetaPage{ID: item.ID, Name: item.Name, Category: item.Category, PictureURL: item.Picture.Data.URL, TokenReady: item.AccessToken != ""}, AccessToken: item.AccessToken}
 	}
+
+	// Also fetch WhatsApp Business Accounts (WABAs)
+	var bizResponse struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/me/businesses?access_token="+token, &bizResponse); err == nil {
+		for _, biz := range bizResponse.Data {
+			var wabaResponse struct {
+				Data []struct {
+					ID                string `json:"id"`
+					Name              string `json:"name"`
+					ProfilePictureUrl string `json:"profile_picture_url"`
+				} `json:"data"`
+			}
+			if err := g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/"+biz.ID+"/owned_whatsapp_business_accounts?fields=id,name,profile_picture_url&access_token="+token, &wabaResponse); err == nil {
+				for _, waba := range wabaResponse.Data {
+					var phoneResponse struct {
+						Data []struct {
+							ID                 string `json:"id"`
+							DisplayPhoneNumber string `json:"display_phone_number"`
+							VerifiedName       string `json:"verified_name"`
+						} `json:"data"`
+					}
+					if err := g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/"+waba.ID+"/phone_numbers?fields=id,display_phone_number,verified_name&access_token="+token, &phoneResponse); err == nil {
+						for _, phone := range phoneResponse.Data {
+							name := phone.VerifiedName
+							if name == "" {
+								name = waba.Name
+							}
+							if name == "" {
+								name = phone.DisplayPhoneNumber
+							}
+							pages[phone.ID] = graphPage{
+								MetaPage: domain.MetaPage{
+									ID:         phone.ID,
+									Name:       name,
+									Category:   "WhatsApp",
+									PictureURL: waba.ProfilePictureUrl,
+									TokenReady: true,
+								},
+								AccessToken: token,
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
 	return pages, nil
 }
 
