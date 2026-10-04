@@ -589,18 +589,13 @@ func (g *GraphConnector) CompleteAuthorization(ctx context.Context, state, code 
 		page.GrantedPermissions = append([]string(nil), debug.Data.Scopes...)
 		pages[id] = page
 	}
-	var profile struct {
-		ID    string `json:"id"`
-		Name  string `json:"name"`
-		Email string `json:"email"`
-	}
-	_ = g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/me?fields=id,name,email&access_token="+token.AccessToken, &profile)
-	if pending.AccountID != "" {
-		g.sessions[pending.AccountID] = &graphSession{UserToken: token.AccessToken, TokenExpiresAt: debug.Data.ExpiresAt, DataAccessExpiresAt: debug.Data.DataAccessExpiresAt, GrantedPermissions: append([]string(nil), debug.Data.Scopes...), Pages: pages}
-		_ = g.persistStateLocked()
-	}
+	g.sessions[pending.AccountID] = &graphSession{UserToken: token.AccessToken, TokenExpiresAt: debug.Data.ExpiresAt, DataAccessExpiresAt: debug.Data.DataAccessExpiresAt, GrantedPermissions: append([]string(nil), debug.Data.Scopes...), Pages: pages}
+	persistErr := g.persistStateLocked()
 	g.mu.Unlock()
-	return &domain.MetaOAuthResult{UserID: pending.UserID, AccountID: pending.AccountID, AccessToken: token.AccessToken, FacebookID: profile.ID, Name: profile.Name, Email: profile.Email}, nil
+	if persistErr != nil {
+		return nil, fmt.Errorf("persist facebook connection: %w", persistErr)
+	}
+	return &domain.MetaOAuthResult{UserID: pending.UserID, AccountID: pending.AccountID}, nil
 }
 
 func (g *GraphConnector) ListPages(ctx context.Context, _ string, accountID string) ([]domain.MetaPage, error) {

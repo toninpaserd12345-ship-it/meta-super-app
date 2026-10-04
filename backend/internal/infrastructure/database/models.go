@@ -4,9 +4,10 @@ import "time"
 
 type UserModel struct {
 	ID           string `gorm:"type:uuid;primaryKey"`
-	Name         string `gorm:"size:120;not null"`
-	Email        string `gorm:"size:255;uniqueIndex;not null"`
-	PasswordHash string `gorm:"size:255;not null"`
+	Name         string  `gorm:"size:120;not null"`
+	Email        string  `gorm:"size:255;uniqueIndex;not null"`
+	PasswordHash string  `gorm:"size:255;not null"`
+	FacebookID   *string `gorm:"size:100;uniqueIndex"`
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }

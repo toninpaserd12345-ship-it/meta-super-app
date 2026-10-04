@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/google/uuid"
 
 	"github.com/meta-super-app/backend/internal/domain"
 	"github.com/meta-super-app/backend/internal/infrastructure/database"
@@ -53,7 +54,7 @@ func (r *GormRepository) FindMembership(ctx context.Context, userID, accountID s
 }
 
 func mapUser(m database.UserModel) *domain.User {
-	return &domain.User{ID: m.ID, Name: m.Name, Email: m.Email, Password: m.PasswordHash}
+	return &domain.User{ID: m.ID, Name: m.Name, Email: m.Email, Password: m.PasswordHash, FacebookID: m.FacebookID}
 }
 func mapMembership(m database.MembershipModel) domain.Membership {
 	claims := make([]domain.Permission, 0, len(m.Claims))
@@ -67,4 +68,60 @@ func mapError(err error) error {
 		return fmt.Errorf("not found: %w", err)
 	}
 	return err
+}
+
+func (r *GormRepository) FindByFacebookID(ctx context.Context, fbid string) (*domain.User, error) {
+	var m database.UserModel
+	if err := r.db.WithContext(ctx).Where("facebook_id = ?", fbid).First(&m).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, domain.ErrUserNotFound
+		}
+		return nil, err
+	}
+	return &domain.User{ID: m.ID, Name: m.Name, Email: m.Email, Password: m.PasswordHash, FacebookID: m.FacebookID}, nil
+}
+
+func (r *GormRepository) RegisterFacebookUser(ctx context.Context, fbid, name, email string) (*domain.User, error) {
+	var user domain.User
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		u := database.UserModel{
+			ID:           uuid.NewString(),
+			Name:         name,
+			Email:        email,
+			FacebookID:   &fbid,
+			PasswordHash: "facebook_oauth",
+		}
+		if err := tx.Create(&u).Error; err != nil {
+			return err
+		}
+		a := database.AccountModel{
+			ID:   uuid.NewString(),
+			Name: name + "'s Store",
+			Slug: uuid.NewString(),
+		}
+		if err := tx.Create(&a).Error; err != nil {
+			return err
+		}
+		m := database.MembershipModel{
+			ID:        uuid.NewString(),
+			UserID:    u.ID,
+			AccountID: a.ID,
+			Role:      string(domain.RoleOwner),
+		}
+		if err := tx.Create(&m).Error; err != nil {
+			return err
+		}
+		for _, claim := range domain.DefaultRoleClaims[domain.RoleOwner] {
+			if err := tx.Create(&database.MembershipClaimModel{
+				ID:           uuid.NewString(),
+				MembershipID: m.ID,
+				Claim:        string(claim),
+			}).Error; err != nil {
+				return err
+			}
+		}
+		user = domain.User{ID: u.ID, Name: u.Name, Email: u.Email, FacebookID: u.FacebookID}
+		return nil
+	})
+	return &user, err
 }

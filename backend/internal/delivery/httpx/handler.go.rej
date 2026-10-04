@@ -1,0 +1,8 @@
+@@ -32,6 +32,7 @@
+ 	"github.com/gofiber/fiber/v2/middleware/logger"
+ 	"github.com/gofiber/fiber/v2/middleware/recover"
+ 	"github.com/gofiber/fiber/v2/middleware/requestid"
++	"github.com/gofiber/fiber/v2/middleware/cors"
+ 	"github.com/meta-super-app/backend/internal/domain"
+ 	"github.com/meta-super-app/backend/internal/usecase"
+ 	"github.com/meta-super-app/backend/pkg/helmet"

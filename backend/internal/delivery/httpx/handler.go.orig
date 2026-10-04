@@ -30,7 +30,7 @@ type Handler struct {
 	Product                                     *usecase.Product
 	tokens                                      domain.TokenService
 	metaMode, metaFrontendRedirect              string
-	// facebookLoginUserID, facebookLoginAccountID string (Removed)
+	facebookLoginUserID, facebookLoginAccountID string
 	ticketMu                                    sync.Mutex
 	tickets                                     map[string]loginTicket
 }
@@ -40,8 +40,8 @@ type loginTicket struct {
 	ExpiresAt time.Time
 }
 
-func NewHandler(auth *usecase.Auth, meta *usecase.Meta, team *usecase.Team, billing *usecase.Billing, storage *usecase.StorageUseCase, reply *usecase.Reply, automation *usecase.Automation, product *usecase.Product, tokens domain.TokenService, metaMode, metaFrontendRedirect string) *Handler {
-	return &Handler{auth: auth, meta: meta, team: team, billing: billing, Storage: storage, Reply: reply, Automation: automation, Product: product, tokens: tokens, metaMode: metaMode, metaFrontendRedirect: metaFrontendRedirect, tickets: make(map[string]loginTicket)}
+func NewHandler(auth *usecase.Auth, meta *usecase.Meta, team *usecase.Team, billing *usecase.Billing, storage *usecase.StorageUseCase, reply *usecase.Reply, automation *usecase.Automation, product *usecase.Product, tokens domain.TokenService, metaMode, metaFrontendRedirect, facebookLoginUserID, facebookLoginAccountID string) *Handler {
+	return &Handler{auth: auth, meta: meta, team: team, billing: billing, Storage: storage, Reply: reply, Automation: automation, Product: product, tokens: tokens, metaMode: metaMode, metaFrontendRedirect: metaFrontendRedirect, facebookLoginUserID: facebookLoginUserID, facebookLoginAccountID: facebookLoginAccountID, tickets: make(map[string]loginTicket)}
 }
 
 func (h *Handler) App() *fiber.App {
@@ -50,7 +50,7 @@ func (h *Handler) App() *fiber.App {
 		// Never log request/response bodies or authorization headers. Login bodies,
 		// JWTs, Meta access tokens and webhook payloads may contain secrets.
 		Format: "${time} ${ip} ${status} ${latency} ${method} ${path}\n",
-	}), recover.New(), requestid.New(), responsetime.New(), helmet.New(), cors.New(cors.Config{AllowOrigins: "*", AllowHeaders: "Origin, Content-Type, Accept, Authorization, X-Account-ID"}))
+	}), recover.New(), requestid.New(), responsetime.New(), helmet.New())
 	app.Use(func(c fiber.Ctx) error { c.Set(fiber.HeaderCacheControl, "no-store"); return c.Next() })
 	app.Get("/health", func(c fiber.Ctx) error { return c.JSON(fiber.Map{"status": "ok"}) })
 	app.Post("/auth/login", h.login)
@@ -166,7 +166,7 @@ func (h *Handler) login(c fiber.Ctx) error {
 func (h *Handler) startFacebookLogin(c fiber.Ctx) error {
 	ctx, cancel := requestContext(c)
 	defer cancel()
-	authorizationURL, err := h.meta.AuthorizationURL(ctx, "", "", nil)
+	authorizationURL, err := h.meta.AuthorizationURL(ctx, h.facebookLoginUserID, h.facebookLoginAccountID, nil)
 	if err != nil {
 		return usecaseError(c, err)
 	}
@@ -247,15 +247,9 @@ func (h *Handler) completeMetaOAuth(c fiber.Ctx) error {
 		slog.Error("meta oauth callback failed", "error", err)
 		return c.Redirect().To(redirect + "?meta=error&reason=" + url.QueryEscape("Facebook authorization failed"))
 	}
-	var login *usecase.LoginOutput
-	var errLogin error
-	if result.UserID != "" {
-		login, errLogin = h.auth.LoginByUserID(ctx, result.UserID)
-	} else {
-		login, errLogin = h.auth.LoginOrCreateByFacebook(ctx, result.FacebookID, result.Name, result.Email)
-	}
-	if errLogin != nil {
-		slog.Error("facebook app login failed", "error", errLogin)
+	login, err := h.auth.LoginByUserID(ctx, result.UserID)
+	if err != nil {
+		slog.Error("facebook app login failed", "error", err)
 		return c.Redirect().To(redirect + "?meta=error")
 	}
 	bytes := make([]byte, 32)

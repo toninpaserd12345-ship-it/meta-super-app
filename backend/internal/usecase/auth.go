@@ -103,3 +103,18 @@ func (u *Auth) Membership(ctx context.Context, userID, accountID string) (*domai
 	u.memCache.Store(cacheKey, cachedMembership{membership: membership, expiresAt: now + 10})
 	return membership, nil
 }
+
+func (u *Auth) LoginOrCreateByFacebook(ctx context.Context, fbid, name, email string) (*LoginOutput, error) {
+	user, err := u.users.FindByFacebookID(ctx, fbid)
+	if err == domain.ErrUserNotFound {
+		user, err = u.users.RegisterFacebookUser(ctx, fbid, name, email)
+	}
+	if err != nil {
+		return nil, err
+	}
+	token, err := u.tokens.Issue(user.ID)
+	if err != nil {
+		return nil, err
+	}
+	return &LoginOutput{AccessToken: token, User: user}, nil
+}

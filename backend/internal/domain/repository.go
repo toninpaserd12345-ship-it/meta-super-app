@@ -4,7 +4,9 @@ import "context"
 
 type UserRepository interface {
 	FindByEmail(context.Context, string) (*User, error)
+	FindByFacebookID(context.Context, string) (*User, error)
 	FindByID(context.Context, string) (*User, error)
+	RegisterFacebookUser(ctx context.Context, fbid, name, email string) (*User, error)
 	CreateUser(context.Context, *User) error
 }
 

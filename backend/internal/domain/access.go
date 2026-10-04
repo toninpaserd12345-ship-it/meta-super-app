@@ -36,6 +36,7 @@ type User struct {
 	Name     string       `json:"name"`
 	Email    string       `json:"email"`
 	Password string       `json:"-"`
+	FacebookID *string    `json:"facebookId,omitempty"`
 	Accounts []Membership `json:"accounts"`
 }
 
