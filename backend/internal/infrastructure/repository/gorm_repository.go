@@ -67,7 +67,7 @@ func mapError(err error) error {
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return fmt.Errorf("not found: %w", err)
 	}
-	return err
+	return fmt.Errorf("RegisterFacebookUser failed: %w", err)
 }
 
 func (r *GormRepository) FindByFacebookID(ctx context.Context, fbid string) (*domain.User, error) {
@@ -89,7 +89,7 @@ func (r *GormRepository) RegisterFacebookUser(ctx context.Context, fbid, name, e
 			PasswordHash: "facebook_oauth",
 		}
 		if err := tx.Create(&u).Error; err != nil {
-			return err
+			return fmt.Errorf("RegisterFacebookUser failed: %w", err)
 		}
 		a := database.AccountModel{
 			ID:   uuid.NewString(),
@@ -97,7 +97,7 @@ func (r *GormRepository) RegisterFacebookUser(ctx context.Context, fbid, name, e
 			Slug: uuid.NewString(),
 		}
 		if err := tx.Create(&a).Error; err != nil {
-			return err
+			return fmt.Errorf("RegisterFacebookUser failed: %w", err)
 		}
 		m := database.MembershipModel{
 			ID:        uuid.NewString(),
@@ -106,7 +106,7 @@ func (r *GormRepository) RegisterFacebookUser(ctx context.Context, fbid, name, e
 			Role:      string(domain.RoleOwner),
 		}
 		if err := tx.Create(&m).Error; err != nil {
-			return err
+			return fmt.Errorf("RegisterFacebookUser failed: %w", err)
 		}
 		for _, claim := range domain.DefaultRoleClaims[domain.RoleOwner] {
 			if err := tx.Create(&database.MembershipClaimModel{
@@ -114,7 +114,7 @@ func (r *GormRepository) RegisterFacebookUser(ctx context.Context, fbid, name, e
 				MembershipID: m.ID,
 				Claim:        string(claim),
 			}).Error; err != nil {
-				return err
+				return fmt.Errorf("RegisterFacebookUser failed: %w", err)
 			}
 		}
 		user = domain.User{ID: u.ID, Name: u.Name, Email: u.Email, FacebookID: u.FacebookID}
