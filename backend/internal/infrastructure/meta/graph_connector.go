@@ -163,6 +163,14 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 	if !hmac.Equal(provided, mac.Sum(nil)) {
 		return errors.New("webhook signature does not match")
 	}
+	var objectProbe struct {
+		Object string `json:"object"`
+	}
+	_ = json.Unmarshal(body, &objectProbe)
+	if objectProbe.Object == "whatsapp_business_account" {
+		return g.processWhatsAppWebhook(ctx, body)
+	}
+
 	var event struct {
 		Object string `json:"object"`
 		Entry  []struct {
