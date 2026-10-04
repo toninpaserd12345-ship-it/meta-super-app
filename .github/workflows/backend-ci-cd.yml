@@ -101,14 +101,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Copy docker-compose file to Droplet
-        uses: appleboy/scp-action@v0.1.7 # ກັອບປີ້ໄຟລ໌ໄປໄວ້ໃນເຊີບເວີ
-        with:
-          host: ${{ secrets.DO_HOST }}
-          username: ${{ secrets.DO_USERNAME }}
-          key: ${{ secrets.DO_SSH_KEY }}
-          source: "docker-compose.prod.yml"
-          target: "meta-super-app"
 
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3 # ໃຊ້ Action ສຳລັບ SSH ເຂົ້າເຊີບເວີ
