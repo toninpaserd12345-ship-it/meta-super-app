@@ -44,9 +44,30 @@ const sendReply = async () => {
   // Note: the backend will stream it back so it will appear automatically
 }
 
-onMounted(() => {
+onMounted(async () => {
   if (import.meta.server) return
   
+  // Load initial history
+  try {
+    const history = await api.get('/chat/history') as ChatMessage[]
+    if (history && history.length > 0) {
+      for (const msg of history) {
+        msg.id = msg.timestamp + Math.random()
+        const key = msg.sender_id
+        if (!conversations.value[key]) {
+          conversations.value[key] = []
+        }
+        conversations.value[key].push(msg)
+      }
+      // Sort each conversation
+      for (const key in conversations.value) {
+        conversations.value[key].sort((a, b) => Number(a.timestamp) - Number(b.timestamp))
+      }
+    }
+  } catch (err) {
+    console.error('Failed to load history:', err)
+  }
+
   const baseURL = useRuntimeConfig().public.apiBase
   const url = `${baseURL}/chat/stream?token=${token.value}&account_id=${currentAccountID.value}`
   
