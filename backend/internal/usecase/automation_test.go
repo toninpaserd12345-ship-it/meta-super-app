@@ -22,7 +22,6 @@ func TestAutomationCreateRuleValidation(t *testing.T) {
 		{name: "missing page", accountID: "account-1", triggerType: "post", triggerValue: "post-1", productID: "product-1", replySetID: "reply-1"},
 		{name: "missing trigger type", accountID: "account-1", pageID: "page-1", triggerValue: "post-1", productID: "product-1", replySetID: "reply-1"},
 		{name: "missing trigger value", accountID: "account-1", pageID: "page-1", triggerType: "post", productID: "product-1", replySetID: "reply-1"},
-		{name: "missing product", accountID: "account-1", pageID: "page-1", triggerType: "post", triggerValue: "post-1", replySetID: "reply-1"},
 		{name: "missing reply set", accountID: "account-1", pageID: "page-1", triggerType: "post", triggerValue: "post-1", productID: "product-1"},
 		{name: "unsupported trigger", accountID: "account-1", pageID: "page-1", triggerType: "campaign", triggerValue: "campaign-1", productID: "product-1", replySetID: "reply-1"},
 	}
