@@ -98,7 +98,7 @@ async function toggleCampaign(id: string) {
 }
 
 async function createRules() {
-  if (!selectedProduct.value || !selectedSet.value || !selectedPage.value || !targetIds.value.length) return
+  if (!selectedSet.value || !selectedPage.value || !targetIds.value.length) return
   saving.value = true; notice.value = ''
   const failures: string[] = []; let created = 0
   for (const id of targetIds.value) {
