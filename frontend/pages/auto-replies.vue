@@ -102,8 +102,17 @@ async function createRules() {
   saving.value = true; notice.value = ''
   const failures: string[] = []; let created = 0
   for (const id of targetIds.value) {
+    let tName = ''
+    if (targetType.value === 'post') {
+      const p = posts.value.find(x => x.id === id)
+      tName = p ? (p.message || 'Facebook Post') : ''
+    } else {
+      const a = ads.value.find(x => x.id === id)
+      tName = a ? a.name : ''
+    }
+    
     try {
-      await $fetch('/api/proxy/api/v1/automation/rules', { method: 'POST', body: { pageId: pageId.value, triggerType: targetType.value, triggerValue: id, productId: productId.value, replySetId: replySetId.value } })
+      await $fetch('/api/proxy/api/v1/automation/rules', { method: 'POST', body: { pageId: pageId.value, triggerType: targetType.value, triggerValue: id, triggerName: tName, productId: productId.value, replySetId: replySetId.value } })
       created++
     } catch (error) { failures.push(`${id}: ${apiError(error, 'failed')}`) }
   }
@@ -112,7 +121,7 @@ async function createRules() {
   noticeType.value = 'success'; notice.value = `Created ${created} Auto ${created === 1 ? 'Reply' : 'Replies'}.`; view.value = 'dashboard'
 }
 async function toggleRule(rule: AutomationRule, active: boolean) {
-  try { await $fetch(`/api/proxy/api/v1/automation/rules/${rule.id}`, { method: 'PUT', body: { triggerType: rule.triggerType, triggerValue: rule.triggerValue, productId: rule.productId, replySetId: rule.replySetId, isActive: active } }); await refreshRules() }
+  try { await $fetch(`/api/proxy/api/v1/automation/rules/${rule.id}`, { method: 'PUT', body: { triggerType: rule.triggerType, triggerValue: rule.triggerValue, triggerName: rule.triggerName, productId: rule.productId, replySetId: rule.replySetId, isActive: active } }); await refreshRules() }
   catch (error) { noticeType.value = 'error'; notice.value = apiError(error, 'Could not update this Auto Reply.') }
 }
 async function deleteRule(rule: AutomationRule) {
@@ -139,7 +148,7 @@ watch(adAccountId, loadCampaigns)
     <section class="summary-grid"><article><v-icon icon="mdi-package-variant-closed"/><div><strong>{{ products.length }}</strong><span>Products</span></div></article><article><v-icon icon="mdi-message-text-fast-outline"/><div><strong>{{ usableSets.length }}</strong><span>Ready Reply Sets</span></div></article><article><v-icon icon="mdi-robot-happy-outline"/><div><strong>{{ rules.filter(item=>item.isActive).length }}</strong><span>Active Auto Replies</span></div></article></section>
     <v-alert v-if="!products.length || !usableSets.length || !pages.length" type="info" variant="tonal" class="mb-4"><strong>Setup needed:</strong> <NuxtLink v-if="!products.length" to="/products">add a Product</NuxtLink><span v-if="!products.length && (!usableSets.length || !pages.length)"> · </span><NuxtLink v-if="!usableSets.length" to="/replies">build a Reply Set</NuxtLink><span v-if="!usableSets.length && !pages.length"> · </span><NuxtLink v-if="!pages.length" to="/meta-pages">connect a Facebook Page</NuxtLink>.</v-alert>
     <section class="rules-panel"><div class="panel-head"><div><small>LIVE CONFIGURATION</small><h3>Auto Replies</h3></div><v-text-field v-model="search" density="compact" variant="outlined" prepend-inner-icon="mdi-magnify" placeholder="Search" hide-details/></div>
-      <div v-if="filteredRules.length" class="rule-list"><article v-for="rule in filteredRules" :key="rule.id" class="rule-row"><div class="rule-type"><v-icon :icon="rule.triggerType==='post'?'mdi-post-outline':'mdi-bullhorn-outline'"/><span>{{ rule.triggerType }}</span></div><div class="rule-main"><strong>{{ productName(rule.productId) }}</strong><span>{{ setName(rule.replySetId) }} · {{ pageName(rule.pageId) }}</span><small>{{ rule.triggerValue }}</small></div><v-switch :model-value="rule.isActive" color="success" hide-details density="compact" :disabled="!can('pages:connect')" @update:model-value="toggleRule(rule, Boolean($event))"/><v-btn icon="mdi-delete-outline" variant="text" color="error" :loading="deletingId===rule.id" :disabled="!can('pages:connect')" @click="deleteRule(rule)"/></article></div>
+      <div v-if="filteredRules.length" class="rule-list"><article v-for="rule in filteredRules" :key="rule.id" class="rule-row"><div class="rule-type"><v-icon :icon="rule.triggerType==='post'?'mdi-post-outline':'mdi-bullhorn-outline'"/><span>{{ rule.triggerType }}</span></div><div class="rule-main"><strong>{{ productName(rule.productId) }}</strong><span>{{ setName(rule.replySetId) }} · {{ pageName(rule.pageId) }}</span><small>{{ rule.triggerName || rule.triggerValue }}</small></div><v-switch :model-value="rule.isActive" color="success" hide-details density="compact" :disabled="!can('pages:connect')" @update:model-value="toggleRule(rule, Boolean($event))"/><v-btn icon="mdi-delete-outline" variant="text" color="error" :loading="deletingId===rule.id" :disabled="!can('pages:connect')" @click="deleteRule(rule)"/></article></div>
       <div v-else class="empty"><v-icon icon="mdi-robot-happy-outline" size="34"/><h3>No Auto Replies yet</h3><p>Create one to connect product answers to a Post or Ad.</p><v-btn color="primary" :disabled="!products.length || !usableSets.length || !pages.length" @click="startWizard">Create Auto Reply</v-btn></div>
     </section>
   </template>
