@@ -8,6 +8,7 @@ export interface NavigationItem {
 }
 
 export const appNavigation: NavigationItem[] = [
+  { label: 'Ads Manager', icon: 'mdi-bullhorn-outline', to: '/ads', claim: 'pages:read' },
   { label: 'Overview', icon: 'mdi-view-dashboard-outline', to: '/', claim: 'dashboard:read' },
   { label: 'Live Chat', icon: 'mdi-chat-processing-outline', to: '/live-chat', claim: 'pages:read' },
   { label: 'Meta Pages', icon: 'mdi-facebook', to: '/meta-pages', claim: 'pages:read' },
