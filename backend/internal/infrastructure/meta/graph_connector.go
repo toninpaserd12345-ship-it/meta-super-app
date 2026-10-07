@@ -6,6 +6,8 @@ import (
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
+	"gorm.io/gorm"
+	"github.com/meta-super-app/backend/internal/infrastructure/database"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -48,6 +50,8 @@ type graphPage struct {
 }
 
 type GraphConnector struct {
+	db *gorm.DB
+
 	chatStream *usecase.ChatStream
 	cfg           GraphConfig
 	client        *http.Client
@@ -73,8 +77,8 @@ func (g *GraphConnector) SetAutomationProvider(p domain.AutomationProvider) {
 	g.automation = p
 }
 
-func NewGraphConnector(cfg GraphConfig) *GraphConnector {
-	g := &GraphConnector{cfg: cfg, client: &http.Client{Timeout: 15 * time.Second}, states: make(map[string]oauthState), sessions: make(map[string]*graphSession), recentEvents: make(map[string]time.Time), bindings: make(map[string]domain.ProductBinding), products: make(map[string]map[string]domain.Product), replyFlows: make(map[string]map[string]domain.ReplyFlow), firstReplies: make(map[string]time.Time), conversations: make(map[string]string), deliverySteps: make(map[string]bool), inFlight: make(map[string]bool)}
+func NewGraphConnector(cfg GraphConfig, db *gorm.DB) *GraphConnector {
+	g := &GraphConnector{db: db, cfg: cfg, client: &http.Client{Timeout: 15 * time.Second}, states: make(map[string]oauthState), sessions: make(map[string]*graphSession), recentEvents: make(map[string]time.Time), bindings: make(map[string]domain.ProductBinding), products: make(map[string]map[string]domain.Product), replyFlows: make(map[string]map[string]domain.ReplyFlow), firstReplies: make(map[string]time.Time), conversations: make(map[string]string), deliverySteps: make(map[string]bool), inFlight: make(map[string]bool)}
 	if err := g.loadState(); err != nil {
 		slog.Warn("unable to load Meta state", "error", err)
 	}
@@ -509,9 +513,36 @@ func matchesKeywords(text string, keywords []string) bool {
 }
 
 func (g *GraphConnector) findPage(pageID string) (string, graphPage, bool) {
-	for accID, session := range g.sessions {
+	g.mu.RLock()
+	for accountID, session := range g.sessions {
 		if page, ok := session.Pages[pageID]; ok {
-			return accID, page, true
+			g.mu.RUnlock()
+			return accountID, page, true
+		}
+	}
+	g.mu.RUnlock()
+
+	if g.db != nil {
+		var model database.MetaPageTokenModel
+		if err := g.db.First(&model, "page_id = ?", pageID).Error; err == nil {
+			page := graphPage{
+				MetaPage: domain.MetaPage{
+					ID:         model.PageID,
+					Name:       model.Name,
+					Category:   model.Category,
+					PictureURL: model.PictureURL,
+					Connected:  model.IsConnected,
+					TokenReady: model.AccessToken != "",
+				},
+				AccessToken: model.AccessToken,
+			}
+			g.mu.Lock()
+			if g.sessions[model.AccountID] == nil {
+				g.sessions[model.AccountID] = &graphSession{Pages: make(map[string]graphPage)}
+			}
+			g.sessions[model.AccountID].Pages[model.PageID] = page
+			g.mu.Unlock()
+			return model.AccountID, page, true
 		}
 	}
 	return "", graphPage{}, false
@@ -603,6 +634,9 @@ func (g *GraphConnector) CompleteAuthorization(ctx context.Context, state, code 
 	_ = g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/me?fields=id,name,email&access_token="+token.AccessToken, &profile)
 	if pending.AccountID != "" {
 		g.sessions[pending.AccountID] = &graphSession{UserToken: token.AccessToken, TokenExpiresAt: debug.Data.ExpiresAt, DataAccessExpiresAt: debug.Data.DataAccessExpiresAt, GrantedPermissions: append([]string(nil), debug.Data.Scopes...), Pages: pages}
+		if g.db != nil {
+			g.db.Save(&database.MetaConnectionModel{AccountID: pending.AccountID, UserToken: token.AccessToken})
+		}
 		_ = g.persistStateLocked()
 	}
 	g.mu.Unlock()
@@ -748,6 +782,17 @@ func (g *GraphConnector) ConnectPage(ctx context.Context, _ string, accountID, p
 		page.WebhookStatus = "app_level"
 	}
 	session.Pages[pageID] = page
+	if g.db != nil {
+		g.db.Save(&database.MetaPageTokenModel{
+			PageID:      pageID,
+			AccountID:   accountID,
+			Name:        page.Name,
+			Category:    page.Category,
+			PictureURL:  page.PictureURL,
+			AccessToken: page.AccessToken,
+			IsConnected: page.Connected,
+		})
+	}
 	_ = g.persistStateLocked()
 	g.mu.Unlock()
 	
@@ -796,6 +841,17 @@ func (g *GraphConnector) DisconnectPage(ctx context.Context, _ string, accountID
 	page.Connected = false
 	page.WebhookStatus = ""
 	session.Pages[pageID] = page
+	if g.db != nil {
+		g.db.Save(&database.MetaPageTokenModel{
+			PageID:      pageID,
+			AccountID:   accountID,
+			Name:        page.Name,
+			Category:    page.Category,
+			PictureURL:  page.PictureURL,
+			AccessToken: page.AccessToken,
+			IsConnected: page.Connected,
+		})
+	}
 	_ = g.persistStateLocked()
 	g.mu.Unlock()
 	
@@ -837,12 +893,26 @@ func (g *GraphConnector) ListPosts(ctx context.Context, _ string, accountID, pag
 
 func (g *GraphConnector) userToken(accountID string) (string, error) {
 	g.mu.RLock()
-	defer g.mu.RUnlock()
 	session := g.sessions[accountID]
-	if session == nil || session.UserToken == "" {
-		return "", errors.New("facebook connection not found")
+	if session != nil && session.UserToken != "" {
+		g.mu.RUnlock()
+		return session.UserToken, nil
 	}
-	return session.UserToken, nil
+	g.mu.RUnlock()
+
+	if g.db != nil {
+		var model database.MetaConnectionModel
+		if err := g.db.First(&model, "account_id = ?", accountID).Error; err == nil {
+			g.mu.Lock()
+			if g.sessions[accountID] == nil {
+				g.sessions[accountID] = &graphSession{Pages: make(map[string]graphPage)}
+			}
+			g.sessions[accountID].UserToken = model.UserToken
+			g.mu.Unlock()
+			return model.UserToken, nil
+		}
+	}
+	return "", errors.New("facebook connection not found")
 }
 
 func (g *GraphConnector) ListAdAccounts(ctx context.Context, _ string, accountID string) ([]domain.MetaAdAccount, error) {

@@ -58,7 +58,7 @@ func main() {
 	tokens := security.NewJWT(cfg.JWTSecret, cfg.JWTIssuer, cfg.AccessTokenTTL)
 	auth := usecase.NewAuth(users, accounts, passwords, tokens)
 	metaMode := "live"
-	metaConnector := metainfra.NewGraphConnector(metainfra.GraphConfig{AppID: cfg.MetaAppID, AppSecret: cfg.MetaAppSecret, RedirectURI: cfg.MetaRedirectURI, Version: cfg.MetaGraphVersion, WebhookFields: cfg.MetaWebhookFields, WebhookVerifyToken: cfg.MetaWebhookVerifyToken, StateFile: cfg.MetaStateFile})
+	metaConnector := metainfra.NewGraphConnector(metainfra.GraphConfig{AppID: cfg.MetaAppID, AppSecret: cfg.MetaAppSecret, RedirectURI: cfg.MetaRedirectURI, Version: cfg.MetaGraphVersion, WebhookFields: cfg.MetaWebhookFields, WebhookVerifyToken: cfg.MetaWebhookVerifyToken, StateFile: cfg.MetaStateFile}, db)
 	meta := usecase.NewMeta(metaConnector)
 	team := usecase.NewTeam(accounts, users, passwords)
 	billing := usecase.NewBilling(billingRepo)

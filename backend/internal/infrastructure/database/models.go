@@ -122,3 +122,24 @@ type TransactionModel struct {
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 }
+
+type MetaConnectionModel struct {
+	AccountID string       `gorm:"type:uuid;primaryKey"`
+	Account   AccountModel `gorm:"foreignKey:AccountID;constraint:OnDelete:CASCADE"`
+	UserToken string       `gorm:"type:text;not null"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+type MetaPageTokenModel struct {
+	PageID      string       `gorm:"size:255;primaryKey"`
+	AccountID   string       `gorm:"type:uuid;not null;index"`
+	Account     AccountModel `gorm:"foreignKey:AccountID;constraint:OnDelete:CASCADE"`
+	Name        string       `gorm:"size:255"`
+	Category    string       `gorm:"size:255"`
+	PictureURL  string       `gorm:"size:1000"`
+	AccessToken string       `gorm:"type:text;not null"`
+	IsConnected bool         `gorm:"default:true"`
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
