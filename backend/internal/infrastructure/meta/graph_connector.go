@@ -884,7 +884,7 @@ func (g *GraphConnector) ListCampaigns(ctx context.Context, _ string, accountID,
 	if !strings.HasPrefix(adAccountID, "act_") {
 		adAccountID = "act_" + adAccountID
 	}
-	query := url.Values{"fields": {"id,name,status,effective_status,objective,adsets.limit(0).summary(true),ads.limit(0).summary(true)"}, "limit": {"100"}, "access_token": {token}}
+	query := url.Values{"fields": {"id,name,status,effective_status,objective,adsets.summary(1).limit(1),ads.summary(1).limit(1)"}, "limit": {"100"}, "access_token": {token}}
 	var response struct {
 		Data []struct {
 			ID              string `json:"id"`
