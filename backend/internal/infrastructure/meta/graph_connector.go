@@ -972,7 +972,7 @@ func (g *GraphConnector) userToken(accountID string) (string, error) {
 func (g *GraphConnector) ListAdAccounts(ctx context.Context, _ string, accountID string) ([]domain.MetaAdAccount, error) {
 	token, err := g.userToken(accountID)
 	if err != nil {
-		return nil, err
+		return []domain.MetaAdAccount{}, nil
 	}
 	query := url.Values{"fields": {"id,name,account_status,business{id,name}"}, "limit": {"100"}, "access_token": {token}}
 	var response struct {
@@ -1003,7 +1003,7 @@ func (g *GraphConnector) ListAdAccounts(ctx context.Context, _ string, accountID
 func (g *GraphConnector) ListCampaigns(ctx context.Context, _ string, accountID, adAccountID string) ([]domain.MetaCampaign, error) {
 	token, err := g.userToken(accountID)
 	if err != nil {
-		return nil, err
+		return []domain.MetaCampaign{}, nil
 	}
 	if !strings.HasPrefix(adAccountID, "act_") {
 		adAccountID = "act_" + adAccountID
@@ -1041,7 +1041,7 @@ func (g *GraphConnector) ListCampaigns(ctx context.Context, _ string, accountID,
 func (g *GraphConnector) ListAds(ctx context.Context, _ string, accountID, campaignID string) ([]domain.MetaAd, error) {
 	token, err := g.userToken(accountID)
 	if err != nil {
-		return nil, err
+		return []domain.MetaAd{}, nil
 	}
 	query := url.Values{"fields": {"id,name,status,effective_status"}, "limit": {"200"}, "access_token": {token}}
 	var response struct {
