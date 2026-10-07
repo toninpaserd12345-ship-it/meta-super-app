@@ -29,8 +29,8 @@ func (u *Automation) CreateRule(ctx context.Context, accountID, pageID, triggerT
 	triggerValue = strings.TrimSpace(triggerValue)
 	productID = strings.TrimSpace(productID)
 	replySetID = strings.TrimSpace(replySetID)
-	if pageID == "" || triggerType == "" || triggerValue == "" || productID == "" || replySetID == "" {
-		return nil, fmt.Errorf("%w: pageId, triggerType, triggerValue, productId, and replySetId are required", ErrInvalidAutomationRule)
+	if pageID == "" || triggerType == "" || triggerValue == "" || replySetID == "" {
+		return nil, fmt.Errorf("%w: pageId, triggerType, triggerValue, and replySetId are required", ErrInvalidAutomationRule)
 	}
 	if triggerType != "post" && triggerType != "ad" && triggerType != "keyword" {
 		return nil, fmt.Errorf("%w: triggerType must be post, ad, or keyword", ErrInvalidAutomationRule)
@@ -86,8 +86,8 @@ func (u *Automation) UpdateRule(ctx context.Context, id, accountID, triggerType,
 	triggerValue = strings.TrimSpace(triggerValue)
 	productID = strings.TrimSpace(productID)
 	replySetID = strings.TrimSpace(replySetID)
-	if triggerValue == "" || productID == "" || replySetID == "" {
-		return fmt.Errorf("%w: triggerValue, productId, and replySetId are required", ErrInvalidAutomationRule)
+	if triggerValue == "" || replySetID == "" {
+		return fmt.Errorf("%w: triggerValue and replySetId are required", ErrInvalidAutomationRule)
 	}
 	if triggerType != "post" && triggerType != "ad" && triggerType != "keyword" {
 		return fmt.Errorf("%w: triggerType must be post, ad, or keyword", ErrInvalidAutomationRule)
