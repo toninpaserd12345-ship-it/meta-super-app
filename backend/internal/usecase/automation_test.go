@@ -16,6 +16,7 @@ func TestAutomationCreateRuleValidation(t *testing.T) {
 		pageID       string
 		triggerType  string
 		triggerValue string
+		triggerName  string
 		productID    string
 		replySetID   string
 	}{
@@ -29,7 +30,7 @@ func TestAutomationCreateRuleValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			service := usecase.NewAutomation(repository.NewMemory(""))
-			if _, err := service.CreateRule(context.Background(), tt.accountID, tt.pageID, tt.triggerType, tt.triggerValue, tt.productID, tt.replySetID); err == nil {
+			if _, err := service.CreateRule(context.Background(), tt.accountID, tt.pageID, tt.triggerType, tt.triggerValue, tt.triggerName, tt.productID, tt.replySetID); err == nil {
 				t.Fatal("CreateRule() returned no validation error")
 			}
 		})
@@ -42,7 +43,7 @@ func TestAutomationCreateAndUpdatePropagateProductID(t *testing.T) {
 	service := usecase.NewAutomation(repo)
 
 	for _, triggerType := range []string{"post", "ad", "keyword"} {
-		rule, err := service.CreateRule(ctx, "account-1", "page-1", triggerType, triggerType+"-value", "product-1", "reply-1")
+		rule, err := service.CreateRule(ctx, "account-1", "page-1", triggerType, triggerType+"-value", "", "product-1", "reply-1")
 		if err != nil {
 			t.Fatalf("CreateRule(%s) error = %v", triggerType, err)
 		}
@@ -59,7 +60,7 @@ func TestAutomationCreateAndUpdatePropagateProductID(t *testing.T) {
 		t.Fatalf("GetRules() count = %d, want 3", len(rules))
 	}
 	rule := rules[0]
-	if err = service.UpdateRule(ctx, rule.ID, "account-1", rule.TriggerType, rule.TriggerValue, "product-2", "reply-2", false); err != nil {
+	if err = service.UpdateRule(ctx, rule.ID, "account-1", rule.TriggerType, rule.TriggerValue, "", "product-2", "reply-2", false); err != nil {
 		t.Fatalf("UpdateRule() error = %v", err)
 	}
 	updated, err := service.GetRule(ctx, rule.ID, "account-1")
@@ -74,7 +75,7 @@ func TestAutomationCreateAndUpdatePropagateProductID(t *testing.T) {
 func TestAutomationRejectsCrossAccountAccess(t *testing.T) {
 	ctx := context.Background()
 	service := usecase.NewAutomation(repository.NewMemory(""))
-	rule, err := service.CreateRule(ctx, "account-1", "page-1", "post", "post-1", "product-1", "reply-1")
+	rule, err := service.CreateRule(ctx, "account-1", "page-1", "post", "post-1", "", "product-1", "reply-1")
 	if err != nil {
 		t.Fatalf("CreateRule() error = %v", err)
 	}

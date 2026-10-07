@@ -87,6 +87,7 @@ type AutomationRuleModel struct {
 	Account      AccountModel  `gorm:"foreignKey:AccountID;constraint:OnDelete:CASCADE"`
 	PageID       string        `gorm:"index"`
 	TriggerType  string        `gorm:"size:50;not null"` // post, ad, keyword
+	TriggerName  string        `gorm:"size:255"`
 	TriggerValue string        `gorm:"size:255;index"`
 	ProductID    *string       `gorm:"type:uuid;index"`
 	Product      *ProductModel  `gorm:"foreignKey:ProductID;constraint:OnDelete:SET NULL"`

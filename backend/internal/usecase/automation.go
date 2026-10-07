@@ -22,11 +22,12 @@ func NewAutomation(repo domain.AutomationRepository) *Automation {
 	return &Automation{repo: repo}
 }
 
-func (u *Automation) CreateRule(ctx context.Context, accountID, pageID, triggerType, triggerValue, productID, replySetID string) (*domain.AutomationRule, error) {
+func (u *Automation) CreateRule(ctx context.Context, accountID, pageID, triggerType, triggerValue, triggerName, productID, replySetID string) (*domain.AutomationRule, error) {
 	accountID = strings.TrimSpace(accountID)
 	pageID = strings.TrimSpace(pageID)
 	triggerType = strings.ToLower(strings.TrimSpace(triggerType))
 	triggerValue = strings.TrimSpace(triggerValue)
+	triggerName = strings.TrimSpace(triggerName)
 	productID = strings.TrimSpace(productID)
 	replySetID = strings.TrimSpace(replySetID)
 	if pageID == "" || triggerType == "" || triggerValue == "" || replySetID == "" {
@@ -47,6 +48,7 @@ func (u *Automation) CreateRule(ctx context.Context, accountID, pageID, triggerT
 		AccountID:    accountID,
 		PageID:       pageID,
 		TriggerType:  triggerType,
+		TriggerName:  triggerName,
 		TriggerValue: triggerValue,
 		ProductID:    productID,
 		ReplySetID:   replySetID,
@@ -77,13 +79,14 @@ func (u *Automation) GetRule(ctx context.Context, id string, accountID string) (
 	return rule, nil
 }
 
-func (u *Automation) UpdateRule(ctx context.Context, id, accountID, triggerType, triggerValue, productID, replySetID string, isActive bool) error {
+func (u *Automation) UpdateRule(ctx context.Context, id, accountID, triggerType, triggerValue, triggerName, productID, replySetID string, isActive bool) error {
 	rule, err := u.GetRule(ctx, id, accountID)
 	if err != nil {
 		return err
 	}
 	triggerType = strings.ToLower(strings.TrimSpace(triggerType))
 	triggerValue = strings.TrimSpace(triggerValue)
+	triggerName = strings.TrimSpace(triggerName)
 	productID = strings.TrimSpace(productID)
 	replySetID = strings.TrimSpace(replySetID)
 	if triggerValue == "" || replySetID == "" {

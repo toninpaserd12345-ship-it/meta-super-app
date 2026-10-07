@@ -13,6 +13,7 @@ type createAutomationRequest struct {
 	PageID       string `json:"pageId"`
 	TriggerType  string `json:"triggerType"`
 	TriggerValue string `json:"triggerValue"`
+	TriggerName  string `json:"triggerName"`
 	ProductID    string `json:"productId"`
 	ReplySetID   string `json:"replySetId"`
 }
@@ -20,6 +21,7 @@ type createAutomationRequest struct {
 type updateAutomationRequest struct {
 	TriggerType  string `json:"triggerType"`
 	TriggerValue string `json:"triggerValue"`
+	TriggerName  string `json:"triggerName"`
 	ProductID    string `json:"productId"`
 	ReplySetID   string `json:"replySetId"`
 	IsActive     bool   `json:"isActive"`
@@ -47,7 +49,7 @@ func (h *Handler) CreateAutomationRule(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	rule, err := h.Automation.CreateRule(c.Context(), accountID, req.PageID, req.TriggerType, req.TriggerValue, req.ProductID, req.ReplySetID)
+	rule, err := h.Automation.CreateRule(c.Context(), accountID, req.PageID, req.TriggerType, req.TriggerValue, req.TriggerName, req.ProductID, req.ReplySetID)
 	if err != nil {
 		return automationError(c, err)
 	}
@@ -67,7 +69,7 @@ func (h *Handler) UpdateAutomationRule(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	err := h.Automation.UpdateRule(c.Context(), id, accountID, req.TriggerType, req.TriggerValue, req.ProductID, req.ReplySetID, req.IsActive)
+	err := h.Automation.UpdateRule(c.Context(), id, accountID, req.TriggerType, req.TriggerValue, req.TriggerName, req.ProductID, req.ReplySetID, req.IsActive)
 	if err != nil {
 		return automationError(c, err)
 	}

@@ -9,7 +9,8 @@ type AutomationRule struct {
 	ID           string    `json:"id"`
 	AccountID    string    `json:"accountId"`
 	PageID       string    `json:"pageId"`
-	TriggerType  string    `json:"triggerType"`  // post, ad, keyword
+	TriggerType  string    `json:"triggerType"`
+	TriggerName  string    `json:"triggerName"`  // post, ad, keyword
 	TriggerValue string    `json:"triggerValue"` // PostID, AdID, Keyword
 	ProductID    string    `json:"productId"`
 	ReplySetID   string    `json:"replySetId"`
