@@ -579,6 +579,7 @@ func (g *GraphConnector) findPage(pageID string) (string, graphPage, bool) {
 	if g.db != nil {
 		var model database.MetaPageTokenModel
 		if err := g.db.First(&model, "page_id = ?", pageID).Error; err == nil {
+			decrypted := g.decryptToken(model.AccessToken)
 			page := graphPage{
 				MetaPage: domain.MetaPage{
 					ID:         model.PageID,
@@ -586,9 +587,9 @@ func (g *GraphConnector) findPage(pageID string) (string, graphPage, bool) {
 					Category:   model.Category,
 					PictureURL: model.PictureURL,
 					Connected:  model.IsConnected,
-					TokenReady: model.AccessToken != "",
+					TokenReady: decrypted != "",
 				},
-				AccessToken: g.decryptToken(model.AccessToken),
+				AccessToken: decrypted,
 			}
 			g.mu.Lock()
 			if g.sessions[model.AccountID] == nil {
@@ -961,9 +962,10 @@ func (g *GraphConnector) userToken(accountID string) (string, error) {
 			if g.sessions[accountID] == nil {
 				g.sessions[accountID] = &graphSession{Pages: make(map[string]graphPage)}
 			}
-			g.sessions[accountID].UserToken = g.decryptToken(model.UserToken)
+			decrypted := g.decryptToken(model.UserToken)
+			g.sessions[accountID].UserToken = decrypted
 			g.mu.Unlock()
-			return model.UserToken, nil
+			return decrypted, nil
 		}
 	}
 	return "", errors.New("facebook connection not found")
