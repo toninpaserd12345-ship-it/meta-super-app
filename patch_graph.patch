@@ -1,0 +1,27 @@
+--- backend/internal/infrastructure/meta/graph_connector.go
++++ backend/internal/infrastructure/meta/graph_connector.go
+@@ -357,10 +357,20 @@
+ 		page.GrantedPermissions = append([]string(nil), debug.Data.Scopes...)
+ 		pages[id] = page
+ 	}
+-	g.sessions[pending.AccountID] = &graphSession{UserToken: token.AccessToken, TokenExpiresAt: debug.Data.ExpiresAt, DataAccessExpiresAt: debug.Data.DataAccessExpiresAt, GrantedPermissions: append([]string(nil), debug.Data.Scopes...), Pages: pages}
+-	persistErr := g.persistStateLocked()
+-	g.mu.Unlock()
+-	return &domain.MetaOAuthResult{UserID: pending.UserID, AccountID: pending.AccountID}, persistErr
++
++	var profile struct {
++		ID    string `json:"id"`
++		Name  string `json:"name"`
++		Email string `json:"email"`
++	}
++	_ = g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/me?fields=id,name,email&access_token="+token.AccessToken, &profile)
++
++	if pending.AccountID != "" {
++		g.sessions[pending.AccountID] = &graphSession{UserToken: token.AccessToken, TokenExpiresAt: debug.Data.ExpiresAt, DataAccessExpiresAt: debug.Data.DataAccessExpiresAt, GrantedPermissions: append([]string(nil), debug.Data.Scopes...), Pages: pages}
++		_ = g.persistStateLocked()
++	}
++	g.mu.Unlock()
++	return &domain.MetaOAuthResult{UserID: pending.UserID, AccountID: pending.AccountID, AccessToken: token.AccessToken, FacebookID: profile.ID, Name: profile.Name, Email: profile.Email}, nil
+ }
+ 
+ func (g *GraphConnector) ListPages(_ context.Context, _, accountID string) ([]domain.MetaPage, error) {

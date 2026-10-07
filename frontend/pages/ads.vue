@@ -27,21 +27,25 @@ const binding = ref(false)
 const notice = ref('')
 
 async function loadData() {
-  const [accRes, ruleRes, prodRes, repRes, pageRes] = await Promise.all([
-    $fetch<{ items: MetaAdAccount[] }>('/api/proxy/api/v1/meta/ad-accounts'),
-    $fetch<{ items: AutomationRule[] }>('/api/proxy/api/v1/automation/rules'),
-    $fetch<{ items: Product[] }>('/api/proxy/api/v1/products'),
-    $fetch<{ items: ReplySet[] }>('/api/proxy/api/v1/replies'),
-    $fetch<{ items: MetaPage[] }>('/api/proxy/api/v1/meta/pages')
-  ])
-  adAccounts.value = accRes.items || []
-  rules.value = ruleRes.items || []
-  products.value = prodRes.items || []
-  replySets.value = repRes.items || []
-  pages.value = pageRes.items || []
+  loading.value = true
+  try {
+    const accRes = await $fetch<{ items: MetaAdAccount[] }>('/api/proxy/api/v1/meta/ad-accounts').catch(err => { notice.value = err.data?.message || err.message; return { items: [] } })
+    const ruleRes = await $fetch<{ items: AutomationRule[] }>('/api/proxy/api/v1/automation/rules').catch(() => ({ items: [] }))
+    const prodRes = await $fetch<{ items: Product[] }>('/api/proxy/api/v1/products').catch(() => ({ items: [] }))
+    const repRes = await $fetch<{ items: ReplySet[] }>('/api/proxy/api/v1/replies').catch(() => ({ items: [] }))
+    const pageRes = await $fetch<{ items: MetaPage[] }>('/api/proxy/api/v1/meta/pages').catch(() => ({ items: [] }))
 
-  if (adAccounts.value.length > 0) {
-    adAccountId.value = (adAccounts.value[0]?.id || '')
+    adAccounts.value = accRes.items || []
+    rules.value = ruleRes.items || []
+    products.value = prodRes.items || []
+    replySets.value = repRes.items || []
+    pages.value = pageRes.items || []
+
+    if (adAccounts.value.length > 0) {
+      adAccountId.value = (adAccounts.value[0]?.id || '')
+    }
+  } finally {
+    loading.value = false
   }
 }
 

@@ -1,0 +1,20 @@
+--- backend/internal/delivery/httpx/handler.go
++++ backend/internal/delivery/httpx/handler.go
+@@ -32,6 +32,7 @@
+ 	"github.com/gofiber/fiber/v2/middleware/logger"
+ 	"github.com/gofiber/fiber/v2/middleware/recover"
+ 	"github.com/gofiber/fiber/v2/middleware/requestid"
++	"github.com/gofiber/fiber/v2/middleware/cors"
+ 	"github.com/meta-super-app/backend/internal/domain"
+ 	"github.com/meta-super-app/backend/internal/usecase"
+ 	"github.com/meta-super-app/backend/pkg/helmet"
+@@ -62,6 +63,9 @@
+ 		// JWTs, Meta access tokens and webhook payloads may contain secrets.
+ 		Format: "${time} ${ip} ${status} ${latency} ${method} ${path}\n",
+ 	}), recover.New(), requestid.New(), responsetime.New(), helmet.New())
++	app.Use(cors.New(cors.Config{
++		AllowOrigins: "*",
++	}))
+ 	app.Use(func(c fiber.Ctx) error { c.Set(fiber.HeaderCacheControl, "no-store"); return c.Next() })
+ 	app.Get("/health", func(c fiber.Ctx) error { return c.JSON(fiber.Map{"status": "ok"}) })
+ 	app.Post("/auth/login", h.login)

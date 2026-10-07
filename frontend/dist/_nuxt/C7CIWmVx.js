@@ -1,0 +1,1 @@
+import{n as e}from"./BiN9AZ2m.js";var t=e(`v-spacer`,`div`,`VSpacer`);export{t};

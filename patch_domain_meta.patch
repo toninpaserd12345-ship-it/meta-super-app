@@ -1,0 +1,12 @@
+--- backend/internal/domain/meta.go
++++ backend/internal/domain/meta.go
+@@ -4,6 +4,9 @@
+ 	UserID      string
+ 	AccountID   string
+ 	AccessToken string
++	FacebookID  string
++	Name        string
++	Email       string
+ }
+ 
+ type MetaPage struct {
