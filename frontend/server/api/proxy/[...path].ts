@@ -35,7 +35,7 @@ export default defineEventHandler(async (event) => {
         Accept: 'application/json',
         ...(contentType ? { 'Content-Type': contentType } : {}),
       },
-      timeout: 15_000,
+      timeout: 30_000,
     })
   } catch (error) {
     throw upstreamError(error)
