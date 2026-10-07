@@ -11,7 +11,7 @@ import (
 
 func TestGraphStateSurvivesRestart(t *testing.T) {
 	stateFile := filepath.Join(t.TempDir(), "meta-state.json")
-	first := NewGraphConnector(GraphConfig{StateFile: stateFile})
+	first := NewGraphConnector(GraphConfig{StateFile: stateFile}, nil)
 	first.sessions["account-1"] = &graphSession{UserToken: "user-token", Pages: map[string]graphPage{"page-1": {MetaPage: domain.MetaPage{ID: "page-1", Connected: true}, AccessToken: "page-token"}}}
 	first.products["account-1"] = map[string]domain.Product{"product-1": {ID: "product-1", Name: "Durian"}}
 	first.replyFlows["account-1"] = map[string]domain.ReplyFlow{"flow-1": {ID: "flow-1", Name: "Price reply"}}
@@ -20,7 +20,7 @@ func TestGraphStateSurvivesRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	restarted := NewGraphConnector(GraphConfig{StateFile: stateFile})
+	restarted := NewGraphConnector(GraphConfig{StateFile: stateFile}, nil)
 	if restarted.sessions["account-1"] == nil || restarted.sessions["account-1"].Pages["page-1"].AccessToken != "page-token" {
 		t.Fatal("OAuth session was not restored")
 	}
@@ -94,7 +94,7 @@ func TestReplyStepsUsesProductFallback(t *testing.T) {
 }
 
 func TestResolveReplyItemsExpandsProductVariablesWithoutMutatingSource(t *testing.T) {
-	connector := NewGraphConnector(GraphConfig{})
+	connector := NewGraphConnector(GraphConfig{}, nil)
 	connector.products["account-1"] = map[string]domain.Product{
 		"product-1": {
 			ID:          "product-1",
