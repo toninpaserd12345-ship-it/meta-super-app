@@ -38,6 +38,7 @@ export interface AutomationRule {
   pageId: string
   triggerType: AutomationTriggerType
   triggerValue: string
+  triggerName?: string
   productId: string
   replySetId: string
   isActive: boolean

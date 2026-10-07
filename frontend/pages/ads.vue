@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { MetaAdAccount, MetaCampaign, MetaAd, AutomationRule, Product, ReplySet, MetaPage } from '~/types'
+import type { MetaAdAccount, MetaCampaign, MetaAd, AutomationRule, Product, ReplySet, MetaPage } from '~/types/automation'
 
 definePageMeta({ middleware: 'auth' })
 const { can } = useAuth()
@@ -41,7 +41,7 @@ async function loadData() {
   pages.value = pageRes.items || []
 
   if (adAccounts.value.length > 0) {
-    adAccountId.value = adAccounts.value[0].id
+    adAccountId.value = (adAccounts.value[0]?.id || '')
   }
 }
 
@@ -76,7 +76,7 @@ function openBindDialog(type: 'campaign' | 'ad', id: string, name: string, campa
   bindTarget.value = { type, id, name, campaignId }
   bindProductId.value = ''
   bindReplySetId.value = ''
-  if (pages.value.length === 1) bindPageId.value = pages.value[0].id
+  if (pages.value.length === 1) bindPageId.value = (pages.value[0]?.id || '')
   bindDialog.value = true
   notice.value = ''
 }
@@ -131,7 +131,7 @@ async function confirmBind() {
 }
 
 function isBound(adId: string) {
-  return rules.value.some(r => r.triggerType === 'ad' && r.triggerValue === adId)
+  return rules.value.some((r: any) => r.triggerType === 'ad' && r.triggerValue === adId)
 }
 
 function campaignBoundCount(campaignId: string) {
@@ -157,7 +157,7 @@ onMounted(loadData)
     <div style="max-width: 400px">
       <v-select
         v-model="adAccountId"
-        :items="adAccounts.map(a => ({ ...a, label: `${a.accountType === 'business' ? 'Business' : 'Personal'} · ${a.name}` }))"
+        :items="adAccounts.map((a: any) => ({ ...a, label: `${a.accountType === 'business' ? 'Business' : 'Personal'} · ${a.name}` }))"
         item-title="label"
         item-value="id"
         label="Select Ad Account"
@@ -191,7 +191,7 @@ onMounted(loadData)
           <td>{{ campaign.adSetCount }} Sets · {{ campaign.adCount }} Ads</td>
           <td @click.stop>
             <v-btn
-              v-if="expandedCampaigns.includes(campaign.id) && campaignAds[campaign.id]?.length > 0"
+              v-if="expandedCampaigns.includes(campaign.id) && (campaignAds[campaign.id]?.length || 0) > 0"
               size="small"
               color="primary"
               variant="tonal"
@@ -209,7 +209,7 @@ onMounted(loadData)
           <tr v-if="!campaignAds[campaign.id]" class="ad-row">
             <td colspan="5" class="text-center text-caption py-3"><v-progress-circular indeterminate size="20" /> Loading ads...</td>
           </tr>
-          <tr v-else-if="campaignAds[campaign.id].length === 0" class="ad-row">
+          <tr v-else-if="(campaignAds[campaign.id]?.length || 0) === 0" class="ad-row">
             <td colspan="5" class="text-center text-caption py-3">No ads found in this campaign.</td>
           </tr>
           <tr v-else v-for="ad in campaignAds[campaign.id]" :key="ad.id" class="ad-row">
@@ -258,7 +258,7 @@ onMounted(loadData)
       />
       <v-select
         v-model="bindReplySetId"
-        :items="replySets.filter(s => s.items.some(i => i.isEnabled))"
+        :items="replySets.filter((s: any) => s.items.some((i: any) => i.isEnabled))"
         item-title="name"
         item-value="id"
         label="Reply Set (Required)"

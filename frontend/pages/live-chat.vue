@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 
-const { token, currentAccountID } = useAuth()
-const api = useApi()
+
+
 
 interface ChatMessage {
   id: string
@@ -31,11 +31,12 @@ const sendReply = async () => {
   
   // Find the page ID associated with this sender
   const msgs = conversations.value[activeSender.value]
-  const pageId = msgs[0]?.page_id
+  const pageId = msgs?.[0]?.page_id
 
   if (!pageId) return
 
-  await api.post('/chat/send', {
+  await $fetch('/api/proxy/api/v1/chat/send', {
+    method: 'POST',
     page_id: pageId,
     recipient_id: activeSender.value,
     message: msg
@@ -49,7 +50,7 @@ onMounted(async () => {
   
   // Load initial history
   try {
-    const history = await api.get('/chat/history') as ChatMessage[]
+    const history = await $fetch<{items: ChatMessage[]}>('/api/proxy/api/v1/chat/history').then(r => r.items)
     if (history && history.length > 0) {
       for (const msg of history) {
         msg.id = msg.timestamp + Math.random()
@@ -61,7 +62,7 @@ onMounted(async () => {
       }
       // Sort each conversation
       for (const key in conversations.value) {
-        conversations.value[key].sort((a, b) => Number(a.timestamp) - Number(b.timestamp))
+        conversations.value[key]?.sort((a, b) => Number(a.timestamp) - Number(b.timestamp))
       }
     }
   } catch (err) {
@@ -69,7 +70,7 @@ onMounted(async () => {
   }
 
   const baseURL = useRuntimeConfig().public.apiBase
-  const url = `${baseURL}/chat/stream?token=${token.value}&account_id=${currentAccountID.value}`
+  const url = '/api/proxy/api/v1/chat/stream'
   
   evtSource.value = new EventSource(url)
   
@@ -85,7 +86,7 @@ onMounted(async () => {
     conversations.value[key].push(data)
     
     // Sort by timestamp
-    conversations.value[key].sort((a, b) => Number(a.timestamp) - Number(b.timestamp))
+    conversations.value[key]?.sort((a, b) => Number(a.timestamp) - Number(b.timestamp))
   }
   
   evtSource.value.onerror = (error) => {
@@ -125,11 +126,11 @@ const formatTime = (ts: string) => {
           @click="activeSender = senderId"
         >
           <div class="conv-avatar">
-            <v-icon :icon="msgs[0].platform === 'whatsapp' ? 'mdi-whatsapp' : 'mdi-facebook-messenger'" />
+            <v-icon :icon="msgs?.[0]?.platform === 'whatsapp' ? 'mdi-whatsapp' : 'mdi-facebook-messenger'" />
           </div>
           <div class="conv-details">
             <div class="conv-name">{{ senderId }}</div>
-            <div class="conv-preview">{{ msgs[msgs.length - 1].message || 'Media message' }}</div>
+            <div class="conv-preview">{{ msgs?.[msgs.length - 1]?.message || 'Media message' }}</div>
           </div>
         </div>
       </div>
@@ -139,8 +140,8 @@ const formatTime = (ts: string) => {
       <div class="chat-header">
         <div class="chat-header-info">
           <h3>{{ activeSender }}</h3>
-          <span class="platform-badge" :class="conversations[activeSender][0].platform">
-            {{ conversations[activeSender][0].platform }}
+          <span class="platform-badge" :class="conversations[activeSender]?.[0]?.platform">
+            {{ conversations[activeSender]?.[0]?.platform }}
           </span>
         </div>
       </div>
