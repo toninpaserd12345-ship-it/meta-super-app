@@ -11,7 +11,7 @@ export const appNavigation: NavigationItem[] = [
   { label: 'Ads Manager', icon: 'mdi-bullhorn-outline', to: '/ads', claim: 'pages:read' },
   { label: 'Overview', icon: 'mdi-view-dashboard-outline', to: '/', claim: 'dashboard:read' },
   { label: 'Live Chat', icon: 'mdi-chat-processing-outline', to: '/live-chat', claim: 'pages:read' },
-  { label: 'Meta Pages', icon: 'mdi-facebook', to: '/meta-pages', claim: 'pages:read' },
+  { label: 'Pages & WhatsApp', icon: 'mdi-facebook', to: '/meta-pages', claim: 'pages:read' },
   { label: 'Products', icon: 'mdi-package-variant-closed', to: '/products', claim: 'pages:read' },
   { label: 'Reply Sets', icon: 'mdi-message-text-fast-outline', to: '/replies', claim: 'pages:read' },
   { label: 'Auto Replies', icon: 'mdi-robot-happy-outline', to: '/auto-replies', claim: 'pages:read' },

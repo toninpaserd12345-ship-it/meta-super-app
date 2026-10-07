@@ -39,20 +39,21 @@ const availablePages=computed(()=>{
   // Since we currently only have Meta pages, we just show them if 'all' or 'facebook' or 'instagram' is selected
   // We'll simulate it for now.
   if (activePlatform.value !== 'all') {
-     // If activePlatform is facebook, show pages where category doesn't imply IG/WA
      if (activePlatform.value === 'instagram') {
         list = list.filter(p => p.category.toLowerCase().includes('instagram'))
+     } else if (activePlatform.value === 'whatsapp') {
+        list = list.filter(p => p.category.toLowerCase().includes('whatsapp'))
      } else if (activePlatform.value === 'facebook') {
-        list = list.filter(p => !p.category.toLowerCase().includes('instagram'))
+        list = list.filter(p => !p.category.toLowerCase().includes('instagram') && !p.category.toLowerCase().includes('whatsapp'))
      } else {
-        list = [] // Other platforms not implemented yet
+        list = []
      }
   }
   return list
 })
 
 const visiblePages=computed(()=>pages.value.filter(page=>statusFilter.value==='all'||(statusFilter.value==='active'?page.connected:!page.connected)))
-if(route.query.meta==='connected'){messageType.value='success';message.value='Facebook connected successfully. Choose the Pages you want to activate.';pickerOpen.value=availablePages.value.length>0;await navigateTo('/meta-pages',{replace:true})}
+if(route.query.meta==='connected'){messageType.value='success';message.value='Facebook connected successfully. Choose the accounts you want to activate.';pickerOpen.value=availablePages.value.length>0;await navigateTo('/meta-pages',{replace:true})}
 if(route.query.meta==='error'){messageType.value='error';message.value=String(route.query.reason||'Facebook authorization failed.');await navigateTo('/meta-pages',{replace:true})}
 function tokenExpiry(page:MetaPage){if(!page.tokenExpiresAt)return 'No fixed expiry reported';return `Expires ${new Intl.DateTimeFormat(undefined,{dateStyle:'medium'}).format(new Date(page.tokenExpiresAt*1000))}`}
 async function connectFacebook(){
@@ -85,7 +86,7 @@ async function activateSelected(){
 </script>
 
 <template>
-  <section class="intro"><div><p>META INTEGRATION</p><h2>Facebook Pages</h2><span>Connect an account once, then control each Page Webhook here.</span></div><div class="intro-actions"><v-chip :color="data?.mode==='live'?'success':'primary'" variant="tonal" :prepend-icon="data?.mode==='live'?'mdi-access-point':'mdi-flask-outline'">{{data?.mode==='live'?'Meta connected':'Mock mode'}}</v-chip><v-btn v-if="inactivePages.length" variant="outlined" prepend-icon="mdi-checkbox-multiple-marked-outline" @click="search='';pickerOpen=true">Select Pages</v-btn><v-btn v-if="data?.mode==='live'" color="primary" prepend-icon="mdi-facebook" :loading="authorizing" @click="permissionsOpen=true">Connect Facebook</v-btn></div></section>
+  <section class="intro"><div><p>META INTEGRATION</p><h2>Facebook & WhatsApp</h2><span>Connect an account once, then control each Page Webhook here.</span></div><div class="intro-actions"><v-chip :color="data?.mode==='live'?'success':'primary'" variant="tonal" :prepend-icon="data?.mode==='live'?'mdi-access-point':'mdi-flask-outline'">{{data?.mode==='live'?'Meta connected':'Mock mode'}}</v-chip><v-btn v-if="inactivePages.length" variant="outlined" prepend-icon="mdi-checkbox-multiple-marked-outline" @click="search='';pickerOpen=true">Select Accounts</v-btn><v-btn v-if="data?.mode==='live'" color="primary" prepend-icon="mdi-facebook" :loading="authorizing" @click="permissionsOpen=true">Connect Facebook</v-btn></div></section>
   <v-alert v-if="message" :type="messageType" variant="tonal" closable class="mb-4" @click:close="message=''">{{message}}</v-alert>
   <v-alert v-if="error" type="error" variant="tonal">Unable to load Pages from the API.</v-alert>
   <section v-if="!error" class="connection-summary">
@@ -96,11 +97,15 @@ async function activateSelected(){
   <section v-if="!error" class="page-grid" :aria-busy="pending">
     <v-skeleton-loader v-if="pending" v-for="i in 3" :key="i" type="card"/>
     <article v-for="page in visiblePages" v-else :key="page.id" class="page-card">
-      <div class="page-avatar"><v-icon icon="mdi-facebook" size="28"/></div><div class="page-info"><h3>{{page.name}}</h3><p>{{page.category}}</p><small>Page ID · {{page.id}}</small><div class="token-row"><v-chip class="token-chip" :color="page.tokenReady?'success':'warning'" variant="tonal" size="x-small" :prepend-icon="page.tokenReady?'mdi-key-check':'mdi-key-alert'">{{page.tokenReady?'Access token ready':'Token unavailable'}}</v-chip><v-chip v-if="page.tokenReady" class="token-chip" color="info" variant="tonal" size="x-small" prepend-icon="mdi-clock-outline">{{tokenExpiry(page)}}</v-chip></div></div>
+      <div class="page-avatar">
+        <v-img v-if="page.pictureUrl" :src="page.pictureUrl" cover></v-img>
+        <v-icon v-else-if="page.category.toLowerCase().includes('whatsapp')" icon="mdi-whatsapp" color="success" size="28"/>
+        <v-icon v-else icon="mdi-facebook" color="blue" size="28"/>
+      </div><div class="page-info"><h3>{{page.name}}</h3><p>{{page.category}}</p><small>Page ID · {{page.id}}</small><div class="token-row"><v-chip class="token-chip" :color="page.tokenReady?'success':'warning'" variant="tonal" size="x-small" :prepend-icon="page.tokenReady?'mdi-key-check':'mdi-key-alert'">{{page.tokenReady?'Access token ready':'Token unavailable'}}</v-chip><v-chip v-if="page.tokenReady" class="token-chip" color="info" variant="tonal" size="x-small" prepend-icon="mdi-clock-outline">{{tokenExpiry(page)}}</v-chip></div></div>
       <div class="page-action"><div v-if="page.connected" class="page-toggle"><span><strong>Webhook active</strong><small>Receiving events</small></span><v-switch :model-value="true" color="success" hide-details density="compact" :loading="toggling===page.id" :disabled="toggling!==null||!can('pages:connect')" :aria-label="`Pause Webhook for ${page.name}`" @update:model-value="value=>setPageEnabled(page,Boolean(value))"/></div><v-btn v-else color="primary" variant="flat" prepend-icon="mdi-play-circle-outline" :loading="toggling===page.id" :disabled="toggling!==null||!can('pages:connect')||!page.tokenReady" @click="setPageEnabled(page,true)">Enable Webhook</v-btn></div>
     </article>
     <v-alert v-if="!pending&&data?.mode==='live'&&!pages.length" type="info" variant="tonal" icon="mdi-facebook">
-      <strong>No Facebook Pages found.</strong><br>Connect Facebook and allow the required Page permissions. Your Facebook account must have Page access.
+      <strong>No Facebook or WhatsApp accounts found.</strong><br>Connect Facebook and allow the required permissions. Your Facebook account must have Page access.
     </v-alert>
     <v-alert v-else-if="!pending&&!visiblePages.length" type="info" variant="tonal">No Pages match this filter.</v-alert>
   </section>
@@ -203,7 +208,7 @@ async function activateSelected(){
           </div>
           
           <div class="pc-content">
-            <div v-if="activePlatform !== 'all' && activePlatform !== 'facebook' && activePlatform !== 'instagram'" class="pc-empty" style="flex-direction:column; gap:16px;">
+            <div v-if="activePlatform !== 'all' && activePlatform !== 'facebook' && activePlatform !== 'instagram' && activePlatform !== 'whatsapp'" class="pc-empty" style="flex-direction:column; gap:16px;">
                <v-icon size="64" color="grey-lighten-1">mdi-power-plug-off</v-icon>
                <h3 style="color:#666;">ຍັງບໍ່ໄດ້ເຊື່ອມຕໍ່ {{activePlatform.charAt(0).toUpperCase() + activePlatform.slice(1)}}</h3>
                <v-btn color="primary" variant="flat">ເຊື່ອມຕໍ່ບັນຊີ {{activePlatform}}</v-btn>
@@ -215,7 +220,8 @@ async function activateSelected(){
               <div v-for="page in availablePages" :key="page.id" class="pc-card" :class="{'selected':selected.includes(page.id)}" @click="selected.includes(page.id)?selected=selected.filter(id=>id!==page.id):selected.push(page.id)">
                 <div class="pc-card-avatar">
                   <v-img v-if="page.pictureUrl" :src="page.pictureUrl" cover></v-img>
-                  <v-icon v-else icon="mdi-account" color="grey" size="32"></v-icon>
+                  <v-icon v-else-if="page.category.toLowerCase().includes('whatsapp')" icon="mdi-whatsapp" color="success" size="32"></v-icon>
+                  <v-icon v-else icon="mdi-facebook" color="blue" size="32"></v-icon>
                 </div>
                 <div class="pc-card-info">
                   <div class="pc-card-name">{{page.name}}</div>
