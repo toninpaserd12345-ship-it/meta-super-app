@@ -1,18 +1,21 @@
 package meta
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
+
 	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
-	"gorm.io/gorm"
-	"github.com/meta-super-app/backend/internal/infrastructure/database"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/meta-super-app/backend/internal/infrastructure/database"
+	"gorm.io/gorm"
 	"io"
 	"log/slog"
 	"net/http"
@@ -28,7 +31,7 @@ import (
 )
 
 type GraphConfig struct {
-	AppID, AppSecret, RedirectURI, Version, WebhookFields, WebhookVerifyToken, StateFile string
+	AppID, AppSecret, RedirectURI, Version, WebhookFields, WebhookVerifyToken, StateFile, EncryptionKey string
 }
 
 type oauthState struct {
@@ -52,7 +55,7 @@ type graphPage struct {
 type GraphConnector struct {
 	db *gorm.DB
 
-	chatStream *usecase.ChatStream
+	chatStream    *usecase.ChatStream
 	cfg           GraphConfig
 	client        *http.Client
 	mu            sync.RWMutex
@@ -90,6 +93,57 @@ type persistentGraphState struct {
 	Bindings   map[string]domain.ProductBinding       `json:"bindings"`
 	Products   map[string]map[string]domain.Product   `json:"products"`
 	ReplyFlows map[string]map[string]domain.ReplyFlow `json:"replyFlows"`
+}
+
+func (g *GraphConnector) encryptToken(token string) string {
+	if token == "" || g.cfg.EncryptionKey == "" {
+		return token
+	}
+	key := sha256.Sum256([]byte(g.cfg.EncryptionKey))
+	block, err := aes.NewCipher(key[:])
+	if err != nil {
+		return token
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return token
+	}
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
+		return token
+	}
+	ciphertext := gcm.Seal(nonce, nonce, []byte(token), nil)
+	return "enc:" + hex.EncodeToString(ciphertext)
+}
+
+func (g *GraphConnector) decryptToken(cipherHex string) string {
+	if !strings.HasPrefix(cipherHex, "enc:") || g.cfg.EncryptionKey == "" {
+		return cipherHex
+	}
+	cipherHex = strings.TrimPrefix(cipherHex, "enc:")
+	key := sha256.Sum256([]byte(g.cfg.EncryptionKey))
+	ciphertext, err := hex.DecodeString(cipherHex)
+	if err != nil {
+		return ""
+	}
+	block, err := aes.NewCipher(key[:])
+	if err != nil {
+		return ""
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return ""
+	}
+	nonceSize := gcm.NonceSize()
+	if len(ciphertext) < nonceSize {
+		return ""
+	}
+	nonce, ciphertext := ciphertext[:nonceSize], ciphertext[nonceSize:]
+	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return ""
+	}
+	return string(plaintext)
 }
 
 func (g *GraphConnector) loadState() error {
@@ -534,7 +588,7 @@ func (g *GraphConnector) findPage(pageID string) (string, graphPage, bool) {
 					Connected:  model.IsConnected,
 					TokenReady: model.AccessToken != "",
 				},
-				AccessToken: model.AccessToken,
+				AccessToken: g.decryptToken(model.AccessToken),
 			}
 			g.mu.Lock()
 			if g.sessions[model.AccountID] == nil {
@@ -635,7 +689,7 @@ func (g *GraphConnector) CompleteAuthorization(ctx context.Context, state, code 
 	if pending.AccountID != "" {
 		g.sessions[pending.AccountID] = &graphSession{UserToken: token.AccessToken, TokenExpiresAt: debug.Data.ExpiresAt, DataAccessExpiresAt: debug.Data.DataAccessExpiresAt, GrantedPermissions: append([]string(nil), debug.Data.Scopes...), Pages: pages}
 		if g.db != nil {
-			g.db.Save(&database.MetaConnectionModel{AccountID: pending.AccountID, UserToken: token.AccessToken})
+			g.db.Save(&database.MetaConnectionModel{AccountID: pending.AccountID, UserToken: g.encryptToken(token.AccessToken)})
 		}
 		_ = g.persistStateLocked()
 	}
@@ -789,13 +843,13 @@ func (g *GraphConnector) ConnectPage(ctx context.Context, _ string, accountID, p
 			Name:        page.Name,
 			Category:    page.Category,
 			PictureURL:  page.PictureURL,
-			AccessToken: page.AccessToken,
+			AccessToken: g.encryptToken(page.AccessToken),
 			IsConnected: page.Connected,
 		})
 	}
 	_ = g.persistStateLocked()
 	g.mu.Unlock()
-	
+
 	ret := page.MetaPage
 	return &ret, nil
 }
@@ -848,13 +902,13 @@ func (g *GraphConnector) DisconnectPage(ctx context.Context, _ string, accountID
 			Name:        page.Name,
 			Category:    page.Category,
 			PictureURL:  page.PictureURL,
-			AccessToken: page.AccessToken,
+			AccessToken: g.encryptToken(page.AccessToken),
 			IsConnected: page.Connected,
 		})
 	}
 	_ = g.persistStateLocked()
 	g.mu.Unlock()
-	
+
 	ret := page.MetaPage
 	return &ret, nil
 }
@@ -907,7 +961,7 @@ func (g *GraphConnector) userToken(accountID string) (string, error) {
 			if g.sessions[accountID] == nil {
 				g.sessions[accountID] = &graphSession{Pages: make(map[string]graphPage)}
 			}
-			g.sessions[accountID].UserToken = model.UserToken
+			g.sessions[accountID].UserToken = g.decryptToken(model.UserToken)
 			g.mu.Unlock()
 			return model.UserToken, nil
 		}
@@ -1088,7 +1142,6 @@ func (g *GraphConnector) SaveProductBindings(_ context.Context, _, accountID str
 	}
 	return prepared, nil
 }
-
 
 func (g *GraphConnector) ListReplyFlows(_ context.Context, _, accountID string) ([]domain.ReplyFlow, error) {
 	g.mu.RLock()

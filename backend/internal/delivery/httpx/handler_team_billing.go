@@ -19,16 +19,16 @@ func (h *Handler) teamInvite(c fiber.Ctx) error {
 	if err := c.Bind().JSON(&body); err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid request")
 	}
-	
+
 	if body.Email == "" || body.Role == "" {
 		return fiber.NewError(fiber.StatusBadRequest, "email and role are required")
 	}
-	
+
 	out, err := h.team.InviteMember(c.Context(), c.Locals("accountID").(string), body)
 	if err != nil {
 		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
 	}
-	
+
 	return c.JSON(out)
 }
 
@@ -40,7 +40,7 @@ func (h *Handler) teamUpdateRole(c fiber.Ctx) error {
 	if err := c.Bind().JSON(&body); err != nil || body.Role == "" {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid role")
 	}
-	
+
 	if err := h.team.UpdateRole(c.Context(), c.Locals("accountID").(string), userID, body.Role); err != nil {
 		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
 	}
@@ -79,7 +79,7 @@ func (h *Handler) billingCheckout(c fiber.Ctx) error {
 	if body.PlanID == "" {
 		return fiber.NewError(fiber.StatusBadRequest, "planId is required")
 	}
-	
+
 	if err := h.billing.Checkout(c.Context(), c.Locals("accountID").(string), body); err != nil {
 		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
 	}

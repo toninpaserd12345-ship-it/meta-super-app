@@ -28,20 +28,20 @@ func (r *GormRepository) ListMembers(ctx context.Context, accountID string) ([]d
 	if err := r.db.WithContext(ctx).Preload("Account").Preload("Claims").Where("account_id = ?", accountID).Find(&models).Error; err != nil {
 		return nil, fmt.Errorf("list members: %w", err)
 	}
-	
+
 	// We need to fetch the users for these memberships
 	var userIDs []string
 	for _, m := range models {
 		userIDs = append(userIDs, m.UserID)
 	}
-	
+
 	var userModels []database.UserModel
 	if len(userIDs) > 0 {
 		if err := r.db.WithContext(ctx).Where("id IN ?", userIDs).Find(&userModels).Error; err != nil {
 			return nil, fmt.Errorf("list users for members: %w", err)
 		}
 	}
-	
+
 	userMap := make(map[string]*domain.User)
 	for _, u := range userModels {
 		userMap[u.ID] = mapUser(u)
@@ -89,17 +89,17 @@ func (r *GormRepository) UpdateMemberRole(ctx context.Context, accountID, userID
 		if err := tx.Where("account_id = ? AND user_id = ?", accountID, userID).First(&membership).Error; err != nil {
 			return err
 		}
-		
+
 		membership.Role = string(role)
 		if err := tx.Save(&membership).Error; err != nil {
 			return err
 		}
-		
+
 		// Delete old claims
 		if err := tx.Where("membership_id = ?", membership.ID).Delete(&database.MembershipClaimModel{}).Error; err != nil {
 			return err
 		}
-		
+
 		// Insert new claims
 		for _, claim := range claims {
 			c := database.MembershipClaimModel{

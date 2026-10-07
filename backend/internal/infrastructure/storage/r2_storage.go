@@ -67,9 +67,9 @@ func (s *R2StorageService) UploadFile(ctx context.Context, fileHeader *multipart
 	if ext == "" {
 		ext = ".bin"
 	}
-	
+
 	newFilename := uuid.New().String() + ext
-	
+
 	// Construct the object key (path in bucket). We only store the filename to support easy migration.
 	objectKey := newFilename
 
@@ -109,7 +109,7 @@ func (s *R2StorageService) StripPublicURL(fullURL string) string {
 func (s *R2StorageService) DeleteFile(ctx context.Context, fileURL string) error {
 	// Extract the object key from the public URL
 	var objectKey string
-	
+
 	if strings.HasPrefix(fileURL, "http") {
 		u, err := url.Parse(fileURL)
 		if err != nil {
@@ -128,7 +128,7 @@ func (s *R2StorageService) DeleteFile(ctx context.Context, fileURL string) error
 		Bucket: aws.String(s.bucketName),
 		Key:    aws.String(objectKey),
 	})
-	
+
 	if err != nil {
 		return fmt.Errorf("failed to delete file from R2: %w", err)
 	}

@@ -3,7 +3,7 @@ package database
 import "time"
 
 type UserModel struct {
-	ID           string `gorm:"type:uuid;primaryKey"`
+	ID           string  `gorm:"type:uuid;primaryKey"`
 	Name         string  `gorm:"size:120;not null"`
 	Email        string  `gorm:"size:255;uniqueIndex;not null"`
 	PasswordHash string  `gorm:"size:255;not null"`
@@ -90,7 +90,7 @@ type AutomationRuleModel struct {
 	TriggerName  string        `gorm:"size:255"`
 	TriggerValue string        `gorm:"size:255;index"`
 	ProductID    *string       `gorm:"type:uuid;index"`
-	Product      *ProductModel  `gorm:"foreignKey:ProductID;constraint:OnDelete:SET NULL"`
+	Product      *ProductModel `gorm:"foreignKey:ProductID;constraint:OnDelete:SET NULL"`
 	ReplySetID   string        `gorm:"type:uuid;not null"`
 	ReplySet     ReplySetModel `gorm:"foreignKey:ReplySetID;constraint:OnDelete:CASCADE"`
 	IsActive     bool          `gorm:"default:true"`

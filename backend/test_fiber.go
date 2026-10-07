@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/gofiber/fiber/v3"
 	"fmt"
+	"github.com/gofiber/fiber/v3"
 )
 
 func main() {

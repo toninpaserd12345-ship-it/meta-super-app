@@ -1,9 +1,9 @@
 package usecase
 
 import (
-	"fmt"
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -100,9 +100,9 @@ func (u *Auth) Membership(ctx context.Context, userID, accountID string) (*domai
 
 	// 2. Cache miss or expired, fetch from database
 	membership, err := u.accounts.FindMembership(ctx, userID, accountID)
-	
+
 	// 3. Save to cache with 10 seconds TTL
-	// This reduces DB load by ~99% if a user makes 100 requests in 10s, 
+	// This reduces DB load by ~99% if a user makes 100 requests in 10s,
 	// while still keeping permission revocation "near-instant" (max 10s delay).
 	if err != nil {
 		u.memCache.Store(cacheKey, cachedMembership{membership: nil, expiresAt: now + 10})

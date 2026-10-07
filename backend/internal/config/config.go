@@ -10,13 +10,13 @@ import (
 )
 
 type Config struct {
-	Environment, HTTPAddr, StorageDriver, DatabaseURL, JWTSecret, JWTIssuer string
-	MetaAppID, MetaAppSecret, MetaRedirectURI, MetaFrontendRedirect         string
-	MetaGraphVersion, MetaWebhookFields, MetaWebhookVerifyToken             string
-	MetaStateFile                                                           string
-	AccessTokenTTL                                                          time.Duration
-	AutoMigrate                                                             bool
-	SeedAdminEmail, SeedAdminPassword, SeedAccountName                      string
+	Environment, HTTPAddr, StorageDriver, DatabaseURL, JWTSecret, JWTIssuer  string
+	MetaAppID, MetaAppSecret, MetaRedirectURI, MetaFrontendRedirect          string
+	MetaGraphVersion, MetaWebhookFields, MetaWebhookVerifyToken              string
+	MetaStateFile                                                            string
+	AccessTokenTTL                                                           time.Duration
+	AutoMigrate                                                              bool
+	SeedAdminEmail, SeedAdminPassword, SeedAccountName                       string
 	R2AccountID, R2AccessKeyID, R2SecretAccessKey, R2BucketName, R2PublicURL string
 }
 

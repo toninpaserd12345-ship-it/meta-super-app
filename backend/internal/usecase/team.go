@@ -21,9 +21,9 @@ func NewTeam(accounts domain.AccountRepository, users domain.UserRepository, pas
 }
 
 type InviteInput struct {
-	Email    string      `json:"email"`
-	Name     string      `json:"name"`
-	Role     domain.Role `json:"role"`
+	Email string      `json:"email"`
+	Name  string      `json:"name"`
+	Role  domain.Role `json:"role"`
 }
 
 type InviteOutput struct {
@@ -38,7 +38,7 @@ func (u *Team) ListMembers(ctx context.Context, accountID string) ([]domain.Memb
 func (u *Team) InviteMember(ctx context.Context, accountID string, in InviteInput) (*InviteOutput, error) {
 	user, err := u.users.FindByEmail(ctx, in.Email)
 	var generatedPassword string
-	
+
 	if err != nil { // User does not exist, create a new one
 		generatedPassword = uuid.NewString()[:8]
 		hash, _ := u.passwords.Hash(generatedPassword)
@@ -52,12 +52,12 @@ func (u *Team) InviteMember(ctx context.Context, accountID string, in InviteInpu
 			return nil, err
 		}
 	}
-	
+
 	claims := domain.DefaultRoleClaims[in.Role]
 	if err := u.accounts.AddMember(ctx, accountID, user.ID, in.Role, claims); err != nil {
 		return nil, err
 	}
-	
+
 	return &InviteOutput{
 		User:     user,
 		Password: generatedPassword,

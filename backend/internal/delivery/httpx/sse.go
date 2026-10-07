@@ -46,7 +46,6 @@ func (h *Handler) chatStream(c fiber.Ctx) error {
 	return c.SendStream(r)
 }
 
-
 func (h *Handler) sendChatMessage(c fiber.Ctx) error {
 	var body struct {
 		PageID      string `json:"page_id"`
@@ -57,11 +56,11 @@ func (h *Handler) sendChatMessage(c fiber.Ctx) error {
 		return fail(c, fiber.StatusBadRequest, "invalid_request", err.Error())
 	}
 	accountID := c.Locals("accountID").(string)
-	
+
 	if err := h.meta.SendMessage(c.Context(), accountID, body.PageID, body.RecipientID, body.Message); err != nil {
 		return fail(c, fiber.StatusInternalServerError, "send_failed", err.Error())
 	}
-	
+
 	// Also broadcast the message back so it shows up in the UI immediately
 	if h.Stream != nil {
 		h.Stream.Broadcast(accountID, usecase.ChatEvent{
@@ -74,6 +73,6 @@ func (h *Handler) sendChatMessage(c fiber.Ctx) error {
 			Platform:  "system", // indicating we sent it
 		})
 	}
-	
+
 	return c.JSON(fiber.Map{"status": "success"})
 }

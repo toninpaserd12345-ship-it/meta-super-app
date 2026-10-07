@@ -41,16 +41,16 @@ func main() {
 	if cfg.AutoMigrate {
 		if err = database.Migrate(db); err != nil {
 			slog.Error("migration failed", "error", err)
-			
+
 		}
 	}
 	if err = database.SeedAdmin(db, passwords, cfg.SeedAdminEmail, cfg.SeedAdminPassword, cfg.SeedAccountName); err != nil {
 		slog.Error("seed failed", "error", err)
-		
+
 	}
 	if err = database.SeedPlans(db); err != nil {
 		slog.Error("seed plans failed", "error", err)
-		
+
 	}
 	repo := repository.NewGorm(db)
 	users, accounts, billingRepo, replyRepo, automationRepo, productRepo = repo, repo, repo, repo, repo, repo
@@ -58,7 +58,7 @@ func main() {
 	tokens := security.NewJWT(cfg.JWTSecret, cfg.JWTIssuer, cfg.AccessTokenTTL)
 	auth := usecase.NewAuth(users, accounts, passwords, tokens)
 	metaMode := "live"
-	metaConnector := metainfra.NewGraphConnector(metainfra.GraphConfig{AppID: cfg.MetaAppID, AppSecret: cfg.MetaAppSecret, RedirectURI: cfg.MetaRedirectURI, Version: cfg.MetaGraphVersion, WebhookFields: cfg.MetaWebhookFields, WebhookVerifyToken: cfg.MetaWebhookVerifyToken, StateFile: cfg.MetaStateFile}, db)
+	metaConnector := metainfra.NewGraphConnector(metainfra.GraphConfig{AppID: cfg.MetaAppID, AppSecret: cfg.MetaAppSecret, RedirectURI: cfg.MetaRedirectURI, Version: cfg.MetaGraphVersion, WebhookFields: cfg.MetaWebhookFields, WebhookVerifyToken: cfg.MetaWebhookVerifyToken, StateFile: cfg.MetaStateFile, EncryptionKey: cfg.JWTSecret}, db)
 	meta := usecase.NewMeta(metaConnector)
 	team := usecase.NewTeam(accounts, users, passwords)
 	billing := usecase.NewBilling(billingRepo)

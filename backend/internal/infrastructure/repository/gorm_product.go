@@ -2,8 +2,8 @@ package repository
 
 import (
 	"context"
-	"github.com/google/uuid"
 	"errors"
+	"github.com/google/uuid"
 
 	"github.com/meta-super-app/backend/internal/domain"
 	"github.com/meta-super-app/backend/internal/infrastructure/database"

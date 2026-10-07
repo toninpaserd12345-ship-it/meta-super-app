@@ -57,18 +57,18 @@ type MetaAd struct {
 }
 
 type ProductBinding struct {
-	PageID      string      `json:"pageId"`
-	SourceID    string      `json:"sourceId"`
-	SourceType  string      `json:"sourceType"`
-	ProductID   string      `json:"productId"`
-	FlowID      string      `json:"flowId"`
-	ProductName string      `json:"productName"`
-	Price       string      `json:"price"`
-	Description string      `json:"description"`
+	PageID      string `json:"pageId"`
+	SourceID    string `json:"sourceId"`
+	SourceType  string `json:"sourceType"`
+	ProductID   string `json:"productId"`
+	FlowID      string `json:"flowId"`
+	ProductName string `json:"productName"`
+	Price       string `json:"price"`
+	Description string `json:"description"`
 	ImageUrl    string `json:"imageUrl"`
 
-	Messages    []ReplyStep `json:"messages,omitempty"`
-	Keywords    []string    `json:"keywords,omitempty"`
+	Messages []ReplyStep `json:"messages,omitempty"`
+	Keywords []string    `json:"keywords,omitempty"`
 }
 
 type Product struct {
@@ -77,7 +77,6 @@ type Product struct {
 	Price       string `json:"price"`
 	Description string `json:"description"`
 	ImageUrl    string `json:"imageUrl"`
-
 }
 
 type ReplyFlow struct {

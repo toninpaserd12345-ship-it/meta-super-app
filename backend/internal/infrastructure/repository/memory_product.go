@@ -2,8 +2,8 @@ package repository
 
 import (
 	"context"
-	"github.com/google/uuid"
 	"errors"
+	"github.com/google/uuid"
 
 	"github.com/meta-super-app/backend/internal/domain"
 	"github.com/meta-super-app/backend/internal/infrastructure/database"
@@ -30,7 +30,7 @@ func (r *MemoryRepository) ListProducts(ctx context.Context, accountID string) (
 func (r *MemoryRepository) SaveProduct(ctx context.Context, accountID string, product domain.Product) (*domain.Product, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	
+
 	if product.ID == "" {
 		product.ID = uuid.NewString()
 	} else {

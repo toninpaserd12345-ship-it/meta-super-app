@@ -61,7 +61,7 @@ func (u *Billing) Checkout(ctx context.Context, accountID string, in CheckoutInp
 	if err != nil {
 		return err
 	}
-	
+
 	var selectedPlan *domain.Plan
 	for _, p := range plans {
 		if p.ID == in.PlanID {
@@ -83,14 +83,14 @@ func (u *Billing) Checkout(ctx context.Context, accountID string, in CheckoutInp
 		PaymentMethod: in.PaymentMethod,
 		Reference:     in.Reference,
 	}
-	
+
 	if err := u.billing.CreateTransaction(ctx, &txn); err != nil {
 		return err
 	}
 
 	// For manual billing (like BCEL transfers), the subscription status would normally only update
 	// after an Admin verifies the transaction. But for MVP simulation, we'll auto-approve it.
-	
+
 	// Ensure we extend from CurrentPeriodEnd if active, else from Now
 	sub, _ := u.billing.GetSubscription(ctx, accountID)
 	var newEnd time.Time
@@ -107,7 +107,7 @@ func (u *Billing) Checkout(ctx context.Context, accountID string, in CheckoutInp
 		Status:           "active",
 		CurrentPeriodEnd: newEnd,
 	}
-	
+
 	if sub != nil {
 		newSub.ID = sub.ID // Update existing
 	}
@@ -115,7 +115,7 @@ func (u *Billing) Checkout(ctx context.Context, accountID string, in CheckoutInp
 	if err := u.billing.UpsertSubscription(ctx, &newSub); err != nil {
 		return err
 	}
-	
+
 	// Mark txn as completed (simulation)
 	return u.billing.UpdateTransactionStatus(ctx, txn.ID, "completed")
 }

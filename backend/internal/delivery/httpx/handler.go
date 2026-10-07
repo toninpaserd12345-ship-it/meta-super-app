@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v3"
-	"github.com/gofiber/fiber/v3/middleware/helmet"
 	"github.com/gofiber/fiber/v3/middleware/cors"
+	"github.com/gofiber/fiber/v3/middleware/helmet"
 	"github.com/gofiber/fiber/v3/middleware/logger"
 	"github.com/gofiber/fiber/v3/middleware/recover"
 	"github.com/gofiber/fiber/v3/middleware/requestid"
@@ -21,21 +21,21 @@ import (
 )
 
 type Handler struct {
-	auth                                        *usecase.Auth
-	meta                                        *usecase.Meta
-	team                                        *usecase.Team
-	billing                                     *usecase.Billing
-	Storage                                     *usecase.StorageUseCase
-	Reply                                       *usecase.Reply
-	Automation                                  *usecase.Automation
-	Product                                     *usecase.Product
-	Stream                                      *usecase.ChatStream
+	auth       *usecase.Auth
+	meta       *usecase.Meta
+	team       *usecase.Team
+	billing    *usecase.Billing
+	Storage    *usecase.StorageUseCase
+	Reply      *usecase.Reply
+	Automation *usecase.Automation
+	Product    *usecase.Product
+	Stream     *usecase.ChatStream
 
-	tokens                                      domain.TokenService
-	metaMode, metaFrontendRedirect              string
+	tokens                         domain.TokenService
+	metaMode, metaFrontendRedirect string
 	// facebookLoginUserID, facebookLoginAccountID string (Removed)
-	ticketMu                                    sync.Mutex
-	tickets                                     map[string]loginTicket
+	ticketMu sync.Mutex
+	tickets  map[string]loginTicket
 }
 
 type loginTicket struct {
@@ -60,7 +60,7 @@ func (h *Handler) App() *fiber.App {
 	app.Post("/auth/facebook/start", h.startFacebookLogin)
 	app.Post("/auth/facebook/exchange", h.exchangeFacebookLogin)
 	app.Get("/api/v1/meta/oauth/callback", h.completeMetaOAuth)
-	
+
 	app.Get("/api/v1/meta/webhook", h.verifyMetaWebhook)
 	app.Post("/api/v1/meta/webhook", h.receiveMetaWebhook)
 	auth := app.Group("", authenticate(h.tokens))
@@ -132,7 +132,7 @@ func (h *Handler) saveProduct(c fiber.Ctx) error {
 	if err := c.Bind().JSON(&body); err != nil {
 		return fail(c, 400, "invalid_request", "Product is invalid.")
 	}
-	
+
 	if body.ImageUrl != "" {
 		body.ImageUrl = h.Storage.StripPublicURL(body.ImageUrl)
 	}
@@ -148,8 +148,6 @@ func (h *Handler) saveProduct(c fiber.Ctx) error {
 	}
 	return c.JSON(fiber.Map{"item": item})
 }
-
-
 
 func (h *Handler) login(c fiber.Ctx) error {
 	var body struct {
@@ -369,5 +367,3 @@ func (h *Handler) metaAds(c fiber.Ctx) error {
 	}
 	return c.JSON(fiber.Map{"items": items})
 }
-
-

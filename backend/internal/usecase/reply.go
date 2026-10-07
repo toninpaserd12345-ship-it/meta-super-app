@@ -42,12 +42,12 @@ func (u *Reply) GetSet(ctx context.Context, setID string, accountID string) (*do
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Ensure the set belongs to this account
 	if set.AccountID != accountID {
 		return nil, fmt.Errorf("unauthorized to access this set")
 	}
-	
+
 	return set, nil
 }
 

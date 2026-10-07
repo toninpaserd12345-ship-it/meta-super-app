@@ -32,7 +32,7 @@ func (r *GormRepository) GetSubscription(ctx context.Context, accountID string) 
 	if err := r.db.WithContext(ctx).Preload("Plan").Where("account_id = ?", accountID).First(&model).Error; err != nil {
 		return nil, mapError(err)
 	}
-	
+
 	plan := &domain.Plan{
 		ID:       model.Plan.ID,
 		Name:     model.Plan.Name,
@@ -41,7 +41,7 @@ func (r *GormRepository) GetSubscription(ctx context.Context, accountID string) 
 		MaxPages: model.Plan.MaxPages,
 		IsActive: model.Plan.IsActive,
 	}
-	
+
 	return &domain.Subscription{
 		ID:               model.ID,
 		AccountID:        model.AccountID,
@@ -61,7 +61,7 @@ func (r *GormRepository) UpsertSubscription(ctx context.Context, sub *domain.Sub
 		Status:           sub.Status,
 		CurrentPeriodEnd: sub.CurrentPeriodEnd,
 	}
-	
+
 	// Create or Update (Upsert based on AccountID which is a unique index or ID)
 	if err := r.db.WithContext(ctx).Save(&model).Error; err != nil {
 		return fmt.Errorf("upsert subscription: %w", err)
