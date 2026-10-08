@@ -41,8 +41,12 @@ func main() {
 	if cfg.AutoMigrate {
 		if err = database.Migrate(db); err != nil {
 			slog.Error("migration failed", "error", err)
-
+			os.Exit(1)
 		}
+	}
+	if err = database.MigrateMetaCredentials(db); err != nil {
+		slog.Error("Meta credential migration failed", "error", err)
+		os.Exit(1)
 	}
 	if err = database.SeedAdmin(db, passwords, cfg.SeedAdminEmail, cfg.SeedAdminPassword, cfg.SeedAccountName); err != nil {
 		slog.Error("seed failed", "error", err)

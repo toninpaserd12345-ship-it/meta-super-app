@@ -1029,10 +1029,12 @@ func (g *GraphConnector) userToken(ctx context.Context, accountID string) (strin
 			g.sessions[accountID].DataAccessExpiresAt = dataAccessExpiresAt
 			g.sessions[accountID].GrantedPermissions = permissions
 			g.mu.Unlock()
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", fmt.Errorf("load encrypted Meta token: %w", err)
 		}
 	}
 	if token == "" {
-		return "", errors.New("facebook connection not found")
+		return "", domain.ErrMetaReconnectRequired
 	}
 
 	now := time.Now().Unix()

@@ -9,7 +9,7 @@ if (!can('pages:read')) throw createError({statusCode:403,statusMessage:'You do 
 const { data, pending, error, refresh } = await useApi<PageList>('/proxy/api/v1/meta/pages')
 const loadErrorMessage = computed(() => {
   const value:any = error.value
-  return value?.data?.message || value?.statusMessage || 'Unable to load Pages from Meta. Reconnect Facebook and try again.'
+  return value?.data?.error?.message || value?.data?.message || value?.statusMessage || 'Unable to load Pages from Meta. Reconnect Facebook and try again.'
 })
 const toggling = ref<string|null>(null)
 const authorizing = ref(false)
@@ -68,7 +68,7 @@ async function connectFacebook(){
   }
   catch{messageType.value='error';message.value='Unable to start Facebook Login. Please sign in to this app again and retry.';authorizing.value=false}
 }
-function apiMessage(error:any,fallback:string){return error?.data?.message||error?.data?.statusMessage||error?.statusMessage||fallback}
+function apiMessage(error:any,fallback:string){return error?.data?.error?.message||error?.data?.message||error?.data?.statusMessage||error?.statusMessage||fallback}
 async function setPageEnabled(page:MetaPage,enabled:boolean){
   if(!enabled&&!confirm(`Pause Webhook for “${page.name}”? New events from this Page will stop until it is enabled again.`))return
   toggling.value=page.id;message.value=''
