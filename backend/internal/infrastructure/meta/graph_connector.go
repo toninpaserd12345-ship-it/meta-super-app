@@ -823,6 +823,7 @@ func (g *GraphConnector) WhatsAppDiagnostics(ctx context.Context, accountID stri
 	diagnostics.RequiredPermissions = append([]string(nil), diagnostics.RequiredPermissions...)
 	diagnostics.GrantedPermissions = append([]string(nil), diagnostics.GrantedPermissions...)
 	diagnostics.MissingPermissions = append([]string(nil), diagnostics.MissingPermissions...)
+	diagnostics.Issues = append([]string(nil), diagnostics.Issues...)
 	g.mu.RUnlock()
 	return &diagnostics, nil
 }
@@ -1663,6 +1664,7 @@ func (g *GraphConnector) fetchPages(ctx context.Context, token string) (map[stri
 				wabaQuery := url.Values{"fields": {"id,name"}, "access_token": {token}, "limit": {"100"}}
 				if err := g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/"+biz.ID+"/"+edge+"?"+wabaQuery.Encode(), &wabaResponse); err != nil {
 					wabaErrors++
+					diagnostics.Issues = append(diagnostics.Issues, diagnosticIssue(edge, err))
 					slog.Warn("unable to discover WhatsApp Business Accounts", "business_id", biz.ID, "edge", edge, "error", err)
 					continue
 				}
@@ -1682,6 +1684,7 @@ func (g *GraphConnector) fetchPages(ctx context.Context, token string) (map[stri
 					phoneQuery := url.Values{"fields": {"id,display_phone_number,verified_name"}, "access_token": {token}, "limit": {"100"}}
 					if err := g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/"+waba.ID+"/phone_numbers?"+phoneQuery.Encode(), &phoneResponse); err != nil {
 						phoneErrors++
+						diagnostics.Issues = append(diagnostics.Issues, diagnosticIssue("phone_numbers", err))
 						slog.Warn("unable to discover WhatsApp phone numbers", "business_id", biz.ID, "waba_id", waba.ID, "error", err)
 						continue
 					}
@@ -1746,10 +1749,19 @@ func (g *GraphConnector) fetchPages(ctx context.Context, token string) (map[stri
 	} else {
 		diagnostics.State = "business_access_error"
 		diagnostics.Message = "Meta denied access to Business Portfolios for this Facebook authorization."
+		diagnostics.Issues = append(diagnostics.Issues, diagnosticIssue("businesses", err))
 		slog.Warn("unable to discover Meta businesses for WhatsApp", "error", err)
 	}
 
 	return pages, diagnostics, nil
+}
+
+func diagnosticIssue(operation string, err error) string {
+	issue := operation + ": " + err.Error()
+	if len(issue) > 300 {
+		return issue[:300]
+	}
+	return issue
 }
 
 func applyWhatsAppPermissions(diagnostics *domain.MetaWhatsAppDiagnostics, granted []string) {

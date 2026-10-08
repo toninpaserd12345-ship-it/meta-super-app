@@ -1,7 +1,7 @@
 <script setup lang="ts">
 definePageMeta({ middleware: 'auth' })
 interface MetaPage { id:string;name:string;category:string;pictureUrl?:string;phoneNumber?:string;tokenReady:boolean;connected:boolean;webhookStatus:string;tokenExpiresAt?:number;dataAccessExpiresAt?:number;grantedPermissions?:string[] }
-interface WhatsAppDiagnostics { state:string;message:string;requiredPermissions:string[];grantedPermissions?:string[];missingPermissions?:string[];businessCount:number;whatsAppBusinessAccountCount:number;phoneNumberCount:number }
+interface WhatsAppDiagnostics { state:string;message:string;requiredPermissions:string[];grantedPermissions?:string[];missingPermissions?:string[];issues?:string[];businessCount:number;whatsAppBusinessAccountCount:number;phoneNumberCount:number }
 interface PageList { items:MetaPage[];mode:string;whatsappDiagnostics?:WhatsAppDiagnostics }
 interface OAuthStart { authorizationUrl:string }
 const { can } = useAuth()
@@ -144,6 +144,9 @@ async function activateSelected(){
     </div>
     <div v-if="whatsappDiagnostics.missingPermissions?.length" class="mt-2">
       Missing: <code>{{whatsappDiagnostics.missingPermissions.join(', ')}}</code>
+    </div>
+    <div v-if="whatsappDiagnostics.issues?.length" class="mt-2">
+      <div v-for="issue in whatsappDiagnostics.issues" :key="issue"><code>{{issue}}</code></div>
     </div>
     <p class="mt-2 mb-0">Assign this Facebook admin to the WhatsApp Account and its phone number in Meta Business Settings, then use Connect Facebook again.</p>
   </v-alert>

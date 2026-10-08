@@ -32,6 +32,7 @@ type MetaWhatsAppDiagnostics struct {
 	RequiredPermissions          []string `json:"requiredPermissions"`
 	GrantedPermissions           []string `json:"grantedPermissions,omitempty"`
 	MissingPermissions           []string `json:"missingPermissions,omitempty"`
+	Issues                       []string `json:"issues,omitempty"`
 	BusinessCount                int      `json:"businessCount"`
 	WhatsAppBusinessAccountCount int      `json:"whatsAppBusinessAccountCount"`
 	PhoneNumberCount             int      `json:"phoneNumberCount"`
