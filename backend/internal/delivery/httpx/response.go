@@ -28,6 +28,9 @@ func usecaseError(c fiber.Ctx, err error) error {
 	if errors.Is(err, domain.ErrMetaReconnectRequired) {
 		return fail(c, fiber.StatusPreconditionRequired, "meta_reconnect_required", "Facebook authorization expired. Reconnect Facebook to renew access.")
 	}
+	if errors.Is(err, usecase.ErrPageNotFound) {
+		return fail(c, fiber.StatusNotFound, "meta_page_not_found", "The Meta Page was not found in this workspace.")
+	}
 	slog.Error("request failed", "error", err, "path", c.Path())
 	return fail(c, fiber.StatusInternalServerError, "internal_error", "An unexpected error occurred.")
 }

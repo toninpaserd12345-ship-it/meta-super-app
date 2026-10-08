@@ -12,12 +12,18 @@ type MetaPage struct {
 	Name                string   `json:"name"`
 	Category            string   `json:"category"`
 	PictureURL          string   `json:"pictureUrl,omitempty"`
+	PhoneNumber         string   `json:"phoneNumber,omitempty"`
 	TokenReady          bool     `json:"tokenReady"`
 	Connected           bool     `json:"connected"`
 	WebhookStatus       string   `json:"webhookStatus"`
 	TokenExpiresAt      int64    `json:"tokenExpiresAt,omitempty"`
 	DataAccessExpiresAt int64    `json:"dataAccessExpiresAt,omitempty"`
 	GrantedPermissions  []string `json:"grantedPermissions,omitempty"`
+}
+
+type MetaPagePicture struct {
+	ContentType string
+	Data        []byte
 }
 
 type MetaOAuthResult struct {
@@ -109,6 +115,7 @@ type MetaConnector interface {
 	AuthorizationURL(context.Context, string, string, []string) (string, error)
 	CompleteAuthorization(context.Context, string, string) (*MetaOAuthResult, error)
 	ListPages(context.Context, string, string) ([]MetaPage, error)
+	PagePicture(context.Context, string, string) (*MetaPagePicture, error)
 	ConnectPage(context.Context, string, string, string) (*MetaPage, error)
 	DisconnectPage(context.Context, string, string, string) (*MetaPage, error)
 	ListPosts(context.Context, string, string, string) ([]MetaPost, error)

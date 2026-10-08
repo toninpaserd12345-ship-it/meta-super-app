@@ -96,6 +96,7 @@ func (h *Handler) App() *fiber.App {
 	auth.Delete("/api/v1/automation/rules/:id", requireAccount(h.auth, domain.ClaimPagesConnect), h.DeleteAutomationRule)
 
 	auth.Get("/api/v1/meta/pages", requireAccount(h.auth, domain.ClaimPagesRead), h.metaPages)
+	auth.Get("/api/v1/meta/pages/:pageID/picture", requireAccount(h.auth, domain.ClaimPagesRead), h.metaPagePicture)
 	auth.Post("/api/v1/meta/oauth/start", requireAccount(h.auth, domain.ClaimPagesConnect), h.startMetaOAuth)
 	auth.Post("/api/v1/meta/pages/connect", requireAccount(h.auth, domain.ClaimPagesConnect), h.connectMetaPage)
 	auth.Post("/api/v1/meta/pages/disconnect", requireAccount(h.auth, domain.ClaimPagesConnect), h.disconnectMetaPage)
@@ -229,6 +230,17 @@ func (h *Handler) metaPages(c fiber.Ctx) error {
 		return usecaseError(c, err)
 	}
 	return c.JSON(fiber.Map{"items": pages, "mode": h.metaMode})
+}
+func (h *Handler) metaPagePicture(c fiber.Ctx) error {
+	ctx, cancel := requestContext(c)
+	defer cancel()
+	picture, err := h.meta.PagePicture(ctx, c.Locals("accountID").(string), c.Params("pageID"))
+	if err != nil {
+		return usecaseError(c, err)
+	}
+	c.Set(fiber.HeaderContentType, picture.ContentType)
+	c.Set(fiber.HeaderCacheControl, "private, max-age=600")
+	return c.Send(picture.Data)
 }
 func (h *Handler) startMetaOAuth(c fiber.Ctx) error {
 	var body struct {

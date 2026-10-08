@@ -805,6 +805,77 @@ func (g *GraphConnector) ListPages(ctx context.Context, _ string, accountID stri
 	return result, nil
 }
 
+func (g *GraphConnector) PagePicture(ctx context.Context, accountID, pageID string) (*domain.MetaPagePicture, error) {
+	pageID = strings.TrimSpace(pageID)
+	if pageID == "" {
+		return nil, usecase.ErrPageNotFound
+	}
+
+	// Resolve the Page from this workspace before fetching media. This prevents
+	// the endpoint from being used as an unauthorised Graph/CDN image proxy.
+	g.mu.RLock()
+	session := g.sessions[accountID]
+	page, found := graphPage{}, false
+	if session != nil {
+		page, found = session.Pages[pageID]
+	}
+	g.mu.RUnlock()
+	if !found {
+		token, err := g.userToken(ctx, accountID)
+		if err != nil {
+			return nil, domain.ErrMetaReconnectRequired
+		}
+		pages, err := g.fetchPages(ctx, token)
+		if err != nil {
+			return nil, err
+		}
+		page, found = pages[pageID]
+		if !found {
+			return nil, usecase.ErrPageNotFound
+		}
+	}
+
+	endpoint := strings.TrimSpace(page.PictureURL)
+	if !strings.EqualFold(page.Category, "WhatsApp") {
+		query := url.Values{
+			"type":         {"large"},
+			"redirect":     {"true"},
+			"access_token": {page.AccessToken},
+		}
+		endpoint = "https://graph.facebook.com/" + g.cfg.Version + "/" + url.PathEscape(page.ID) + "/picture?" + query.Encode()
+	}
+	if endpoint == "" {
+		return nil, usecase.ErrPageNotFound
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "image/*")
+	resp, err := g.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return nil, fmt.Errorf("Meta Page picture returned status %d", resp.StatusCode)
+	}
+	contentType := strings.TrimSpace(strings.Split(resp.Header.Get("Content-Type"), ";")[0])
+	if !strings.HasPrefix(strings.ToLower(contentType), "image/") {
+		return nil, errors.New("Meta Page picture returned invalid content type")
+	}
+	const maxPictureBytes = 5 << 20
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxPictureBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(data) == 0 || len(data) > maxPictureBytes {
+		return nil, errors.New("Meta Page picture is empty or too large")
+	}
+	return &domain.MetaPagePicture{ContentType: contentType, Data: data}, nil
+}
+
 type debugTokenResponse struct {
 	Data struct {
 		IsValid             bool     `json:"is_valid"`
@@ -1577,11 +1648,12 @@ func (g *GraphConnector) fetchPages(ctx context.Context, token string) (map[stri
 							}
 							pages[phone.ID] = graphPage{
 								MetaPage: domain.MetaPage{
-									ID:         phone.ID,
-									Name:       name,
-									Category:   "WhatsApp",
-									PictureURL: waba.ProfilePictureUrl,
-									TokenReady: true,
+									ID:          phone.ID,
+									Name:        name,
+									Category:    "WhatsApp",
+									PictureURL:  waba.ProfilePictureUrl,
+									PhoneNumber: phone.DisplayPhoneNumber,
+									TokenReady:  true,
 								},
 								AccessToken: token,
 							}

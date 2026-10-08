@@ -13,6 +13,9 @@ func (m *MockConnector) AuthorizationURL(_ context.Context, _, _ string, _ []str
 func (m *MockConnector) CompleteAuthorization(_ context.Context, _, _ string) (*domain.MetaOAuthResult, error) {
 	return &domain.MetaOAuthResult{}, nil
 }
+func (m *MockConnector) PagePicture(_ context.Context, _, _ string) (*domain.MetaPagePicture, error) {
+	return nil, errors.New("mock page picture not available")
+}
 func (m *MockConnector) VerifyWebhook(token string) bool                            { return token == "mock" }
 func (m *MockConnector) ReceiveWebhook(_ context.Context, _ []byte, _ string) error { return nil }
 

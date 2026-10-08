@@ -280,3 +280,56 @@ func TestListAdAccountsMergesBusinessPortfolioAccounts(t *testing.T) {
 		t.Fatalf("personal account metadata = %#v", items[1])
 	}
 }
+
+func TestPagePictureUsesWorkspacePageAndLargeGraphImage(t *testing.T) {
+	connector := NewGraphConnector(GraphConfig{Version: "v23.0"}, nil)
+	connector.sessions["account-1"] = &graphSession{Pages: map[string]graphPage{
+		"page-1": {MetaPage: domain.MetaPage{ID: "page-1", Category: "Retail", PictureURL: "https://stale.example/avatar.jpg"}, AccessToken: "page-token"},
+	}}
+	connector.client = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.URL.Path != "/v23.0/page-1/picture" {
+			t.Fatalf("path = %q", request.URL.Path)
+		}
+		if request.URL.Query().Get("type") != "large" || request.URL.Query().Get("access_token") != "page-token" {
+			t.Fatalf("query = %q", request.URL.RawQuery)
+		}
+		header := make(http.Header)
+		header.Set("Content-Type", "image/jpeg")
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("jpeg-data")), Header: header}, nil
+	})}
+
+	picture, err := connector.PagePicture(context.Background(), "account-1", "page-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if picture.ContentType != "image/jpeg" || string(picture.Data) != "jpeg-data" {
+		t.Fatalf("picture = %#v", picture)
+	}
+}
+
+func TestFetchPagesIncludesWhatsAppDisplayNumber(t *testing.T) {
+	connector := NewGraphConnector(GraphConfig{Version: "v23.0"}, nil)
+	connector.client = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		body := `{"data":[]}`
+		switch {
+		case strings.HasSuffix(request.URL.Path, "/me/accounts"):
+			body = `{"data":[]}`
+		case strings.HasSuffix(request.URL.Path, "/me/businesses"):
+			body = `{"data":[{"id":"business-1"}]}`
+		case strings.HasSuffix(request.URL.Path, "/business-1/owned_whatsapp_business_accounts"):
+			body = `{"data":[{"id":"waba-1","name":"Shop WhatsApp","profile_picture_url":"https://lookaside.fbsbx.com/avatar.jpg"}]}`
+		case strings.HasSuffix(request.URL.Path, "/waba-1/phone_numbers"):
+			body = `{"data":[{"id":"phone-1","display_phone_number":"+856 20 5555 1234","verified_name":"Tonxay Shop"}]}`
+		}
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}, nil
+	})}
+
+	pages, err := connector.fetchPages(context.Background(), "user-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	page := pages["phone-1"].MetaPage
+	if page.PhoneNumber != "+856 20 5555 1234" || page.Name != "Tonxay Shop" || page.Category != "WhatsApp" {
+		t.Fatalf("WhatsApp page = %#v", page)
+	}
+}
