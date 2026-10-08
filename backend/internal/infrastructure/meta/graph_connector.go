@@ -33,7 +33,7 @@ import (
 
 type GraphConfig struct {
 	AppID, AppSecret, RedirectURI, Version, WebhookFields, WebhookVerifyToken, StateFile, EncryptionKey string
-	WhatsAppBusinessAccountIDs, WhatsAppConfigID                                                        string
+	WhatsAppBusinessAccountIDs, WhatsAppConfigID, AppMode                                               string
 }
 
 type oauthState struct {

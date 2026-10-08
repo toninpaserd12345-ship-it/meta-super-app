@@ -19,6 +19,7 @@ func (g *GraphConnector) WhatsAppSignupConfig(_ context.Context) domain.MetaWhat
 		AppID:    g.cfg.AppID,
 		ConfigID: strings.TrimSpace(g.cfg.WhatsAppConfigID),
 		Version:  g.cfg.Version,
+		AppMode:  firstNonEmpty(strings.TrimSpace(g.cfg.AppMode), "development"),
 		Enabled:  g.cfg.AppID != "" && strings.TrimSpace(g.cfg.WhatsAppConfigID) != "",
 	}
 }

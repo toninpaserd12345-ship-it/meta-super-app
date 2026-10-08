@@ -10,14 +10,14 @@ import (
 )
 
 type Config struct {
-	Environment, HTTPAddr, StorageDriver, DatabaseURL, JWTSecret, JWTIssuer  string
-	MetaAppID, MetaAppSecret, MetaRedirectURI, MetaFrontendRedirect          string
-	MetaGraphVersion, MetaWebhookFields, MetaWebhookVerifyToken              string
-	MetaStateFile, MetaWhatsAppBusinessAccountIDs, MetaWhatsAppConfigID      string
-	AccessTokenTTL                                                           time.Duration
-	AutoMigrate                                                              bool
-	SeedAdminEmail, SeedAdminPassword, SeedAccountName                       string
-	R2AccountID, R2AccessKeyID, R2SecretAccessKey, R2BucketName, R2PublicURL string
+	Environment, HTTPAddr, StorageDriver, DatabaseURL, JWTSecret, JWTIssuer          string
+	MetaAppID, MetaAppSecret, MetaRedirectURI, MetaFrontendRedirect                  string
+	MetaGraphVersion, MetaWebhookFields, MetaWebhookVerifyToken                      string
+	MetaStateFile, MetaWhatsAppBusinessAccountIDs, MetaWhatsAppConfigID, MetaAppMode string
+	AccessTokenTTL                                                                   time.Duration
+	AutoMigrate                                                                      bool
+	SeedAdminEmail, SeedAdminPassword, SeedAccountName                               string
+	R2AccountID, R2AccessKeyID, R2SecretAccessKey, R2BucketName, R2PublicURL         string
 }
 
 func Load() (Config, error) {
@@ -52,6 +52,7 @@ func Load() (Config, error) {
 		MetaStateFile:                  value("META_STATE_FILE", ".data/meta-state.json"),
 		MetaWhatsAppBusinessAccountIDs: os.Getenv("META_WHATSAPP_BUSINESS_ACCOUNT_IDS"),
 		MetaWhatsAppConfigID:           os.Getenv("META_WHATSAPP_CONFIG_ID"),
+		MetaAppMode:                    value("META_APP_MODE", "development"),
 		R2AccountID:                    os.Getenv("R2_ACCOUNT_ID"),
 		R2AccessKeyID:                  os.Getenv("R2_ACCESS_KEY_ID"),
 		R2SecretAccessKey:              os.Getenv("R2_SECRET_ACCESS_KEY"),
