@@ -664,7 +664,7 @@ func (g *GraphConnector) CompleteAuthorization(ctx context.Context, state, code 
 		AccessToken string `json:"access_token"`
 	}
 	if err := g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/oauth/access_token?"+query.Encode(), &token); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("exchange authorization code: %w", err)
 	}
 	if token.AccessToken == "" {
 		return nil, errors.New("meta returned an empty access token")
@@ -689,7 +689,7 @@ func (g *GraphConnector) CompleteAuthorization(ctx context.Context, state, code 
 	}
 	pages, err := g.fetchPages(ctx, token.AccessToken)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("load Facebook Pages: %w", err)
 	}
 	encryptedUserToken := g.encryptToken(token.AccessToken)
 	if encryptedUserToken == "" {

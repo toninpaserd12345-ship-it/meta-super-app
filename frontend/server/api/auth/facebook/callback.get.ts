@@ -6,7 +6,13 @@ interface LoginResult { access_token?: string; user?: User; accountId?: string }
 export default defineEventHandler(async (event) => {
   const query = getQuery(event)
   const ticket = query.ticket
-  if (query.meta === 'error') return sendRedirect(event, '/login?facebook=expired')
+  if (query.meta === 'error') {
+    const reason = typeof query.reason === 'string' ? query.reason : 'Facebook authorization failed.'
+    // Preserve the active application session and show the actual safe OAuth
+    // stage failure on the Meta Pages screen. Sending an already signed-in
+    // user to /login immediately bounced them to / and hid the real problem.
+    return sendRedirect(event, `/meta-pages?meta=error&reason=${encodeURIComponent(reason)}`)
+  }
   if (typeof ticket !== 'string' || !ticket) return sendRedirect(event, '/login?facebook=error')
   const config = useRuntimeConfig(event)
   try {

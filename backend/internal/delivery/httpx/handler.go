@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/mail"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -256,7 +257,7 @@ func (h *Handler) completeMetaOAuth(c fiber.Ctx) error {
 	result, err := h.meta.CompleteAuthorization(ctx, c.Query("state"), c.Query("code"))
 	if err != nil {
 		slog.Error("meta oauth callback failed", "error", err)
-		return c.Redirect().To(redirect + "?meta=error&reason=" + url.QueryEscape("Facebook authorization failed"))
+		return c.Redirect().To(redirect + "?meta=error&reason=" + url.QueryEscape(metaOAuthFailureReason(err)))
 	}
 	var login *usecase.LoginOutput
 	var errLogin error
@@ -283,6 +284,29 @@ func (h *Handler) completeMetaOAuth(c fiber.Ctx) error {
 	h.tickets[ticket] = loginTicket{Result: login, AccountID: result.AccountID, ExpiresAt: time.Now().Add(2 * time.Minute)}
 	h.ticketMu.Unlock()
 	return c.Redirect().To(redirect + "?ticket=" + url.QueryEscape(ticket))
+}
+
+// metaOAuthFailureReason deliberately exposes only the failed OAuth stage.
+// The detailed Graph error remains in server logs and credentials are never
+// included in the browser redirect.
+func metaOAuthFailureReason(err error) string {
+	message := err.Error()
+	switch {
+	case strings.Contains(message, "oauth state"):
+		return "The Facebook connection session expired. Start Reconnect Facebook again."
+	case strings.Contains(message, "exchange authorization code"):
+		return "Meta could not exchange the Facebook authorization. Check the OAuth redirect URI and try again."
+	case strings.Contains(message, "exchange long-lived token"):
+		return "Meta could not renew the Facebook access token. Reconnect Facebook and approve the requested access."
+	case strings.Contains(message, "debug access token"), strings.Contains(message, "access token is invalid"):
+		return "Meta returned an invalid Facebook access token. Reconnect Facebook and approve the requested access."
+	case strings.Contains(message, "load Facebook Pages"):
+		return "Meta authorized Facebook, but Page access could not be loaded. Confirm that Pages are selected in Edit settings."
+	case strings.Contains(message, "encrypt Meta access token"), strings.Contains(message, "save encrypted Meta authorization"):
+		return "Facebook authorized successfully, but the server could not save the connection."
+	default:
+		return "Facebook authorization could not be completed. Please try Reconnect Facebook again."
+	}
 }
 func (h *Handler) verifyMetaWebhook(c fiber.Ctx) error {
 	if c.Query("hub.mode") != "subscribe" || !h.meta.VerifyWebhook(c.Query("hub.verify_token")) {
