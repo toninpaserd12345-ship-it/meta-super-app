@@ -174,7 +174,7 @@ async function connectWhatsApp(){
       const code=response?.authResponse?.code
       if(!code){clearWhatsAppTimers();whatsAppConnecting.value=false;messageType.value='error';message.value='WhatsApp connection was cancelled or Meta did not return an authorization code.';return}
       whatsAppCode.value=String(code);void finishWhatsAppSignup()
-    },{config_id:config.configId,response_type:'code',override_default_response_type:true,extras:{featureType:'',sessionInfoVersion:'3'}})
+    },{config_id:config.configId,response_type:'code',override_default_response_type:true})
   }catch(error:any){clearWhatsAppTimers();whatsAppConnecting.value=false;messageType.value='error';message.value=error?.message||'Unable to start WhatsApp connection.'}
 }
 function cancelWhatsAppConnection(){
