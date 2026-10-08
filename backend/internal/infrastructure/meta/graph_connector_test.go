@@ -1,13 +1,25 @@
 package meta
 
 import (
+	"context"
+	"errors"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/meta-super-app/backend/internal/domain"
 )
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return f(request)
+}
 
 func TestGraphStateSurvivesRestart(t *testing.T) {
 	stateFile := filepath.Join(t.TempDir(), "meta-state.json")
@@ -120,5 +132,78 @@ func TestResolveReplyItemsExpandsProductVariablesWithoutMutatingSource(t *testin
 	}
 	if !got[0].IsEnabled {
 		t.Fatal("enabled state was not preserved")
+	}
+}
+
+func TestUserTokenRenewsBeforeExpiry(t *testing.T) {
+	connector := NewGraphConnector(GraphConfig{AppID: "app", AppSecret: "secret", Version: "v23.0"}, nil)
+	connector.sessions["account-1"] = &graphSession{
+		UserToken:      "current-token",
+		TokenExpiresAt: time.Now().Add(time.Hour).Unix(),
+		Pages:          make(map[string]graphPage),
+	}
+	connector.client = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		body := `{"access_token":"renewed-token"}`
+		if strings.Contains(request.URL.Path, "debug_token") {
+			body = `{"data":{"is_valid":true,"expires_at":4102444800,"data_access_expires_at":4102444800,"scopes":["pages_show_list"]}}`
+		}
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}, nil
+	})}
+
+	token, err := connector.userToken(context.Background(), "account-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if token != "renewed-token" {
+		t.Fatalf("token = %q, want renewed-token", token)
+	}
+	if connector.sessions["account-1"].TokenExpiresAt != 4102444800 {
+		t.Fatal("renewed expiry was not stored")
+	}
+}
+
+func TestUserTokenRequiresReconnectAfterDataAccessExpiry(t *testing.T) {
+	connector := NewGraphConnector(GraphConfig{}, nil)
+	connector.sessions["account-1"] = &graphSession{
+		UserToken:           "expired-token",
+		TokenExpiresAt:      time.Now().Add(time.Hour).Unix(),
+		DataAccessExpiresAt: time.Now().Add(-time.Minute).Unix(),
+		Pages:               make(map[string]graphPage),
+	}
+
+	_, err := connector.userToken(context.Background(), "account-1")
+	if !errors.Is(err, domain.ErrMetaReconnectRequired) {
+		t.Fatalf("error = %v, want ErrMetaReconnectRequired", err)
+	}
+}
+
+func TestListAdAccountsMergesBusinessPortfolioAccounts(t *testing.T) {
+	connector := NewGraphConnector(GraphConfig{Version: "v23.0"}, nil)
+	connector.sessions["account-1"] = &graphSession{UserToken: "token", TokenExpiresAt: time.Now().Add(24 * time.Hour).Unix(), Pages: make(map[string]graphPage)}
+	connector.client = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		body := `{"data":[]}`
+		switch {
+		case strings.HasSuffix(request.URL.Path, "/me/adaccounts"):
+			body = `{"data":[{"id":"act_personal","name":"Personal Ads","account_status":1}]}`
+		case strings.HasSuffix(request.URL.Path, "/me/businesses"):
+			body = `{"data":[{"id":"business-1","name":"Shop Portfolio"}]}`
+		case strings.HasSuffix(request.URL.Path, "/business-1/owned_ad_accounts"):
+			body = `{"data":[{"id":"act_business","name":"Shop Ads","account_status":1}]}`
+		}
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}, nil
+	})}
+
+	items, err := connector.ListAdAccounts(context.Background(), "user-1", "account-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("len(items) = %d, want 2", len(items))
+	}
+	if items[0].AccountType != "business" || items[0].BusinessName != "Shop Portfolio" {
+		t.Fatalf("business account metadata = %#v", items[0])
+	}
+	if items[1].AccountType != "personal" {
+		t.Fatalf("personal account metadata = %#v", items[1])
 	}
 }

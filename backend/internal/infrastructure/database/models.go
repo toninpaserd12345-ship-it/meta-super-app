@@ -124,11 +124,14 @@ type TransactionModel struct {
 }
 
 type MetaConnectionModel struct {
-	AccountID string       `gorm:"type:uuid;primaryKey"`
-	Account   AccountModel `gorm:"foreignKey:AccountID;constraint:OnDelete:CASCADE"`
-	UserToken string       `gorm:"type:text;not null"`
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	AccountID           string       `gorm:"type:uuid;primaryKey"`
+	Account             AccountModel `gorm:"foreignKey:AccountID;constraint:OnDelete:CASCADE"`
+	UserToken           string       `gorm:"type:text;not null"`
+	TokenExpiresAt      int64
+	DataAccessExpiresAt int64
+	GrantedPermissions  string `gorm:"type:text"`
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
 type MetaPageTokenModel struct {

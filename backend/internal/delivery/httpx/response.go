@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/meta-super-app/backend/internal/domain"
 	"github.com/meta-super-app/backend/internal/usecase"
 )
 
@@ -23,6 +24,9 @@ func fail(c fiber.Ctx, status int, code, message string) error {
 func usecaseError(c fiber.Ctx, err error) error {
 	if errors.Is(err, usecase.ErrInvalidCredentials) {
 		return fail(c, fiber.StatusUnauthorized, "invalid_credentials", "Email or password is incorrect.")
+	}
+	if errors.Is(err, domain.ErrMetaReconnectRequired) {
+		return fail(c, fiber.StatusPreconditionRequired, "meta_reconnect_required", "Facebook authorization expired. Reconnect Facebook to renew access.")
 	}
 	slog.Error("request failed", "error", err, "path", c.Path())
 	return fail(c, fiber.StatusInternalServerError, "internal_error", "An unexpected error occurred.")

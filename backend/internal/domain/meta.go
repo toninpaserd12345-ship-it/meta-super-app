@@ -1,6 +1,11 @@
 package domain
 
-import "context"
+import (
+	"context"
+	"errors"
+)
+
+var ErrMetaReconnectRequired = errors.New("facebook authorization expired; reconnect Facebook")
 
 type MetaPage struct {
 	ID                  string   `json:"id"`

@@ -7,6 +7,10 @@ const { can } = useAuth()
 const route = useRoute()
 if (!can('pages:read')) throw createError({statusCode:403,statusMessage:'You do not have permission to view Meta Pages.'})
 const { data, pending, error, refresh } = await useApi<PageList>('/proxy/api/v1/meta/pages')
+const loadErrorMessage = computed(() => {
+  const value:any = error.value
+  return value?.data?.message || value?.statusMessage || 'Unable to load Pages from Meta. Reconnect Facebook and try again.'
+})
 const toggling = ref<string|null>(null)
 const authorizing = ref(false)
 const activating = ref(false)
@@ -88,7 +92,10 @@ async function activateSelected(){
 <template>
   <section class="intro"><div><p>META INTEGRATION</p><h2>Facebook & WhatsApp</h2><span>Connect an account once, then control each Page Webhook here.</span></div><div class="intro-actions"><v-chip :color="data?.mode==='live'?'success':'primary'" variant="tonal" :prepend-icon="data?.mode==='live'?'mdi-access-point':'mdi-flask-outline'">{{data?.mode==='live'?'Meta connected':'Mock mode'}}</v-chip><v-btn v-if="inactivePages.length" variant="outlined" prepend-icon="mdi-checkbox-multiple-marked-outline" @click="search='';pickerOpen=true">Select Accounts</v-btn><v-btn v-if="data?.mode==='live'" color="primary" prepend-icon="mdi-facebook" :loading="authorizing" @click="permissionsOpen=true">Connect Facebook</v-btn></div></section>
   <v-alert v-if="message" :type="messageType" variant="tonal" closable class="mb-4" @click:close="message=''">{{message}}</v-alert>
-  <v-alert v-if="error" type="error" variant="tonal">Unable to load Pages from the API.</v-alert>
+  <v-alert v-if="error" type="error" variant="tonal" class="mb-4">
+    <strong>{{loadErrorMessage}}</strong><br>
+    The system renews a valid Facebook token automatically. If Meta has fully expired or revoked it, use “Connect Facebook” to authorize again.
+  </v-alert>
   <section v-if="!error" class="connection-summary">
     <button :class="{active:statusFilter==='all'}" @click="statusFilter='all'"><v-icon icon="mdi-facebook"/><span><small>ALL PAGES</small><strong>{{pages.length}}</strong></span></button>
     <button :class="{active:statusFilter==='active'}" @click="statusFilter='active'"><v-icon icon="mdi-webhook"/><span><small>WEBHOOK ACTIVE</small><strong>{{activePages.length}}</strong></span></button>

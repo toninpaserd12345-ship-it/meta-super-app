@@ -22,6 +22,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -690,7 +691,13 @@ func (g *GraphConnector) CompleteAuthorization(ctx context.Context, state, code 
 	if pending.AccountID != "" {
 		g.sessions[pending.AccountID] = &graphSession{UserToken: token.AccessToken, TokenExpiresAt: debug.Data.ExpiresAt, DataAccessExpiresAt: debug.Data.DataAccessExpiresAt, GrantedPermissions: append([]string(nil), debug.Data.Scopes...), Pages: pages}
 		if g.db != nil {
-			g.db.Save(&database.MetaConnectionModel{AccountID: pending.AccountID, UserToken: g.encryptToken(token.AccessToken)})
+			g.db.Save(&database.MetaConnectionModel{
+				AccountID:           pending.AccountID,
+				UserToken:           g.encryptToken(token.AccessToken),
+				TokenExpiresAt:      debug.Data.ExpiresAt,
+				DataAccessExpiresAt: debug.Data.DataAccessExpiresAt,
+				GrantedPermissions:  strings.Join(debug.Data.Scopes, ","),
+			})
 		}
 		_ = g.persistStateLocked()
 	}
@@ -699,20 +706,33 @@ func (g *GraphConnector) CompleteAuthorization(ctx context.Context, state, code 
 }
 
 func (g *GraphConnector) ListPages(ctx context.Context, _ string, accountID string) ([]domain.MetaPage, error) {
+	// Always resolve the token through userToken. In production the process can
+	// restart while the encrypted OAuth token remains in PostgreSQL. Looking at
+	// the in-memory session only made every Page appear to disappear after a
+	// deployment until the user completed OAuth again.
+	token, err := g.userToken(ctx, accountID)
+	if err != nil {
+		return nil, fmt.Errorf("facebook connection not found or invalid: %w", err)
+	}
 	g.mu.RLock()
 	session := g.sessions[accountID]
-	g.mu.RUnlock()
-	if session == nil {
-		return []domain.MetaPage{}, nil
+	var tokenExpiresAt, dataAccessExpiresAt int64
+	var grantedPermissions []string
+	if session != nil {
+		tokenExpiresAt = session.TokenExpiresAt
+		dataAccessExpiresAt = session.DataAccessExpiresAt
+		grantedPermissions = append([]string(nil), session.GrantedPermissions...)
 	}
-	pages, err := g.fetchPages(ctx, session.UserToken)
+	g.mu.RUnlock()
+
+	pages, err := g.fetchPages(ctx, token)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("facebook api error: %w", err)
 	}
 	for id, page := range pages {
-		page.TokenExpiresAt = session.TokenExpiresAt
-		page.DataAccessExpiresAt = session.DataAccessExpiresAt
-		page.GrantedPermissions = append([]string(nil), session.GrantedPermissions...)
+		page.TokenExpiresAt = tokenExpiresAt
+		page.DataAccessExpiresAt = dataAccessExpiresAt
+		page.GrantedPermissions = append([]string(nil), grantedPermissions...)
 		pages[id] = page
 	}
 	// Meta is the source of truth for webhook subscriptions. The local
@@ -732,6 +752,13 @@ func (g *GraphConnector) ListPages(ctx context.Context, _ string, accountID stri
 		pages[id] = page
 	}
 	g.mu.Lock()
+	if g.sessions[accountID] == nil {
+		g.sessions[accountID] = &graphSession{UserToken: token, Pages: make(map[string]graphPage)}
+	}
+	session = g.sessions[accountID]
+	if session.Pages == nil {
+		session.Pages = make(map[string]graphPage)
+	}
 	for id, page := range pages {
 		session.Pages[id] = page
 	}
@@ -946,64 +973,214 @@ func (g *GraphConnector) ListPosts(ctx context.Context, _ string, accountID, pag
 	return posts, nil
 }
 
-func (g *GraphConnector) userToken(accountID string) (string, error) {
+func (g *GraphConnector) userToken(ctx context.Context, accountID string) (string, error) {
 	g.mu.RLock()
 	session := g.sessions[accountID]
-	if session != nil && session.UserToken != "" {
-		g.mu.RUnlock()
-		return session.UserToken, nil
+	var token string
+	var tokenExpiresAt, dataAccessExpiresAt int64
+	if session != nil {
+		token = session.UserToken
+		tokenExpiresAt = session.TokenExpiresAt
+		dataAccessExpiresAt = session.DataAccessExpiresAt
 	}
 	g.mu.RUnlock()
 
-	if g.db != nil {
+	if token == "" && g.db != nil {
 		var model database.MetaConnectionModel
 		if err := g.db.First(&model, "account_id = ?", accountID).Error; err == nil {
+			token = g.decryptToken(model.UserToken)
+			tokenExpiresAt = model.TokenExpiresAt
+			dataAccessExpiresAt = model.DataAccessExpiresAt
+			permissions := splitPermissions(model.GrantedPermissions)
 			g.mu.Lock()
 			if g.sessions[accountID] == nil {
 				g.sessions[accountID] = &graphSession{Pages: make(map[string]graphPage)}
 			}
-			decrypted := g.decryptToken(model.UserToken)
-			g.sessions[accountID].UserToken = decrypted
+			g.sessions[accountID].UserToken = token
+			g.sessions[accountID].TokenExpiresAt = tokenExpiresAt
+			g.sessions[accountID].DataAccessExpiresAt = dataAccessExpiresAt
+			g.sessions[accountID].GrantedPermissions = permissions
 			g.mu.Unlock()
-			return decrypted, nil
 		}
 	}
-	return "", errors.New("facebook connection not found")
+	if token == "" {
+		return "", errors.New("facebook connection not found")
+	}
+
+	now := time.Now().Unix()
+	if dataAccessExpiresAt > 0 && now >= dataAccessExpiresAt {
+		return "", domain.ErrMetaReconnectRequired
+	}
+	if tokenExpiresAt > 0 && now >= tokenExpiresAt {
+		return "", domain.ErrMetaReconnectRequired
+	}
+
+	// Older rows did not persist expiry metadata. Debug once, then store the
+	// result so subsequent requests do not need an extra Graph API call.
+	if tokenExpiresAt == 0 && dataAccessExpiresAt == 0 {
+		debug, err := g.debugToken(ctx, token)
+		if err != nil || !debug.Data.IsValid {
+			return "", domain.ErrMetaReconnectRequired
+		}
+		g.storeUserToken(accountID, token, debug)
+		tokenExpiresAt = debug.Data.ExpiresAt
+		dataAccessExpiresAt = debug.Data.DataAccessExpiresAt
+		if dataAccessExpiresAt > 0 && now >= dataAccessExpiresAt {
+			return "", domain.ErrMetaReconnectRequired
+		}
+	}
+
+	// Meta does not issue a conventional refresh token. While the current user
+	// token is still valid, opportunistically exchange it before it reaches its
+	// expiry window. If Meta refuses the exchange, keep using the still-valid
+	// token and ask the user to reconnect only when it actually expires.
+	const refreshWindow = int64((7 * 24 * time.Hour) / time.Second)
+	if tokenExpiresAt > 0 && tokenExpiresAt-now <= refreshWindow {
+		refreshedToken, debug, err := g.exchangeLongLivedUserToken(ctx, token)
+		if err != nil {
+			slog.Warn("unable to renew Meta user token; current token remains active", "account_id", accountID, "error", err)
+			return token, nil
+		}
+		token = refreshedToken
+		g.storeUserToken(accountID, token, debug)
+	}
+	return token, nil
+}
+
+func splitPermissions(value string) []string {
+	return strings.FieldsFunc(value, func(r rune) bool { return r == ',' })
+}
+
+func (g *GraphConnector) exchangeLongLivedUserToken(ctx context.Context, current string) (string, *debugTokenResponse, error) {
+	query := url.Values{
+		"grant_type":        {"fb_exchange_token"},
+		"client_id":         {g.cfg.AppID},
+		"client_secret":     {g.cfg.AppSecret},
+		"fb_exchange_token": {current},
+	}
+	var result struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/oauth/access_token?"+query.Encode(), &result); err != nil {
+		return "", nil, err
+	}
+	if result.AccessToken == "" {
+		return "", nil, errors.New("meta returned an empty renewed access token")
+	}
+	debug, err := g.debugToken(ctx, result.AccessToken)
+	if err != nil {
+		return "", nil, err
+	}
+	if !debug.Data.IsValid {
+		return "", nil, errors.New("meta returned an invalid renewed access token")
+	}
+	return result.AccessToken, debug, nil
+}
+
+func (g *GraphConnector) storeUserToken(accountID, token string, debug *debugTokenResponse) {
+	permissions := append([]string(nil), debug.Data.Scopes...)
+	g.mu.Lock()
+	if g.sessions[accountID] == nil {
+		g.sessions[accountID] = &graphSession{Pages: make(map[string]graphPage)}
+	}
+	g.sessions[accountID].UserToken = token
+	g.sessions[accountID].TokenExpiresAt = debug.Data.ExpiresAt
+	g.sessions[accountID].DataAccessExpiresAt = debug.Data.DataAccessExpiresAt
+	g.sessions[accountID].GrantedPermissions = permissions
+	g.mu.Unlock()
+
+	if g.db != nil {
+		updates := map[string]any{
+			"user_token":             g.encryptToken(token),
+			"token_expires_at":       debug.Data.ExpiresAt,
+			"data_access_expires_at": debug.Data.DataAccessExpiresAt,
+			"granted_permissions":    strings.Join(permissions, ","),
+		}
+		if err := g.db.Model(&database.MetaConnectionModel{}).Where("account_id = ?", accountID).Updates(updates).Error; err != nil {
+			slog.Warn("unable to persist renewed Meta token", "account_id", accountID, "error", err)
+		}
+	}
 }
 
 func (g *GraphConnector) ListAdAccounts(ctx context.Context, _ string, accountID string) ([]domain.MetaAdAccount, error) {
-	token, err := g.userToken(accountID)
+	token, err := g.userToken(ctx, accountID)
 	if err != nil {
 		return nil, fmt.Errorf("facebook connection not found or invalid: %w", err)
 	}
+	type graphBusiness struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	}
+	type graphAdAccount struct {
+		ID            string         `json:"id"`
+		Name          string         `json:"name"`
+		AccountStatus int            `json:"account_status"`
+		Business      *graphBusiness `json:"business"`
+	}
 	query := url.Values{"fields": {"id,name,account_status,business{id,name}"}, "limit": {"100"}, "access_token": {token}}
 	var response struct {
-		Data []struct {
-			ID            string `json:"id"`
-			Name          string `json:"name"`
-			AccountStatus int    `json:"account_status"`
-			Business      *struct {
-				ID   string `json:"id"`
-				Name string `json:"name"`
-			} `json:"business"`
-		} `json:"data"`
+		Data []graphAdAccount `json:"data"`
 	}
 	if err = g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/me/adaccounts?"+query.Encode(), &response); err != nil {
 		return nil, fmt.Errorf("facebook api error: %w", err)
 	}
-	items := make([]domain.MetaAdAccount, 0, len(response.Data))
+
+	// /me/adaccounts normally returns accounts explicitly assigned to the user,
+	// but Business Portfolio owned/client accounts can be absent for some role
+	// combinations. Read those edges too and merge them into one deduplicated
+	// list so the UI works for both personal and business ad accounts.
+	byID := make(map[string]domain.MetaAdAccount, len(response.Data))
 	for _, item := range response.Data {
 		accountType, businessID, businessName := "personal", "", ""
 		if item.Business != nil && item.Business.ID != "" {
 			accountType, businessID, businessName = "business", item.Business.ID, item.Business.Name
 		}
-		items = append(items, domain.MetaAdAccount{ID: item.ID, Name: item.Name, AccountStatus: item.AccountStatus, AccountType: accountType, BusinessID: businessID, BusinessName: businessName})
+		byID[item.ID] = domain.MetaAdAccount{ID: item.ID, Name: item.Name, AccountStatus: item.AccountStatus, AccountType: accountType, BusinessID: businessID, BusinessName: businessName}
 	}
+
+	var businesses struct {
+		Data []graphBusiness `json:"data"`
+	}
+	businessQuery := url.Values{"fields": {"id,name"}, "limit": {"100"}, "access_token": {token}}
+	if businessErr := g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/me/businesses?"+businessQuery.Encode(), &businesses); businessErr != nil {
+		slog.Warn("unable to list Meta Business Portfolios", "error", businessErr)
+	} else {
+		for _, business := range businesses.Data {
+			for _, edge := range []string{"owned_ad_accounts", "client_ad_accounts"} {
+				edgeQuery := url.Values{"fields": {"id,name,account_status"}, "limit": {"100"}, "access_token": {token}}
+				var edgeResponse struct {
+					Data []graphAdAccount `json:"data"`
+				}
+				endpoint := "https://graph.facebook.com/" + g.cfg.Version + "/" + url.PathEscape(business.ID) + "/" + edge + "?" + edgeQuery.Encode()
+				if edgeErr := g.getJSON(ctx, endpoint, &edgeResponse); edgeErr != nil {
+					slog.Warn("unable to list Meta Business Portfolio ad accounts", "business_id", business.ID, "edge", edge, "error", edgeErr)
+					continue
+				}
+				for _, item := range edgeResponse.Data {
+					byID[item.ID] = domain.MetaAdAccount{ID: item.ID, Name: item.Name, AccountStatus: item.AccountStatus, AccountType: "business", BusinessID: business.ID, BusinessName: business.Name}
+				}
+			}
+		}
+	}
+
+	items := make([]domain.MetaAdAccount, 0, len(byID))
+	for _, item := range byID {
+		items = append(items, item)
+	}
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].AccountType != items[j].AccountType {
+			return items[i].AccountType < items[j].AccountType
+		}
+		if items[i].BusinessName != items[j].BusinessName {
+			return items[i].BusinessName < items[j].BusinessName
+		}
+		return items[i].Name < items[j].Name
+	})
 	return items, nil
 }
 
 func (g *GraphConnector) ListCampaigns(ctx context.Context, _ string, accountID, adAccountID string) ([]domain.MetaCampaign, error) {
-	token, err := g.userToken(accountID)
+	token, err := g.userToken(ctx, accountID)
 	if err != nil {
 		return []domain.MetaCampaign{}, nil
 	}
@@ -1041,7 +1218,7 @@ func (g *GraphConnector) ListCampaigns(ctx context.Context, _ string, accountID,
 }
 
 func (g *GraphConnector) ListAds(ctx context.Context, _ string, accountID, campaignID string) ([]domain.MetaAd, error) {
-	token, err := g.userToken(accountID)
+	token, err := g.userToken(ctx, accountID)
 	if err != nil {
 		return []domain.MetaAd{}, nil
 	}
