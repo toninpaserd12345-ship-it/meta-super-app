@@ -90,28 +90,36 @@ func NewGraphConnector(cfg GraphConfig, db *gorm.DB) *GraphConnector {
 }
 
 type persistentGraphState struct {
-	Sessions   map[string]*graphSession               `json:"sessions"`
+	// Sessions is retained only so older state files can be read and scrubbed.
+	// OAuth and Page access tokens belong exclusively in the encrypted database
+	// columns; they must never be written to the state file.
+	Sessions   map[string]*graphSession               `json:"sessions,omitempty"`
 	Bindings   map[string]domain.ProductBinding       `json:"bindings"`
 	Products   map[string]map[string]domain.Product   `json:"products"`
 	ReplyFlows map[string]map[string]domain.ReplyFlow `json:"replyFlows"`
 }
 
 func (g *GraphConnector) encryptToken(token string) string {
-	if token == "" || g.cfg.EncryptionKey == "" {
-		return token
+	if token == "" {
+		return ""
+	}
+	// Fail closed: a configuration or cryptographic failure must never cause a
+	// live credential to be written as plaintext.
+	if g.cfg.EncryptionKey == "" {
+		return ""
 	}
 	key := sha256.Sum256([]byte(g.cfg.EncryptionKey))
 	block, err := aes.NewCipher(key[:])
 	if err != nil {
-		return token
+		return ""
 	}
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
-		return token
+		return ""
 	}
 	nonce := make([]byte, gcm.NonceSize())
 	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
-		return token
+		return ""
 	}
 	ciphertext := gcm.Seal(nonce, nonce, []byte(token), nil)
 	return "enc:" + hex.EncodeToString(ciphertext)
@@ -162,9 +170,6 @@ func (g *GraphConnector) loadState() error {
 	if err = json.Unmarshal(data, &state); err != nil {
 		return err
 	}
-	if state.Sessions != nil {
-		g.sessions = state.Sessions
-	}
 	if state.Bindings != nil {
 		g.bindings = state.Bindings
 	}
@@ -173,6 +178,13 @@ func (g *GraphConnector) loadState() error {
 	}
 	if state.ReplyFlows != nil {
 		g.replyFlows = state.ReplyFlows
+	}
+	// Previous versions persisted live OAuth credentials in this file. Ignore
+	// them and immediately rewrite the file without the legacy sessions field.
+	// Database-backed sessions are restored lazily by userToken/findPage.
+	if state.Sessions != nil {
+		state.Sessions = nil
+		return g.writePersistentState(state)
 	}
 	return nil
 }
@@ -183,7 +195,11 @@ func (g *GraphConnector) persistStateLocked() error {
 	if strings.TrimSpace(g.cfg.StateFile) == "" {
 		return nil
 	}
-	state := persistentGraphState{Sessions: g.sessions, Bindings: g.bindings, Products: g.products, ReplyFlows: g.replyFlows}
+	state := persistentGraphState{Bindings: g.bindings, Products: g.products, ReplyFlows: g.replyFlows}
+	return g.writePersistentState(state)
+}
+
+func (g *GraphConnector) writePersistentState(state persistentGraphState) error {
 	data, err := json.Marshal(state)
 	if err != nil {
 		return err
@@ -675,6 +691,10 @@ func (g *GraphConnector) CompleteAuthorization(ctx context.Context, state, code 
 	if err != nil {
 		return nil, err
 	}
+	encryptedUserToken := g.encryptToken(token.AccessToken)
+	if encryptedUserToken == "" {
+		return nil, errors.New("unable to encrypt Meta access token")
+	}
 	g.mu.Lock()
 	for id, page := range pages {
 		page.TokenExpiresAt = debug.Data.ExpiresAt
@@ -693,7 +713,7 @@ func (g *GraphConnector) CompleteAuthorization(ctx context.Context, state, code 
 		if g.db != nil {
 			g.db.Save(&database.MetaConnectionModel{
 				AccountID:           pending.AccountID,
-				UserToken:           g.encryptToken(token.AccessToken),
+				UserToken:           encryptedUserToken,
 				TokenExpiresAt:      debug.Data.ExpiresAt,
 				DataAccessExpiresAt: debug.Data.DataAccessExpiresAt,
 				GrantedPermissions:  strings.Join(debug.Data.Scopes, ","),
@@ -855,6 +875,10 @@ func (g *GraphConnector) ConnectPage(ctx context.Context, _ string, accountID, p
 			return nil, graphResponseError(resp.StatusCode, envelope.Error)
 		}
 	}
+	encryptedPageToken := g.encryptToken(page.AccessToken)
+	if page.AccessToken != "" && encryptedPageToken == "" {
+		return nil, errors.New("unable to encrypt Meta Page access token")
+	}
 
 	g.mu.Lock()
 	page.Connected = true
@@ -871,7 +895,7 @@ func (g *GraphConnector) ConnectPage(ctx context.Context, _ string, accountID, p
 			Name:        page.Name,
 			Category:    page.Category,
 			PictureURL:  page.PictureURL,
-			AccessToken: g.encryptToken(page.AccessToken),
+			AccessToken: encryptedPageToken,
 			IsConnected: page.Connected,
 		})
 	}
@@ -918,6 +942,10 @@ func (g *GraphConnector) DisconnectPage(ctx context.Context, _ string, accountID
 			return nil, graphResponseError(resp.StatusCode, envelope.Error)
 		}
 	}
+	encryptedPageToken := g.encryptToken(page.AccessToken)
+	if page.AccessToken != "" && encryptedPageToken == "" {
+		return nil, errors.New("unable to encrypt Meta Page access token")
+	}
 
 	g.mu.Lock()
 	page.Connected = false
@@ -930,7 +958,7 @@ func (g *GraphConnector) DisconnectPage(ctx context.Context, _ string, accountID
 			Name:        page.Name,
 			Category:    page.Category,
 			PictureURL:  page.PictureURL,
-			AccessToken: g.encryptToken(page.AccessToken),
+			AccessToken: encryptedPageToken,
 			IsConnected: page.Connected,
 		})
 	}
@@ -1090,8 +1118,13 @@ func (g *GraphConnector) storeUserToken(accountID, token string, debug *debugTok
 	g.mu.Unlock()
 
 	if g.db != nil {
+		encryptedToken := g.encryptToken(token)
+		if encryptedToken == "" {
+			slog.Error("unable to encrypt renewed Meta token", "account_id", accountID)
+			return
+		}
 		updates := map[string]any{
-			"user_token":             g.encryptToken(token),
+			"user_token":             encryptedToken,
 			"token_expires_at":       debug.Data.ExpiresAt,
 			"data_access_expires_at": debug.Data.DataAccessExpiresAt,
 			"granted_permissions":    strings.Join(permissions, ","),

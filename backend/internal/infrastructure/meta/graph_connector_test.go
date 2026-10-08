@@ -21,7 +21,7 @@ func (f roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) 
 	return f(request)
 }
 
-func TestGraphStateSurvivesRestart(t *testing.T) {
+func TestGraphStateSurvivesRestartWithoutPersistingTokens(t *testing.T) {
 	stateFile := filepath.Join(t.TempDir(), "meta-state.json")
 	first := NewGraphConnector(GraphConfig{StateFile: stateFile}, nil)
 	first.sessions["account-1"] = &graphSession{UserToken: "user-token", Pages: map[string]graphPage{"page-1": {MetaPage: domain.MetaPage{ID: "page-1", Connected: true}, AccessToken: "page-token"}}}
@@ -31,10 +31,17 @@ func TestGraphStateSurvivesRestart(t *testing.T) {
 	if err := first.persistStateLocked(); err != nil {
 		t.Fatal(err)
 	}
+	data, err := os.ReadFile(stateFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "user-token") || strings.Contains(string(data), "page-token") || strings.Contains(string(data), "sessions") {
+		t.Fatalf("state file contains OAuth credentials: %s", data)
+	}
 
 	restarted := NewGraphConnector(GraphConfig{StateFile: stateFile}, nil)
-	if restarted.sessions["account-1"] == nil || restarted.sessions["account-1"].Pages["page-1"].AccessToken != "page-token" {
-		t.Fatal("OAuth session was not restored")
+	if restarted.sessions["account-1"] != nil {
+		t.Fatal("OAuth session must not be restored from the state file")
 	}
 	if restarted.products["account-1"]["product-1"].Name != "Durian" {
 		t.Fatal("product was not restored")
@@ -51,6 +58,49 @@ func TestGraphStateSurvivesRestart(t *testing.T) {
 	}
 	if info.Mode().Perm() != 0600 {
 		t.Fatalf("state permissions = %o, want 600", info.Mode().Perm())
+	}
+}
+
+func TestLegacyGraphStateScrubsPlaintextTokens(t *testing.T) {
+	stateFile := filepath.Join(t.TempDir(), "meta-state.json")
+	legacy := `{"sessions":{"account-1":{"userToken":"legacy-user-token","pages":{"page-1":{"accessToken":"legacy-page-token"}}}},"bindings":{},"products":{},"replyFlows":{}}`
+	if err := os.WriteFile(stateFile, []byte(legacy), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	connector := NewGraphConnector(GraphConfig{StateFile: stateFile}, nil)
+	if len(connector.sessions) != 0 {
+		t.Fatal("legacy OAuth sessions must be discarded")
+	}
+	data, err := os.ReadFile(stateFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "legacy-user-token") || strings.Contains(string(data), "legacy-page-token") || strings.Contains(string(data), "sessions") {
+		t.Fatalf("legacy credentials were not scrubbed: %s", data)
+	}
+}
+
+func TestTokenEncryptionRoundTrip(t *testing.T) {
+	connector := NewGraphConnector(GraphConfig{EncryptionKey: "test-encryption-key-that-is-long-enough"}, nil)
+	const token = "EAAB-secret-facebook-token"
+
+	encrypted := connector.encryptToken(token)
+	if encrypted == token || !strings.HasPrefix(encrypted, "enc:") {
+		t.Fatalf("token was not encrypted: %q", encrypted)
+	}
+	if strings.Contains(encrypted, token) {
+		t.Fatal("ciphertext contains the plaintext token")
+	}
+	if decrypted := connector.decryptToken(encrypted); decrypted != token {
+		t.Fatalf("decryptToken() = %q, want original token", decrypted)
+	}
+}
+
+func TestTokenEncryptionFailsClosedWithoutKey(t *testing.T) {
+	connector := NewGraphConnector(GraphConfig{}, nil)
+	if encrypted := connector.encryptToken("must-not-be-plaintext"); encrypted != "" {
+		t.Fatalf("encryptToken() = %q, want empty result when no key is configured", encrypted)
 	}
 }
 
