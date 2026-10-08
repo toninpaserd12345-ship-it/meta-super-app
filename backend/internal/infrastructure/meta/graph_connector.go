@@ -1621,41 +1621,48 @@ func (g *GraphConnector) fetchPages(ctx context.Context, token string) (map[stri
 	}
 	if err := g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/me/businesses?access_token="+token, &bizResponse); err == nil {
 		for _, biz := range bizResponse.Data {
-			var wabaResponse struct {
-				Data []struct {
-					ID                string `json:"id"`
-					Name              string `json:"name"`
-					ProfilePictureUrl string `json:"profile_picture_url"`
-				} `json:"data"`
-			}
-			if err := g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/"+biz.ID+"/owned_whatsapp_business_accounts?fields=id,name,profile_picture_url&access_token="+token, &wabaResponse); err == nil {
-				for _, waba := range wabaResponse.Data {
-					var phoneResponse struct {
-						Data []struct {
-							ID                 string `json:"id"`
-							DisplayPhoneNumber string `json:"display_phone_number"`
-							VerifiedName       string `json:"verified_name"`
-						} `json:"data"`
-					}
-					if err := g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/"+waba.ID+"/phone_numbers?fields=id,display_phone_number,verified_name&access_token="+token, &phoneResponse); err == nil {
-						for _, phone := range phoneResponse.Data {
-							name := phone.VerifiedName
-							if name == "" {
-								name = waba.Name
-							}
-							if name == "" {
-								name = phone.DisplayPhoneNumber
-							}
-							pages[phone.ID] = graphPage{
-								MetaPage: domain.MetaPage{
-									ID:          phone.ID,
-									Name:        name,
-									Category:    "WhatsApp",
-									PictureURL:  waba.ProfilePictureUrl,
-									PhoneNumber: phone.DisplayPhoneNumber,
-									TokenReady:  true,
-								},
-								AccessToken: token,
+			seenWABAs := make(map[string]bool)
+			for _, edge := range []string{"owned_whatsapp_business_accounts", "client_whatsapp_business_accounts"} {
+				var wabaResponse struct {
+					Data []struct {
+						ID                string `json:"id"`
+						Name              string `json:"name"`
+						ProfilePictureUrl string `json:"profile_picture_url"`
+					} `json:"data"`
+				}
+				if err := g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/"+biz.ID+"/"+edge+"?fields=id,name,profile_picture_url&access_token="+token, &wabaResponse); err == nil {
+					for _, waba := range wabaResponse.Data {
+						if seenWABAs[waba.ID] {
+							continue
+						}
+						seenWABAs[waba.ID] = true
+						var phoneResponse struct {
+							Data []struct {
+								ID                 string `json:"id"`
+								DisplayPhoneNumber string `json:"display_phone_number"`
+								VerifiedName       string `json:"verified_name"`
+							} `json:"data"`
+						}
+						if err := g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/"+waba.ID+"/phone_numbers?fields=id,display_phone_number,verified_name&access_token="+token, &phoneResponse); err == nil {
+							for _, phone := range phoneResponse.Data {
+								name := phone.VerifiedName
+								if name == "" {
+									name = waba.Name
+								}
+								if name == "" {
+									name = phone.DisplayPhoneNumber
+								}
+								pages[phone.ID] = graphPage{
+									MetaPage: domain.MetaPage{
+										ID:          phone.ID,
+										Name:        name,
+										Category:    "WhatsApp",
+										PictureURL:  waba.ProfilePictureUrl,
+										PhoneNumber: phone.DisplayPhoneNumber,
+										TokenReady:  true,
+									},
+									AccessToken: token,
+								}
 							}
 						}
 					}

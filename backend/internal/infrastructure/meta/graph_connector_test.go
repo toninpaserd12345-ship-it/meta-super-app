@@ -316,7 +316,7 @@ func TestFetchPagesIncludesWhatsAppDisplayNumber(t *testing.T) {
 			body = `{"data":[]}`
 		case strings.HasSuffix(request.URL.Path, "/me/businesses"):
 			body = `{"data":[{"id":"business-1"}]}`
-		case strings.HasSuffix(request.URL.Path, "/business-1/owned_whatsapp_business_accounts"):
+		case strings.HasSuffix(request.URL.Path, "/business-1/client_whatsapp_business_accounts"):
 			body = `{"data":[{"id":"waba-1","name":"Shop WhatsApp","profile_picture_url":"https://lookaside.fbsbx.com/avatar.jpg"}]}`
 		case strings.HasSuffix(request.URL.Path, "/waba-1/phone_numbers"):
 			body = `{"data":[{"id":"phone-1","display_phone_number":"+856 20 5555 1234","verified_name":"Tonxay Shop"}]}`

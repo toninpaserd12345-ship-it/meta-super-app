@@ -35,6 +35,7 @@ const statusFilter = ref<'all'|'active'|'available'>('all')
 const message = ref('')
 const messageType = ref<'success'|'error'>('success')
 const failedPictures = ref<Record<string, boolean>>({})
+const pictureAttempts = ref<Record<string, number>>({})
 const pages=computed(()=>data.value?.items||[])
 const activePages=computed(()=>pages.value.filter(page=>page.connected))
 const inactivePages=computed(()=>pages.value.filter(page=>!page.connected))
@@ -62,9 +63,13 @@ const availablePages=computed(()=>{
 })
 
 const visiblePages=computed(()=>pages.value.filter(page=>statusFilter.value==='all'||(statusFilter.value==='active'?page.connected:!page.connected)))
-const pagePictureUrl=(page:MetaPage)=>`/api/meta/page-picture/${encodeURIComponent(page.id)}`
+const pagePictureUrl=(page:MetaPage)=>`/api/meta/page-picture/${encodeURIComponent(page.id)}?attempt=${pictureAttempts.value[page.id]||0}`
 const pictureAvailable=(page:MetaPage)=>page.tokenReady&&!failedPictures.value[page.id]
-const markPictureFailed=(pageId:string)=>{failedPictures.value={...failedPictures.value,[pageId]:true}}
+const handlePictureError=(pageId:string)=>{
+  const attempt=pictureAttempts.value[pageId]||0
+  if(attempt<2){pictureAttempts.value={...pictureAttempts.value,[pageId]:attempt+1};return}
+  failedPictures.value={...failedPictures.value,[pageId]:true}
+}
 if(route.query.meta==='connected'){messageType.value='success';message.value='Facebook connected successfully. Choose the accounts you want to activate.';pickerOpen.value=availablePages.value.length>0;await navigateTo('/meta-pages',{replace:true})}
 if(route.query.meta==='error'){messageType.value='error';message.value=String(route.query.reason||'Facebook authorization failed.');await navigateTo('/meta-pages',{replace:true})}
 function tokenExpiry(page:MetaPage){if(!page.tokenExpiresAt)return 'No fixed expiry reported';return `Expires ${new Intl.DateTimeFormat(undefined,{dateStyle:'medium'}).format(new Date(page.tokenExpiresAt*1000))}`}
@@ -115,7 +120,7 @@ async function activateSelected(){
     <v-skeleton-loader v-if="pending" v-for="i in 3" :key="i" type="card"/>
     <article v-for="page in visiblePages" v-else :key="page.id" class="page-card">
       <div class="page-avatar">
-        <v-img v-if="pictureAvailable(page)" :src="pagePictureUrl(page)" :alt="`${page.name} profile picture`" cover @error="markPictureFailed(page.id)"></v-img>
+        <v-img v-if="pictureAvailable(page)" :src="pagePictureUrl(page)" :alt="`${page.name} profile picture`" cover @error="handlePictureError(page.id)"></v-img>
         <v-icon v-else-if="page.category.toLowerCase().includes('whatsapp')" icon="mdi-whatsapp" color="success" size="28"/>
         <v-icon v-else icon="mdi-facebook" color="blue" size="28"/>
       </div><div class="page-info"><h3>{{page.name}}</h3><p>{{page.category}}</p><p v-if="page.phoneNumber" class="page-phone"><v-icon icon="mdi-phone-outline" size="14"/>{{page.phoneNumber}}</p><small>{{page.category.toLowerCase().includes('whatsapp')?'Phone number ID':'Page ID'}} · {{page.id}}</small><div class="token-row"><v-chip class="token-chip" :color="page.tokenReady?'success':'warning'" variant="tonal" size="x-small" :prepend-icon="page.tokenReady?'mdi-key-check':'mdi-key-alert'">{{page.tokenReady?'Access token ready':'Token unavailable'}}</v-chip><v-chip v-if="page.tokenReady" class="token-chip" color="info" variant="tonal" size="x-small" prepend-icon="mdi-clock-outline">{{tokenExpiry(page)}}</v-chip></div></div>
@@ -236,7 +241,7 @@ async function activateSelected(){
             <div v-else-if="availablePages.length" class="pc-grid">
               <div v-for="page in availablePages" :key="page.id" class="pc-card" :class="{'selected':selected.includes(page.id)}" @click="selected.includes(page.id)?selected=selected.filter(id=>id!==page.id):selected.push(page.id)">
                 <div class="pc-card-avatar">
-                  <v-img v-if="pictureAvailable(page)" :src="pagePictureUrl(page)" :alt="`${page.name} profile picture`" cover @error="markPictureFailed(page.id)"></v-img>
+                  <v-img v-if="pictureAvailable(page)" :src="pagePictureUrl(page)" :alt="`${page.name} profile picture`" cover @error="handlePictureError(page.id)"></v-img>
                   <v-icon v-else-if="page.category.toLowerCase().includes('whatsapp')" icon="mdi-whatsapp" color="success" size="32"></v-icon>
                   <v-icon v-else icon="mdi-facebook" color="blue" size="32"></v-icon>
                 </div>
