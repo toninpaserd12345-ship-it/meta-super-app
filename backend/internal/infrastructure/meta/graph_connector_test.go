@@ -317,9 +317,14 @@ func TestFetchPagesIncludesWhatsAppDisplayNumber(t *testing.T) {
 		case strings.HasSuffix(request.URL.Path, "/me/businesses"):
 			body = `{"data":[{"id":"business-1"}]}`
 		case strings.HasSuffix(request.URL.Path, "/business-1/client_whatsapp_business_accounts"):
-			body = `{"data":[{"id":"waba-1","name":"Shop WhatsApp","profile_picture_url":"https://lookaside.fbsbx.com/avatar.jpg"}]}`
+			if fields := request.URL.Query().Get("fields"); fields != "id,name" {
+				t.Fatalf("WABA fields = %q", fields)
+			}
+			body = `{"data":[{"id":"waba-1","name":"Shop WhatsApp"}]}`
 		case strings.HasSuffix(request.URL.Path, "/waba-1/phone_numbers"):
 			body = `{"data":[{"id":"phone-1","display_phone_number":"+856 20 5555 1234","verified_name":"Tonxay Shop"}]}`
+		case strings.HasSuffix(request.URL.Path, "/phone-1/whatsapp_business_profile"):
+			body = `{"data":[{"profile_picture_url":"https://lookaside.fbsbx.com/avatar.jpg"}]}`
 		}
 		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}, nil
 	})}
@@ -329,7 +334,7 @@ func TestFetchPagesIncludesWhatsAppDisplayNumber(t *testing.T) {
 		t.Fatal(err)
 	}
 	page := pages["phone-1"].MetaPage
-	if page.PhoneNumber != "+856 20 5555 1234" || page.Name != "Tonxay Shop" || page.Category != "WhatsApp" {
+	if page.PhoneNumber != "+856 20 5555 1234" || page.Name != "Tonxay Shop" || page.Category != "WhatsApp" || page.PictureURL != "https://lookaside.fbsbx.com/avatar.jpg" {
 		t.Fatalf("WhatsApp page = %#v", page)
 	}
 }

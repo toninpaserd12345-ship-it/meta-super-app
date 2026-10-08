@@ -1625,50 +1625,71 @@ func (g *GraphConnector) fetchPages(ctx context.Context, token string) (map[stri
 			for _, edge := range []string{"owned_whatsapp_business_accounts", "client_whatsapp_business_accounts"} {
 				var wabaResponse struct {
 					Data []struct {
-						ID                string `json:"id"`
-						Name              string `json:"name"`
-						ProfilePictureUrl string `json:"profile_picture_url"`
+						ID   string `json:"id"`
+						Name string `json:"name"`
 					} `json:"data"`
 				}
-				if err := g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/"+biz.ID+"/"+edge+"?fields=id,name,profile_picture_url&access_token="+token, &wabaResponse); err == nil {
-					for _, waba := range wabaResponse.Data {
-						if seenWABAs[waba.ID] {
-							continue
+				wabaQuery := url.Values{"fields": {"id,name"}, "access_token": {token}, "limit": {"100"}}
+				if err := g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/"+biz.ID+"/"+edge+"?"+wabaQuery.Encode(), &wabaResponse); err != nil {
+					slog.Warn("unable to discover WhatsApp Business Accounts", "business_id", biz.ID, "edge", edge, "error", err)
+					continue
+				}
+				for _, waba := range wabaResponse.Data {
+					if seenWABAs[waba.ID] {
+						continue
+					}
+					seenWABAs[waba.ID] = true
+					var phoneResponse struct {
+						Data []struct {
+							ID                 string `json:"id"`
+							DisplayPhoneNumber string `json:"display_phone_number"`
+							VerifiedName       string `json:"verified_name"`
+						} `json:"data"`
+					}
+					phoneQuery := url.Values{"fields": {"id,display_phone_number,verified_name"}, "access_token": {token}, "limit": {"100"}}
+					if err := g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/"+waba.ID+"/phone_numbers?"+phoneQuery.Encode(), &phoneResponse); err != nil {
+						slog.Warn("unable to discover WhatsApp phone numbers", "business_id", biz.ID, "waba_id", waba.ID, "error", err)
+						continue
+					}
+					for _, phone := range phoneResponse.Data {
+						name := phone.VerifiedName
+						if name == "" {
+							name = waba.Name
 						}
-						seenWABAs[waba.ID] = true
-						var phoneResponse struct {
+						if name == "" {
+							name = phone.DisplayPhoneNumber
+						}
+
+						pictureURL := ""
+						var profileResponse struct {
 							Data []struct {
-								ID                 string `json:"id"`
-								DisplayPhoneNumber string `json:"display_phone_number"`
-								VerifiedName       string `json:"verified_name"`
+								ProfilePictureURL string `json:"profile_picture_url"`
 							} `json:"data"`
 						}
-						if err := g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/"+waba.ID+"/phone_numbers?fields=id,display_phone_number,verified_name&access_token="+token, &phoneResponse); err == nil {
-							for _, phone := range phoneResponse.Data {
-								name := phone.VerifiedName
-								if name == "" {
-									name = waba.Name
-								}
-								if name == "" {
-									name = phone.DisplayPhoneNumber
-								}
-								pages[phone.ID] = graphPage{
-									MetaPage: domain.MetaPage{
-										ID:          phone.ID,
-										Name:        name,
-										Category:    "WhatsApp",
-										PictureURL:  waba.ProfilePictureUrl,
-										PhoneNumber: phone.DisplayPhoneNumber,
-										TokenReady:  true,
-									},
-									AccessToken: token,
-								}
-							}
+						profileQuery := url.Values{"fields": {"profile_picture_url"}, "access_token": {token}}
+						if err := g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/"+phone.ID+"/whatsapp_business_profile?"+profileQuery.Encode(), &profileResponse); err != nil {
+							slog.Warn("unable to load WhatsApp business profile picture", "phone_number_id", phone.ID, "error", err)
+						} else if len(profileResponse.Data) > 0 {
+							pictureURL = profileResponse.Data[0].ProfilePictureURL
+						}
+
+						pages[phone.ID] = graphPage{
+							MetaPage: domain.MetaPage{
+								ID:          phone.ID,
+								Name:        name,
+								Category:    "WhatsApp",
+								PictureURL:  pictureURL,
+								PhoneNumber: phone.DisplayPhoneNumber,
+								TokenReady:  true,
+							},
+							AccessToken: token,
 						}
 					}
 				}
 			}
 		}
+	} else {
+		slog.Warn("unable to discover Meta businesses for WhatsApp", "error", err)
 	}
 
 	return pages, nil
