@@ -25,6 +25,7 @@ const whatsAppConnecting = ref(false)
 const whatsAppConfig = ref<WhatsAppSignupConfig|null>(null)
 const whatsAppSession = ref<WhatsAppSignupSession>({})
 const whatsAppCode = ref('')
+const whatsAppDetailsOpen = ref(false)
 
 const pickerOpen = ref(false)
 const activePlatform = ref('all') // 'all', 'facebook', 'instagram', 'whatsapp', etc.
@@ -49,15 +50,6 @@ const activePages=computed(()=>pages.value.filter(page=>page.connected))
 const inactivePages=computed(()=>pages.value.filter(page=>!page.connected))
 const whatsappPages=computed(()=>pages.value.filter(page=>page.category.toLowerCase().includes('whatsapp')))
 const whatsappDiagnostics=computed(()=>data.value?.whatsappDiagnostics)
-const whatsappDiagnosticTitle=computed(()=>{
-  const state=whatsappDiagnostics.value?.state
-  if(state==='missing_permissions')return 'WhatsApp permissions are missing'
-  if(state==='no_business')return 'No Business Portfolio was returned'
-  if(state==='no_waba')return 'No WhatsApp Business Account was found'
-  if(state==='no_phone_number')return 'No registered WhatsApp phone number was found'
-  if(state==='business_access_error'||state==='waba_access_error'||state==='phone_access_error')return 'Meta denied WhatsApp access'
-  return 'WhatsApp is not available yet'
-})
 
 const availablePages=computed(()=>{
   let list = inactivePages.value
@@ -166,6 +158,12 @@ async function connectWhatsApp(){
     },{config_id:config.configId,response_type:'code',override_default_response_type:true,extras:{featureType:'',sessionInfoVersion:'3'}})
   }catch(error:any){whatsAppConnecting.value=false;messageType.value='error';message.value=error?.message||'Unable to start WhatsApp connection.'}
 }
+function cancelWhatsAppConnection(){
+  whatsAppConnecting.value=false
+  whatsAppCode.value=''
+  whatsAppSession.value={}
+  message.value=''
+}
 onMounted(()=>{
   void $fetch<WhatsAppSignupConfig>('/api/proxy/api/v1/meta/whatsapp/signup/config').then(config=>{whatsAppConfig.value=config}).catch(()=>{})
   whatsAppMessageHandler=(event:MessageEvent)=>{
@@ -185,7 +183,7 @@ onBeforeUnmount(()=>{if(whatsAppMessageHandler)window.removeEventListener('messa
 </script>
 
 <template>
-  <section class="intro"><div><p>META INTEGRATION</p><h2>Facebook & WhatsApp</h2><span>Connect each channel securely, then control its Webhook from this workspace.</span></div><div class="intro-actions"><v-chip v-if="whatsAppConfig?.appMode==='development'" color="warning" variant="tonal" prepend-icon="mdi-hammer-wrench">Development mode · App roles only</v-chip><v-chip :color="error?'error':data?.mode==='mock'?'primary':'success'" variant="tonal" :prepend-icon="error?'mdi-alert-circle-outline':data?.mode==='mock'?'mdi-flask-outline':'mdi-access-point'">{{error?'Connection needs attention':data?.mode==='mock'?'Mock mode':'Meta connected'}}</v-chip><v-btn v-if="inactivePages.length" variant="outlined" prepend-icon="mdi-checkbox-multiple-marked-outline" @click="search='';pickerOpen=true">Select Accounts</v-btn><v-btn v-if="data?.mode!=='mock'" color="success" prepend-icon="mdi-whatsapp" :loading="whatsAppConnecting" :disabled="authorizing" @click="connectWhatsApp">Connect WhatsApp</v-btn><v-btn v-if="data?.mode!=='mock'" color="primary" prepend-icon="mdi-facebook" :loading="authorizing" :disabled="whatsAppConnecting" @click="permissionsOpen=true">{{needsReconnect?'Reconnect Facebook':'Connect Facebook'}}</v-btn></div></section>
+  <section class="intro"><div><p>META INTEGRATION</p><h2>Facebook & WhatsApp</h2><span>Connect each channel securely, then control its Webhook from this workspace.</span></div><div class="intro-actions"><v-chip v-if="whatsAppConfig?.appMode==='development'" color="warning" variant="tonal" prepend-icon="mdi-hammer-wrench">Development mode · App roles only</v-chip><v-chip :color="error?'error':data?.mode==='mock'?'primary':'success'" variant="tonal" :prepend-icon="error?'mdi-alert-circle-outline':data?.mode==='mock'?'mdi-flask-outline':'mdi-access-point'">{{error?'Connection needs attention':data?.mode==='mock'?'Mock mode':'Meta connected'}}</v-chip><v-btn v-if="inactivePages.length" variant="outlined" prepend-icon="mdi-checkbox-multiple-marked-outline" @click="search='';pickerOpen=true">Select Accounts</v-btn><v-btn v-if="data?.mode!=='mock'" color="success" :prepend-icon="whatsAppConnecting?'mdi-loading':'mdi-whatsapp'" :disabled="authorizing||whatsAppConnecting" @click="connectWhatsApp">{{whatsAppConnecting?'Waiting for Meta…':'Connect WhatsApp'}}</v-btn><v-btn v-if="data?.mode!=='mock'" color="primary" prepend-icon="mdi-facebook" :loading="authorizing" :disabled="whatsAppConnecting" @click="permissionsOpen=true">{{needsReconnect?'Reconnect Facebook':'Connect Facebook'}}</v-btn></div></section>
   <v-alert v-if="message" :type="messageType" variant="tonal" closable class="mb-4" @click:close="message=''">{{message}}</v-alert>
   <v-alert v-if="error" type="error" variant="tonal" class="mb-4">
     <strong>{{loadErrorMessage}}</strong><br>
@@ -199,24 +197,39 @@ onBeforeUnmount(()=>{if(whatsAppMessageHandler)window.removeEventListener('messa
     <button :class="{active:statusFilter==='active'&&mainPlatformFilter==='all'}" @click="statusFilter='active';mainPlatformFilter='all'"><v-icon icon="mdi-webhook"/><span><small>WEBHOOK ACTIVE</small><strong>{{activePages.length}}</strong></span></button>
     <button :class="{active:statusFilter==='available'&&mainPlatformFilter==='all'}" @click="statusFilter='available';mainPlatformFilter='all'"><v-icon icon="mdi-power-plug-off-outline"/><span><small>NOT ACTIVE</small><strong>{{inactivePages.length}}</strong></span></button>
   </section>
-  <v-alert v-if="!pending&&!error&&!whatsappPages.length&&whatsappDiagnostics" type="warning" variant="tonal" icon="mdi-whatsapp" class="mb-4">
-    <strong>{{whatsappDiagnosticTitle}}</strong><br>
-    <span>{{whatsappDiagnostics.message}}</span>
-    <div class="mt-2 d-flex ga-2 flex-wrap">
-      <v-chip size="small" variant="outlined">Business Portfolios: {{whatsappDiagnostics.businessCount}}</v-chip>
-      <v-chip size="small" variant="outlined">WhatsApp accounts: {{whatsappDiagnostics.whatsAppBusinessAccountCount}}</v-chip>
-      <v-chip size="small" variant="outlined">Phone numbers: {{whatsappDiagnostics.phoneNumberCount}}</v-chip>
+  <section v-if="!pending&&!error&&!whatsappPages.length" class="whatsapp-setup">
+    <div class="whatsapp-setup-icon"><v-icon icon="mdi-whatsapp" size="34"/></div>
+    <div class="whatsapp-setup-copy">
+      <small>WHATSAPP SETUP</small>
+      <h3>Connect a WhatsApp number</h3>
+      <p>No WhatsApp number is connected to this workspace yet. Meta will guide you through choosing the Business Account and phone number.</p>
+      <ol class="setup-steps">
+        <li><span>1</span>Continue with Meta</li>
+        <li><span>2</span>Choose your WhatsApp account</li>
+        <li><span>3</span>Webhook turns on automatically</li>
+      </ol>
+      <div class="setup-actions">
+        <v-btn color="success" :prepend-icon="whatsAppConnecting?'mdi-loading':'mdi-whatsapp'" :disabled="whatsAppConnecting" @click="connectWhatsApp">
+          {{whatsAppConnecting?'Waiting for Meta…':'Connect WhatsApp'}}
+        </v-btn>
+        <v-btn v-if="whatsAppConnecting" variant="text" @click="cancelWhatsAppConnection">Cancel</v-btn>
+        <v-btn v-if="whatsappDiagnostics" variant="text" append-icon="mdi-chevron-down" @click="whatsAppDetailsOpen=!whatsAppDetailsOpen">{{whatsAppDetailsOpen?'Hide technical details':'Technical details'}}</v-btn>
+      </div>
+      <p v-if="whatsAppConfig?.appMode==='development'" class="development-note"><v-icon icon="mdi-hammer-wrench" size="16"/>Development mode: App Admins, Developers and Testers can connect for testing.</p>
+      <v-expand-transition>
+        <div v-if="whatsAppDetailsOpen&&whatsappDiagnostics" class="diagnostic-details">
+          <div class="diagnostic-counts">
+            <span>Business portfolios <strong>{{whatsappDiagnostics.businessCount}}</strong></span>
+            <span>WhatsApp accounts <strong>{{whatsappDiagnostics.whatsAppBusinessAccountCount}}</strong></span>
+            <span>Phone numbers <strong>{{whatsappDiagnostics.phoneNumberCount}}</strong></span>
+          </div>
+          <p>{{whatsappDiagnostics.message}}</p>
+          <p v-if="whatsappDiagnostics.missingPermissions?.length">Missing permissions: <code>{{whatsappDiagnostics.missingPermissions.join(', ')}}</code></p>
+          <ul v-if="whatsappDiagnostics.issues?.length"><li v-for="issue in whatsappDiagnostics.issues" :key="issue"><code>{{issue}}</code></li></ul>
+        </div>
+      </v-expand-transition>
     </div>
-    <div v-if="whatsappDiagnostics.missingPermissions?.length" class="mt-2">
-      Missing: <code>{{whatsappDiagnostics.missingPermissions.join(', ')}}</code>
-    </div>
-    <div v-if="whatsappDiagnostics.issues?.length" class="mt-2">
-      <div v-for="issue in whatsappDiagnostics.issues" :key="issue"><code>{{issue}}</code></div>
-    </div>
-    <p class="mt-2 mb-0">Use <strong>Connect WhatsApp</strong>, choose the Business Account and phone number, then finish Meta's setup. This app will subscribe the webhook automatically.</p>
-    <p v-if="whatsAppConfig?.appMode==='development'" class="mt-1 mb-0"><strong>Development mode:</strong> only App Admins, Developers and Testers can connect and send test messages. Business Verification is not required for this test.</p>
-    <v-btn class="mt-3" color="success" prepend-icon="mdi-whatsapp" :loading="whatsAppConnecting" @click="connectWhatsApp">Connect WhatsApp</v-btn>
-  </v-alert>
+  </section>
   <section v-if="!error" class="page-grid" :aria-busy="pending">
     <v-skeleton-loader v-if="pending" v-for="i in 3" :key="i" type="card"/>
     <article v-for="page in visiblePages" v-else :key="page.id" class="page-card">
@@ -377,7 +390,8 @@ onBeforeUnmount(()=>{if(whatsAppMessageHandler)window.removeEventListener('messa
 
 <style scoped>
 .intro{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:16px;padding:24px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}.intro-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}.intro p{margin:0 0 8px;color:var(--color-primary);font-size:var(--text-xs);font-weight:800;letter-spacing:.13em}.intro h2{margin:0 0 8px;font-size:var(--text-xl)}.intro span{color:var(--color-text-secondary);font-size:var(--text-md)}.connection-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}.connection-summary button{min-height:76px;display:flex;align-items:center;gap:13px;padding:14px 17px;border:1px solid var(--color-border);border-radius:var(--radius-lg);color:var(--color-text-secondary);background:var(--color-surface);text-align:left;cursor:pointer;transition:var(--transition-fast)}.connection-summary button:hover,.connection-summary button.active{color:var(--color-primary);border-color:color-mix(in srgb,var(--color-primary) 35%,var(--color-border));background:var(--color-primary-soft)}.connection-summary button>i{padding:10px;border-radius:11px;background:var(--color-background)}.connection-summary span{display:grid}.connection-summary small{font-size:9px;font-weight:800;letter-spacing:.08em}.connection-summary strong{color:var(--color-text);font-size:20px}.page-grid{display:grid;gap:12px}.page-card{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:16px;padding:20px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}.page-avatar{width:52px;height:52px;display:grid;place-items:center;overflow:hidden;color:var(--color-surface);background:var(--color-primary);border-radius:16px}.page-info h3{margin:0;font-size:15px}.page-info p{margin:3px 0;color:var(--color-text-secondary);font-size:12px}.page-info .page-phone{display:flex;align-items:center;gap:5px;color:var(--color-success);font-weight:700}.page-info small{color:var(--color-text-muted);font-size:10px}.token-row{display:flex;gap:6px;flex-wrap:wrap}.token-chip{display:flex!important;width:max-content;margin-top:7px}.page-toggle{min-width:196px;display:flex;align-items:center;justify-content:flex-end;gap:12px;padding:8px 10px 8px 14px;color:var(--color-success);background:var(--color-success-soft);border-radius:13px}.page-toggle>span{display:grid}.page-toggle strong{font-size:11px}.page-toggle small{color:var(--color-text-secondary);font-size:9px}.permission-body{display:grid;gap:8px;padding:22px 24px}.permission-label{display:grid;margin-left:6px}.permission-label small,.permission-note{color:var(--color-text-muted);font-size:11px}.permission-note{margin:8px 0 0}
-@media(max-width:640px){.intro{display:grid;padding:20px}.intro-actions{display:grid;grid-template-columns:1fr 1fr;width:100%}.intro-actions :deep(.v-chip){grid-column:1/-1;width:max-content}.intro-actions :deep(.v-btn:last-child){grid-column:1/-1}.connection-summary{grid-template-columns:repeat(2,1fr);gap:7px}.connection-summary button{min-height:68px;justify-content:center;padding:9px 5px}.connection-summary button>i{display:none}.connection-summary small{font-size:7px}.connection-summary strong{font-size:18px}.page-card{grid-template-columns:auto 1fr;padding:17px}.page-action{grid-column:1/-1}.page-action :deep(.v-btn),.page-toggle{width:100%}.page-toggle{justify-content:space-between}.token-row{gap:3px}.token-chip{font-size:8px!important}}
+.whatsapp-setup{display:grid;grid-template-columns:auto 1fr;gap:18px;margin-bottom:16px;padding:24px;background:linear-gradient(135deg,color-mix(in srgb,var(--color-success) 8%,var(--color-surface)),var(--color-surface) 62%);border:1px solid color-mix(in srgb,var(--color-success) 24%,var(--color-border));border-radius:var(--radius-lg)}.whatsapp-setup-icon{width:58px;height:58px;display:grid;place-items:center;color:var(--color-success);background:var(--color-surface);border:1px solid color-mix(in srgb,var(--color-success) 22%,var(--color-border));border-radius:18px}.whatsapp-setup-copy>small{color:var(--color-success);font-size:10px;font-weight:800;letter-spacing:.13em}.whatsapp-setup-copy h3{margin:4px 0 5px;font-size:19px}.whatsapp-setup-copy>p{max-width:720px;margin:0;color:var(--color-text-secondary);font-size:13px}.setup-steps{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0;padding:0;list-style:none}.setup-steps li{display:flex;align-items:center;gap:7px;padding:8px 11px;color:var(--color-text-secondary);font-size:11px;font-weight:700;background:var(--color-surface);border:1px solid var(--color-border);border-radius:999px}.setup-steps span{width:20px;height:20px;display:grid;place-items:center;color:white;background:var(--color-success);border-radius:50%;font-size:10px}.setup-actions{display:flex;align-items:center;gap:5px;flex-wrap:wrap}.development-note{display:flex!important;align-items:center;gap:6px;margin-top:12px!important;font-size:11px!important}.diagnostic-details{margin-top:14px;padding:14px;color:var(--color-text-secondary);background:var(--color-background);border:1px solid var(--color-border);border-radius:12px}.diagnostic-counts{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:9px}.diagnostic-counts span{padding:6px 9px;background:var(--color-surface);border-radius:8px;font-size:10px}.diagnostic-details p{margin:6px 0;font-size:11px}.diagnostic-details ul{max-height:130px;margin:8px 0 0;padding-left:18px;overflow:auto}.diagnostic-details li{margin:4px 0;font-size:10px;word-break:break-word}
+@media(max-width:640px){.intro{display:grid;padding:20px}.intro-actions{display:grid;grid-template-columns:1fr 1fr;width:100%}.intro-actions :deep(.v-chip){grid-column:1/-1;width:max-content}.intro-actions :deep(.v-btn:last-child){grid-column:1/-1}.connection-summary{grid-template-columns:repeat(2,1fr);gap:7px}.connection-summary button{min-height:68px;justify-content:center;padding:9px 5px}.connection-summary button>i{display:none}.connection-summary small{font-size:7px}.connection-summary strong{font-size:18px}.whatsapp-setup{grid-template-columns:1fr;padding:19px}.whatsapp-setup-icon{width:48px;height:48px}.setup-steps{display:grid}.setup-actions{display:grid}.setup-actions :deep(.v-btn){width:100%}.page-card{grid-template-columns:auto 1fr;padding:17px}.page-action{grid-column:1/-1}.page-action :deep(.v-btn),.page-toggle{width:100%}.page-toggle{justify-content:space-between}.token-row{gap:3px}.token-chip{font-size:8px!important}}
 .picker-card{border-radius:var(--radius-lg)!important}.picker-head{display:flex;align-items:center;justify-content:space-between;padding:22px 24px;border-bottom:1px solid var(--color-border)}.picker-head small{color:var(--color-primary);font-size:10px;font-weight:800;letter-spacing:.14em}.picker-head h2{margin:2px 0 0;font-size:20px}.picker-body{padding:22px 24px!important}.picker-toolbar{display:grid;grid-template-columns:1fr minmax(240px,320px);align-items:center;gap:20px;margin-bottom:18px}.picker-toolbar div{display:grid;gap:3px}.picker-toolbar span{color:var(--color-text-muted);font-size:12px}.picker-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.picker-page{display:grid;grid-template-columns:auto auto 1fr;align-items:center;gap:12px;padding:14px;border:1px solid var(--color-border);border-radius:14px;cursor:pointer;transition:.18s ease}.picker-page:hover,.picker-page.is-selected{border-color:var(--color-primary);background:var(--color-primary-soft)}.picker-page>span{display:grid;min-width:0}.picker-page strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.picker-page small{overflow:hidden;color:var(--color-text-muted);font-size:11px;text-overflow:ellipsis;white-space:nowrap}.picker-actions{padding:16px 24px;border-top:1px solid var(--color-border)}
 @media(max-width:700px){.picker-toolbar,.picker-grid{grid-template-columns:1fr}.picker-head,.picker-actions{padding-inline:16px}}
 
