@@ -114,6 +114,11 @@ jobs:
             
             # ເຂົ້າໄປທີ່ໂຟນເດີໂປຣເຈັກ (ທີ່ເຮົາຫາກໍ Copy ໄຟລ໌ໄປໄວ້)
             cd meta-super-app
+
+            # Keep the production WhatsApp identifiers in sync even when the
+            # compose file already present on the droplet is older.
+            export META_WHATSAPP_BUSINESS_ACCOUNT_IDS=221593429418054
+            export META_WHATSAPP_CONFIG_ID=991544757321935
             
             # ດຶງ Image ໃໝ່
             docker pull ghcr.io/toninpaserd12345-ship-it/meta-super-app/backend:latest
