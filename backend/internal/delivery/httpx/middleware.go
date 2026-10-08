@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v3"
-	"github.com/google/uuid"
 	"github.com/meta-super-app/backend/internal/domain"
 	"github.com/meta-super-app/backend/internal/usecase"
 )
@@ -42,16 +41,9 @@ func requestContext(c fiber.Ctx) (context.Context, context.CancelFunc) {
 
 func requireAccount(auth *usecase.Auth, claim domain.Permission) fiber.Handler {
 	return func(c fiber.Ctx) error {
-		// Fiber/fasthttp header strings point at a request buffer that is reused
-		// after the handler returns. OAuth keeps the account ID in memory until
-		// Meta calls us back, so retaining c.Get(...) directly can silently turn
-		// the UUID into bytes from a later request (for example the Accept header).
-		accountID := strings.Clone(strings.TrimSpace(c.Get("X-Account-ID")))
+		accountID := strings.TrimSpace(c.Get("X-Account-ID"))
 		if accountID == "" {
 			return fail(c, 400, "account_required", "X-Account-ID is required.")
-		}
-		if _, err := uuid.Parse(accountID); err != nil {
-			return fail(c, 400, "invalid_account", "X-Account-ID must be a valid UUID.")
 		}
 		ctx, cancel := requestContext(c)
 		defer cancel()

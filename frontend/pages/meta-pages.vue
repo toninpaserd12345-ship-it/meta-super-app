@@ -22,6 +22,7 @@ const toggling = ref<string|null>(null)
 const authorizing = ref(false)
 const activating = ref(false)
 const whatsAppConnecting = ref(false)
+const whatsAppWaitHint = ref(false)
 const whatsAppConfig = ref<WhatsAppSignupConfig|null>(null)
 const whatsAppSession = ref<WhatsAppSignupSession>({})
 const whatsAppCode = ref('')
@@ -124,6 +125,22 @@ declare global {
 }
 
 let whatsAppMessageHandler:((event:MessageEvent)=>void)|null=null
+let whatsAppHintTimer:ReturnType<typeof setTimeout>|null=null
+let whatsAppTimeoutTimer:ReturnType<typeof setTimeout>|null=null
+function clearWhatsAppTimers(){
+  if(whatsAppHintTimer)clearTimeout(whatsAppHintTimer)
+  if(whatsAppTimeoutTimer)clearTimeout(whatsAppTimeoutTimer)
+  whatsAppHintTimer=null;whatsAppTimeoutTimer=null;whatsAppWaitHint.value=false
+}
+function startWhatsAppTimers(){
+  clearWhatsAppTimers()
+  whatsAppHintTimer=setTimeout(()=>{whatsAppWaitHint.value=true},8000)
+  whatsAppTimeoutTimer=setTimeout(()=>{
+    whatsAppConnecting.value=false;whatsAppCode.value='';whatsAppSession.value={};whatsAppWaitHint.value=false
+    messageType.value='error'
+    message.value='Meta did not finish the connection. Add meta-super-app-frontend.pages.dev to Allowed Domains for the JavaScript SDK in Meta, then try again.'
+  },120000)
+}
 async function loadFacebookSDK(config:WhatsAppSignupConfig){
   if(window.FB)return
   await new Promise<void>((resolve,reject)=>{
@@ -135,6 +152,7 @@ async function loadFacebookSDK(config:WhatsAppSignupConfig){
 }
 async function finishWhatsAppSignup(){
   if(!whatsAppCode.value||!whatsAppSession.value.wabaId)return
+  clearWhatsAppTimers()
   const code=whatsAppCode.value;const session={...whatsAppSession.value};whatsAppCode.value='';whatsAppSession.value={}
   try{
     await $fetch('/api/proxy/api/v1/meta/whatsapp/signup/complete',{method:'POST',body:{code,businessId:session.businessId||'',wabaId:session.wabaId,phoneNumberId:session.phoneNumberId||''},timeout:30000})
@@ -151,14 +169,16 @@ async function connectWhatsApp(){
     if(!config.enabled)throw new Error('WhatsApp Embedded Signup is not configured on the API server.')
     await loadFacebookSDK(config)
     if(!window.FB)throw new Error('Facebook SDK is unavailable.')
+    startWhatsAppTimers()
     window.FB.login((response:any)=>{
       const code=response?.authResponse?.code
-      if(!code){whatsAppConnecting.value=false;messageType.value='error';message.value='WhatsApp connection was cancelled or Meta did not return an authorization code.';return}
+      if(!code){clearWhatsAppTimers();whatsAppConnecting.value=false;messageType.value='error';message.value='WhatsApp connection was cancelled or Meta did not return an authorization code.';return}
       whatsAppCode.value=String(code);void finishWhatsAppSignup()
     },{config_id:config.configId,response_type:'code',override_default_response_type:true,extras:{featureType:'',sessionInfoVersion:'3'}})
-  }catch(error:any){whatsAppConnecting.value=false;messageType.value='error';message.value=error?.message||'Unable to start WhatsApp connection.'}
+  }catch(error:any){clearWhatsAppTimers();whatsAppConnecting.value=false;messageType.value='error';message.value=error?.message||'Unable to start WhatsApp connection.'}
 }
 function cancelWhatsAppConnection(){
+  clearWhatsAppTimers()
   whatsAppConnecting.value=false
   whatsAppCode.value=''
   whatsAppSession.value={}
@@ -171,7 +191,7 @@ onMounted(()=>{
     let payload:any=event.data
     if(typeof payload==='string'){try{payload=JSON.parse(payload)}catch{return}}
     if(payload?.type!=='WA_EMBEDDED_SIGNUP')return
-    if(payload.event==='CANCEL'){whatsAppConnecting.value=false;messageType.value='error';message.value='WhatsApp connection was cancelled.';return}
+    if(payload.event==='CANCEL'){clearWhatsAppTimers();whatsAppConnecting.value=false;messageType.value='error';message.value='WhatsApp connection was cancelled.';return}
     if(payload.event!=='FINISH')return
     const info=payload.data||{}
     whatsAppSession.value={businessId:String(info.business_id||''),wabaId:String(info.waba_id||''),phoneNumberId:String(info.phone_number_id||'')}
@@ -179,7 +199,7 @@ onMounted(()=>{
   }
   window.addEventListener('message',whatsAppMessageHandler)
 })
-onBeforeUnmount(()=>{if(whatsAppMessageHandler)window.removeEventListener('message',whatsAppMessageHandler)})
+onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.removeEventListener('message',whatsAppMessageHandler)})
 </script>
 
 <template>
@@ -215,6 +235,9 @@ onBeforeUnmount(()=>{if(whatsAppMessageHandler)window.removeEventListener('messa
         <v-btn v-if="whatsAppConnecting" variant="text" @click="cancelWhatsAppConnection">Cancel</v-btn>
         <v-btn v-if="whatsappDiagnostics" variant="text" append-icon="mdi-chevron-down" @click="whatsAppDetailsOpen=!whatsAppDetailsOpen">{{whatsAppDetailsOpen?'Hide technical details':'Technical details'}}</v-btn>
       </div>
+      <v-alert v-if="whatsAppConnecting&&whatsAppWaitHint" type="warning" variant="tonal" density="compact" class="signup-wait-hint">
+        Complete the Meta popup. If it shows “Unknown JSSDK host domain”, add <code>meta-super-app-frontend.pages.dev</code> to Meta’s Allowed Domains for the JavaScript SDK, then cancel and retry.
+      </v-alert>
       <v-expand-transition>
         <div v-if="whatsAppDetailsOpen&&whatsappDiagnostics" class="diagnostic-details">
           <div class="diagnostic-counts">
@@ -389,7 +412,7 @@ onBeforeUnmount(()=>{if(whatsAppMessageHandler)window.removeEventListener('messa
 
 <style scoped>
 .intro{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:16px;padding:24px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}.intro-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}.intro p{margin:0 0 8px;color:var(--color-primary);font-size:var(--text-xs);font-weight:800;letter-spacing:.13em}.intro h2{margin:0 0 8px;font-size:var(--text-xl)}.intro span{color:var(--color-text-secondary);font-size:var(--text-md)}.connection-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}.connection-summary button{min-height:76px;display:flex;align-items:center;gap:13px;padding:14px 17px;border:1px solid var(--color-border);border-radius:var(--radius-lg);color:var(--color-text-secondary);background:var(--color-surface);text-align:left;cursor:pointer;transition:var(--transition-fast)}.connection-summary button:hover,.connection-summary button.active{color:var(--color-primary);border-color:color-mix(in srgb,var(--color-primary) 35%,var(--color-border));background:var(--color-primary-soft)}.connection-summary button>i{padding:10px;border-radius:11px;background:var(--color-background)}.connection-summary span{display:grid}.connection-summary small{font-size:9px;font-weight:800;letter-spacing:.08em}.connection-summary strong{color:var(--color-text);font-size:20px}.page-grid{display:grid;gap:12px}.page-card{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:16px;padding:20px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}.page-avatar{width:52px;height:52px;display:grid;place-items:center;overflow:hidden;color:var(--color-surface);background:var(--color-primary);border-radius:16px}.page-info h3{margin:0;font-size:15px}.page-info p{margin:3px 0;color:var(--color-text-secondary);font-size:12px}.page-info .page-phone{display:flex;align-items:center;gap:5px;color:var(--color-success);font-weight:700}.page-info small{color:var(--color-text-muted);font-size:10px}.token-row{display:flex;gap:6px;flex-wrap:wrap}.token-chip{display:flex!important;width:max-content;margin-top:7px}.page-toggle{min-width:196px;display:flex;align-items:center;justify-content:flex-end;gap:12px;padding:8px 10px 8px 14px;color:var(--color-success);background:var(--color-success-soft);border-radius:13px}.page-toggle>span{display:grid}.page-toggle strong{font-size:11px}.page-toggle small{color:var(--color-text-secondary);font-size:9px}.permission-body{display:grid;gap:8px;padding:22px 24px}.permission-label{display:grid;margin-left:6px}.permission-label small,.permission-note{color:var(--color-text-muted);font-size:11px}.permission-note{margin:8px 0 0}
-.whatsapp-setup{display:grid;grid-template-columns:auto 1fr;gap:18px;margin-bottom:16px;padding:24px;background:linear-gradient(135deg,color-mix(in srgb,var(--color-success) 8%,var(--color-surface)),var(--color-surface) 62%);border:1px solid color-mix(in srgb,var(--color-success) 24%,var(--color-border));border-radius:var(--radius-lg)}.whatsapp-setup-icon{width:58px;height:58px;display:grid;place-items:center;color:var(--color-success);background:var(--color-surface);border:1px solid color-mix(in srgb,var(--color-success) 22%,var(--color-border));border-radius:18px}.whatsapp-setup-copy>small{color:var(--color-success);font-size:10px;font-weight:800;letter-spacing:.13em}.whatsapp-setup-copy h3{margin:4px 0 5px;font-size:19px}.whatsapp-setup-copy>p{max-width:720px;margin:0;color:var(--color-text-secondary);font-size:13px}.setup-steps{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0;padding:0;list-style:none}.setup-steps li{display:flex;align-items:center;gap:7px;padding:8px 11px;color:var(--color-text-secondary);font-size:11px;font-weight:700;background:var(--color-surface);border:1px solid var(--color-border);border-radius:999px}.setup-steps span{width:20px;height:20px;display:grid;place-items:center;color:white;background:var(--color-success);border-radius:50%;font-size:10px}.setup-actions{display:flex;align-items:center;gap:5px;flex-wrap:wrap}.development-note{display:flex!important;align-items:center;gap:6px;margin-top:12px!important;font-size:11px!important}.diagnostic-details{margin-top:14px;padding:14px;color:var(--color-text-secondary);background:var(--color-background);border:1px solid var(--color-border);border-radius:12px}.diagnostic-counts{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:9px}.diagnostic-counts span{padding:6px 9px;background:var(--color-surface);border-radius:8px;font-size:10px}.diagnostic-details p{margin:6px 0;font-size:11px}.diagnostic-details ul{max-height:130px;margin:8px 0 0;padding-left:18px;overflow:auto}.diagnostic-details li{margin:4px 0;font-size:10px;word-break:break-word}
+.whatsapp-setup{display:grid;grid-template-columns:auto 1fr;gap:18px;margin-bottom:16px;padding:24px;background:linear-gradient(135deg,color-mix(in srgb,var(--color-success) 8%,var(--color-surface)),var(--color-surface) 62%);border:1px solid color-mix(in srgb,var(--color-success) 24%,var(--color-border));border-radius:var(--radius-lg)}.whatsapp-setup-icon{width:58px;height:58px;display:grid;place-items:center;color:var(--color-success);background:var(--color-surface);border:1px solid color-mix(in srgb,var(--color-success) 22%,var(--color-border));border-radius:18px}.whatsapp-setup-copy>small{color:var(--color-success);font-size:10px;font-weight:800;letter-spacing:.13em}.whatsapp-setup-copy h3{margin:4px 0 5px;font-size:19px}.whatsapp-setup-copy>p{max-width:720px;margin:0;color:var(--color-text-secondary);font-size:13px}.setup-steps{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0;padding:0;list-style:none}.setup-steps li{display:flex;align-items:center;gap:7px;padding:8px 11px;color:var(--color-text-secondary);font-size:11px;font-weight:700;background:var(--color-surface);border:1px solid var(--color-border);border-radius:999px}.setup-steps span{width:20px;height:20px;display:grid;place-items:center;color:white;background:var(--color-success);border-radius:50%;font-size:10px}.setup-actions{display:flex;align-items:center;gap:5px;flex-wrap:wrap}.signup-wait-hint{max-width:780px;margin-top:12px}.signup-wait-hint code{overflow-wrap:anywhere}.diagnostic-details{margin-top:14px;padding:14px;color:var(--color-text-secondary);background:var(--color-background);border:1px solid var(--color-border);border-radius:12px}.diagnostic-counts{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:9px}.diagnostic-counts span{padding:6px 9px;background:var(--color-surface);border-radius:8px;font-size:10px}.diagnostic-details p{margin:6px 0;font-size:11px}.diagnostic-details ul{max-height:130px;margin:8px 0 0;padding-left:18px;overflow:auto}.diagnostic-details li{margin:4px 0;font-size:10px;word-break:break-word}
 @media(max-width:640px){.intro{display:grid;padding:20px}.intro-actions{display:grid;grid-template-columns:1fr 1fr;width:100%}.intro-actions :deep(.v-chip){grid-column:1/-1;width:max-content}.intro-actions :deep(.v-btn:last-child){grid-column:1/-1}.connection-summary{grid-template-columns:repeat(2,1fr);gap:7px}.connection-summary button{min-height:68px;justify-content:center;padding:9px 5px}.connection-summary button>i{display:none}.connection-summary small{font-size:7px}.connection-summary strong{font-size:18px}.whatsapp-setup{grid-template-columns:1fr;padding:19px}.whatsapp-setup-icon{width:48px;height:48px}.setup-steps{display:grid}.setup-actions{display:grid}.setup-actions :deep(.v-btn){width:100%}.page-card{grid-template-columns:auto 1fr;padding:17px}.page-action{grid-column:1/-1}.page-action :deep(.v-btn),.page-toggle{width:100%}.page-toggle{justify-content:space-between}.token-row{gap:3px}.token-chip{font-size:8px!important}}
 .picker-card{border-radius:var(--radius-lg)!important}.picker-head{display:flex;align-items:center;justify-content:space-between;padding:22px 24px;border-bottom:1px solid var(--color-border)}.picker-head small{color:var(--color-primary);font-size:10px;font-weight:800;letter-spacing:.14em}.picker-head h2{margin:2px 0 0;font-size:20px}.picker-body{padding:22px 24px!important}.picker-toolbar{display:grid;grid-template-columns:1fr minmax(240px,320px);align-items:center;gap:20px;margin-bottom:18px}.picker-toolbar div{display:grid;gap:3px}.picker-toolbar span{color:var(--color-text-muted);font-size:12px}.picker-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.picker-page{display:grid;grid-template-columns:auto auto 1fr;align-items:center;gap:12px;padding:14px;border:1px solid var(--color-border);border-radius:14px;cursor:pointer;transition:.18s ease}.picker-page:hover,.picker-page.is-selected{border-color:var(--color-primary);background:var(--color-primary-soft)}.picker-page>span{display:grid;min-width:0}.picker-page strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.picker-page small{overflow:hidden;color:var(--color-text-muted);font-size:11px;text-overflow:ellipsis;white-space:nowrap}.picker-actions{padding:16px 24px;border-top:1px solid var(--color-border)}
 @media(max-width:700px){.picker-toolbar,.picker-grid{grid-template-columns:1fr}.picker-head,.picker-actions{padding-inline:16px}}
