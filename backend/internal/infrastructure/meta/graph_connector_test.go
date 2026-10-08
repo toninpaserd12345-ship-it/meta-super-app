@@ -341,3 +341,35 @@ func TestFetchPagesIncludesWhatsAppDisplayNumber(t *testing.T) {
 		t.Fatalf("WhatsApp diagnostics = %#v", diagnostics)
 	}
 }
+
+func TestFetchPagesUsesConfiguredWABAWhenBusinessDiscoveryIsDenied(t *testing.T) {
+	connector := NewGraphConnector(GraphConfig{Version: "v23.0", WhatsAppBusinessAccountIDs: "waba-direct"}, nil)
+	connector.client = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		body := `{"data":[]}`
+		status := http.StatusOK
+		switch {
+		case strings.HasSuffix(request.URL.Path, "/me/businesses"):
+			body = `{"data":[{"id":"business-1"}]}`
+		case strings.Contains(request.URL.Path, "whatsapp_business_accounts"):
+			status = http.StatusBadRequest
+			body = `{"error":{"message":"Requires business_management permission to manage the object","code":200}}`
+		case strings.HasSuffix(request.URL.Path, "/waba-direct/phone_numbers"):
+			body = `{"data":[{"id":"phone-direct","display_phone_number":"+1 555-658-6816","verified_name":"Test Number"}]}`
+		case strings.HasSuffix(request.URL.Path, "/phone-direct/whatsapp_business_profile"):
+			body = `{"data":[{"profile_picture_url":"https://lookaside.fbsbx.com/whatsapp.jpg"}]}`
+		}
+		return &http.Response{StatusCode: status, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}, nil
+	})}
+
+	pages, diagnostics, err := connector.fetchPages(context.Background(), "user-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	page := pages["phone-direct"].MetaPage
+	if page.Name != "Test Number" || page.PhoneNumber != "+1 555-658-6816" || page.Category != "WhatsApp" {
+		t.Fatalf("WhatsApp page = %#v", page)
+	}
+	if diagnostics.State != "ready" || diagnostics.PhoneNumberCount != 1 || diagnostics.WhatsAppBusinessAccountCount != 1 {
+		t.Fatalf("WhatsApp diagnostics = %#v", diagnostics)
+	}
+}

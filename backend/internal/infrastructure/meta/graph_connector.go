@@ -33,6 +33,7 @@ import (
 
 type GraphConfig struct {
 	AppID, AppSecret, RedirectURI, Version, WebhookFields, WebhookVerifyToken, StateFile, EncryptionKey string
+	WhatsAppBusinessAccountIDs                                                                          string
 }
 
 type oauthState struct {
@@ -1653,6 +1654,63 @@ func (g *GraphConnector) fetchPages(ctx context.Context, token string) (map[stri
 		seenWABAs := make(map[string]bool)
 		wabaErrors := 0
 		phoneErrors := 0
+		addWABA := func(businessID, wabaID, wabaName string) {
+			wabaID = strings.TrimSpace(wabaID)
+			if wabaID == "" || seenWABAs[wabaID] {
+				return
+			}
+			seenWABAs[wabaID] = true
+			diagnostics.WhatsAppBusinessAccountCount++
+			var phoneResponse struct {
+				Data []struct {
+					ID                 string `json:"id"`
+					DisplayPhoneNumber string `json:"display_phone_number"`
+					VerifiedName       string `json:"verified_name"`
+				} `json:"data"`
+			}
+			phoneQuery := url.Values{"fields": {"id,display_phone_number,verified_name"}, "access_token": {token}, "limit": {"100"}}
+			if err := g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/"+url.PathEscape(wabaID)+"/phone_numbers?"+phoneQuery.Encode(), &phoneResponse); err != nil {
+				phoneErrors++
+				diagnostics.Issues = append(diagnostics.Issues, diagnosticIssue("phone_numbers", err))
+				slog.Warn("unable to discover WhatsApp phone numbers", "business_id", businessID, "waba_id", wabaID, "error", err)
+				return
+			}
+			for _, phone := range phoneResponse.Data {
+				diagnostics.PhoneNumberCount++
+				name := phone.VerifiedName
+				if name == "" {
+					name = wabaName
+				}
+				if name == "" {
+					name = phone.DisplayPhoneNumber
+				}
+
+				pictureURL := ""
+				var profileResponse struct {
+					Data []struct {
+						ProfilePictureURL string `json:"profile_picture_url"`
+					} `json:"data"`
+				}
+				profileQuery := url.Values{"fields": {"profile_picture_url"}, "access_token": {token}}
+				if err := g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/"+url.PathEscape(phone.ID)+"/whatsapp_business_profile?"+profileQuery.Encode(), &profileResponse); err != nil {
+					slog.Warn("unable to load WhatsApp business profile picture", "phone_number_id", phone.ID, "error", err)
+				} else if len(profileResponse.Data) > 0 {
+					pictureURL = profileResponse.Data[0].ProfilePictureURL
+				}
+
+				pages[phone.ID] = graphPage{
+					MetaPage: domain.MetaPage{
+						ID:          phone.ID,
+						Name:        name,
+						Category:    "WhatsApp",
+						PictureURL:  pictureURL,
+						PhoneNumber: phone.DisplayPhoneNumber,
+						TokenReady:  true,
+					},
+					AccessToken: token,
+				}
+			}
+		}
 		for _, biz := range bizResponse.Data {
 			for _, edge := range []string{"owned_whatsapp_business_accounts", "client_whatsapp_business_accounts"} {
 				var wabaResponse struct {
@@ -1669,62 +1727,15 @@ func (g *GraphConnector) fetchPages(ctx context.Context, token string) (map[stri
 					continue
 				}
 				for _, waba := range wabaResponse.Data {
-					if seenWABAs[waba.ID] {
-						continue
-					}
-					seenWABAs[waba.ID] = true
-					diagnostics.WhatsAppBusinessAccountCount++
-					var phoneResponse struct {
-						Data []struct {
-							ID                 string `json:"id"`
-							DisplayPhoneNumber string `json:"display_phone_number"`
-							VerifiedName       string `json:"verified_name"`
-						} `json:"data"`
-					}
-					phoneQuery := url.Values{"fields": {"id,display_phone_number,verified_name"}, "access_token": {token}, "limit": {"100"}}
-					if err := g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/"+waba.ID+"/phone_numbers?"+phoneQuery.Encode(), &phoneResponse); err != nil {
-						phoneErrors++
-						diagnostics.Issues = append(diagnostics.Issues, diagnosticIssue("phone_numbers", err))
-						slog.Warn("unable to discover WhatsApp phone numbers", "business_id", biz.ID, "waba_id", waba.ID, "error", err)
-						continue
-					}
-					for _, phone := range phoneResponse.Data {
-						diagnostics.PhoneNumberCount++
-						name := phone.VerifiedName
-						if name == "" {
-							name = waba.Name
-						}
-						if name == "" {
-							name = phone.DisplayPhoneNumber
-						}
-
-						pictureURL := ""
-						var profileResponse struct {
-							Data []struct {
-								ProfilePictureURL string `json:"profile_picture_url"`
-							} `json:"data"`
-						}
-						profileQuery := url.Values{"fields": {"profile_picture_url"}, "access_token": {token}}
-						if err := g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/"+phone.ID+"/whatsapp_business_profile?"+profileQuery.Encode(), &profileResponse); err != nil {
-							slog.Warn("unable to load WhatsApp business profile picture", "phone_number_id", phone.ID, "error", err)
-						} else if len(profileResponse.Data) > 0 {
-							pictureURL = profileResponse.Data[0].ProfilePictureURL
-						}
-
-						pages[phone.ID] = graphPage{
-							MetaPage: domain.MetaPage{
-								ID:          phone.ID,
-								Name:        name,
-								Category:    "WhatsApp",
-								PictureURL:  pictureURL,
-								PhoneNumber: phone.DisplayPhoneNumber,
-								TokenReady:  true,
-							},
-							AccessToken: token,
-						}
-					}
+					addWABA(biz.ID, waba.ID, waba.Name)
 				}
 			}
+		}
+		// Meta can grant direct WABA access while denying the Business Portfolio
+		// discovery edges. Explicit IDs keep Cloud API phone numbers available in
+		// that valid setup and are safe to configure because WABA IDs are not secrets.
+		for _, wabaID := range strings.Split(g.cfg.WhatsAppBusinessAccountIDs, ",") {
+			addWABA("configured", wabaID, "")
 		}
 		switch {
 		case diagnostics.PhoneNumberCount > 0:

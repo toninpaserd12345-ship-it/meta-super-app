@@ -13,7 +13,7 @@ type Config struct {
 	Environment, HTTPAddr, StorageDriver, DatabaseURL, JWTSecret, JWTIssuer  string
 	MetaAppID, MetaAppSecret, MetaRedirectURI, MetaFrontendRedirect          string
 	MetaGraphVersion, MetaWebhookFields, MetaWebhookVerifyToken              string
-	MetaStateFile                                                            string
+	MetaStateFile, MetaWhatsAppBusinessAccountIDs                            string
 	AccessTokenTTL                                                           time.Duration
 	AutoMigrate                                                              bool
 	SeedAdminEmail, SeedAdminPassword, SeedAccountName                       string
@@ -31,30 +31,31 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("AUTO_MIGRATE: %w", err)
 	}
 	cfg := Config{
-		Environment:            value("APP_ENV", "development"),
-		HTTPAddr:               value("HTTP_ADDR", ":8080"),
-		StorageDriver:          "postgres",
-		DatabaseURL:            os.Getenv("DATABASE_URL"),
-		JWTSecret:              os.Getenv("JWT_SECRET"),
-		JWTIssuer:              value("JWT_ISSUER", "meta-super-app"),
-		AccessTokenTTL:         ttl,
-		AutoMigrate:            auto,
-		SeedAdminEmail:         os.Getenv("SEED_ADMIN_EMAIL"),
-		SeedAdminPassword:      os.Getenv("SEED_ADMIN_PASSWORD"),
-		SeedAccountName:        value("SEED_ACCOUNT_NAME", "Demo Company"),
-		MetaAppID:              os.Getenv("META_APP_ID"),
-		MetaAppSecret:          os.Getenv("META_APP_SECRET"),
-		MetaRedirectURI:        value("META_REDIRECT_URI", "http://localhost:8080/api/v1/meta/oauth/callback"),
-		MetaFrontendRedirect:   value("META_FRONTEND_REDIRECT", "http://127.0.0.1:3001/api/auth/facebook/callback"),
-		MetaGraphVersion:       value("META_GRAPH_VERSION", "v23.0"),
-		MetaWebhookFields:      value("META_WEBHOOK_FIELDS", "messages,messaging_postbacks,messaging_optins,message_deliveries,message_reads,message_echoes,feed"),
-		MetaWebhookVerifyToken: os.Getenv("META_WEBHOOK_VERIFY_TOKEN"),
-		MetaStateFile:          value("META_STATE_FILE", ".data/meta-state.json"),
-		R2AccountID:            os.Getenv("R2_ACCOUNT_ID"),
-		R2AccessKeyID:          os.Getenv("R2_ACCESS_KEY_ID"),
-		R2SecretAccessKey:      os.Getenv("R2_SECRET_ACCESS_KEY"),
-		R2BucketName:           os.Getenv("R2_BUCKET_NAME"),
-		R2PublicURL:            os.Getenv("R2_PUBLIC_URL"),
+		Environment:                    value("APP_ENV", "development"),
+		HTTPAddr:                       value("HTTP_ADDR", ":8080"),
+		StorageDriver:                  "postgres",
+		DatabaseURL:                    os.Getenv("DATABASE_URL"),
+		JWTSecret:                      os.Getenv("JWT_SECRET"),
+		JWTIssuer:                      value("JWT_ISSUER", "meta-super-app"),
+		AccessTokenTTL:                 ttl,
+		AutoMigrate:                    auto,
+		SeedAdminEmail:                 os.Getenv("SEED_ADMIN_EMAIL"),
+		SeedAdminPassword:              os.Getenv("SEED_ADMIN_PASSWORD"),
+		SeedAccountName:                value("SEED_ACCOUNT_NAME", "Demo Company"),
+		MetaAppID:                      os.Getenv("META_APP_ID"),
+		MetaAppSecret:                  os.Getenv("META_APP_SECRET"),
+		MetaRedirectURI:                value("META_REDIRECT_URI", "http://localhost:8080/api/v1/meta/oauth/callback"),
+		MetaFrontendRedirect:           value("META_FRONTEND_REDIRECT", "http://127.0.0.1:3001/api/auth/facebook/callback"),
+		MetaGraphVersion:               value("META_GRAPH_VERSION", "v23.0"),
+		MetaWebhookFields:              value("META_WEBHOOK_FIELDS", "messages,messaging_postbacks,messaging_optins,message_deliveries,message_reads,message_echoes,feed"),
+		MetaWebhookVerifyToken:         os.Getenv("META_WEBHOOK_VERIFY_TOKEN"),
+		MetaStateFile:                  value("META_STATE_FILE", ".data/meta-state.json"),
+		MetaWhatsAppBusinessAccountIDs: os.Getenv("META_WHATSAPP_BUSINESS_ACCOUNT_IDS"),
+		R2AccountID:                    os.Getenv("R2_ACCOUNT_ID"),
+		R2AccessKeyID:                  os.Getenv("R2_ACCESS_KEY_ID"),
+		R2SecretAccessKey:              os.Getenv("R2_SECRET_ACCESS_KEY"),
+		R2BucketName:                   os.Getenv("R2_BUCKET_NAME"),
+		R2PublicURL:                    os.Getenv("R2_PUBLIC_URL"),
 	}
 
 	if cfg.DatabaseURL == "" {
