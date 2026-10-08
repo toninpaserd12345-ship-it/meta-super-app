@@ -642,7 +642,14 @@ func (g *GraphConnector) AuthorizationURL(_ context.Context, userID, accountID s
 			delete(g.states, key)
 		}
 	}
-	g.states[state] = oauthState{UserID: userID, AccountID: accountID, Scopes: scopes, ExpiresAt: time.Now().Add(30 * time.Minute)}
+	// Copy request-derived strings before retaining them beyond the request.
+	// Fiber/fasthttp may reuse its request buffer as soon as the handler exits.
+	g.states[state] = oauthState{
+		UserID:    strings.Clone(userID),
+		AccountID: strings.Clone(accountID),
+		Scopes:    append([]string(nil), scopes...),
+		ExpiresAt: time.Now().Add(30 * time.Minute),
+	}
 	g.mu.Unlock()
 	query := url.Values{
 		"client_id": {g.cfg.AppID}, "redirect_uri": {g.cfg.RedirectURI}, "state": {state},

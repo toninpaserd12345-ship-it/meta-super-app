@@ -5,12 +5,14 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/meta-super-app/backend/internal/domain"
 )
@@ -101,6 +103,27 @@ func TestTokenEncryptionFailsClosedWithoutKey(t *testing.T) {
 	connector := NewGraphConnector(GraphConfig{}, nil)
 	if encrypted := connector.encryptToken("must-not-be-plaintext"); encrypted != "" {
 		t.Fatalf("encryptToken() = %q, want empty result when no key is configured", encrypted)
+	}
+}
+
+func TestAuthorizationURLCopiesAccountIDBeforeRetainingOAuthState(t *testing.T) {
+	connector := NewGraphConnector(GraphConfig{AppID: "app", RedirectURI: "https://example.com/callback", Version: "v23.0"}, nil)
+	requestBuffer := []byte("573f8d7a-789c-452e-b16c-309e1370aef4")
+	accountID := unsafe.String(unsafe.SliceData(requestBuffer), len(requestBuffer))
+
+	authorizationURL, err := connector.AuthorizationURL(context.Background(), "user-1", accountID, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := url.Parse(authorizationURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := parsed.Query().Get("state")
+	copy(requestBuffer, []byte("text/html,application/xhtml+xml,appl"))
+
+	if got := connector.states[state].AccountID; got != "573f8d7a-789c-452e-b16c-309e1370aef4" {
+		t.Fatalf("retained account ID changed with request buffer: %q", got)
 	}
 }
 
