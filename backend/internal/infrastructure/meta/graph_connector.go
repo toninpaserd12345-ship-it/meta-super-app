@@ -974,8 +974,7 @@ func (g *GraphConnector) userToken(accountID string) (string, error) {
 func (g *GraphConnector) ListAdAccounts(ctx context.Context, _ string, accountID string) ([]domain.MetaAdAccount, error) {
 	token, err := g.userToken(accountID)
 	if err != nil {
-		slog.Error("ListAdAccounts userToken failed", "error", err)
-		return []domain.MetaAdAccount{}, nil
+		return nil, fmt.Errorf("facebook connection not found or invalid: %w", err)
 	}
 	query := url.Values{"fields": {"id,name,account_status,business{id,name}"}, "limit": {"100"}, "access_token": {token}}
 	var response struct {
@@ -990,8 +989,7 @@ func (g *GraphConnector) ListAdAccounts(ctx context.Context, _ string, accountID
 		} `json:"data"`
 	}
 	if err = g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/me/adaccounts?"+query.Encode(), &response); err != nil {
-		slog.Error("ListAdAccounts getJSON failed", "error", err)
-		return []domain.MetaAdAccount{}, nil
+		return nil, fmt.Errorf("facebook api error: %w", err)
 	}
 	items := make([]domain.MetaAdAccount, 0, len(response.Data))
 	for _, item := range response.Data {
