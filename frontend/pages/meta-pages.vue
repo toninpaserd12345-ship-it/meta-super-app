@@ -4,7 +4,7 @@ interface MetaPage { id:string;name:string;category:string;pictureUrl?:string;ph
 interface WhatsAppDiagnostics { state:string;message:string;requiredPermissions:string[];grantedPermissions?:string[];missingPermissions?:string[];issues?:string[];businessCount:number;whatsAppBusinessAccountCount:number;phoneNumberCount:number }
 interface PageList { items:MetaPage[];mode:string;whatsappDiagnostics?:WhatsAppDiagnostics }
 interface OAuthStart { authorizationUrl:string }
-interface WhatsAppSignupConfig { appId:string;configId:string;version:string;appMode:string;enabled:boolean }
+interface WhatsAppSignupConfig { appId:string;configId:string;version:string;enabled:boolean }
 interface WhatsAppSignupSession { businessId?:string;wabaId?:string;phoneNumberId?:string }
 const { can } = useAuth()
 const route = useRoute()
@@ -148,7 +148,7 @@ async function connectWhatsApp(){
   try{
     const config=await $fetch<WhatsAppSignupConfig>('/api/proxy/api/v1/meta/whatsapp/signup/config')
     whatsAppConfig.value=config
-    if(!config.enabled)throw new Error('Development mode is ready, but META_WHATSAPP_CONFIG_ID is still missing on the API server.')
+    if(!config.enabled)throw new Error('WhatsApp Embedded Signup is not configured on the API server.')
     await loadFacebookSDK(config)
     if(!window.FB)throw new Error('Facebook SDK is unavailable.')
     window.FB.login((response:any)=>{
@@ -183,7 +183,7 @@ onBeforeUnmount(()=>{if(whatsAppMessageHandler)window.removeEventListener('messa
 </script>
 
 <template>
-  <section class="intro"><div><p>META INTEGRATION</p><h2>Facebook & WhatsApp</h2><span>Connect each channel securely, then control its Webhook from this workspace.</span></div><div class="intro-actions"><v-chip v-if="whatsAppConfig?.appMode==='development'" color="warning" variant="tonal" prepend-icon="mdi-hammer-wrench">Development mode · App roles only</v-chip><v-chip :color="error?'error':data?.mode==='mock'?'primary':'success'" variant="tonal" :prepend-icon="error?'mdi-alert-circle-outline':data?.mode==='mock'?'mdi-flask-outline':'mdi-access-point'">{{error?'Connection needs attention':data?.mode==='mock'?'Mock mode':'Meta connected'}}</v-chip><v-btn v-if="inactivePages.length" variant="outlined" prepend-icon="mdi-checkbox-multiple-marked-outline" @click="search='';pickerOpen=true">Select Accounts</v-btn><v-btn v-if="data?.mode!=='mock'" color="success" :prepend-icon="whatsAppConnecting?'mdi-loading':'mdi-whatsapp'" :disabled="authorizing||whatsAppConnecting" @click="connectWhatsApp">{{whatsAppConnecting?'Waiting for Meta…':'Connect WhatsApp'}}</v-btn><v-btn v-if="data?.mode!=='mock'" color="primary" prepend-icon="mdi-facebook" :loading="authorizing" :disabled="whatsAppConnecting" @click="permissionsOpen=true">{{needsReconnect?'Reconnect Facebook':'Connect Facebook'}}</v-btn></div></section>
+  <section class="intro"><div><p>META INTEGRATION</p><h2>Facebook & WhatsApp</h2><span>Connect each channel securely, then control its Webhook from this workspace.</span></div><div class="intro-actions"><v-chip :color="error?'error':data?.mode==='mock'?'primary':'success'" variant="tonal" :prepend-icon="error?'mdi-alert-circle-outline':data?.mode==='mock'?'mdi-flask-outline':'mdi-access-point'">{{error?'Connection needs attention':data?.mode==='mock'?'Mock mode':'Meta connected'}}</v-chip><v-btn v-if="inactivePages.length" variant="outlined" prepend-icon="mdi-checkbox-multiple-marked-outline" @click="search='';pickerOpen=true">Select Accounts</v-btn><v-btn v-if="data?.mode!=='mock'" color="success" :prepend-icon="whatsAppConnecting?'mdi-loading':'mdi-whatsapp'" :disabled="authorizing||whatsAppConnecting" @click="connectWhatsApp">{{whatsAppConnecting?'Waiting for Meta…':'Connect WhatsApp'}}</v-btn><v-btn v-if="data?.mode!=='mock'" color="primary" prepend-icon="mdi-facebook" :loading="authorizing" :disabled="whatsAppConnecting" @click="permissionsOpen=true">{{needsReconnect?'Reconnect Facebook':'Connect Facebook'}}</v-btn></div></section>
   <v-alert v-if="message" :type="messageType" variant="tonal" closable class="mb-4" @click:close="message=''">{{message}}</v-alert>
   <v-alert v-if="error" type="error" variant="tonal" class="mb-4">
     <strong>{{loadErrorMessage}}</strong><br>
@@ -215,7 +215,6 @@ onBeforeUnmount(()=>{if(whatsAppMessageHandler)window.removeEventListener('messa
         <v-btn v-if="whatsAppConnecting" variant="text" @click="cancelWhatsAppConnection">Cancel</v-btn>
         <v-btn v-if="whatsappDiagnostics" variant="text" append-icon="mdi-chevron-down" @click="whatsAppDetailsOpen=!whatsAppDetailsOpen">{{whatsAppDetailsOpen?'Hide technical details':'Technical details'}}</v-btn>
       </div>
-      <p v-if="whatsAppConfig?.appMode==='development'" class="development-note"><v-icon icon="mdi-hammer-wrench" size="16"/>Development mode: App Admins, Developers and Testers can connect for testing.</p>
       <v-expand-transition>
         <div v-if="whatsAppDetailsOpen&&whatsappDiagnostics" class="diagnostic-details">
           <div class="diagnostic-counts">

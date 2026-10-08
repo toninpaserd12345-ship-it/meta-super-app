@@ -115,9 +115,8 @@ jobs:
             # ເຂົ້າໄປທີ່ໂຟນເດີໂປຣເຈັກ (ທີ່ເຮົາຫາກໍ Copy ໄຟລ໌ໄປໄວ້)
             cd meta-super-app
 
-            # Keep the production WhatsApp identifiers in sync even when the
-            # compose file already present on the droplet is older.
-            export META_WHATSAPP_BUSINESS_ACCOUNT_IDS=221593429418054
+            # Keep the shared Embedded Signup configuration in sync. WABA and
+            # phone IDs are captured per workspace and are never global.
             export META_WHATSAPP_CONFIG_ID=991544757321935
             
             # ດຶງ Image ໃໝ່

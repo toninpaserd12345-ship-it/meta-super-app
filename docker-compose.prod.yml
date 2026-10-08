@@ -20,11 +20,7 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      # WABA IDs are not secrets. This direct fallback is used when Meta grants
-      # WhatsApp access but rejects Business Portfolio discovery edges.
-      META_WHATSAPP_BUSINESS_ACCOUNT_IDS: ${META_WHATSAPP_BUSINESS_ACCOUNT_IDS:-221593429418054}
       META_WHATSAPP_CONFIG_ID: ${META_WHATSAPP_CONFIG_ID:-991544757321935}
-      META_APP_MODE: ${META_APP_MODE:-development}
     ports:
       - "8080:8080"
     volumes:

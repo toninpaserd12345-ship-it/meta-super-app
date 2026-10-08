@@ -33,7 +33,7 @@ import (
 
 type GraphConfig struct {
 	AppID, AppSecret, RedirectURI, Version, WebhookFields, WebhookVerifyToken, StateFile, EncryptionKey string
-	WhatsAppBusinessAccountIDs, WhatsAppConfigID, AppMode                                               string
+	WhatsAppConfigID                                                                                    string
 }
 
 type oauthState struct {
@@ -1783,12 +1783,6 @@ func (g *GraphConnector) fetchPages(ctx context.Context, token string) (map[stri
 					addWABA(biz.ID, waba.ID, waba.Name)
 				}
 			}
-		}
-		// Meta can grant direct WABA access while denying the Business Portfolio
-		// discovery edges. Explicit IDs keep Cloud API phone numbers available in
-		// that valid setup and are safe to configure because WABA IDs are not secrets.
-		for _, wabaID := range strings.Split(g.cfg.WhatsAppBusinessAccountIDs, ",") {
-			addWABA("configured", wabaID, "")
 		}
 		switch {
 		case diagnostics.PhoneNumberCount > 0:

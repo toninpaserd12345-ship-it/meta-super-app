@@ -42,7 +42,6 @@ type MetaWhatsAppSignupConfig struct {
 	AppID    string `json:"appId"`
 	ConfigID string `json:"configId"`
 	Version  string `json:"version"`
-	AppMode  string `json:"appMode"`
 	Enabled  bool   `json:"enabled"`
 }
 
