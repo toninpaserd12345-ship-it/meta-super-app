@@ -51,7 +51,7 @@ func Load() (Config, error) {
 		MetaWebhookVerifyToken:         os.Getenv("META_WEBHOOK_VERIFY_TOKEN"),
 		MetaStateFile:                  value("META_STATE_FILE", ".data/meta-state.json"),
 		MetaWhatsAppBusinessAccountIDs: os.Getenv("META_WHATSAPP_BUSINESS_ACCOUNT_IDS"),
-		MetaWhatsAppConfigID:           os.Getenv("META_WHATSAPP_CONFIG_ID"),
+		MetaWhatsAppConfigID:           value("META_WHATSAPP_CONFIG_ID", "991544757321935"),
 		MetaAppMode:                    value("META_APP_MODE", "development"),
 		R2AccountID:                    os.Getenv("R2_ACCOUNT_ID"),
 		R2AccessKeyID:                  os.Getenv("R2_ACCESS_KEY_ID"),
