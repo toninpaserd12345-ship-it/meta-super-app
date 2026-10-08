@@ -26,6 +26,17 @@ type MetaPagePicture struct {
 	Data        []byte
 }
 
+type MetaWhatsAppDiagnostics struct {
+	State                        string   `json:"state"`
+	Message                      string   `json:"message"`
+	RequiredPermissions          []string `json:"requiredPermissions"`
+	GrantedPermissions           []string `json:"grantedPermissions,omitempty"`
+	MissingPermissions           []string `json:"missingPermissions,omitempty"`
+	BusinessCount                int      `json:"businessCount"`
+	WhatsAppBusinessAccountCount int      `json:"whatsAppBusinessAccountCount"`
+	PhoneNumberCount             int      `json:"phoneNumberCount"`
+}
+
 type MetaOAuthResult struct {
 	UserID      string
 	AccountID   string
@@ -115,6 +126,7 @@ type MetaConnector interface {
 	AuthorizationURL(context.Context, string, string, []string) (string, error)
 	CompleteAuthorization(context.Context, string, string) (*MetaOAuthResult, error)
 	ListPages(context.Context, string, string) ([]MetaPage, error)
+	WhatsAppDiagnostics(context.Context, string) (*MetaWhatsAppDiagnostics, error)
 	PagePicture(context.Context, string, string) (*MetaPagePicture, error)
 	ConnectPage(context.Context, string, string, string) (*MetaPage, error)
 	DisconnectPage(context.Context, string, string, string) (*MetaPage, error)

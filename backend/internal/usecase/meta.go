@@ -23,6 +23,9 @@ func (u *Meta) CompleteAuthorization(ctx context.Context, state, code string) (*
 func (u *Meta) ListPages(ctx context.Context, userID, accountID string) ([]domain.MetaPage, error) {
 	return u.connector.ListPages(ctx, userID, accountID)
 }
+func (u *Meta) WhatsAppDiagnostics(ctx context.Context, accountID string) (*domain.MetaWhatsAppDiagnostics, error) {
+	return u.connector.WhatsAppDiagnostics(ctx, accountID)
+}
 func (u *Meta) PagePicture(ctx context.Context, accountID, pageID string) (*domain.MetaPagePicture, error) {
 	if pageID == "" {
 		return nil, ErrPageNotFound

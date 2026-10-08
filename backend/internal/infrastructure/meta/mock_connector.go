@@ -124,6 +124,13 @@ func (m *MockConnector) ListPages(_ context.Context, _ string, accountID string)
 	}
 	return pages, nil
 }
+func (m *MockConnector) WhatsAppDiagnostics(_ context.Context, _ string) (*domain.MetaWhatsAppDiagnostics, error) {
+	return &domain.MetaWhatsAppDiagnostics{
+		State:               "mock",
+		Message:             "WhatsApp discovery is unavailable in mock mode.",
+		RequiredPermissions: []string{"business_management", "whatsapp_business_management"},
+	}, nil
+}
 func (m *MockConnector) ConnectPage(_ context.Context, _ string, accountID, pageID string) (*domain.MetaPage, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

@@ -329,12 +329,15 @@ func TestFetchPagesIncludesWhatsAppDisplayNumber(t *testing.T) {
 		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}, nil
 	})}
 
-	pages, err := connector.fetchPages(context.Background(), "user-token")
+	pages, diagnostics, err := connector.fetchPages(context.Background(), "user-token")
 	if err != nil {
 		t.Fatal(err)
 	}
 	page := pages["phone-1"].MetaPage
 	if page.PhoneNumber != "+856 20 5555 1234" || page.Name != "Tonxay Shop" || page.Category != "WhatsApp" || page.PictureURL != "https://lookaside.fbsbx.com/avatar.jpg" {
 		t.Fatalf("WhatsApp page = %#v", page)
+	}
+	if diagnostics.State != "ready" || diagnostics.BusinessCount != 1 || diagnostics.WhatsAppBusinessAccountCount != 1 || diagnostics.PhoneNumberCount != 1 {
+		t.Fatalf("WhatsApp diagnostics = %#v", diagnostics)
 	}
 }

@@ -45,6 +45,7 @@ type graphSession struct {
 	UserToken                           string
 	TokenExpiresAt, DataAccessExpiresAt int64
 	GrantedPermissions                  []string
+	WhatsAppDiagnostics                 domain.MetaWhatsAppDiagnostics
 	Pages                               map[string]graphPage
 }
 
@@ -694,10 +695,11 @@ func (g *GraphConnector) CompleteAuthorization(ctx context.Context, state, code 
 	if !debug.Data.IsValid {
 		return nil, errors.New("meta access token is invalid")
 	}
-	pages, err := g.fetchPages(ctx, token.AccessToken)
+	pages, whatsAppDiagnostics, err := g.fetchPages(ctx, token.AccessToken)
 	if err != nil {
 		return nil, fmt.Errorf("load Facebook Pages: %w", err)
 	}
+	applyWhatsAppPermissions(&whatsAppDiagnostics, debug.Data.Scopes)
 	encryptedUserToken := g.encryptToken(token.AccessToken)
 	if encryptedUserToken == "" {
 		return nil, errors.New("unable to encrypt Meta access token")
@@ -730,7 +732,7 @@ func (g *GraphConnector) CompleteAuthorization(ctx context.Context, state, code 
 	}
 	_ = g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/me?fields=id,name,email&access_token="+token.AccessToken, &profile)
 	if pending.AccountID != "" {
-		g.sessions[pending.AccountID] = &graphSession{UserToken: token.AccessToken, TokenExpiresAt: debug.Data.ExpiresAt, DataAccessExpiresAt: debug.Data.DataAccessExpiresAt, GrantedPermissions: append([]string(nil), debug.Data.Scopes...), Pages: pages}
+		g.sessions[pending.AccountID] = &graphSession{UserToken: token.AccessToken, TokenExpiresAt: debug.Data.ExpiresAt, DataAccessExpiresAt: debug.Data.DataAccessExpiresAt, GrantedPermissions: append([]string(nil), debug.Data.Scopes...), WhatsAppDiagnostics: whatsAppDiagnostics, Pages: pages}
 		_ = g.persistStateLocked()
 	}
 	g.mu.Unlock()
@@ -757,10 +759,11 @@ func (g *GraphConnector) ListPages(ctx context.Context, _ string, accountID stri
 	}
 	g.mu.RUnlock()
 
-	pages, err := g.fetchPages(ctx, token)
+	pages, whatsAppDiagnostics, err := g.fetchPages(ctx, token)
 	if err != nil {
 		return nil, fmt.Errorf("facebook api error: %w", err)
 	}
+	applyWhatsAppPermissions(&whatsAppDiagnostics, grantedPermissions)
 	for id, page := range pages {
 		page.TokenExpiresAt = tokenExpiresAt
 		page.DataAccessExpiresAt = dataAccessExpiresAt
@@ -788,6 +791,7 @@ func (g *GraphConnector) ListPages(ctx context.Context, _ string, accountID stri
 		g.sessions[accountID] = &graphSession{UserToken: token, Pages: make(map[string]graphPage)}
 	}
 	session = g.sessions[accountID]
+	session.WhatsAppDiagnostics = whatsAppDiagnostics
 	if session.Pages == nil {
 		session.Pages = make(map[string]graphPage)
 	}
@@ -803,6 +807,24 @@ func (g *GraphConnector) ListPages(ctx context.Context, _ string, accountID stri
 		result = append(result, page.MetaPage)
 	}
 	return result, nil
+}
+
+func (g *GraphConnector) WhatsAppDiagnostics(ctx context.Context, accountID string) (*domain.MetaWhatsAppDiagnostics, error) {
+	if _, err := g.userToken(ctx, accountID); err != nil {
+		return nil, err
+	}
+	g.mu.RLock()
+	session := g.sessions[accountID]
+	if session == nil {
+		g.mu.RUnlock()
+		return nil, errors.New("meta session not loaded")
+	}
+	diagnostics := session.WhatsAppDiagnostics
+	diagnostics.RequiredPermissions = append([]string(nil), diagnostics.RequiredPermissions...)
+	diagnostics.GrantedPermissions = append([]string(nil), diagnostics.GrantedPermissions...)
+	diagnostics.MissingPermissions = append([]string(nil), diagnostics.MissingPermissions...)
+	g.mu.RUnlock()
+	return &diagnostics, nil
 }
 
 func (g *GraphConnector) PagePicture(ctx context.Context, accountID, pageID string) (*domain.MetaPagePicture, error) {
@@ -825,7 +847,7 @@ func (g *GraphConnector) PagePicture(ctx context.Context, accountID, pageID stri
 		if err != nil {
 			return nil, domain.ErrMetaReconnectRequired
 		}
-		pages, err := g.fetchPages(ctx, token)
+		pages, _, err := g.fetchPages(ctx, token)
 		if err != nil {
 			return nil, err
 		}
@@ -1589,7 +1611,12 @@ func (g *GraphConnector) replyToComment(ctx context.Context, page graphPage, com
 	return nil
 }
 
-func (g *GraphConnector) fetchPages(ctx context.Context, token string) (map[string]graphPage, error) {
+func (g *GraphConnector) fetchPages(ctx context.Context, token string) (map[string]graphPage, domain.MetaWhatsAppDiagnostics, error) {
+	diagnostics := domain.MetaWhatsAppDiagnostics{
+		RequiredPermissions: []string{"business_management", "whatsapp_business_management"},
+		State:               "checking",
+		Message:             "Checking WhatsApp Business access with Meta.",
+	}
 	query := url.Values{"fields": {"id,name,category,picture{url},access_token"}, "access_token": {token}, "limit": {"100"}}
 	var response struct {
 		Data []struct {
@@ -1606,7 +1633,7 @@ func (g *GraphConnector) fetchPages(ctx context.Context, token string) (map[stri
 		Error *graphError `json:"error"`
 	}
 	if err := g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/me/accounts?"+query.Encode(), &response); err != nil {
-		return nil, err
+		return nil, diagnostics, err
 	}
 	pages := make(map[string]graphPage)
 	for _, item := range response.Data {
@@ -1619,9 +1646,13 @@ func (g *GraphConnector) fetchPages(ctx context.Context, token string) (map[stri
 			ID string `json:"id"`
 		} `json:"data"`
 	}
-	if err := g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/me/businesses?access_token="+token, &bizResponse); err == nil {
+	businessQuery := url.Values{"fields": {"id,name"}, "access_token": {token}, "limit": {"100"}}
+	if err := g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/me/businesses?"+businessQuery.Encode(), &bizResponse); err == nil {
+		diagnostics.BusinessCount = len(bizResponse.Data)
+		seenWABAs := make(map[string]bool)
+		wabaErrors := 0
+		phoneErrors := 0
 		for _, biz := range bizResponse.Data {
-			seenWABAs := make(map[string]bool)
 			for _, edge := range []string{"owned_whatsapp_business_accounts", "client_whatsapp_business_accounts"} {
 				var wabaResponse struct {
 					Data []struct {
@@ -1631,6 +1662,7 @@ func (g *GraphConnector) fetchPages(ctx context.Context, token string) (map[stri
 				}
 				wabaQuery := url.Values{"fields": {"id,name"}, "access_token": {token}, "limit": {"100"}}
 				if err := g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/"+biz.ID+"/"+edge+"?"+wabaQuery.Encode(), &wabaResponse); err != nil {
+					wabaErrors++
 					slog.Warn("unable to discover WhatsApp Business Accounts", "business_id", biz.ID, "edge", edge, "error", err)
 					continue
 				}
@@ -1639,6 +1671,7 @@ func (g *GraphConnector) fetchPages(ctx context.Context, token string) (map[stri
 						continue
 					}
 					seenWABAs[waba.ID] = true
+					diagnostics.WhatsAppBusinessAccountCount++
 					var phoneResponse struct {
 						Data []struct {
 							ID                 string `json:"id"`
@@ -1648,10 +1681,12 @@ func (g *GraphConnector) fetchPages(ctx context.Context, token string) (map[stri
 					}
 					phoneQuery := url.Values{"fields": {"id,display_phone_number,verified_name"}, "access_token": {token}, "limit": {"100"}}
 					if err := g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/"+waba.ID+"/phone_numbers?"+phoneQuery.Encode(), &phoneResponse); err != nil {
+						phoneErrors++
 						slog.Warn("unable to discover WhatsApp phone numbers", "business_id", biz.ID, "waba_id", waba.ID, "error", err)
 						continue
 					}
 					for _, phone := range phoneResponse.Data {
+						diagnostics.PhoneNumberCount++
 						name := phone.VerifiedName
 						if name == "" {
 							name = waba.Name
@@ -1688,11 +1723,51 @@ func (g *GraphConnector) fetchPages(ctx context.Context, token string) (map[stri
 				}
 			}
 		}
+		switch {
+		case diagnostics.PhoneNumberCount > 0:
+			diagnostics.State = "ready"
+			diagnostics.Message = "WhatsApp phone numbers are available."
+		case diagnostics.BusinessCount == 0:
+			diagnostics.State = "no_business"
+			diagnostics.Message = "Meta returned no Business Portfolio for this Facebook account."
+		case diagnostics.WhatsAppBusinessAccountCount == 0 && wabaErrors > 0:
+			diagnostics.State = "waba_access_error"
+			diagnostics.Message = "Meta found a Business Portfolio but denied access to its WhatsApp accounts."
+		case diagnostics.WhatsAppBusinessAccountCount == 0:
+			diagnostics.State = "no_waba"
+			diagnostics.Message = "The accessible Business Portfolios do not contain a WhatsApp Business Account."
+		case phoneErrors > 0:
+			diagnostics.State = "phone_access_error"
+			diagnostics.Message = "Meta found a WhatsApp Business Account but denied access to its phone numbers."
+		default:
+			diagnostics.State = "no_phone_number"
+			diagnostics.Message = "The accessible WhatsApp Business Account has no registered phone number."
+		}
 	} else {
+		diagnostics.State = "business_access_error"
+		diagnostics.Message = "Meta denied access to Business Portfolios for this Facebook authorization."
 		slog.Warn("unable to discover Meta businesses for WhatsApp", "error", err)
 	}
 
-	return pages, nil
+	return pages, diagnostics, nil
+}
+
+func applyWhatsAppPermissions(diagnostics *domain.MetaWhatsAppDiagnostics, granted []string) {
+	diagnostics.GrantedPermissions = append([]string(nil), granted...)
+	grantedSet := make(map[string]bool, len(granted))
+	for _, permission := range granted {
+		grantedSet[permission] = true
+	}
+	diagnostics.MissingPermissions = diagnostics.MissingPermissions[:0]
+	for _, permission := range diagnostics.RequiredPermissions {
+		if !grantedSet[permission] {
+			diagnostics.MissingPermissions = append(diagnostics.MissingPermissions, permission)
+		}
+	}
+	if len(diagnostics.MissingPermissions) > 0 {
+		diagnostics.State = "missing_permissions"
+		diagnostics.Message = "The Facebook authorization is missing permissions required to discover WhatsApp accounts."
+	}
 }
 
 type graphError struct {

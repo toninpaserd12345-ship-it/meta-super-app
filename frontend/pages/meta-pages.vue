@@ -1,7 +1,8 @@
 <script setup lang="ts">
 definePageMeta({ middleware: 'auth' })
 interface MetaPage { id:string;name:string;category:string;pictureUrl?:string;phoneNumber?:string;tokenReady:boolean;connected:boolean;webhookStatus:string;tokenExpiresAt?:number;dataAccessExpiresAt?:number;grantedPermissions?:string[] }
-interface PageList { items:MetaPage[];mode:string }
+interface WhatsAppDiagnostics { state:string;message:string;requiredPermissions:string[];grantedPermissions?:string[];missingPermissions?:string[];businessCount:number;whatsAppBusinessAccountCount:number;phoneNumberCount:number }
+interface PageList { items:MetaPage[];mode:string;whatsappDiagnostics?:WhatsAppDiagnostics }
 interface OAuthStart { authorizationUrl:string }
 const { can } = useAuth()
 const route = useRoute()
@@ -41,6 +42,16 @@ const pages=computed(()=>data.value?.items||[])
 const activePages=computed(()=>pages.value.filter(page=>page.connected))
 const inactivePages=computed(()=>pages.value.filter(page=>!page.connected))
 const whatsappPages=computed(()=>pages.value.filter(page=>page.category.toLowerCase().includes('whatsapp')))
+const whatsappDiagnostics=computed(()=>data.value?.whatsappDiagnostics)
+const whatsappDiagnosticTitle=computed(()=>{
+  const state=whatsappDiagnostics.value?.state
+  if(state==='missing_permissions')return 'WhatsApp permissions are missing'
+  if(state==='no_business')return 'No Business Portfolio was returned'
+  if(state==='no_waba')return 'No WhatsApp Business Account was found'
+  if(state==='no_phone_number')return 'No registered WhatsApp phone number was found'
+  if(state==='business_access_error'||state==='waba_access_error'||state==='phone_access_error')return 'Meta denied WhatsApp access'
+  return 'WhatsApp is not available yet'
+})
 
 const availablePages=computed(()=>{
   let list = inactivePages.value
@@ -123,6 +134,19 @@ async function activateSelected(){
     <button :class="{active:statusFilter==='active'&&mainPlatformFilter==='all'}" @click="statusFilter='active';mainPlatformFilter='all'"><v-icon icon="mdi-webhook"/><span><small>WEBHOOK ACTIVE</small><strong>{{activePages.length}}</strong></span></button>
     <button :class="{active:statusFilter==='available'&&mainPlatformFilter==='all'}" @click="statusFilter='available';mainPlatformFilter='all'"><v-icon icon="mdi-power-plug-off-outline"/><span><small>NOT ACTIVE</small><strong>{{inactivePages.length}}</strong></span></button>
   </section>
+  <v-alert v-if="!pending&&!error&&!whatsappPages.length&&whatsappDiagnostics" type="warning" variant="tonal" icon="mdi-whatsapp" class="mb-4">
+    <strong>{{whatsappDiagnosticTitle}}</strong><br>
+    <span>{{whatsappDiagnostics.message}}</span>
+    <div class="mt-2 d-flex ga-2 flex-wrap">
+      <v-chip size="small" variant="outlined">Business Portfolios: {{whatsappDiagnostics.businessCount}}</v-chip>
+      <v-chip size="small" variant="outlined">WhatsApp accounts: {{whatsappDiagnostics.whatsAppBusinessAccountCount}}</v-chip>
+      <v-chip size="small" variant="outlined">Phone numbers: {{whatsappDiagnostics.phoneNumberCount}}</v-chip>
+    </div>
+    <div v-if="whatsappDiagnostics.missingPermissions?.length" class="mt-2">
+      Missing: <code>{{whatsappDiagnostics.missingPermissions.join(', ')}}</code>
+    </div>
+    <p class="mt-2 mb-0">Assign this Facebook admin to the WhatsApp Account and its phone number in Meta Business Settings, then use Connect Facebook again.</p>
+  </v-alert>
   <section v-if="!error" class="page-grid" :aria-busy="pending">
     <v-skeleton-loader v-if="pending" v-for="i in 3" :key="i" type="card"/>
     <article v-for="page in visiblePages" v-else :key="page.id" class="page-card">

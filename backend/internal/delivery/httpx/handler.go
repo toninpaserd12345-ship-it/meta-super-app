@@ -229,7 +229,11 @@ func (h *Handler) metaPages(c fiber.Ctx) error {
 	if err != nil {
 		return usecaseError(c, err)
 	}
-	return c.JSON(fiber.Map{"items": pages, "mode": h.metaMode})
+	diagnostics, diagnosticsErr := h.meta.WhatsAppDiagnostics(ctx, c.Locals("accountID").(string))
+	if diagnosticsErr != nil {
+		slog.Warn("unable to load WhatsApp diagnostics", "error", diagnosticsErr)
+	}
+	return c.JSON(fiber.Map{"items": pages, "mode": h.metaMode, "whatsappDiagnostics": diagnostics})
 }
 func (h *Handler) metaPagePicture(c fiber.Ctx) error {
 	ctx, cancel := requestContext(c)
