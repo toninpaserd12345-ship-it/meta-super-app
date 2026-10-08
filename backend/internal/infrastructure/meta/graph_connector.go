@@ -695,6 +695,20 @@ func (g *GraphConnector) CompleteAuthorization(ctx context.Context, state, code 
 	if encryptedUserToken == "" {
 		return nil, errors.New("unable to encrypt Meta access token")
 	}
+	// Persist the freshly authorized credential before completing the callback.
+	// Previously this error was ignored, so the UI could report a successful
+	// reconnect while the next request still loaded the old expired token.
+	if pending.AccountID != "" && g.db != nil {
+		if err := g.db.Save(&database.MetaConnectionModel{
+			AccountID:           pending.AccountID,
+			UserToken:           encryptedUserToken,
+			TokenExpiresAt:      debug.Data.ExpiresAt,
+			DataAccessExpiresAt: debug.Data.DataAccessExpiresAt,
+			GrantedPermissions:  strings.Join(debug.Data.Scopes, ","),
+		}).Error; err != nil {
+			return nil, fmt.Errorf("save encrypted Meta authorization: %w", err)
+		}
+	}
 	g.mu.Lock()
 	for id, page := range pages {
 		page.TokenExpiresAt = debug.Data.ExpiresAt
@@ -710,15 +724,6 @@ func (g *GraphConnector) CompleteAuthorization(ctx context.Context, state, code 
 	_ = g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/me?fields=id,name,email&access_token="+token.AccessToken, &profile)
 	if pending.AccountID != "" {
 		g.sessions[pending.AccountID] = &graphSession{UserToken: token.AccessToken, TokenExpiresAt: debug.Data.ExpiresAt, DataAccessExpiresAt: debug.Data.DataAccessExpiresAt, GrantedPermissions: append([]string(nil), debug.Data.Scopes...), Pages: pages}
-		if g.db != nil {
-			g.db.Save(&database.MetaConnectionModel{
-				AccountID:           pending.AccountID,
-				UserToken:           encryptedUserToken,
-				TokenExpiresAt:      debug.Data.ExpiresAt,
-				DataAccessExpiresAt: debug.Data.DataAccessExpiresAt,
-				GrantedPermissions:  strings.Join(debug.Data.Scopes, ","),
-			})
-		}
 		_ = g.persistStateLocked()
 	}
 	g.mu.Unlock()

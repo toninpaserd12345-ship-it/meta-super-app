@@ -1,7 +1,7 @@
 import type { User } from '~/types/auth'
 import { getUpstreamUrl, upstreamError } from '~/server/utils/upstream'
 
-interface LoginResult { access_token?: string; user?: User }
+interface LoginResult { access_token?: string; user?: User; accountId?: string }
 
 export default defineEventHandler(async (event) => {
   const query = getQuery(event)
@@ -13,7 +13,11 @@ export default defineEventHandler(async (event) => {
     const result = await $fetch<LoginResult>(getUpstreamUrl(event, '/auth/facebook/exchange'), {
       method: 'POST', body: { ticket }, timeout: 10_000,
     })
-    const membership = result.user?.accounts?.[0]
+    // Keep the workspace that initiated reconnect. Falling back to the first
+    // membership made a successful OAuth callback appear expired whenever a
+    // user belonged to more than one workspace.
+    const membership = result.user?.accounts?.find(item => item.account.id === result.accountId)
+      || result.user?.accounts?.[0]
     if (!result.access_token || !membership) throw createError({ statusCode: 502 })
     // OAuth returns through a cross-site top-level redirect (Facebook ->
     // callback gateway -> this app). Lax allows the newly issued session to be

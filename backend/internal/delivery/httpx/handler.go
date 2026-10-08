@@ -40,7 +40,13 @@ type Handler struct {
 
 type loginTicket struct {
 	Result    *usecase.LoginOutput
+	AccountID string
 	ExpiresAt time.Time
+}
+
+type facebookLoginExchange struct {
+	*usecase.LoginOutput
+	AccountID string `json:"accountId,omitempty"`
 }
 
 func NewHandler(auth *usecase.Auth, meta *usecase.Meta, team *usecase.Team, billing *usecase.Billing, storage *usecase.StorageUseCase, reply *usecase.Reply, automation *usecase.Automation, product *usecase.Product, tokens domain.TokenService, metaMode, metaFrontendRedirect string) *Handler {
@@ -191,7 +197,7 @@ func (h *Handler) exchangeFacebookLogin(c fiber.Ctx) error {
 	if !ok || time.Now().After(item.ExpiresAt) {
 		return fail(c, 401, "invalid_ticket", "Login ticket is invalid or expired.")
 	}
-	return c.JSON(item.Result)
+	return c.JSON(facebookLoginExchange{LoginOutput: item.Result, AccountID: item.AccountID})
 }
 func (h *Handler) me(c fiber.Ctx) error {
 	ctx, cancel := requestContext(c)
@@ -274,7 +280,7 @@ func (h *Handler) completeMetaOAuth(c fiber.Ctx) error {
 			delete(h.tickets, key)
 		}
 	}
-	h.tickets[ticket] = loginTicket{Result: login, ExpiresAt: time.Now().Add(2 * time.Minute)}
+	h.tickets[ticket] = loginTicket{Result: login, AccountID: result.AccountID, ExpiresAt: time.Now().Add(2 * time.Minute)}
 	h.ticketMu.Unlock()
 	return c.Redirect().To(redirect + "?ticket=" + url.QueryEscape(ticket))
 }
