@@ -157,6 +157,7 @@ onMounted(loadData)
     </div>
   </section>
 
+  <v-alert v-if="notice && !bindDialog" type="error" variant="tonal" class="mb-4">{{ notice }}</v-alert>
   <v-card class="mb-4 pa-4" variant="outlined">
     <div style="max-width: 400px">
       <v-select
