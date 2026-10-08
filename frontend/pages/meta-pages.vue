@@ -11,6 +11,10 @@ const loadErrorMessage = computed(() => {
   const value:any = error.value
   return value?.data?.error?.message || value?.data?.message || value?.statusMessage || 'Unable to load Pages from Meta. Reconnect Facebook and try again.'
 })
+const needsReconnect = computed(() => {
+  const value:any = error.value
+  return value?.data?.error?.code === 'meta_reconnect_required' || Number(value?.statusCode || value?.status) === 428
+})
 const toggling = ref<string|null>(null)
 const authorizing = ref(false)
 const activating = ref(false)
@@ -90,11 +94,13 @@ async function activateSelected(){
 </script>
 
 <template>
-  <section class="intro"><div><p>META INTEGRATION</p><h2>Facebook & WhatsApp</h2><span>Connect an account once, then control each Page Webhook here.</span></div><div class="intro-actions"><v-chip :color="data?.mode==='live'?'success':'primary'" variant="tonal" :prepend-icon="data?.mode==='live'?'mdi-access-point':'mdi-flask-outline'">{{data?.mode==='live'?'Meta connected':'Mock mode'}}</v-chip><v-btn v-if="inactivePages.length" variant="outlined" prepend-icon="mdi-checkbox-multiple-marked-outline" @click="search='';pickerOpen=true">Select Accounts</v-btn><v-btn v-if="data?.mode==='live'" color="primary" prepend-icon="mdi-facebook" :loading="authorizing" @click="permissionsOpen=true">Connect Facebook</v-btn></div></section>
+  <section class="intro"><div><p>META INTEGRATION</p><h2>Facebook & WhatsApp</h2><span>Connect an account once, then control each Page Webhook here.</span></div><div class="intro-actions"><v-chip :color="error?'error':data?.mode==='mock'?'primary':'success'" variant="tonal" :prepend-icon="error?'mdi-alert-circle-outline':data?.mode==='mock'?'mdi-flask-outline':'mdi-access-point'">{{error?'Connection needs attention':data?.mode==='mock'?'Mock mode':'Meta connected'}}</v-chip><v-btn v-if="inactivePages.length" variant="outlined" prepend-icon="mdi-checkbox-multiple-marked-outline" @click="search='';pickerOpen=true">Select Accounts</v-btn><v-btn v-if="data?.mode!=='mock'" color="primary" prepend-icon="mdi-facebook" :loading="authorizing" @click="permissionsOpen=true">{{needsReconnect?'Reconnect Facebook':'Connect Facebook'}}</v-btn></div></section>
   <v-alert v-if="message" :type="messageType" variant="tonal" closable class="mb-4" @click:close="message=''">{{message}}</v-alert>
   <v-alert v-if="error" type="error" variant="tonal" class="mb-4">
     <strong>{{loadErrorMessage}}</strong><br>
-    The system renews a valid Facebook token automatically. If Meta has fully expired or revoked it, use “Connect Facebook” to authorize again.
+    <span v-if="needsReconnect">The saved Facebook authorization is no longer usable. Authorize once more, then the system will renew it automatically while it remains valid.</span>
+    <span v-else>The API could not load the Meta connection. Retry after a moment; if it continues, reconnect Facebook.</span>
+    <div class="mt-3 d-flex ga-2 flex-wrap"><v-btn color="primary" prepend-icon="mdi-facebook" :loading="authorizing" @click="permissionsOpen=true">Reconnect Facebook</v-btn><v-btn variant="outlined" prepend-icon="mdi-refresh" @click="refresh()">Retry</v-btn></div>
   </v-alert>
   <section v-if="!error" class="connection-summary">
     <button :class="{active:statusFilter==='all'}" @click="statusFilter='all'"><v-icon icon="mdi-facebook"/><span><small>ALL PAGES</small><strong>{{pages.length}}</strong></span></button>
