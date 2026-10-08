@@ -28,7 +28,7 @@ func Open(dsn string) (*gorm.DB, error) {
 }
 
 func Migrate(db *gorm.DB) error {
-	return db.AutoMigrate(&UserModel{}, &AccountModel{}, &MembershipModel{}, &MembershipClaimModel{}, &PlanModel{}, &SubscriptionModel{}, &TransactionModel{}, &ReplySetModel{}, &ReplyItemModel{}, &AutomationRuleModel{}, &ProductModel{}, &ChatMessageModel{}, &MetaConnectionModel{}, &MetaPageTokenModel{})
+	return db.AutoMigrate(&UserModel{}, &AccountModel{}, &MembershipModel{}, &MembershipClaimModel{}, &PlanModel{}, &SubscriptionModel{}, &TransactionModel{}, &ReplySetModel{}, &ReplyItemModel{}, &AutomationRuleModel{}, &ProductModel{}, &ChatMessageModel{}, &MetaConnectionModel{}, &MetaPageTokenModel{}, &MetaWhatsAppConnectionModel{})
 }
 
 // MigrateMetaCredentials keeps the credential tables compatible with the
@@ -36,5 +36,5 @@ func Migrate(db *gorm.DB) error {
 // migrations only add/adjust columns required to load encrypted Meta tokens;
 // without them an older database makes every connected account look missing.
 func MigrateMetaCredentials(db *gorm.DB) error {
-	return db.AutoMigrate(&MetaConnectionModel{}, &MetaPageTokenModel{})
+	return db.AutoMigrate(&MetaConnectionModel{}, &MetaPageTokenModel{}, &MetaWhatsAppConnectionModel{})
 }

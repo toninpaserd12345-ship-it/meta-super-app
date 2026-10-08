@@ -33,7 +33,7 @@ import (
 
 type GraphConfig struct {
 	AppID, AppSecret, RedirectURI, Version, WebhookFields, WebhookVerifyToken, StateFile, EncryptionKey string
-	WhatsAppBusinessAccountIDs                                                                          string
+	WhatsAppBusinessAccountIDs, WhatsAppConfigID                                                        string
 }
 
 type oauthState struct {
@@ -596,6 +596,22 @@ func (g *GraphConnector) findPage(pageID string) (string, graphPage, bool) {
 	g.mu.RUnlock()
 
 	if g.db != nil {
+		var whatsApp database.MetaWhatsAppConnectionModel
+		if err := g.db.First(&whatsApp, "phone_number_id = ?", pageID).Error; err == nil {
+			decrypted := g.decryptToken(whatsApp.AccessToken)
+			page := graphPage{MetaPage: domain.MetaPage{
+				ID:            whatsApp.PhoneNumberID,
+				Name:          firstNonEmpty(whatsApp.VerifiedName, whatsApp.DisplayPhoneNumber, "WhatsApp"),
+				Category:      "WhatsApp",
+				PictureURL:    whatsApp.PictureURL,
+				PhoneNumber:   whatsApp.DisplayPhoneNumber,
+				Connected:     whatsApp.IsConnected,
+				TokenReady:    decrypted != "",
+				WebhookStatus: map[bool]string{true: "subscribed", false: "disconnected"}[whatsApp.IsConnected],
+			}, AccessToken: decrypted}
+			g.cachePage(whatsApp.AccountID, page)
+			return whatsApp.AccountID, page, true
+		}
 		var model database.MetaPageTokenModel
 		if err := g.db.First(&model, "page_id = ?", pageID).Error; err == nil {
 			decrypted := g.decryptToken(model.AccessToken)
@@ -741,12 +757,24 @@ func (g *GraphConnector) CompleteAuthorization(ctx context.Context, state, code 
 }
 
 func (g *GraphConnector) ListPages(ctx context.Context, _ string, accountID string) ([]domain.MetaPage, error) {
+	persistedWhatsApp, persistedErr := g.persistedWhatsAppPages(accountID)
+	if persistedErr != nil {
+		return nil, fmt.Errorf("load saved WhatsApp connections: %w", persistedErr)
+	}
 	// Always resolve the token through userToken. In production the process can
 	// restart while the encrypted OAuth token remains in PostgreSQL. Looking at
 	// the in-memory session only made every Page appear to disappear after a
 	// deployment until the user completed OAuth again.
 	token, err := g.userToken(ctx, accountID)
 	if err != nil {
+		if len(persistedWhatsApp) > 0 {
+			result := make([]domain.MetaPage, 0, len(persistedWhatsApp))
+			for _, page := range persistedWhatsApp {
+				g.cachePage(accountID, page)
+				result = append(result, page.MetaPage)
+			}
+			return result, nil
+		}
 		return nil, fmt.Errorf("facebook connection not found or invalid: %w", err)
 	}
 	g.mu.RLock()
@@ -765,6 +793,14 @@ func (g *GraphConnector) ListPages(ctx context.Context, _ string, accountID stri
 		return nil, fmt.Errorf("facebook api error: %w", err)
 	}
 	applyWhatsAppPermissions(&whatsAppDiagnostics, grantedPermissions)
+	for id, page := range persistedWhatsApp {
+		pages[id] = page
+	}
+	if len(persistedWhatsApp) > 0 {
+		whatsAppDiagnostics.State = "ready"
+		whatsAppDiagnostics.Message = "WhatsApp is connected through Embedded Signup."
+		whatsAppDiagnostics.PhoneNumberCount = len(persistedWhatsApp)
+	}
 	for id, page := range pages {
 		page.TokenExpiresAt = tokenExpiresAt
 		page.DataAccessExpiresAt = dataAccessExpiresAt
@@ -811,8 +847,15 @@ func (g *GraphConnector) ListPages(ctx context.Context, _ string, accountID stri
 }
 
 func (g *GraphConnector) WhatsAppDiagnostics(ctx context.Context, accountID string) (*domain.MetaWhatsAppDiagnostics, error) {
+	if pages, err := g.persistedWhatsAppPages(accountID); err == nil && len(pages) > 0 {
+		return &domain.MetaWhatsAppDiagnostics{
+			State: "ready", Message: "WhatsApp is connected through Embedded Signup.",
+			RequiredPermissions:          []string{"whatsapp_business_management", "whatsapp_business_messaging"},
+			WhatsAppBusinessAccountCount: 1, PhoneNumberCount: len(pages),
+		}, nil
+	}
 	if _, err := g.userToken(ctx, accountID); err != nil {
-		return nil, err
+		return &domain.MetaWhatsAppDiagnostics{State: "not_connected", Message: "Connect WhatsApp with Embedded Signup."}, nil
 	}
 	g.mu.RLock()
 	session := g.sessions[accountID]
@@ -844,6 +887,12 @@ func (g *GraphConnector) PagePicture(ctx context.Context, accountID, pageID stri
 		page, found = session.Pages[pageID]
 	}
 	g.mu.RUnlock()
+	if !found {
+		foundAccountID, savedPage, saved := g.findPage(pageID)
+		if saved && foundAccountID == accountID {
+			page, found = savedPage, true
+		}
+	}
 	if !found {
 		token, err := g.userToken(ctx, accountID)
 		if err != nil {
@@ -995,7 +1044,9 @@ func (g *GraphConnector) ConnectPage(ctx context.Context, _ string, accountID, p
 		page.WebhookStatus = "app_level"
 	}
 	session.Pages[pageID] = page
-	if g.db != nil {
+	if g.db != nil && page.Category == "WhatsApp" {
+		g.db.Model(&database.MetaWhatsAppConnectionModel{}).Where("phone_number_id = ? AND account_id = ?", pageID, accountID).Update("is_connected", true)
+	} else if g.db != nil {
 		g.db.Save(&database.MetaPageTokenModel{
 			PageID:      pageID,
 			AccountID:   accountID,
@@ -1058,7 +1109,9 @@ func (g *GraphConnector) DisconnectPage(ctx context.Context, _ string, accountID
 	page.Connected = false
 	page.WebhookStatus = ""
 	session.Pages[pageID] = page
-	if g.db != nil {
+	if g.db != nil && page.Category == "WhatsApp" {
+		g.db.Model(&database.MetaWhatsAppConnectionModel{}).Where("phone_number_id = ? AND account_id = ?", pageID, accountID).Update("is_connected", false)
+	} else if g.db != nil {
 		g.db.Save(&database.MetaPageTokenModel{
 			PageID:      pageID,
 			AccountID:   accountID,
@@ -1496,8 +1549,8 @@ func (g *GraphConnector) SaveReplyFlow(_ context.Context, _, accountID string, f
 }
 
 func (g *GraphConnector) SendMessage(ctx context.Context, accountID, pageID, recipientID, text string) error {
-	_, page, found := g.findPage(pageID)
-	if !found {
+	foundAccountID, page, found := g.findPage(pageID)
+	if !found || foundAccountID != accountID {
 		return errors.New("meta page not found or not connected")
 	}
 
@@ -1526,8 +1579,8 @@ func (g *GraphConnector) SendMessage(ctx context.Context, accountID, pageID, rec
 }
 
 func (g *GraphConnector) SendMedia(ctx context.Context, accountID, pageID, recipientID, mediaType, mediaURL string) error {
-	_, page, found := g.findPage(pageID)
-	if !found {
+	foundAccountID, page, found := g.findPage(pageID)
+	if !found || foundAccountID != accountID {
 		return errors.New("meta page not found")
 	}
 	if page.Category == "WhatsApp" {

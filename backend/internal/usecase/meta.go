@@ -26,6 +26,15 @@ func (u *Meta) ListPages(ctx context.Context, userID, accountID string) ([]domai
 func (u *Meta) WhatsAppDiagnostics(ctx context.Context, accountID string) (*domain.MetaWhatsAppDiagnostics, error) {
 	return u.connector.WhatsAppDiagnostics(ctx, accountID)
 }
+func (u *Meta) WhatsAppSignupConfig(ctx context.Context) domain.MetaWhatsAppSignupConfig {
+	return u.connector.WhatsAppSignupConfig(ctx)
+}
+func (u *Meta) CompleteWhatsAppSignup(ctx context.Context, accountID string, input domain.MetaWhatsAppSignupInput) ([]domain.MetaPage, error) {
+	if accountID == "" || input.Code == "" || input.WABAID == "" {
+		return nil, errors.New("WhatsApp signup code and business account are required")
+	}
+	return u.connector.CompleteWhatsAppSignup(ctx, accountID, input)
+}
 func (u *Meta) PagePicture(ctx context.Context, accountID, pageID string) (*domain.MetaPagePicture, error) {
 	if pageID == "" {
 		return nil, ErrPageNotFound

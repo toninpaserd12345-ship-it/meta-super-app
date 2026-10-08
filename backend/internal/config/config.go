@@ -13,7 +13,7 @@ type Config struct {
 	Environment, HTTPAddr, StorageDriver, DatabaseURL, JWTSecret, JWTIssuer  string
 	MetaAppID, MetaAppSecret, MetaRedirectURI, MetaFrontendRedirect          string
 	MetaGraphVersion, MetaWebhookFields, MetaWebhookVerifyToken              string
-	MetaStateFile, MetaWhatsAppBusinessAccountIDs                            string
+	MetaStateFile, MetaWhatsAppBusinessAccountIDs, MetaWhatsAppConfigID      string
 	AccessTokenTTL                                                           time.Duration
 	AutoMigrate                                                              bool
 	SeedAdminEmail, SeedAdminPassword, SeedAccountName                       string
@@ -51,6 +51,7 @@ func Load() (Config, error) {
 		MetaWebhookVerifyToken:         os.Getenv("META_WEBHOOK_VERIFY_TOKEN"),
 		MetaStateFile:                  value("META_STATE_FILE", ".data/meta-state.json"),
 		MetaWhatsAppBusinessAccountIDs: os.Getenv("META_WHATSAPP_BUSINESS_ACCOUNT_IDS"),
+		MetaWhatsAppConfigID:           os.Getenv("META_WHATSAPP_CONFIG_ID"),
 		R2AccountID:                    os.Getenv("R2_ACCOUNT_ID"),
 		R2AccessKeyID:                  os.Getenv("R2_ACCESS_KEY_ID"),
 		R2SecretAccessKey:              os.Getenv("R2_SECRET_ACCESS_KEY"),

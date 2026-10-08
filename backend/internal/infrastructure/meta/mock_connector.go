@@ -131,6 +131,12 @@ func (m *MockConnector) WhatsAppDiagnostics(_ context.Context, _ string) (*domai
 		RequiredPermissions: []string{"business_management", "whatsapp_business_management"},
 	}, nil
 }
+func (m *MockConnector) WhatsAppSignupConfig(_ context.Context) domain.MetaWhatsAppSignupConfig {
+	return domain.MetaWhatsAppSignupConfig{AppID: "mock", ConfigID: "mock", Version: "v23.0", Enabled: true}
+}
+func (m *MockConnector) CompleteWhatsAppSignup(_ context.Context, _ string, _ domain.MetaWhatsAppSignupInput) ([]domain.MetaPage, error) {
+	return []domain.MetaPage{{ID: "wa_mock", Name: "Mock WhatsApp", Category: "WhatsApp", PhoneNumber: "+856 20 5555 5555", TokenReady: true, Connected: true, WebhookStatus: "subscribed"}}, nil
+}
 func (m *MockConnector) ConnectPage(_ context.Context, _ string, accountID, pageID string) (*domain.MetaPage, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

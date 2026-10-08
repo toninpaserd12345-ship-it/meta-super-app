@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 )
 
 // SendWhatsAppMessage sends a text message via WhatsApp Business API
@@ -131,6 +132,11 @@ func (g *GraphConnector) processWhatsAppWebhook(ctx context.Context, body []byte
 			}
 
 			phoneNumberID := change.Value.Metadata.PhoneNumberID
+			accountID, page, found := g.findPage(phoneNumberID)
+			if !found || !strings.EqualFold(page.Category, "WhatsApp") || !page.Connected {
+				slog.Warn("WhatsApp webhook ignored for an unknown or disabled phone", "phone_number_id", phoneNumberID)
+				continue
+			}
 			for _, message := range change.Value.Messages {
 				senderPhone := message.From
 				textBody := strings.TrimSpace(message.Text.Body)
@@ -138,38 +144,72 @@ func (g *GraphConnector) processWhatsAppWebhook(ctx context.Context, body []byte
 				if senderPhone == "" || textBody == "" {
 					continue
 				}
+				seenKey := "whatsapp:" + phoneNumberID + ":" + senderPhone
+				g.mu.Lock()
+				lastReply, alreadyReplied := g.firstReplies[seenKey]
+				busy := g.inFlight[seenKey]
+				if !alreadyReplied || time.Since(lastReply) >= 24*time.Hour {
+					g.inFlight[seenKey] = true
+				} else {
+					busy = true
+				}
+				g.mu.Unlock()
 
 				slog.Info("WhatsApp message received", "phone_number_id", phoneNumberID, "sender", senderPhone, "text", textBody)
 
 				if g.chatStream != nil {
-					accountID, _, found := g.findPage(phoneNumberID)
-					if found {
-						g.chatStream.Broadcast(accountID, usecase.ChatEvent{
-							AccountID: accountID,
-							PageID:    phoneNumberID,
-							SenderID:  senderPhone,
-							Message:   textBody,
-							Type:      "text",
-							Timestamp: message.Timestamp,
-							Platform:  "whatsapp",
-						})
-					}
+					g.chatStream.Broadcast(accountID, usecase.ChatEvent{
+						AccountID: accountID,
+						PageID:    phoneNumberID,
+						SenderID:  senderPhone,
+						Message:   textBody,
+						Type:      "text",
+						Timestamp: message.Timestamp,
+						Platform:  "whatsapp",
+					})
 				}
 
-				// NOTE: In the future, we need to map phoneNumberID to an AccessToken from the database.
-				// For now, this validates that the backend can parse and detect the trigger keywords.
-				if g.automation != nil {
+				if g.automation != nil && !busy {
 					keywordRules, err := g.automation.GetKeywordRules(ctx, phoneNumberID)
 					if err == nil {
+						sent := false
 						for _, kr := range keywordRules {
 							if matchesKeywords(textBody, []string{kr.TriggerValue}) {
 								slog.Info("WhatsApp automation triggered!", "rule_id", kr.ID)
-								// g.sendWhatsAppMessage(ctx, phoneNumberID, "<ACCESS_TOKEN>", senderPhone, "Hello from automation!")
+								items, itemErr := g.automation.GetReplySetItems(ctx, kr.ReplySetID, accountID)
+								if itemErr != nil {
+									slog.Error("load WhatsApp reply set", "rule_id", kr.ID, "error", itemErr)
+									break
+								}
+								for _, item := range g.resolveReplyItems(&kr, items) {
+									if !item.IsEnabled {
+										continue
+									}
+									var sendErr error
+									if item.Type == "text" {
+										sendErr = g.sendWhatsAppMessage(ctx, phoneNumberID, page.AccessToken, senderPhone, item.Content)
+									} else {
+										sendErr = g.sendWhatsAppMedia(ctx, phoneNumberID, page.AccessToken, senderPhone, item.Type, item.Content)
+									}
+									if sendErr != nil {
+										slog.Error("send WhatsApp automatic reply", "rule_id", kr.ID, "error", sendErr)
+										break
+									}
+									sent = true
+								}
+								if sent {
+									g.mu.Lock()
+									g.firstReplies[seenKey] = time.Now()
+									g.mu.Unlock()
+								}
 								break
 							}
 						}
 					}
 				}
+				g.mu.Lock()
+				delete(g.inFlight, seenKey)
+				g.mu.Unlock()
 			}
 		}
 	}

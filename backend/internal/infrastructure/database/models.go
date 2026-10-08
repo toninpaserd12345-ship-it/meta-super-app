@@ -146,3 +146,22 @@ type MetaPageTokenModel struct {
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
+
+// MetaWhatsAppConnectionModel stores the credential issued by WhatsApp
+// Embedded Signup for one phone number. It is deliberately scoped to a
+// workspace so webhook events can be routed without relying on a shared
+// Facebook user session.
+type MetaWhatsAppConnectionModel struct {
+	PhoneNumberID      string       `gorm:"size:255;primaryKey"`
+	AccountID          string       `gorm:"type:uuid;not null;index"`
+	Account            AccountModel `gorm:"foreignKey:AccountID;constraint:OnDelete:CASCADE"`
+	BusinessID         string       `gorm:"size:255;index"`
+	WABAID             string       `gorm:"size:255;not null;index"`
+	DisplayPhoneNumber string       `gorm:"size:80"`
+	VerifiedName       string       `gorm:"size:255"`
+	PictureURL         string       `gorm:"size:1000"`
+	AccessToken        string       `gorm:"type:text;not null"`
+	IsConnected        bool         `gorm:"default:true"`
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+}

@@ -4,6 +4,8 @@ interface MetaPage { id:string;name:string;category:string;pictureUrl?:string;ph
 interface WhatsAppDiagnostics { state:string;message:string;requiredPermissions:string[];grantedPermissions?:string[];missingPermissions?:string[];issues?:string[];businessCount:number;whatsAppBusinessAccountCount:number;phoneNumberCount:number }
 interface PageList { items:MetaPage[];mode:string;whatsappDiagnostics?:WhatsAppDiagnostics }
 interface OAuthStart { authorizationUrl:string }
+interface WhatsAppSignupConfig { appId:string;configId:string;version:string;enabled:boolean }
+interface WhatsAppSignupSession { businessId?:string;wabaId?:string;phoneNumberId?:string }
 const { can } = useAuth()
 const route = useRoute()
 if (!can('pages:read')) throw createError({statusCode:403,statusMessage:'You do not have permission to view Meta Pages.'})
@@ -19,6 +21,10 @@ const needsReconnect = computed(() => {
 const toggling = ref<string|null>(null)
 const authorizing = ref(false)
 const activating = ref(false)
+const whatsAppConnecting = ref(false)
+const whatsAppConfig = ref<WhatsAppSignupConfig|null>(null)
+const whatsAppSession = ref<WhatsAppSignupSession>({})
+const whatsAppCode = ref('')
 
 const pickerOpen = ref(false)
 const activePlatform = ref('all') // 'all', 'facebook', 'instagram', 'whatsapp', etc.
@@ -117,10 +123,68 @@ async function activateSelected(){
   if(!failed){pickerOpen.value=false;messageType.value='success';message.value=`${successIds.length} Page${successIds.length===1?'':'s'} activated. Webhooks are ready.`;return}
   messageType.value='error';message.value=`Activated ${successIds.length} of ${chosen.length} Pages. ${failed} failed because Meta rejected the Page permission.`
 }
+
+declare global {
+  interface Window {
+    FB?: { init:(options:Record<string,unknown>)=>void;login:(callback:(response:any)=>void,options:Record<string,unknown>)=>void }
+    fbAsyncInit?:()=>void
+  }
+}
+
+let whatsAppMessageHandler:((event:MessageEvent)=>void)|null=null
+async function loadFacebookSDK(config:WhatsAppSignupConfig){
+  if(window.FB)return
+  await new Promise<void>((resolve,reject)=>{
+    const existing=document.getElementById('facebook-jssdk') as HTMLScriptElement|null
+    window.fbAsyncInit=()=>{window.FB?.init({appId:config.appId,cookie:true,xfbml:false,version:config.version});resolve()}
+    if(existing){if(window.FB)resolve();return}
+    const script=document.createElement('script');script.id='facebook-jssdk';script.async=true;script.defer=true;script.crossOrigin='anonymous';script.src='https://connect.facebook.net/en_US/sdk.js';script.onerror=()=>reject(new Error('Facebook SDK could not be loaded'));document.head.appendChild(script)
+  })
+}
+async function finishWhatsAppSignup(){
+  if(!whatsAppCode.value||!whatsAppSession.value.wabaId)return
+  const code=whatsAppCode.value;const session={...whatsAppSession.value};whatsAppCode.value='';whatsAppSession.value={}
+  try{
+    await $fetch('/api/proxy/api/v1/meta/whatsapp/signup/complete',{method:'POST',body:{code,businessId:session.businessId||'',wabaId:session.wabaId,phoneNumberId:session.phoneNumberId||''},timeout:30000})
+    await refresh();messageType.value='success';message.value='WhatsApp connected. The webhook is subscribed and ready to receive messages.'
+  }catch(error:any){messageType.value='error';message.value=apiMessage(error,'WhatsApp setup could not be completed. Check the selected Business Account and phone number.')}
+  finally{whatsAppConnecting.value=false}
+}
+async function connectWhatsApp(){
+  if(!can('pages:connect'))return
+  whatsAppConnecting.value=true;message.value='';whatsAppCode.value='';whatsAppSession.value={}
+  try{
+    const config=await $fetch<WhatsAppSignupConfig>('/api/proxy/api/v1/meta/whatsapp/signup/config')
+    whatsAppConfig.value=config
+    if(!config.enabled)throw new Error('WhatsApp Embedded Signup is not configured. Add META_WHATSAPP_CONFIG_ID on the API server.')
+    await loadFacebookSDK(config)
+    if(!window.FB)throw new Error('Facebook SDK is unavailable.')
+    window.FB.login((response:any)=>{
+      const code=response?.authResponse?.code
+      if(!code){whatsAppConnecting.value=false;messageType.value='error';message.value='WhatsApp connection was cancelled or Meta did not return an authorization code.';return}
+      whatsAppCode.value=String(code);void finishWhatsAppSignup()
+    },{config_id:config.configId,response_type:'code',override_default_response_type:true,extras:{featureType:'',sessionInfoVersion:'3'}})
+  }catch(error:any){whatsAppConnecting.value=false;messageType.value='error';message.value=error?.message||'Unable to start WhatsApp connection.'}
+}
+onMounted(()=>{
+  whatsAppMessageHandler=(event:MessageEvent)=>{
+    if(!['https://www.facebook.com','https://web.facebook.com'].includes(event.origin))return
+    let payload:any=event.data
+    if(typeof payload==='string'){try{payload=JSON.parse(payload)}catch{return}}
+    if(payload?.type!=='WA_EMBEDDED_SIGNUP')return
+    if(payload.event==='CANCEL'){whatsAppConnecting.value=false;messageType.value='error';message.value='WhatsApp connection was cancelled.';return}
+    if(payload.event!=='FINISH')return
+    const info=payload.data||{}
+    whatsAppSession.value={businessId:String(info.business_id||''),wabaId:String(info.waba_id||''),phoneNumberId:String(info.phone_number_id||'')}
+    void finishWhatsAppSignup()
+  }
+  window.addEventListener('message',whatsAppMessageHandler)
+})
+onBeforeUnmount(()=>{if(whatsAppMessageHandler)window.removeEventListener('message',whatsAppMessageHandler)})
 </script>
 
 <template>
-  <section class="intro"><div><p>META INTEGRATION</p><h2>Facebook & WhatsApp</h2><span>Connect an account once, then control each Page Webhook here.</span></div><div class="intro-actions"><v-chip :color="error?'error':data?.mode==='mock'?'primary':'success'" variant="tonal" :prepend-icon="error?'mdi-alert-circle-outline':data?.mode==='mock'?'mdi-flask-outline':'mdi-access-point'">{{error?'Connection needs attention':data?.mode==='mock'?'Mock mode':'Meta connected'}}</v-chip><v-btn v-if="inactivePages.length" variant="outlined" prepend-icon="mdi-checkbox-multiple-marked-outline" @click="search='';pickerOpen=true">Select Accounts</v-btn><v-btn v-if="data?.mode!=='mock'" color="primary" prepend-icon="mdi-facebook" :loading="authorizing" @click="permissionsOpen=true">{{needsReconnect?'Reconnect Facebook':'Connect Facebook'}}</v-btn></div></section>
+  <section class="intro"><div><p>META INTEGRATION</p><h2>Facebook & WhatsApp</h2><span>Connect each channel securely, then control its Webhook from this workspace.</span></div><div class="intro-actions"><v-chip :color="error?'error':data?.mode==='mock'?'primary':'success'" variant="tonal" :prepend-icon="error?'mdi-alert-circle-outline':data?.mode==='mock'?'mdi-flask-outline':'mdi-access-point'">{{error?'Connection needs attention':data?.mode==='mock'?'Mock mode':'Meta connected'}}</v-chip><v-btn v-if="inactivePages.length" variant="outlined" prepend-icon="mdi-checkbox-multiple-marked-outline" @click="search='';pickerOpen=true">Select Accounts</v-btn><v-btn v-if="data?.mode!=='mock'" color="success" prepend-icon="mdi-whatsapp" :loading="whatsAppConnecting" :disabled="authorizing" @click="connectWhatsApp">Connect WhatsApp</v-btn><v-btn v-if="data?.mode!=='mock'" color="primary" prepend-icon="mdi-facebook" :loading="authorizing" :disabled="whatsAppConnecting" @click="permissionsOpen=true">{{needsReconnect?'Reconnect Facebook':'Connect Facebook'}}</v-btn></div></section>
   <v-alert v-if="message" :type="messageType" variant="tonal" closable class="mb-4" @click:close="message=''">{{message}}</v-alert>
   <v-alert v-if="error" type="error" variant="tonal" class="mb-4">
     <strong>{{loadErrorMessage}}</strong><br>
@@ -148,7 +212,8 @@ async function activateSelected(){
     <div v-if="whatsappDiagnostics.issues?.length" class="mt-2">
       <div v-for="issue in whatsappDiagnostics.issues" :key="issue"><code>{{issue}}</code></div>
     </div>
-    <p class="mt-2 mb-0">Assign this Facebook admin to the WhatsApp Account and its phone number in Meta Business Settings, then use Connect Facebook again.</p>
+    <p class="mt-2 mb-0">Use <strong>Connect WhatsApp</strong>, choose the Business Account and phone number, then finish Meta's setup. This app will subscribe the webhook automatically.</p>
+    <v-btn class="mt-3" color="success" prepend-icon="mdi-whatsapp" :loading="whatsAppConnecting" @click="connectWhatsApp">Connect WhatsApp</v-btn>
   </v-alert>
   <section v-if="!error" class="page-grid" :aria-busy="pending">
     <v-skeleton-loader v-if="pending" v-for="i in 3" :key="i" type="card"/>

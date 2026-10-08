@@ -96,6 +96,8 @@ func (h *Handler) App() *fiber.App {
 	auth.Delete("/api/v1/automation/rules/:id", requireAccount(h.auth, domain.ClaimPagesConnect), h.DeleteAutomationRule)
 
 	auth.Get("/api/v1/meta/pages", requireAccount(h.auth, domain.ClaimPagesRead), h.metaPages)
+	auth.Get("/api/v1/meta/whatsapp/signup/config", requireAccount(h.auth, domain.ClaimPagesRead), h.whatsAppSignupConfig)
+	auth.Post("/api/v1/meta/whatsapp/signup/complete", requireAccount(h.auth, domain.ClaimPagesConnect), h.completeWhatsAppSignup)
 	auth.Get("/api/v1/meta/pages/:pageID/picture", requireAccount(h.auth, domain.ClaimPagesRead), h.metaPagePicture)
 	auth.Post("/api/v1/meta/oauth/start", requireAccount(h.auth, domain.ClaimPagesConnect), h.startMetaOAuth)
 	auth.Post("/api/v1/meta/pages/connect", requireAccount(h.auth, domain.ClaimPagesConnect), h.connectMetaPage)
@@ -234,6 +236,25 @@ func (h *Handler) metaPages(c fiber.Ctx) error {
 		slog.Warn("unable to load WhatsApp diagnostics", "error", diagnosticsErr)
 	}
 	return c.JSON(fiber.Map{"items": pages, "mode": h.metaMode, "whatsappDiagnostics": diagnostics})
+}
+func (h *Handler) whatsAppSignupConfig(c fiber.Ctx) error {
+	ctx, cancel := requestContext(c)
+	defer cancel()
+	return c.JSON(h.meta.WhatsAppSignupConfig(ctx))
+}
+func (h *Handler) completeWhatsAppSignup(c fiber.Ctx) error {
+	var body domain.MetaWhatsAppSignupInput
+	if err := c.Bind().JSON(&body); err != nil {
+		return fail(c, fiber.StatusBadRequest, "invalid_request", "WhatsApp signup result is invalid.")
+	}
+	ctx, cancel := requestContext(c)
+	defer cancel()
+	items, err := h.meta.CompleteWhatsAppSignup(ctx, c.Locals("accountID").(string), body)
+	if err != nil {
+		slog.Error("WhatsApp Embedded Signup failed", "error", err)
+		return fail(c, fiber.StatusBadGateway, "whatsapp_signup_failed", err.Error())
+	}
+	return c.JSON(fiber.Map{"items": items})
 }
 func (h *Handler) metaPagePicture(c fiber.Ctx) error {
 	ctx, cancel := requestContext(c)

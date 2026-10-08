@@ -38,6 +38,20 @@ type MetaWhatsAppDiagnostics struct {
 	PhoneNumberCount             int      `json:"phoneNumberCount"`
 }
 
+type MetaWhatsAppSignupConfig struct {
+	AppID    string `json:"appId"`
+	ConfigID string `json:"configId"`
+	Version  string `json:"version"`
+	Enabled  bool   `json:"enabled"`
+}
+
+type MetaWhatsAppSignupInput struct {
+	Code          string `json:"code"`
+	BusinessID    string `json:"businessId"`
+	WABAID        string `json:"wabaId"`
+	PhoneNumberID string `json:"phoneNumberId"`
+}
+
 type MetaOAuthResult struct {
 	UserID      string
 	AccountID   string
@@ -128,6 +142,8 @@ type MetaConnector interface {
 	CompleteAuthorization(context.Context, string, string) (*MetaOAuthResult, error)
 	ListPages(context.Context, string, string) ([]MetaPage, error)
 	WhatsAppDiagnostics(context.Context, string) (*MetaWhatsAppDiagnostics, error)
+	WhatsAppSignupConfig(context.Context) MetaWhatsAppSignupConfig
+	CompleteWhatsAppSignup(context.Context, string, MetaWhatsAppSignupInput) ([]MetaPage, error)
 	PagePicture(context.Context, string, string) (*MetaPagePicture, error)
 	ConnectPage(context.Context, string, string, string) (*MetaPage, error)
 	DisconnectPage(context.Context, string, string, string) (*MetaPage, error)
