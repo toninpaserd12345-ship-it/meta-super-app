@@ -150,7 +150,7 @@ async function loadFacebookSDK(config:WhatsAppSignupConfig){
     const script=document.createElement('script');script.id='facebook-jssdk';script.async=true;script.defer=true;script.crossOrigin='anonymous';script.src='https://connect.facebook.net/en_US/sdk.js';script.onerror=()=>reject(new Error('Facebook SDK could not be loaded'));document.head.appendChild(script)
   })
 }
-async function finishWhatsAppSignup(){
+async function finishWhatsAppSignup(){ console.log('finishWhatsAppSignup called! Code:', whatsAppCode.value, 'Session:', whatsAppSession.value);
   if(!whatsAppCode.value||!whatsAppSession.value.wabaId)return
   clearWhatsAppTimers()
   const code=whatsAppCode.value;const session={...whatsAppSession.value};whatsAppCode.value='';whatsAppSession.value={}
@@ -186,7 +186,7 @@ function cancelWhatsAppConnection(){
 }
 onMounted(()=>{
   void $fetch<WhatsAppSignupConfig>('/api/proxy/api/v1/meta/whatsapp/signup/config').then(config=>{whatsAppConfig.value=config}).catch(()=>{})
-  whatsAppMessageHandler=(event:MessageEvent)=>{
+  whatsAppMessageHandler=(event:MessageEvent)=>{ console.log('Message received!', event.origin, event.data);
     if(!['https://www.facebook.com','https://web.facebook.com'].includes(event.origin))return
     let payload:any=event.data
     if(typeof payload==='string'){try{payload=JSON.parse(payload)}catch{return}}
