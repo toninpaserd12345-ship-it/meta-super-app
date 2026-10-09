@@ -43,5 +43,17 @@ func MigrateMetaCredentials(db *gorm.DB) error {
 // used on every deployment. Production may disable full seed migrations, but
 // it must never start with a schema older than the running automation API.
 func MigrateRuntimeSchema(db *gorm.DB) error {
-	return db.AutoMigrate(&AutomationRuleModel{})
+	if err := db.AutoMigrate(&AutomationRuleModel{}); err != nil {
+		return err
+	}
+	// Older releases stored one row per Ad/Post without a flow identity. Group
+	// compatible rows deterministically so the new dashboard shows one
+	// automation with many targets and keeps all existing bindings intact.
+	return db.Exec(`
+		UPDATE automation_rule_models
+		SET flow_id = md5(concat_ws('|', account_id::text, page_id, COALESCE(product_id::text, ''), reply_set_id::text, is_active::text)),
+			flow_name = CASE WHEN COALESCE(flow_name, '') = '' THEN 'Imported automation' ELSE flow_name END,
+			first_message_only = TRUE
+		WHERE COALESCE(flow_id, '') = ''
+	`).Error
 }
