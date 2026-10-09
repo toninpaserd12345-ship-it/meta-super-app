@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/meta-super-app/backend/internal/domain"
 	"github.com/meta-super-app/backend/internal/usecase"
 )
 
@@ -16,6 +17,20 @@ type createAutomationRequest struct {
 	TriggerName  string `json:"triggerName"`
 	ProductID    string `json:"productId"`
 	ReplySetID   string `json:"replySetId"`
+}
+
+type createAutomationFlowRequest struct {
+	Name             string                    `json:"name"`
+	PageID           string                    `json:"pageId"`
+	ProductID        string                    `json:"productId"`
+	ReplySetID       string                    `json:"replySetId"`
+	FirstMessageOnly bool                      `json:"firstMessageOnly"`
+	CooldownSeconds  int                       `json:"cooldownSeconds"`
+	Targets          []domain.AutomationTarget `json:"targets"`
+}
+
+type updateAutomationFlowStatusRequest struct {
+	IsActive bool `json:"isActive"`
 }
 
 type updateAutomationRequest struct {
@@ -86,6 +101,51 @@ func (h *Handler) DeleteAutomationRule(c fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+func (h *Handler) GetAutomationFlows(c fiber.Ctx) error {
+	accountID := c.Locals("accountID").(string)
+	flows, err := h.Automation.GetFlows(c.Context(), accountID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"items": flows})
+}
+
+func (h *Handler) CreateAutomationFlow(c fiber.Ctx) error {
+	accountID := c.Locals("accountID").(string)
+	var req createAutomationFlowRequest
+	if err := c.Bind().JSON(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+	if err := h.validateAutomationReferences(c, accountID, req.ProductID, req.ReplySetID); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	flow := &domain.AutomationFlow{AccountID: accountID, Name: req.Name, PageID: req.PageID, ProductID: req.ProductID, ReplySetID: req.ReplySetID, FirstMessageOnly: req.FirstMessageOnly, CooldownSeconds: req.CooldownSeconds, Targets: req.Targets}
+	if err := h.Automation.CreateFlow(c.Context(), flow); err != nil {
+		return automationError(c, err)
+	}
+	return c.Status(fiber.StatusCreated).JSON(flow)
+}
+
+func (h *Handler) UpdateAutomationFlowStatus(c fiber.Ctx) error {
+	accountID := c.Locals("accountID").(string)
+	var req updateAutomationFlowStatusRequest
+	if err := c.Bind().JSON(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+	if err := h.Automation.SetFlowStatus(c.Context(), c.Params("id"), accountID, req.IsActive); err != nil {
+		return automationError(c, err)
+	}
+	return c.SendStatus(fiber.StatusOK)
+}
+
+func (h *Handler) DeleteAutomationFlow(c fiber.Ctx) error {
+	accountID := c.Locals("accountID").(string)
+	if err := h.Automation.DeleteFlow(c.Context(), c.Params("id"), accountID); err != nil {
+		return automationError(c, err)
+	}
 	return c.SendStatus(fiber.StatusNoContent)
 }
 

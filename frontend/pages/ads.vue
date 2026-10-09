@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { MetaAdAccount, MetaCampaign, MetaAd, AutomationRule, Product, ReplySet, MetaPage } from '~/types/automation'
+import type { MetaAdAccount, MetaCampaign, MetaAd, AutomationRule } from '~/types/automation'
 
 definePageMeta({ middleware: 'auth' })
 const { can } = useAuth()
@@ -9,21 +9,10 @@ const campaigns = ref<MetaCampaign[]>([])
 const campaignAds = ref<Record<string, MetaAd[]>>({})
 const rules = ref<AutomationRule[]>([])
 
-const products = ref<Product[]>([])
-const replySets = ref<ReplySet[]>([])
-const pages = ref<MetaPage[]>([])
-
 const adAccountId = ref('')
 const loading = ref(false)
 const expandedCampaigns = ref<string[]>([])
 
-// Dialog state
-const bindDialog = ref(false)
-const bindTarget = ref<{ type: 'campaign' | 'ad', id: string, name: string, campaignId?: string } | null>(null)
-const bindProductId = ref('')
-const bindReplySetId = ref('')
-const bindPageId = ref('')
-const binding = ref(false)
 const notice = ref('')
 
 async function loadData() {
@@ -31,15 +20,9 @@ async function loadData() {
   try {
     const accRes = await $fetch<{ items: MetaAdAccount[] }>('/api/proxy/api/v1/meta/ad-accounts').catch(err => { notice.value = err.data?.message || err.message; return { items: [] } })
     const ruleRes = await $fetch<{ items: AutomationRule[] }>('/api/proxy/api/v1/automation/rules').catch(() => ({ items: [] }))
-    const prodRes = await $fetch<{ items: Product[] }>('/api/proxy/api/v1/products').catch(() => ({ items: [] }))
-    const repRes = await $fetch<{ items: ReplySet[] }>('/api/proxy/api/v1/replies').catch(() => ({ items: [] }))
-    const pageRes = await $fetch<{ items: MetaPage[] }>('/api/proxy/api/v1/meta/pages').catch(() => ({ items: [] }))
 
     adAccounts.value = accRes.items || []
     rules.value = ruleRes.items || []
-    products.value = prodRes.items || []
-    replySets.value = repRes.items || []
-    pages.value = pageRes.items || []
 
     if (adAccounts.value.length > 0) {
       adAccountId.value = (adAccounts.value[0]?.id || '')
@@ -76,72 +59,8 @@ async function toggleCampaign(campaignId: string) {
   }
 }
 
-function openBindDialog(type: 'campaign' | 'ad', id: string, name: string, campaignId?: string) {
-  bindTarget.value = { type, id, name, campaignId }
-  bindProductId.value = ''
-  bindReplySetId.value = ''
-  if (pages.value.length === 1) bindPageId.value = (pages.value[0]?.id || '')
-  bindDialog.value = true
-  notice.value = ''
-}
-
-async function confirmBind() {
-  if (!bindTarget.value || !bindPageId.value || !bindReplySetId.value) return
-  binding.value = true
-  notice.value = ''
-  
-  let targetAds: MetaAd[] = []
-  if (bindTarget.value.type === 'campaign') {
-    targetAds = campaignAds.value[bindTarget.value.id] || []
-  } else {
-    targetAds = [{ id: bindTarget.value.id, name: bindTarget.value.name } as MetaAd]
-  }
-
-  if (targetAds.length === 0) {
-    notice.value = "No ads found to bind."
-    binding.value = false
-    return
-  }
-
-  let created = 0
-  for (const ad of targetAds) {
-    if (isBound(ad.id)) continue
-    try {
-      await $fetch('/api/proxy/api/v1/automation/rules', {
-        method: 'POST',
-        body: {
-          pageId: bindPageId.value,
-          triggerType: 'ad',
-          triggerValue: ad.id,
-          triggerName: `${bindTarget.value.type === 'campaign' ? `[Campaign: ${bindTarget.value.name}] ` : ''}Ad: ${ad.name}`,
-          productId: bindProductId.value, // Optional
-          replySetId: bindReplySetId.value
-        }
-      })
-      created++
-    } catch (e) {
-      console.error(e)
-    }
-  }
-
-  if (created > 0) {
-    const res = await $fetch<{ items: AutomationRule[] }>('/api/proxy/api/v1/automation/rules')
-    rules.value = res.items || []
-    bindDialog.value = false
-  } else {
-    notice.value = "No new rules created (maybe they were already bound)."
-  }
-  binding.value = false
-}
-
 function isBound(adId: string) {
   return rules.value.some((r: any) => r.triggerType === 'ad' && r.triggerValue === adId)
-}
-
-function campaignBoundCount(campaignId: string) {
-  const ads = campaignAds.value[campaignId] || []
-  if (ads.length === 0) return 0
-  return ads.filter(ad => isBound(ad.id)).length
 }
 
 watch(adAccountId, loadCampaigns)
@@ -153,11 +72,11 @@ onMounted(loadData)
     <div>
       <p>MARKETING</p>
       <h2>Campaign & Ads Manager</h2>
-      <span>View your Facebook Campaigns and quickly bind Auto Replies to them.</span>
+      <span>Inspect Facebook delivery here. Create and manage all reply behavior in the Automation Center.</span>
     </div>
   </section>
 
-  <v-alert v-if="notice && !bindDialog" type="error" variant="tonal" class="mb-4">{{ notice }}</v-alert>
+  <v-alert v-if="notice" type="error" variant="tonal" class="mb-4">{{ notice }}</v-alert>
   <v-card class="mb-4 pa-4" variant="outlined">
     <div style="max-width: 400px">
       <v-select
@@ -196,18 +115,14 @@ onMounted(loadData)
           <td>{{ campaign.adSetCount }} Sets · {{ campaign.adCount }} Ads</td>
           <td @click.stop>
             <v-btn
-              v-if="expandedCampaigns.includes(campaign.id) && (campaignAds[campaign.id]?.length || 0) > 0"
               size="small"
               color="primary"
               variant="tonal"
               prepend-icon="mdi-robot-outline"
-              @click="openBindDialog('campaign', campaign.id, campaign.name)"
+              to="/auto-replies"
             >
-              Bind Campaign
+              Automation Center
             </v-btn>
-            <span v-else-if="campaignBoundCount(campaign.id) > 0" class="text-success text-caption ml-2">
-              {{ campaignBoundCount(campaign.id) }} bound
-            </span>
           </td>
         </tr>
         <template v-if="expandedCampaigns.includes(campaign.id)">
@@ -226,15 +141,8 @@ onMounted(loadData)
             <td><small class="text-disabled">{{ ad.id }}</small></td>
             <td></td>
             <td>
-              <v-btn
-                v-if="!isBound(ad.id)"
-                size="small"
-                variant="outlined"
-                @click.stop="openBindDialog('ad', ad.id, ad.name, campaign.id)"
-              >
-                Bind Ad
-              </v-btn>
-              <v-chip v-else color="success" size="small" prepend-icon="mdi-check">Bound</v-chip>
+              <v-chip v-if="isBound(ad.id)" color="success" size="small" prepend-icon="mdi-check">Legacy binding</v-chip>
+              <span v-else class="text-caption text-disabled">Managed by Campaign</span>
             </td>
           </tr>
         </template>
@@ -242,53 +150,6 @@ onMounted(loadData)
     </table>
   </v-card>
 
-  <!-- Bind Dialog -->
-  <v-dialog v-model="bindDialog" max-width="500">
-    <v-card class="pa-4 rounded-lg">
-      <h3 class="mb-2">Bind Auto Reply</h3>
-      <p class="text-caption mb-4 text-disabled">
-        Binding to {{ bindTarget?.type === 'campaign' ? 'all ads in campaign' : 'ad' }}: <strong>{{ bindTarget?.name }}</strong>
-      </p>
-
-      <v-alert v-if="notice" type="error" variant="tonal" class="mb-4" density="compact">{{ notice }}</v-alert>
-
-      <v-select
-        v-model="bindPageId"
-        :items="pages"
-        item-title="name"
-        item-value="id"
-        label="Facebook Page (Required)"
-        variant="outlined"
-        class="mb-3"
-      />
-      <v-select
-        v-model="bindReplySetId"
-        :items="replySets.filter((s: any) => s.items.some((i: any) => i.isEnabled))"
-        item-title="name"
-        item-value="id"
-        label="Reply Set (Required)"
-        variant="outlined"
-        class="mb-3"
-      />
-      <v-select
-        v-model="bindProductId"
-        :items="products"
-        item-title="name"
-        item-value="id"
-        label="Product (Optional)"
-        variant="outlined"
-        class="mb-3"
-        clearable
-      />
-
-      <div class="d-flex justify-end mt-2">
-        <v-btn variant="text" @click="bindDialog = false">Cancel</v-btn>
-        <v-btn color="primary" class="ml-2" :loading="binding" :disabled="!bindPageId || !bindReplySetId" @click="confirmBind">
-          Create {{ bindTarget?.type === 'campaign' ? (campaignAds[bindTarget.id]?.length || 0) : 1 }} Auto Replies
-        </v-btn>
-      </div>
-    </v-card>
-  </v-dialog>
 </template>
 
 <style scoped>

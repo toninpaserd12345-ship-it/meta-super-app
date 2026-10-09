@@ -82,20 +82,24 @@ type ProductModel struct {
 }
 
 type AutomationRuleModel struct {
-	ID           string        `gorm:"type:uuid;primaryKey"`
-	AccountID    string        `gorm:"type:uuid;index;not null"`
-	Account      AccountModel  `gorm:"foreignKey:AccountID;constraint:OnDelete:CASCADE"`
-	PageID       string        `gorm:"index"`
-	TriggerType  string        `gorm:"size:50;not null"` // post, ad, keyword
-	TriggerName  string        `gorm:"size:255"`
-	TriggerValue string        `gorm:"size:255;index"`
-	ProductID    *string       `gorm:"type:uuid;index"`
-	Product      *ProductModel `gorm:"foreignKey:ProductID;constraint:OnDelete:SET NULL"`
-	ReplySetID   string        `gorm:"type:uuid;not null"`
-	ReplySet     ReplySetModel `gorm:"foreignKey:ReplySetID;constraint:OnDelete:CASCADE"`
-	IsActive     bool          `gorm:"default:true"`
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID               string        `gorm:"type:uuid;primaryKey"`
+	AccountID        string        `gorm:"type:uuid;index;not null"`
+	Account          AccountModel  `gorm:"foreignKey:AccountID;constraint:OnDelete:CASCADE"`
+	PageID           string        `gorm:"index"`
+	TriggerType      string        `gorm:"size:50;not null"` // post, ad, keyword
+	TriggerName      string        `gorm:"size:255"`
+	TriggerValue     string        `gorm:"size:255;index"`
+	ProductID        *string       `gorm:"type:uuid;index"`
+	Product          *ProductModel `gorm:"foreignKey:ProductID;constraint:OnDelete:SET NULL"`
+	ReplySetID       string        `gorm:"type:uuid;not null"`
+	ReplySet         ReplySetModel `gorm:"foreignKey:ReplySetID;constraint:OnDelete:CASCADE"`
+	FlowID           string        `gorm:"size:64;index"`
+	FlowName         string        `gorm:"size:160"`
+	FirstMessageOnly bool          `gorm:"default:true"`
+	CooldownSeconds  int           `gorm:"default:0"`
+	IsActive         bool          `gorm:"default:true"`
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
 }
 
 type SubscriptionModel struct {

@@ -327,16 +327,20 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 			}
 			found := rule != nil
 
+			replyKey := seenKey
+			if rule != nil && rule.FlowID != "" {
+				replyKey += ":" + rule.FlowID
+			}
 			g.mu.Lock()
-			lastReplyTime, alreadyReplied := g.firstReplies[seenKey]
+			lastReplyTime, alreadyReplied := g.firstReplies[replyKey]
 			isSpamming := false
 			if alreadyReplied {
 				isSpamming = time.Since(lastReplyTime) < 24*time.Hour
 			}
 
-			busy := g.inFlight[seenKey]
+			busy := g.inFlight[replyKey]
 			if found && !isSpamming && !busy {
-				g.inFlight[seenKey] = true
+				g.inFlight[replyKey] = true
 			}
 			g.mu.Unlock()
 			_, page, pageFound := g.findPage(entry.ID)
@@ -357,7 +361,7 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 				}
 			}
 			if len(texts) == 0 {
-				g.releaseReply(seenKey)
+				g.releaseReply(replyKey)
 				continue
 			}
 			text := strings.Join(texts, "\n\n")
@@ -370,12 +374,12 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 			// Reply privately
 			if err := g.sendPrivateReply(ctx, page, change.Value.CommentID, text); err != nil {
 				slog.Error("automatic private product reply failed", "page_id", entry.ID, "post_id", change.Value.PostID, "comment_id", change.Value.CommentID, "error", err)
-				g.releaseReply(seenKey)
+				g.releaseReply(replyKey)
 				continue
 			}
 			g.mu.Lock()
-			g.firstReplies[seenKey] = time.Now()
-			delete(g.inFlight, seenKey)
+			g.firstReplies[replyKey] = time.Now()
+			delete(g.inFlight, replyKey)
 			g.mu.Unlock()
 			slog.Info("automatic private product reply sent", "page_id", entry.ID, "post_id", change.Value.PostID, "comment_id", change.Value.CommentID)
 		}
@@ -409,8 +413,18 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 			var rule *domain.AutomationRule
 			if g.automation != nil {
 				if ref != nil {
-					// Try fetching by post or ad
+					// Match the exact Post/Ad first. A campaign target is resolved
+					// lazily from the referral Ad so newly-created Ads are covered.
 					rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, sourceType, sourceID)
+					if rule == nil && sourceType == "ad" {
+						campaignID, adSetID := g.resolveAdHierarchy(ctx, entry.ID, sourceID)
+						if adSetID != "" {
+							rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, "adset", adSetID)
+						}
+						if rule == nil && campaignID != "" {
+							rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, "campaign", campaignID)
+						}
+					}
 				} else {
 					// Check for keyword trigger
 					msgText := strings.TrimSpace(message.Message.Text)
@@ -431,26 +445,35 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 				continue
 			}
 
+			replyKey := seenKey
+			if rule != nil && rule.FlowID != "" {
+				replyKey += ":" + rule.FlowID
+			}
 			g.mu.Lock()
 			if found && ref != nil {
 				g.conversations[seenKey] = resolvedKey
 			}
-			lastReplyTime, alreadyReplied := g.firstReplies[seenKey]
+			lastReplyTime, alreadyReplied := g.firstReplies[replyKey]
 
-			// For keyword triggers, we only rate-limit to once every 1 minute to avoid spamming
-			// For ad/post triggers (first-message), we rate limit to once every 24 hours.
 			isSpamming := false
 			if alreadyReplied {
-				if rule != nil && rule.TriggerType == "keyword" {
+				if rule != nil && rule.FlowID != "" {
+					if rule.FirstMessageOnly {
+						isSpamming = true
+					} else if rule.CooldownSeconds > 0 {
+						isSpamming = time.Since(lastReplyTime) < time.Duration(rule.CooldownSeconds)*time.Second
+					}
+				} else if rule != nil && rule.TriggerType == "keyword" {
 					isSpamming = time.Since(lastReplyTime) < time.Minute
 				} else {
+					// Preserve legacy Auto Reply behavior for imported rules.
 					isSpamming = time.Since(lastReplyTime) < 24*time.Hour
 				}
 			}
 
-			busy := g.inFlight[seenKey]
+			busy := g.inFlight[replyKey]
 			if found && !isSpamming && !busy {
-				g.inFlight[seenKey] = true
+				g.inFlight[replyKey] = true
 			}
 			g.mu.Unlock()
 			_, page, pageFound := g.findPage(entry.ID)
@@ -498,17 +521,43 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 				g.mu.Unlock()
 			}
 			if sendFailed {
-				g.releaseReply(seenKey)
+				g.releaseReply(replyKey)
 				continue
 			}
 			g.mu.Lock()
-			g.firstReplies[seenKey] = time.Now()
-			delete(g.inFlight, seenKey)
+			g.firstReplies[replyKey] = time.Now()
+			delete(g.inFlight, replyKey)
 			g.mu.Unlock()
 			slog.Info("automatic product reply sent", "page_id", entry.ID, "sender_id", message.Sender.ID, "source_type", sourceType, "source_id", sourceID)
 		}
 	}
 	return nil
+}
+
+func (g *GraphConnector) resolveAdHierarchy(ctx context.Context, pageID, adID string) (string, string) {
+	accountID, _, ok := g.findPage(pageID)
+	if !ok || adID == "" {
+		return "", ""
+	}
+	token, err := g.userToken(ctx, accountID)
+	if err != nil {
+		return "", ""
+	}
+	query := url.Values{"fields": {"campaign{id},adset{id}"}, "access_token": {token}}
+	var response struct {
+		Campaign struct {
+			ID string `json:"id"`
+		} `json:"campaign"`
+		AdSet struct {
+			ID string `json:"id"`
+		} `json:"adset"`
+	}
+	endpoint := "https://graph.facebook.com/" + g.cfg.Version + "/" + url.PathEscape(adID) + "?" + query.Encode()
+	if err := g.getJSON(ctx, endpoint, &response); err != nil {
+		slog.Warn("could not resolve Meta Ad hierarchy", "page_id", pageID, "ad_id", adID, "error", err)
+		return "", ""
+	}
+	return response.Campaign.ID, response.AdSet.ID
 }
 
 type webhookReferral struct {

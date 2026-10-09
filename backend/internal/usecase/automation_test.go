@@ -5,9 +5,39 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/meta-super-app/backend/internal/domain"
 	"github.com/meta-super-app/backend/internal/infrastructure/repository"
 	"github.com/meta-super-app/backend/internal/usecase"
 )
+
+func TestAutomationFlowGroupsTargetsAndUpdatesTogether(t *testing.T) {
+	ctx := context.Background()
+	service := usecase.NewAutomation(repository.NewMemory(""))
+	flow := &domain.AutomationFlow{AccountID: "account-1", Name: "Campaign replies", PageID: "page-1", ProductID: "product-1", ReplySetID: "reply-1", FirstMessageOnly: true, Targets: []domain.AutomationTarget{{Type: "campaign", Value: "campaign-1", Name: "One"}, {Type: "campaign", Value: "campaign-2", Name: "Two"}}}
+	if err := service.CreateFlow(ctx, flow); err != nil {
+		t.Fatalf("CreateFlow() error = %v", err)
+	}
+	flows, err := service.GetFlows(ctx, "account-1")
+	if err != nil || len(flows) != 1 || len(flows[0].Targets) != 2 {
+		t.Fatalf("GetFlows() = %#v, %v", flows, err)
+	}
+	if err = service.SetFlowStatus(ctx, flow.ID, "account-1", false); err != nil {
+		t.Fatalf("SetFlowStatus() error = %v", err)
+	}
+	rules, _ := service.GetRules(ctx, "account-1")
+	for _, rule := range rules {
+		if rule.IsActive {
+			t.Fatalf("rule remained active: %#v", rule)
+		}
+	}
+	if err = service.DeleteFlow(ctx, flow.ID, "account-1"); err != nil {
+		t.Fatalf("DeleteFlow() error = %v", err)
+	}
+	flows, _ = service.GetFlows(ctx, "account-1")
+	if len(flows) != 0 {
+		t.Fatalf("flow was not deleted: %#v", flows)
+	}
+}
 
 func TestAutomationCreateRuleValidation(t *testing.T) {
 	tests := []struct {

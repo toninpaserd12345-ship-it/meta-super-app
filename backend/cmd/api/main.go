@@ -48,6 +48,10 @@ func main() {
 		slog.Error("Meta credential migration failed", "error", err)
 		os.Exit(1)
 	}
+	if err = database.MigrateRuntimeSchema(db); err != nil {
+		slog.Error("runtime schema migration failed", "error", err)
+		os.Exit(1)
+	}
 	if err = database.SeedAdmin(db, passwords, cfg.SeedAdminEmail, cfg.SeedAdminPassword, cfg.SeedAccountName); err != nil {
 		slog.Error("seed failed", "error", err)
 

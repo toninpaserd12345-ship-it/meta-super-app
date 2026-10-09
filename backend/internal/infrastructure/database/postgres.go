@@ -38,3 +38,10 @@ func Migrate(db *gorm.DB) error {
 func MigrateMetaCredentials(db *gorm.DB) error {
 	return db.AutoMigrate(&MetaConnectionModel{}, &MetaPageTokenModel{}, &MetaWhatsAppConnectionModel{})
 }
+
+// MigrateRuntimeSchema applies additive columns needed by code paths that are
+// used on every deployment. Production may disable full seed migrations, but
+// it must never start with a schema older than the running automation API.
+func MigrateRuntimeSchema(db *gorm.DB) error {
+	return db.AutoMigrate(&AutomationRuleModel{})
+}

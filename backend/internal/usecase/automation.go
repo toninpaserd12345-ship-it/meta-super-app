@@ -33,8 +33,8 @@ func (u *Automation) CreateRule(ctx context.Context, accountID, pageID, triggerT
 	if pageID == "" || triggerType == "" || triggerValue == "" || replySetID == "" {
 		return nil, fmt.Errorf("%w: pageId, triggerType, triggerValue, and replySetId are required", ErrInvalidAutomationRule)
 	}
-	if triggerType != "post" && triggerType != "ad" && triggerType != "keyword" {
-		return nil, fmt.Errorf("%w: triggerType must be post, ad, or keyword", ErrInvalidAutomationRule)
+	if !validLegacyTriggerType(triggerType) {
+		return nil, fmt.Errorf("%w: unsupported triggerType", ErrInvalidAutomationRule)
 	}
 	existing, err := u.repo.GetRulesByPageAndTrigger(ctx, pageID, triggerType, triggerValue)
 	if err != nil {
@@ -92,8 +92,8 @@ func (u *Automation) UpdateRule(ctx context.Context, id, accountID, triggerType,
 	if triggerValue == "" || replySetID == "" {
 		return fmt.Errorf("%w: triggerValue and replySetId are required", ErrInvalidAutomationRule)
 	}
-	if triggerType != "post" && triggerType != "ad" && triggerType != "keyword" {
-		return fmt.Errorf("%w: triggerType must be post, ad, or keyword", ErrInvalidAutomationRule)
+	if !validLegacyTriggerType(triggerType) {
+		return fmt.Errorf("%w: unsupported triggerType", ErrInvalidAutomationRule)
 	}
 	if isActive {
 		existing, findErr := u.repo.GetRulesByPageAndTrigger(ctx, rule.PageID, triggerType, triggerValue)
@@ -140,4 +140,86 @@ func (u *Automation) FindActiveRuleForTrigger(ctx context.Context, pageID, trigg
 
 func (u *Automation) GetKeywordRules(ctx context.Context, pageID string) ([]domain.AutomationRule, error) {
 	return u.repo.GetRulesByPageAndType(ctx, pageID, "keyword")
+}
+
+func validTriggerType(value string) bool {
+	switch value {
+	case "post", "ad", "campaign", "adset", "keyword":
+		return true
+	}
+	return false
+}
+
+func validLegacyTriggerType(value string) bool {
+	switch value {
+	case "post", "ad", "keyword":
+		return true
+	}
+	return false
+}
+
+func (u *Automation) CreateFlow(ctx context.Context, flow *domain.AutomationFlow) error {
+	flow.AccountID = strings.TrimSpace(flow.AccountID)
+	flow.Name = strings.TrimSpace(flow.Name)
+	flow.PageID = strings.TrimSpace(flow.PageID)
+	flow.ProductID = strings.TrimSpace(flow.ProductID)
+	flow.ReplySetID = strings.TrimSpace(flow.ReplySetID)
+	if flow.Name == "" || flow.PageID == "" || flow.ProductID == "" || flow.ReplySetID == "" || len(flow.Targets) == 0 {
+		return fmt.Errorf("%w: name, pageId, productId, replySetId, and at least one target are required", ErrInvalidAutomationRule)
+	}
+	if flow.CooldownSeconds < 0 || flow.CooldownSeconds > 86400 {
+		return fmt.Errorf("%w: cooldownSeconds must be between 0 and 86400", ErrInvalidAutomationRule)
+	}
+	seen := map[string]bool{}
+	clean := make([]domain.AutomationTarget, 0, len(flow.Targets))
+	for _, target := range flow.Targets {
+		target.Type = strings.ToLower(strings.TrimSpace(target.Type))
+		target.Value = strings.TrimSpace(target.Value)
+		target.Name = strings.TrimSpace(target.Name)
+		if !validTriggerType(target.Type) || target.Value == "" {
+			return fmt.Errorf("%w: every target needs a valid type and value", ErrInvalidAutomationRule)
+		}
+		key := target.Type + ":" + target.Value
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		existing, err := u.repo.GetRulesByPageAndTrigger(ctx, flow.PageID, target.Type, target.Value)
+		if err != nil {
+			return err
+		}
+		if len(existing) > 0 {
+			return ErrAutomationRuleConflict
+		}
+		clean = append(clean, target)
+	}
+	flow.Targets = clean
+	flow.IsActive = true
+	return u.repo.CreateFlow(ctx, flow)
+}
+
+func (u *Automation) GetFlows(ctx context.Context, accountID string) ([]domain.AutomationFlow, error) {
+	return u.repo.GetFlowsByAccountID(ctx, accountID)
+}
+
+func (u *Automation) SetFlowStatus(ctx context.Context, id, accountID string, active bool) error {
+	flow, err := u.repo.GetFlowByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if flow.AccountID != accountID {
+		return fmt.Errorf("unauthorized to access this automation")
+	}
+	return u.repo.UpdateFlowStatus(ctx, id, active)
+}
+
+func (u *Automation) DeleteFlow(ctx context.Context, id, accountID string) error {
+	flow, err := u.repo.GetFlowByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if flow.AccountID != accountID {
+		return fmt.Errorf("unauthorized to access this automation")
+	}
+	return u.repo.DeleteFlow(ctx, id)
 }

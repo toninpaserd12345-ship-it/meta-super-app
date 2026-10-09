@@ -30,7 +30,7 @@ export interface ReplySet {
   updatedAt?: string
 }
 
-export type AutomationTriggerType = 'post' | 'ad' | 'keyword'
+export type AutomationTriggerType = 'post' | 'ad' | 'campaign' | 'adset' | 'keyword'
 
 export interface AutomationRule {
   id: string
@@ -42,6 +42,28 @@ export interface AutomationRule {
   productId: string
   replySetId: string
   isActive: boolean
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface AutomationTarget {
+  id?: string
+  type: AutomationTriggerType
+  value: string
+  name: string
+}
+
+export interface AutomationFlow {
+  id: string
+  accountId?: string
+  name: string
+  pageId: string
+  productId: string
+  replySetId: string
+  firstMessageOnly: boolean
+  cooldownSeconds: number
+  isActive: boolean
+  targets: AutomationTarget[]
   createdAt?: string
   updatedAt?: string
 }
