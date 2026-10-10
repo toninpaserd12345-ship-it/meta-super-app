@@ -309,6 +309,9 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 				Sender struct {
 					ID string `json:"id"`
 				} `json:"sender"`
+				Recipient struct {
+					ID string `json:"id"`
+				} `json:"recipient"`
 				Timestamp int64 `json:"timestamp"`
 				Message   struct {
 					MID         string           `json:"mid"`
@@ -456,7 +459,15 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 			if !pageFound {
 				continue
 			}
-			if g.leadSink != nil {
+			
+			customerID := message.Sender.ID
+			isSystem := false
+			if message.Sender.ID == entry.ID {
+				customerID = message.Recipient.ID
+				isSystem = true
+			}
+			
+			if g.leadSink != nil && !isSystem {
 				sourceType, sourceID := "message", ""
 				if ref != nil {
 					sourceType, sourceID = "post", ref.Ref
@@ -464,7 +475,7 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 						sourceType, sourceID = "ad", ref.AdID
 					}
 				}
-				_ = g.leadSink.CaptureLead(ctx, domain.LeadCapture{AccountID: accountID, PageID: entry.ID, SenderID: message.Sender.ID, SourceType: sourceType, SourceID: sourceID})
+				_ = g.leadSink.CaptureLead(ctx, domain.LeadCapture{AccountID: accountID, PageID: entry.ID, SenderID: customerID, SourceType: sourceType, SourceID: sourceID})
 			}
 			messageText := strings.TrimSpace(message.Message.Text)
 			var directSet *domain.ReplySet
@@ -504,23 +515,27 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 							}
 						}
 
-						senderName, senderPic := g.GetProfile(ctx, message.Sender.ID, page.AccessToken)
+						senderName, senderPic := g.GetProfile(ctx, customerID, page.AccessToken)
+						platform := "facebook"
+						if isSystem {
+							platform = "system"
+						}
 						g.chatStream.Broadcast(accountID, usecase.ChatEvent{
 							AccountID:  accountID,
 							PageID:     entry.ID,
-							SenderID:   message.Sender.ID,
+							SenderID:   customerID,
 							SenderName: senderName,
 							SenderPic:  senderPic,
 							Message:    msgContent,
 							Type:       msgType,
 							Timestamp:  timestampStr,
-							Platform:   "facebook",
+							Platform:   platform,
 						})
 					}
 				}
 			}
 
-			seenKey := entry.ID + ":" + message.Sender.ID
+			seenKey := entry.ID + ":" + customerID
 			sourceType, sourceID, resolvedKey := "", "", ""
 			if ref != nil {
 				sourceType, sourceID = "post", ref.Ref
