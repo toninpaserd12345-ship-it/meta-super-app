@@ -96,6 +96,7 @@ func (h *Handler) App() *fiber.App {
 	auth.Delete("/api/v1/automation/rules/:id", requireAccount(h.auth, domain.ClaimPagesConnect), h.DeleteAutomationRule)
 	auth.Get("/api/v1/automations", requireAccount(h.auth, domain.ClaimPagesRead), h.GetAutomationFlows)
 	auth.Post("/api/v1/automations", requireAccount(h.auth, domain.ClaimPagesConnect), h.CreateAutomationFlow)
+	auth.Put("/api/v1/automations/:id", requireAccount(h.auth, domain.ClaimPagesConnect), h.UpdateAutomationFlow)
 	auth.Patch("/api/v1/automations/:id/status", requireAccount(h.auth, domain.ClaimPagesConnect), h.UpdateAutomationFlowStatus)
 	auth.Delete("/api/v1/automations/:id", requireAccount(h.auth, domain.ClaimPagesConnect), h.DeleteAutomationFlow)
 

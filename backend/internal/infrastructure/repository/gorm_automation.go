@@ -208,6 +208,43 @@ func (r *GormRepository) GetFlowByID(ctx context.Context, id string) (*domain.Au
 	return nil, gorm.ErrRecordNotFound
 }
 
+func (r *GormRepository) UpdateFlow(ctx context.Context, flow *domain.AutomationFlow) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		result := tx.Where("flow_id = ?", flow.ID).Delete(&database.AutomationRuleModel{})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			if err := tx.Where("id = ? AND (flow_id = '' OR flow_id IS NULL)", flow.ID).Delete(&database.AutomationRuleModel{}).Error; err != nil {
+				return err
+			}
+		}
+		for index := range flow.Targets {
+			target := &flow.Targets[index]
+			target.ID = uuid.New().String()
+			var productID *string
+			if flow.ProductID != "" {
+				value := flow.ProductID
+				productID = &value
+			}
+			model := database.AutomationRuleModel{
+				ID: target.ID, AccountID: flow.AccountID, PageID: flow.PageID,
+				TriggerType: target.Type, TriggerName: target.Name, TriggerValue: target.Value,
+				ProductID: productID, ReplySetID: flow.ReplySetID, FlowID: flow.ID,
+				FlowName: flow.Name, FirstMessageOnly: flow.FirstMessageOnly,
+				CooldownSeconds: flow.CooldownSeconds, IsActive: flow.IsActive, CreatedAt: flow.CreatedAt,
+			}
+			if err := tx.Create(&model).Error; err != nil {
+				return err
+			}
+			if index == 0 {
+				flow.UpdatedAt = model.UpdatedAt
+			}
+		}
+		return nil
+	})
+}
+
 func (r *GormRepository) UpdateFlowStatus(ctx context.Context, id string, isActive bool) error {
 	result := r.db.WithContext(ctx).Model(&database.AutomationRuleModel{}).Where("flow_id = ?", id).Update("is_active", isActive)
 	if result.Error != nil {

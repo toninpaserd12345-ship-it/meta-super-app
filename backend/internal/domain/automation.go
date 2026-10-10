@@ -58,6 +58,7 @@ type AutomationRepository interface {
 	CreateFlow(ctx context.Context, flow *AutomationFlow) error
 	GetFlowsByAccountID(ctx context.Context, accountID string) ([]AutomationFlow, error)
 	GetFlowByID(ctx context.Context, id string) (*AutomationFlow, error)
+	UpdateFlow(ctx context.Context, flow *AutomationFlow) error
 	UpdateFlowStatus(ctx context.Context, id string, isActive bool) error
 	DeleteFlow(ctx context.Context, id string) error
 }

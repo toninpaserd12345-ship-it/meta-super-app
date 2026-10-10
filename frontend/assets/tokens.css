@@ -36,7 +36,7 @@
   --color-error: #e5484d;
 
   /* Typography */
-  --font-family: Inter, "Noto Sans Lao", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --text-xs: .625rem;
   --text-sm: .75rem;
   --text-md: .875rem;
@@ -71,6 +71,10 @@
   /* Branded decorative surfaces */
   --gradient-brand: linear-gradient(145deg, #27215b, #5046c8 58%, #6b5df0);
   --gradient-upgrade: linear-gradient(145deg, #f2f0ff, #eceaff);
+}
+
+html[lang="lo"] {
+  --font-family: "Noto Sans Lao", system-ui, sans-serif;
 }
 
 @media (prefers-reduced-motion: reduce) {

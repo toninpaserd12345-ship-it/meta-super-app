@@ -30,6 +30,18 @@ func TestAutomationFlowGroupsTargetsAndUpdatesTogether(t *testing.T) {
 			t.Fatalf("rule remained active: %#v", rule)
 		}
 	}
+	flow.Name = "Updated replies"
+	flow.ProductID = "product-2"
+	flow.ReplySetID = "reply-2"
+	flow.CooldownSeconds = 90
+	flow.Targets = []domain.AutomationTarget{{Type: "post", Value: "post-1", Name: "Updated target"}}
+	if err = service.UpdateFlow(ctx, flow); err != nil {
+		t.Fatalf("UpdateFlow() error = %v", err)
+	}
+	updatedFlows, _ := service.GetFlows(ctx, "account-1")
+	if len(updatedFlows) != 1 || updatedFlows[0].Name != "Updated replies" || updatedFlows[0].ProductID != "product-2" || updatedFlows[0].CooldownSeconds != 90 || len(updatedFlows[0].Targets) != 1 || updatedFlows[0].Targets[0].Value != "post-1" || updatedFlows[0].IsActive {
+		t.Fatalf("UpdateFlow() did not persist details: %#v", updatedFlows)
+	}
 	if err = service.DeleteFlow(ctx, flow.ID, "account-1"); err != nil {
 		t.Fatalf("DeleteFlow() error = %v", err)
 	}

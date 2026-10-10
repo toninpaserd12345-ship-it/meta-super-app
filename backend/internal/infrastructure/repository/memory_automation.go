@@ -177,6 +177,33 @@ func (r *MemoryRepository) GetFlowByID(ctx context.Context, id string) (*domain.
 	return flow, nil
 }
 
+func (r *MemoryRepository) UpdateFlow(ctx context.Context, flow *domain.AutomationFlow) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	found := false
+	for key, rule := range r.automationRules {
+		flowID := rule.FlowID
+		if flowID == "" {
+			flowID = rule.ID
+		}
+		if flowID == flow.ID {
+			delete(r.automationRules, key)
+			found = true
+		}
+	}
+	if !found {
+		return errors.New("automation flow not found")
+	}
+	now := time.Now()
+	flow.UpdatedAt = now
+	for index := range flow.Targets {
+		target := &flow.Targets[index]
+		target.ID = uuid.New().String()
+		r.automationRules[target.ID] = domain.AutomationRule{ID: target.ID, AccountID: flow.AccountID, PageID: flow.PageID, TriggerType: target.Type, TriggerValue: target.Value, TriggerName: target.Name, ProductID: flow.ProductID, ReplySetID: flow.ReplySetID, FlowID: flow.ID, FlowName: flow.Name, FirstMessageOnly: flow.FirstMessageOnly, CooldownSeconds: flow.CooldownSeconds, IsActive: flow.IsActive, CreatedAt: flow.CreatedAt, UpdatedAt: now}
+	}
+	return nil
+}
+
 func (r *MemoryRepository) UpdateFlowStatus(ctx context.Context, id string, active bool) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()

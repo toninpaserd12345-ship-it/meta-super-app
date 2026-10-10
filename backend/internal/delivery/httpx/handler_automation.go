@@ -129,6 +129,22 @@ func (h *Handler) CreateAutomationFlow(c fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(flow)
 }
 
+func (h *Handler) UpdateAutomationFlow(c fiber.Ctx) error {
+	accountID := c.Locals("accountID").(string)
+	var req createAutomationFlowRequest
+	if err := c.Bind().JSON(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+	if err := h.validateAutomationReferences(c, accountID, req.ProductID, req.ReplySetID); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	flow := &domain.AutomationFlow{ID: c.Params("id"), AccountID: accountID, Name: req.Name, PageID: req.PageID, ProductID: req.ProductID, ReplySetID: req.ReplySetID, FirstMessageOnly: req.FirstMessageOnly, CooldownSeconds: req.CooldownSeconds, Targets: req.Targets}
+	if err := h.Automation.UpdateFlow(c.Context(), flow); err != nil {
+		return automationError(c, err)
+	}
+	return c.JSON(flow)
+}
+
 func (h *Handler) UpdateAutomationFlowStatus(c fiber.Ctx) error {
 	accountID := c.Locals("accountID").(string)
 	var req updateAutomationFlowStatusRequest

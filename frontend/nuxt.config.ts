@@ -12,7 +12,16 @@ export default defineNuxtConfig({
       ],
     },
   },
-  css: ['vuetify/styles', '@mdi/font/css/materialdesignicons.css', '~/assets/tokens.css', '~/assets/main.css'],
+  css: [
+    'vuetify/styles',
+    '@mdi/font/css/materialdesignicons.css',
+    '@fontsource/noto-sans-lao/400.css',
+    '@fontsource/noto-sans-lao/500.css',
+    '@fontsource/noto-sans-lao/600.css',
+    '@fontsource/noto-sans-lao/700.css',
+    '~/assets/tokens.css',
+    '~/assets/main.css',
+  ],
   build: { transpile: ['vuetify'] },
   modules: [
     (_options, nuxt) => {

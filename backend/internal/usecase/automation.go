@@ -159,6 +159,14 @@ func validLegacyTriggerType(value string) bool {
 }
 
 func (u *Automation) CreateFlow(ctx context.Context, flow *domain.AutomationFlow) error {
+	if err := u.prepareFlow(ctx, flow, ""); err != nil {
+		return err
+	}
+	flow.IsActive = true
+	return u.repo.CreateFlow(ctx, flow)
+}
+
+func (u *Automation) prepareFlow(ctx context.Context, flow *domain.AutomationFlow, ignoredFlowID string) error {
 	flow.AccountID = strings.TrimSpace(flow.AccountID)
 	flow.Name = strings.TrimSpace(flow.Name)
 	flow.PageID = strings.TrimSpace(flow.PageID)
@@ -188,18 +196,40 @@ func (u *Automation) CreateFlow(ctx context.Context, flow *domain.AutomationFlow
 		if err != nil {
 			return err
 		}
-		if len(existing) > 0 {
-			return ErrAutomationRuleConflict
+		for _, rule := range existing {
+			ruleFlowID := rule.FlowID
+			if ruleFlowID == "" {
+				ruleFlowID = rule.ID
+			}
+			if ignoredFlowID == "" || ruleFlowID != ignoredFlowID {
+				return ErrAutomationRuleConflict
+			}
 		}
 		clean = append(clean, target)
 	}
 	flow.Targets = clean
-	flow.IsActive = true
-	return u.repo.CreateFlow(ctx, flow)
+	return nil
 }
 
 func (u *Automation) GetFlows(ctx context.Context, accountID string) ([]domain.AutomationFlow, error) {
 	return u.repo.GetFlowsByAccountID(ctx, accountID)
+}
+
+func (u *Automation) UpdateFlow(ctx context.Context, flow *domain.AutomationFlow) error {
+	existing, err := u.repo.GetFlowByID(ctx, flow.ID)
+	if err != nil {
+		return err
+	}
+	if existing.AccountID != flow.AccountID {
+		return fmt.Errorf("unauthorized to access this automation")
+	}
+	if err := u.prepareFlow(ctx, flow, existing.ID); err != nil {
+		return err
+	}
+	flow.ID = existing.ID
+	flow.IsActive = existing.IsActive
+	flow.CreatedAt = existing.CreatedAt
+	return u.repo.UpdateFlow(ctx, flow)
 }
 
 func (u *Automation) SetFlowStatus(ctx context.Context, id, accountID string, active bool) error {
