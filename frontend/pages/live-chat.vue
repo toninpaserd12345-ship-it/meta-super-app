@@ -280,7 +280,8 @@ const formatTime = (ts: string) => {
 
 .sidebar-header {
   padding: 20px;
-*/
+  border-bottom: 1px solid var(--color-border);
+}
 
 
 .sidebar-header h2 {
