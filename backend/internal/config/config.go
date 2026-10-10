@@ -26,7 +26,7 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, fmt.Errorf("ACCESS_TOKEN_TTL: %w", err)
 	}
-	auto, err := strconv.ParseBool(value("AUTO_MIGRATE", "true"))
+	_, err = strconv.ParseBool(value("AUTO_MIGRATE", "true"))
 	if err != nil {
 		return Config{}, fmt.Errorf("AUTO_MIGRATE: %w", err)
 	}
