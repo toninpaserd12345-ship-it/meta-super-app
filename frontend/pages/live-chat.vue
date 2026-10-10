@@ -93,10 +93,9 @@ const sendReply = async () => {
   }
 }
 
-onMounted(async () => {
-  if (import.meta.server) return
-  
-  // Load initial history and leads
+let reconnectTimeout: any = null
+
+const fetchHistoryAndLeads = async () => {
   try {
     const [historyRes, leadsRes] = await Promise.all([
       $fetch<{items: ChatMessage[]}>('/api/proxy/api/v1/chat/history').catch(()=>({items:[]})),
@@ -108,28 +107,34 @@ onMounted(async () => {
     
     const history = historyRes.items || []
     if (history.length > 0) {
+      const newConvs: Record<string, ChatMessage[]> = {}
       for (const msg of history) {
         msg.id = msg.timestamp + Math.random()
         const key = msg.sender_id
-        if (!conversations.value[key]) {
-          conversations.value[key] = []
-        }
-        conversations.value[key].push(msg)
+        if (!newConvs[key]) newConvs[key] = []
+        newConvs[key].push(msg)
       }
-      for (const key in conversations.value) {
-        conversations.value[key]?.sort((a, b) => Number(a.timestamp) - Number(b.timestamp))
+      for (const key in newConvs) {
+        newConvs[key]?.sort((a, b) => Number(a.timestamp) - Number(b.timestamp))
       }
+      conversations.value = newConvs
     }
   } catch (err) {
     loadError.value = locale.value === 'lo' ? 'ໂຫຼດປະຫວັດສົນທະນາບໍ່ສຳເລັດ' : 'Conversation history could not be loaded.'
   }
+}
+
+const connectLiveChat = () => {
+  if (evtSource.value) {
+    evtSource.value.close()
+  }
 
   const url = '/api/proxy/api/v1/chat/stream'
-  
   evtSource.value = new EventSource(url)
   
-  evtSource.value.onopen = () => {
+  evtSource.value.onopen = async () => {
     loadError.value = ''
+    await fetchHistoryAndLeads()
   }
 
   evtSource.value.onmessage = (event) => {
@@ -141,20 +146,26 @@ onMounted(async () => {
     }
     data.id = data.timestamp + Math.random() // Temp ID
     
-    // Determine the key for the conversation. Group by SenderID.
     const key = data.sender_id
     if (!conversations.value[key]) {
       conversations.value[key] = []
     }
     conversations.value[key].push(data)
-    
-    // Sort by timestamp
-    conversations.value[key]?.sort((a, b) => Number(a.timestamp) - Number(b.timestamp))
   }
-  
+
   evtSource.value.onerror = (error) => {
-    loadError.value = locale.value === 'lo' ? 'ການເຊື່ອມຕໍ່ຂໍ້ຄວາມຂາດຊົ່ວຄາວ' : 'The live message connection was interrupted.'
+    loadError.value = locale.value === 'lo' ? 'ການເຊື່ອມຕໍ່ຂາດຊົ່ວຄາວ ກຳລັງເຊື່ອມຕໍ່ໃໝ່ອັດຕະໂນມັດ...' : 'Connection lost. Reconnecting...'
+    evtSource.value?.close()
+    clearTimeout(reconnectTimeout)
+    reconnectTimeout = setTimeout(() => {
+      connectLiveChat()
+    }, 5000)
   }
+}
+
+onMounted(() => {
+  if (import.meta.server) return
+  connectLiveChat()
 })
 
 onUnmounted(() => {
