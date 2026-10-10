@@ -29,7 +29,7 @@ func (h *Handler) chatStream(c fiber.Ctx) error {
 		defer h.Stream.Unsubscribe(accountID, ch)
 		defer w.Close()
 
-		fmt.Fprintf(w, "event: connected\ndata: {\"status\":\"ok\"}\n\n")
+		fmt.Fprintf(w, "retry: 3000\nevent: connected\ndata: {\"status\":\"ok\"}\n\n")
 		heartbeat := time.NewTicker(20 * time.Second)
 		defer heartbeat.Stop()
 

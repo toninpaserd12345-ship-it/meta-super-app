@@ -36,7 +36,9 @@ const inputMessage = ref('')
 const evtSource = ref<EventSource | null>(null)
 const sending = ref(false)
 const loadError = ref('')
-const { locale } = useLocale()
+const { locale, l } = useLocale()
+const liveConnected = ref(false)
+let pollTimer: ReturnType<typeof setInterval> | null = null
 
 const activeChatMessages = computed(() => {
   if (!activeSender.value) return []
@@ -48,7 +50,7 @@ const getSenderName = (msgs?: ChatMessage[]) => {
   const msg = msgs.find(m => m.sender_name)
   if (msg?.sender_name) return msg.sender_name
   const id = msgs[0]?.sender_id || ''
-  return `${locale.value === 'lo' ? 'ລູກຄ້າ' : 'Customer'} · ${id.slice(-4)}`
+  return `${l({lo:'ລູກຄ້າ',th:'ลูกค้า',en:'Customer'})} · ${id.slice(-4)}`
 }
 
 const getSenderPic = (msgs?: ChatMessage[]) => {
@@ -99,7 +101,19 @@ const sendReply = async () => {
 
 let reconnectTimeout: any = null
 
-const fetchHistoryAndLeads = async () => {
+const messageKey = (msg: ChatMessage) => `${msg.page_id}|${msg.sender_id}|${msg.platform}|${msg.timestamp}|${msg.type}|${msg.message}`
+const mergeMessages = (items: ChatMessage[]) => {
+  const byKey = new Map<string, ChatMessage>()
+  for (const list of Object.values(conversations.value)) for (const item of list) byKey.set(messageKey(item), item)
+  for (const item of items) byKey.set(messageKey(item), { ...item, id: messageKey(item) })
+  const next: Record<string, ChatMessage[]> = {}
+  for (const item of byKey.values()) (next[item.sender_id] ||= []).push(item)
+  for (const list of Object.values(next)) list.sort((a,b) => Number(a.timestamp === 'now' ? Date.now() : a.timestamp) - Number(b.timestamp === 'now' ? Date.now() : b.timestamp))
+  conversations.value = next
+  if (!activeSender.value && Object.keys(next).length) activeSender.value = Object.keys(next)[0] || null
+}
+
+const fetchHistoryAndLeads = async (silent = false) => {
   try {
     const [historyRes, leadsRes] = await Promise.all([
       $fetch<{items: ChatMessage[]}>('/api/proxy/api/v1/chat/history').catch(()=>({items:[]})),
@@ -110,21 +124,9 @@ const fetchHistoryAndLeads = async () => {
     leadsList.forEach(l => { leads.value[l.senderId] = l })
     
     const history = historyRes.items || []
-    if (history.length > 0) {
-      const newConvs: Record<string, ChatMessage[]> = {}
-      for (const msg of history) {
-        msg.id = msg.timestamp + Math.random()
-        const key = msg.sender_id
-        if (!newConvs[key]) newConvs[key] = []
-        newConvs[key].push(msg)
-      }
-      for (const key in newConvs) {
-        newConvs[key]?.sort((a, b) => Number(a.timestamp) - Number(b.timestamp))
-      }
-      conversations.value = newConvs
-    }
+    mergeMessages(history)
   } catch (err) {
-    loadError.value = locale.value === 'lo' ? 'ໂຫຼດປະຫວັດສົນທະນາບໍ່ສຳເລັດ' : 'Conversation history could not be loaded.'
+    if (!silent) loadError.value = l({lo:'ໂຫຼດປະຫວັດສົນທະນາບໍ່ສຳເລັດ',th:'โหลดประวัติการสนทนาไม่สำเร็จ',en:'Conversation history could not be loaded.'})
   }
 }
 
@@ -137,6 +139,7 @@ const connectLiveChat = () => {
   evtSource.value = new EventSource(url)
   
   evtSource.value.onopen = async () => {
+    liveConnected.value = true
     loadError.value = ''
     await fetchHistoryAndLeads()
   }
@@ -148,17 +151,13 @@ const connectLiveChat = () => {
     } catch {
       return
     }
-    data.id = data.timestamp + Math.random() // Temp ID
-    
-    const key = data.sender_id
-    if (!conversations.value[key]) {
-      conversations.value[key] = []
-    }
-    conversations.value[key].push(data)
+    if (data.type !== 'lead_alert') mergeMessages([data])
+    void fetchHistoryAndLeads(true)
   }
 
   evtSource.value.onerror = (error) => {
-    loadError.value = locale.value === 'lo' ? 'ການເຊື່ອມຕໍ່ຂາດຊົ່ວຄາວ ກຳລັງເຊື່ອມຕໍ່ໃໝ່ອັດຕະໂນມັດ...' : 'Connection lost. Reconnecting...'
+    liveConnected.value = false
+    loadError.value = l({lo:'ສາຍ real-time ຂາດຊົ່ວຄາວ; ລະບົບຍັງອັບເດດດ້ວຍ polling ແລະກຳລັງເຊື່ອມໃໝ່',th:'การเชื่อมต่อ real-time ขาดชั่วคราว ระบบยังอัปเดตด้วย polling และกำลังเชื่อมต่อใหม่',en:'Real-time connection paused; polling remains active while reconnecting.'})
     evtSource.value?.close()
     clearTimeout(reconnectTimeout)
     reconnectTimeout = setTimeout(() => {
@@ -170,16 +169,20 @@ const connectLiveChat = () => {
 onMounted(() => {
   if (import.meta.server) return
   connectLiveChat()
+  void fetchHistoryAndLeads()
+  pollTimer = setInterval(() => { void fetchHistoryAndLeads(true) }, 3000)
 })
 
 onUnmounted(() => {
   if (evtSource.value) {
     evtSource.value.close()
   }
+  clearTimeout(reconnectTimeout)
+  if (pollTimer) clearInterval(pollTimer)
 })
 
 const formatTime = (ts: string) => {
-  if (ts === 'now') return 'Just now'
+  if (ts === 'now') return l({lo:'ດຽວນີ້',th:'เมื่อสักครู่',en:'Just now'})
   const d = new Date(Number(ts))
   if (isNaN(d.getTime())) return ts
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -191,6 +194,7 @@ const formatTime = (ts: string) => {
     <div class="chat-sidebar">
       <div class="sidebar-header">
         <h2>{{locale==='lo'?'ກ່ອງຂໍ້ຄວາມ':'Live Inbox'}}</h2>
+        <span class="live-state" :class="{online:liveConnected}"><i/>{{ liveConnected ? l({lo:'Real-time ເຊື່ອມແລ້ວ',th:'เชื่อมต่อ Real-time แล้ว',en:'Real-time connected'}) : l({lo:'ກຳລັງເຊື່ອມຕໍ່',th:'กำลังเชื่อมต่อ',en:'Connecting'}) }}</span>
       </div>
       <div class="conversation-list">
         <div v-if="Object.keys(conversations).length === 0" class="empty-list">
@@ -304,6 +308,7 @@ const formatTime = (ts: string) => {
   font-size: 18px;
   font-weight: 700;
 }
+.live-state{display:flex;align-items:center;gap:6px;margin-top:7px;color:var(--color-text-muted);font-size:10px}.live-state i{width:7px;height:7px;border-radius:50%;background:#f59e0b}.live-state.online{color:#15803d}.live-state.online i{background:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,.14)}
 
 .conversation-list {
   flex: 1;
