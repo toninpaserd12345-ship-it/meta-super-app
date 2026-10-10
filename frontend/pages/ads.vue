@@ -11,7 +11,7 @@ const flows = ref<AutomationFlow[]>([])
 const products = ref<Product[]>([])
 const replySets = ref<ReplySet[]>([])
 
-const adAccountId = ref('')
+const adAccountId = useCookie('meta_ad_account_id', { default: () => '', maxAge: 2592000 })
 const loading = ref(false)
 const expandedCampaigns = ref<string[]>([])
 
@@ -33,7 +33,9 @@ async function loadData() {
     replySets.value = replyRes || []
 
     if (adAccounts.value.length > 0) {
-      adAccountId.value = (adAccounts.value[0]?.id || '')
+      if (!adAccountId.value || !adAccounts.value.some(a => a.id === adAccountId.value)) {
+        adAccountId.value = (adAccounts.value[0]?.id || '')
+      }
     }
   } finally {
     loading.value = false

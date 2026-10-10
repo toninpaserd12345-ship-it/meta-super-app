@@ -28,7 +28,7 @@ const targets = ref<AutomationTarget[]>([])
 const posts = ref<MetaPost[]>([])
 const adAccounts = ref<MetaAdAccount[]>([])
 const campaigns = ref<MetaCampaign[]>([])
-const adAccountId = ref('')
+const adAccountId = useCookie('meta_ad_account_id', { default: () => '', maxAge: 2592000 })
 const firstMessageOnly = ref(true)
 const cooldownSeconds = ref(0)
 const loading = ref(false)
@@ -95,7 +95,7 @@ async function loadPosts() {
 async function loadAdAccounts() {
   if (adAccounts.value.length) return
   loading.value = true
-  try { adAccounts.value = (await cachedFetch<ItemsResponse<MetaAdAccount>>('/api/proxy/api/v1/meta/ad-accounts', 300_000)).items; adAccountId.value = adAccounts.value[0]?.id || '' }
+  try { adAccounts.value = (await cachedFetch<ItemsResponse<MetaAdAccount>>('/api/proxy/api/v1/meta/ad-accounts', 300_000)).items; if (!adAccountId.value || !adAccounts.value.some(a => a.id === adAccountId.value)) { adAccountId.value = adAccounts.value[0]?.id || '' } }
   catch (error) { noticeType.value = 'error'; notice.value = apiError(error, 'Could not load Ad Accounts. Reconnect Facebook with ads_read permission.') }
   finally { loading.value = false }
 }
