@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 
+definePageMeta({ middleware: 'auth' })
+
 
 
 

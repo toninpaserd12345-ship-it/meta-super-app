@@ -1,5 +1,6 @@
 <script setup lang="ts">
 const { t, l } = useLocale()
+definePageMeta({ middleware: 'auth' })
 </script>
 
 <template>

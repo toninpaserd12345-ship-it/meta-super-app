@@ -1,4 +1,5 @@
 <script setup lang="ts">
+definePageMeta({ middleware: 'auth' })
 const fetchApi = (url: string, options?: any) => $fetch(url, options)
 const { locale, l } = useLocale()
 
