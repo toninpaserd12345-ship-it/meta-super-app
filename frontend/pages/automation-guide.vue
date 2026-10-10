@@ -4,7 +4,7 @@ const { locale, t } = useLocale()
 const open = ref(1)
 const steps = computed(() => locale.value === 'lo' ? [
   { icon:'mdi-facebook', title:'1. ເຊື່ອມ Facebook Page', summary:'ໃຫ້ສະຖານະ Page ແລະ Webhook ເປັນສີຂຽວ', details:['ໄປທີ່ ເພຈ ແລະ WhatsApp','ກົດ Connect Facebook ແລະອະນຸຍາດ pages_messaging','ເປີດ Page ທີ່ຕ້ອງການ ແລ້ວກວດ Webhook status'] },
-  { icon:'mdi-package-variant-closed', title:'2. ສ້າງສິນຄ້າ', summary:'ເກັບຊື່, ລາຄາ ແລະລາຍລະອຽດໄວ້ໃຊ້ໃນຄຳຕອບ', details:['ໄປທີ່ ສິນຄ້າ','ເພີ່ມຊື່, ລາຄາ, ລາຍລະອຽດ ແລະຮູບ','ບັນທຶກແລ້ວກວດຕົວຢ່າງ'] },
+  { icon:'mdi-package-variant-closed', title:'2. ສ້າງສິນຄ້າ', summary:'ເກັບຊື່, ລາຄາ ແລະລາຍລະອຽດໄວ້ໃຊ້ໃນຄຳຕອບ', details:['ໄປທີ່ ສິນຄ້າ','ເພີ່ມຊື່, ລາຄາ, ລາຍລະອຽດ ແລະຮູບ','ບັນທຶກແລ້ວກວດຄວາມຖືກຕ້ອງ'] },
   { icon:'mdi-message-text-fast-outline', title:'3. ສ້າງຊຸດຂໍ້ຄວາມ', summary:'ຈັດລຳດັບ text, image, video ຫຼື audio', details:['ໄປທີ່ ຊຸດຂໍ້ຄວາມ','ເພີ່ມຂໍ້ຄວາມ ຫຼື media ຕາມລຳດັບ','ປິດລາຍການທີ່ຍັງບໍ່ຢາກສົ່ງ'] },
   { icon:'mdi-robot-happy-outline', title:'4. ສ້າງ Automation', summary:'ຜູກ Page + ໂພສ/Campaign + ສິນຄ້າ + ຊຸດຂໍ້ຄວາມ', details:['ຕັ້ງຊື່ ແລະເລືອກ Page','ເລືອກໂພສ ຫຼື Campaign ໄດ້ຫຼາຍລາຍການ','ເລືອກສິນຄ້າ ແລະຊຸດຂໍ້ຄວາມ','ໃຊ້ First message only ເພື່ອບໍ່ໃຫ້ຕອບຊ້ຳ'] },
   { icon:'mdi-flask-outline', title:'5. ທົດສອບກ່ອນໃຊ້ຈິງ', summary:'ສົ່ງ 1 ຂໍ້ຄວາມ ແລະກວດ log/ລຳດັບຄຳຕອບ', details:['ເປີດ Automation ແລະສົ່ງຂໍ້ຄວາມຈາກ user ທົດສອບ','ກວດວ່າສົ່ງພຽງຄັ້ງດຽວ ແລະລຳດັບຖືກຕ້ອງ','ຖ້າບໍ່ສົ່ງ ໃຫ້ກວດ Page, Webhook, permission ແລະ Automation status'] },

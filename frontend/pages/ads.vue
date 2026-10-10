@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { MetaAdAccount, MetaCampaign, MetaAd, AutomationRule } from '~/types/automation'
+import type { MetaAdAccount, MetaCampaign, MetaAd, AutomationFlow, ItemsResponse, Product, ReplySet } from '~/types/automation'
 
 definePageMeta({ middleware: 'auth' })
 const { can } = useAuth()
@@ -8,7 +8,9 @@ const { cachedFetch } = useApiClient()
 const adAccounts = ref<MetaAdAccount[]>([])
 const campaigns = ref<MetaCampaign[]>([])
 const campaignAds = ref<Record<string, MetaAd[]>>({})
-const rules = ref<AutomationRule[]>([])
+const flows = ref<AutomationFlow[]>([])
+const products = ref<Product[]>([])
+const replySets = ref<ReplySet[]>([])
 
 const adAccountId = ref('')
 const loading = ref(false)
@@ -20,10 +22,16 @@ async function loadData() {
   loading.value = true
   try {
     const accRes = await cachedFetch<{ items: MetaAdAccount[] }>('/api/proxy/api/v1/meta/ad-accounts', 300_000).catch(err => { notice.value = err.data?.message || err.message; return { items: [] } })
-    const ruleRes = await cachedFetch<{ items: AutomationRule[] }>('/api/proxy/api/v1/automation/rules', 30_000).catch(() => ({ items: [] }))
+    const [flowRes, productRes, replyRes] = await Promise.all([
+      cachedFetch<ItemsResponse<AutomationFlow>>('/api/proxy/api/v1/automations', 30_000).catch(() => ({ items: [] })),
+      cachedFetch<ItemsResponse<Product>>('/api/proxy/api/v1/products', 60_000).catch(() => ({ items: [] })),
+      cachedFetch<ReplySet[]>('/api/proxy/api/v1/replies', 60_000).catch(() => []),
+    ])
 
     adAccounts.value = accRes.items || []
-    rules.value = ruleRes.items || []
+    flows.value = flowRes.items || []
+    products.value = productRes.items || []
+    replySets.value = replyRes || []
 
     if (adAccounts.value.length > 0) {
       adAccountId.value = (adAccounts.value[0]?.id || '')
@@ -60,9 +68,10 @@ async function toggleCampaign(campaignId: string) {
   }
 }
 
-function isBound(adId: string) {
-  return rules.value.some((r: any) => r.triggerType === 'ad' && r.triggerValue === adId)
-}
+const campaignFlows=(campaignId:string)=>flows.value.filter(flow=>flow.targets.some(target=>target.type==='campaign'&&target.value===campaignId))
+const adFlows=(adId:string)=>flows.value.filter(flow=>flow.targets.some(target=>target.type==='ad'&&target.value===adId))
+const productName=(id:string)=>products.value.find(item=>item.id===id)?.name||'Product unavailable'
+const replySetName=(id:string)=>replySets.value.find(item=>item.id===id)?.name||'Reply Set unavailable'
 
 watch(adAccountId, loadCampaigns)
 onMounted(loadData)
@@ -72,8 +81,8 @@ onMounted(loadData)
   <section class="page-head">
     <div>
       <p>MARKETING</p>
-      <h2>Campaign & Ads Manager</h2>
-      <span>Inspect Facebook delivery here. Create and manage all reply behavior in the Automation Center.</span>
+      <h2>Campaign ແລະ Ads</h2>
+      <span>ກວດສອບ Campaign, Ads ແລະ Automation ທີ່ເຊື່ອມກັນດ້ວຍຂໍ້ມູນຈາກ Meta</span>
     </div>
   </section>
 
@@ -85,7 +94,7 @@ onMounted(loadData)
         :items="adAccounts.map((a: any) => ({ ...a, label: `${a.accountType === 'business' ? 'Business' : 'Personal'} · ${a.name}` }))"
         item-title="label"
         item-value="id"
-        label="Select Ad Account"
+        label="ເລືອກບັນຊີໂຄສະນາ"
         variant="outlined"
         hide-details
       />
@@ -115,15 +124,8 @@ onMounted(loadData)
           <td><small>{{ campaign.objective }}</small></td>
           <td>{{ campaign.adSetCount }} Sets · {{ campaign.adCount }} Ads</td>
           <td @click.stop>
-            <v-btn
-              size="small"
-              color="primary"
-              variant="tonal"
-              prepend-icon="mdi-robot-outline"
-              to="/auto-replies"
-            >
-              Automation Center
-            </v-btn>
+            <div v-if="campaignFlows(campaign.id).length" class="automation-links"><NuxtLink v-for="flow in campaignFlows(campaign.id)" :key="flow.id" to="/auto-replies"><span :class="{active:flow.isActive}"/><div><strong>{{flow.name}}</strong><small>{{productName(flow.productId)}} → {{replySetName(flow.replySetId)}}</small></div></NuxtLink></div>
+            <v-btn v-else size="small" color="primary" variant="tonal" prepend-icon="mdi-robot-outline" to="/auto-replies">ສ້າງ Automation</v-btn>
           </td>
         </tr>
         <template v-if="expandedCampaigns.includes(campaign.id)">
@@ -142,8 +144,9 @@ onMounted(loadData)
             <td><small class="text-disabled">{{ ad.id }}</small></td>
             <td></td>
             <td>
-              <v-chip v-if="isBound(ad.id)" color="success" size="small" prepend-icon="mdi-check">Legacy binding</v-chip>
-              <span v-else class="text-caption text-disabled">Managed by Campaign</span>
+              <div v-if="adFlows(ad.id).length" class="automation-links"><NuxtLink v-for="flow in adFlows(ad.id)" :key="flow.id" to="/auto-replies"><span :class="{active:flow.isActive}"/><div><strong>{{flow.name}}</strong><small>{{productName(flow.productId)}} → {{replySetName(flow.replySetId)}}</small></div></NuxtLink></div>
+              <span v-else-if="campaignFlows(campaign.id).length" class="text-caption text-success">ຄວບຄຸມໂດຍ Campaign Automation</span>
+              <span v-else class="text-caption text-disabled">ຍັງບໍ່ມີ Automation</span>
             </td>
           </tr>
         </template>
@@ -203,4 +206,5 @@ onMounted(loadData)
 .ad-row:last-child td {
   border-bottom: 1px solid var(--color-border);
 }
+.automation-links{display:grid;gap:5px;min-width:190px}.automation-links a{display:flex;align-items:center;gap:7px;color:var(--color-text);text-decoration:none}.automation-links a>span{width:7px;height:7px;background:var(--color-text-muted);border-radius:50%}.automation-links a>span.active{background:var(--color-success)}.automation-links a>div{display:grid;min-width:0}.automation-links strong,.automation-links small{max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.automation-links strong{font-size:11px}.automation-links small{color:var(--color-text-secondary);font-size:9px}
 </style>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { AutomationFlow, ItemsResponse, Product, ReplySet } from '~/types/automation'
 definePageMeta({ middleware: 'auth' })
 interface MetaPage { id:string;name:string;category:string;pictureUrl?:string;phoneNumber?:string;tokenReady:boolean;connected:boolean;webhookStatus:string;tokenExpiresAt?:number;dataAccessExpiresAt?:number;grantedPermissions?:string[] }
 interface WhatsAppDiagnostics { state:string;message:string;requiredPermissions:string[];grantedPermissions?:string[];missingPermissions?:string[];issues?:string[];businessCount:number;whatsAppBusinessAccountCount:number;phoneNumberCount:number }
@@ -10,6 +11,9 @@ const { can } = useAuth()
 const route = useRoute()
 if (!can('pages:read')) throw createError({statusCode:403,statusMessage:'You do not have permission to view Meta Pages.'})
 const { data, pending, error, refresh } = await useApi<PageList>('/proxy/api/v1/meta/pages')
+const { data: automationData } = await useApi<ItemsResponse<AutomationFlow>>('/proxy/api/v1/automations')
+const { data: productData } = await useApi<ItemsResponse<Product>>('/proxy/api/v1/products')
+const { data: replySetData } = await useApi<ReplySet[]>('/proxy/api/v1/replies')
 const loadErrorMessage = computed(() => {
   const value:any = error.value
   return value?.data?.error?.message || value?.data?.message || value?.statusMessage || 'Unable to load Pages from Meta. Reconnect Facebook and try again.'
@@ -29,9 +33,9 @@ const whatsAppCode = ref('')
 const whatsAppDetailsOpen = ref(false)
 
 const pickerOpen = ref(false)
-const activePlatform = ref('all') // 'all', 'facebook', 'instagram', 'whatsapp', etc.
-const activeView = ref('pending') // 'pending' or 'hidden'
-
+const activePlatform = ref('all')
+const activeView = ref('pending')
+const expandedPages = ref<string[]>([])
 const permissionsOpen = ref(false)
 const selectedPermissions = ref<string[]>([])
 const optionalPermissions=[
@@ -52,27 +56,17 @@ const inactivePages=computed(()=>pages.value.filter(page=>!page.connected))
 const whatsappPages=computed(()=>pages.value.filter(page=>page.category.toLowerCase().includes('whatsapp')))
 const whatsappDiagnostics=computed(()=>data.value?.whatsappDiagnostics)
 
-const availablePages=computed(()=>{
-  let list = inactivePages.value
-  if (search.value) {
-    list = list.filter(page=>page.name.toLowerCase().includes(search.value.toLowerCase()))
-  }
-  // In a real multi-platform app, you'd filter by page.platform === activePlatform.value
-  // Since we currently only have Meta pages, we just show them if 'all' or 'facebook' or 'instagram' is selected
-  // We'll simulate it for now.
-  if (activePlatform.value !== 'all') {
-     if (activePlatform.value === 'instagram') {
-        list = list.filter(p => p.category.toLowerCase().includes('instagram'))
-     } else if (activePlatform.value === 'whatsapp') {
-        list = list.filter(p => p.category.toLowerCase().includes('whatsapp'))
-     } else if (activePlatform.value === 'facebook') {
-        list = list.filter(p => !p.category.toLowerCase().includes('instagram') && !p.category.toLowerCase().includes('whatsapp'))
-     } else {
-        list = []
-     }
-  }
-  return list
-})
+const availablePages=computed(()=>inactivePages.value.filter(page=>!search.value||page.name.toLowerCase().includes(search.value.toLowerCase())))
+const productsById=computed(()=>new Map((productData.value?.items||[]).map(item=>[item.id,item])))
+const replySetsById=computed(()=>new Map((replySetData.value||[]).map(item=>[item.id,item])))
+const pageAutomations=(pageId:string)=>(automationData.value?.items||[]).filter(item=>item.pageId===pageId)
+const pageRelationCounts=(pageId:string)=>{
+  const flows=pageAutomations(pageId)
+  return {automations:flows.length,active:flows.filter(item=>item.isActive).length,targets:flows.reduce((sum,item)=>sum+item.targets.length,0)}
+}
+const togglePageDetails=(pageId:string)=>{
+  expandedPages.value=expandedPages.value.includes(pageId)?expandedPages.value.filter(id=>id!==pageId):[...expandedPages.value,pageId]
+}
 
 const visiblePages=computed(()=>pages.value.filter(page=>{
   const matchesStatus=statusFilter.value==='all'||(statusFilter.value==='active'?page.connected:!page.connected)
@@ -150,7 +144,7 @@ async function loadFacebookSDK(config:WhatsAppSignupConfig){
     const script=document.createElement('script');script.id='facebook-jssdk';script.async=true;script.defer=true;script.crossOrigin='anonymous';script.src='https://connect.facebook.net/en_US/sdk.js';script.onerror=()=>reject(new Error('Facebook SDK could not be loaded'));document.head.appendChild(script)
   })
 }
-async function finishWhatsAppSignup(){ console.log('finishWhatsAppSignup called! Code:', whatsAppCode.value, 'Session:', whatsAppSession.value);
+async function finishWhatsAppSignup(){
   if(!whatsAppCode.value||!whatsAppSession.value.wabaId)return
   clearWhatsAppTimers()
   const code=whatsAppCode.value;const session={...whatsAppSession.value};whatsAppCode.value='';whatsAppSession.value={}
@@ -186,7 +180,7 @@ function cancelWhatsAppConnection(){
 }
 onMounted(()=>{
   void $fetch<WhatsAppSignupConfig>('/api/proxy/api/v1/meta/whatsapp/signup/config').then(config=>{whatsAppConfig.value=config}).catch(()=>{})
-  whatsAppMessageHandler=(event:MessageEvent)=>{ console.log('Message received!', event.origin, event.data);
+  whatsAppMessageHandler=(event:MessageEvent)=>{
     if(!['https://www.facebook.com','https://web.facebook.com'].includes(event.origin))return
     let payload:any=event.data
     if(typeof payload==='string'){try{payload=JSON.parse(payload)}catch{return}}
@@ -203,7 +197,7 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
 </script>
 
 <template>
-  <section class="intro"><div><p>META INTEGRATION</p><h2>Facebook & WhatsApp</h2><span>Connect each channel securely, then control its Webhook from this workspace.</span></div><div class="intro-actions"><v-chip :color="error?'error':data?.mode==='mock'?'primary':'success'" variant="tonal" :prepend-icon="error?'mdi-alert-circle-outline':data?.mode==='mock'?'mdi-flask-outline':'mdi-access-point'">{{error?'Connection needs attention':data?.mode==='mock'?'Mock mode':'Meta connected'}}</v-chip><v-btn v-if="inactivePages.length" variant="outlined" prepend-icon="mdi-checkbox-multiple-marked-outline" @click="search='';pickerOpen=true">Select Accounts</v-btn><v-btn v-if="data?.mode!=='mock'" color="success" :prepend-icon="whatsAppConnecting?'mdi-loading':'mdi-whatsapp'" :disabled="authorizing||whatsAppConnecting" @click="connectWhatsApp">{{whatsAppConnecting?'Waiting for Meta…':'Connect WhatsApp'}}</v-btn><v-btn v-if="data?.mode!=='mock'" color="primary" prepend-icon="mdi-facebook" :loading="authorizing" :disabled="whatsAppConnecting" @click="permissionsOpen=true">{{needsReconnect?'Reconnect Facebook':'Connect Facebook'}}</v-btn></div></section>
+  <section class="intro"><div><p>META CHANNELS</p><h2>Facebook & WhatsApp</h2><span>ຈັດການບັນຊີ, Webhook ແລະຄວາມສຳພັນກັບ Automation ໃນບ່ອນດຽວ</span></div><div class="intro-actions"><v-chip :color="error?'error':'success'" variant="tonal" :prepend-icon="error?'mdi-alert-circle-outline':'mdi-access-point'">{{error?'ການເຊື່ອມຕໍ່ຕ້ອງກວດສອບ':'ພ້ອມໃຊ້ງານ'}}</v-chip><v-btn v-if="inactivePages.length" variant="outlined" prepend-icon="mdi-checkbox-multiple-marked-outline" @click="search='';pickerOpen=true">ເລືອກບັນຊີ</v-btn><v-btn color="success" :prepend-icon="whatsAppConnecting?'mdi-loading':'mdi-whatsapp'" :disabled="authorizing||whatsAppConnecting" @click="connectWhatsApp">{{whatsAppConnecting?'ກຳລັງລໍຖ້າ Meta…':'ເຊື່ອມຕໍ່ WhatsApp'}}</v-btn><v-btn color="primary" prepend-icon="mdi-facebook" :loading="authorizing" :disabled="whatsAppConnecting" @click="permissionsOpen=true">{{needsReconnect?'ເຊື່ອມ Facebook ໃໝ່':'ເຊື່ອມຕໍ່ Facebook'}}</v-btn></div></section>
   <v-alert v-if="message" :type="messageType" variant="tonal" closable class="mb-4" @click:close="message=''">{{message}}</v-alert>
   <v-alert v-if="error" type="error" variant="tonal" class="mb-4">
     <strong>{{loadErrorMessage}}</strong><br>
@@ -259,8 +253,19 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
         <v-img v-if="pictureAvailable(page)" :src="pagePictureUrl(page)" :alt="`${page.name} profile picture`" cover @error="handlePictureError(page.id)"></v-img>
         <v-icon v-else-if="page.category.toLowerCase().includes('whatsapp')" icon="mdi-whatsapp" color="success" size="28"/>
         <v-icon v-else icon="mdi-facebook" color="blue" size="28"/>
-      </div><div class="page-info"><h3>{{page.name}}</h3><p>{{page.category}}</p><p v-if="page.phoneNumber" class="page-phone"><v-icon icon="mdi-phone-outline" size="14"/>{{page.phoneNumber}}</p><small>{{page.category.toLowerCase().includes('whatsapp')?'Phone number ID':'Page ID'}} · {{page.id}}</small><div class="token-row"><v-chip class="token-chip" :color="page.tokenReady?'success':'warning'" variant="tonal" size="x-small" :prepend-icon="page.tokenReady?'mdi-key-check':'mdi-key-alert'">{{page.tokenReady?'Access token ready':'Token unavailable'}}</v-chip><v-chip v-if="page.tokenReady" class="token-chip" color="info" variant="tonal" size="x-small" prepend-icon="mdi-clock-outline">{{tokenExpiry(page)}}</v-chip></div></div>
+      </div><div class="page-info"><h3>{{page.name}}</h3><p>{{page.category}}</p><p v-if="page.phoneNumber" class="page-phone"><v-icon icon="mdi-phone-outline" size="14"/>{{page.phoneNumber}}</p><small>{{page.category.toLowerCase().includes('whatsapp')?'Phone number ID':'Page ID'}} · {{page.id}}</small><div class="token-row"><v-chip class="token-chip" :color="page.tokenReady?'success':'warning'" variant="tonal" size="x-small" :prepend-icon="page.tokenReady?'mdi-key-check':'mdi-key-alert'">{{page.tokenReady?'Token ພ້ອມໃຊ້':'Token ບໍ່ພ້ອມ'}}</v-chip><v-chip v-if="page.tokenReady" class="token-chip" color="info" variant="tonal" size="x-small" prepend-icon="mdi-clock-outline">{{tokenExpiry(page)}}</v-chip></div></div>
       <div class="page-action"><div v-if="page.connected" class="page-toggle"><span><strong>Webhook active</strong><small>Receiving events</small></span><v-switch :model-value="true" color="success" hide-details density="compact" :loading="toggling===page.id" :disabled="toggling!==null||!can('pages:connect')" :aria-label="`Pause Webhook for ${page.name}`" @update:model-value="value=>setPageEnabled(page,Boolean(value))"/></div><v-btn v-else color="primary" variant="flat" prepend-icon="mdi-play-circle-outline" :loading="toggling===page.id" :disabled="toggling!==null||!can('pages:connect')||!page.tokenReady" @click="setPageEnabled(page,true)">Enable Webhook</v-btn></div>
+      <div class="relation-summary">
+        <button @click="togglePageDetails(page.id)"><span><v-icon icon="mdi-robot-happy-outline"/>{{pageRelationCounts(page.id).automations}} Automation</span><span><v-icon icon="mdi-check-decagram-outline"/>{{pageRelationCounts(page.id).active}} ເປີດໃຊ້</span><span><v-icon icon="mdi-target"/>{{pageRelationCounts(page.id).targets}} ເປົ້າໝາຍ</span><v-icon :icon="expandedPages.includes(page.id)?'mdi-chevron-up':'mdi-chevron-down'"/></button>
+        <div v-if="expandedPages.includes(page.id)" class="relation-details">
+          <div v-if="pageAutomations(page.id).length" class="relation-list">
+            <NuxtLink v-for="flow in pageAutomations(page.id)" :key="flow.id" to="/auto-replies">
+              <span class="relation-state" :class="{active:flow.isActive}"/><div><strong>{{flow.name}}</strong><small>{{productsById.get(flow.productId)?.name||'ສິນຄ້າຖືກລຶບ'}} → {{replySetsById.get(flow.replySetId)?.name||'ຊຸດຂໍ້ຄວາມຖືກລຶບ'}}</small><small>{{flow.targets.length}} ເປົ້າໝາຍ · {{flow.firstMessageOnly?'ຕອບສະເພາະຂໍ້ຄວາມທຳອິດ':`ພັກ ${flow.cooldownSeconds} ວິນາທີ`}}</small></div><v-icon icon="mdi-arrow-right"/>
+            </NuxtLink>
+          </div>
+          <div v-else class="relation-empty"><span>Page ນີ້ຍັງບໍ່ມີ Automation</span><v-btn size="small" variant="tonal" color="primary" to="/auto-replies">ສ້າງ Automation</v-btn></div>
+        </div>
+      </div>
     </article>
     <v-alert v-if="!pending&&data?.mode==='live'&&!pages.length" type="info" variant="tonal" icon="mdi-facebook">
       <strong>No Facebook or WhatsApp accounts found.</strong><br>Connect Facebook and allow the required permissions. Your Facebook account must have Page access.
@@ -411,9 +416,9 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
 </template>
 
 <style scoped>
-.intro{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:16px;padding:24px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}.intro-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}.intro p{margin:0 0 8px;color:var(--color-primary);font-size:var(--text-xs);font-weight:800;letter-spacing:.13em}.intro h2{margin:0 0 8px;font-size:var(--text-xl)}.intro span{color:var(--color-text-secondary);font-size:var(--text-md)}.connection-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}.connection-summary button{min-height:76px;display:flex;align-items:center;gap:13px;padding:14px 17px;border:1px solid var(--color-border);border-radius:var(--radius-lg);color:var(--color-text-secondary);background:var(--color-surface);text-align:left;cursor:pointer;transition:var(--transition-fast)}.connection-summary button:hover,.connection-summary button.active{color:var(--color-primary);border-color:color-mix(in srgb,var(--color-primary) 35%,var(--color-border));background:var(--color-primary-soft)}.connection-summary button>i{padding:10px;border-radius:11px;background:var(--color-background)}.connection-summary span{display:grid}.connection-summary small{font-size:9px;font-weight:800;letter-spacing:.08em}.connection-summary strong{color:var(--color-text);font-size:20px}.page-grid{display:grid;gap:12px}.page-card{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:16px;padding:20px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}.page-avatar{width:52px;height:52px;display:grid;place-items:center;overflow:hidden;color:var(--color-surface);background:var(--color-primary);border-radius:16px}.page-info h3{margin:0;font-size:15px}.page-info p{margin:3px 0;color:var(--color-text-secondary);font-size:12px}.page-info .page-phone{display:flex;align-items:center;gap:5px;color:var(--color-success);font-weight:700}.page-info small{color:var(--color-text-muted);font-size:10px}.token-row{display:flex;gap:6px;flex-wrap:wrap}.token-chip{display:flex!important;width:max-content;margin-top:7px}.page-toggle{min-width:196px;display:flex;align-items:center;justify-content:flex-end;gap:12px;padding:8px 10px 8px 14px;color:var(--color-success);background:var(--color-success-soft);border-radius:13px}.page-toggle>span{display:grid}.page-toggle strong{font-size:11px}.page-toggle small{color:var(--color-text-secondary);font-size:9px}.permission-body{display:grid;gap:8px;padding:22px 24px}.permission-label{display:grid;margin-left:6px}.permission-label small,.permission-note{color:var(--color-text-muted);font-size:11px}.permission-note{margin:8px 0 0}
+.intro{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:16px;padding:24px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}.intro-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}.intro p{margin:0 0 8px;color:var(--color-primary);font-size:var(--text-xs);font-weight:800;letter-spacing:.13em}.intro h2{margin:0 0 8px;font-size:var(--text-xl)}.intro span{color:var(--color-text-secondary);font-size:var(--text-md)}.connection-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}.connection-summary button{min-height:76px;display:flex;align-items:center;gap:13px;padding:14px 17px;border:1px solid var(--color-border);border-radius:var(--radius-lg);color:var(--color-text-secondary);background:var(--color-surface);text-align:left;cursor:pointer;transition:var(--transition-fast)}.connection-summary button:hover,.connection-summary button.active{color:var(--color-primary);border-color:color-mix(in srgb,var(--color-primary) 35%,var(--color-border));background:var(--color-primary-soft)}.connection-summary button>i{padding:10px;border-radius:11px;background:var(--color-background)}.connection-summary span{display:grid}.connection-summary small{font-size:9px;font-weight:800;letter-spacing:.08em}.connection-summary strong{color:var(--color-text);font-size:20px}.page-grid{display:grid;gap:12px}.page-card{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:16px;padding:20px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}.page-avatar{width:52px;height:52px;display:grid;place-items:center;overflow:hidden;color:var(--color-surface);background:var(--color-primary);border-radius:16px}.page-info h3{margin:0;font-size:15px}.page-info p{margin:3px 0;color:var(--color-text-secondary);font-size:12px}.page-info .page-phone{display:flex;align-items:center;gap:5px;color:var(--color-success);font-weight:700}.page-info small{color:var(--color-text-muted);font-size:10px}.token-row{display:flex;gap:6px;flex-wrap:wrap}.token-chip{display:flex!important;width:max-content;margin-top:7px}.page-toggle{min-width:196px;display:flex;align-items:center;justify-content:flex-end;gap:12px;padding:8px 10px 8px 14px;color:var(--color-success);background:var(--color-success-soft);border-radius:13px}.page-toggle>span{display:grid}.page-toggle strong{font-size:11px}.page-toggle small{color:var(--color-text-secondary);font-size:9px}.relation-summary{grid-column:1/-1;border-top:1px solid var(--color-border-subtle)}.relation-summary>button{width:100%;display:flex;align-items:center;gap:18px;padding:14px 0 0;border:0;color:var(--color-text-secondary);background:none;cursor:pointer}.relation-summary>button span{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700}.relation-summary>button>i:last-child{margin-left:auto}.relation-details{padding-top:13px}.relation-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.relation-list a{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:12px;color:var(--color-text);background:var(--color-background);border:1px solid var(--color-border);border-radius:12px;text-decoration:none}.relation-list a>div{display:grid;gap:3px;min-width:0}.relation-list strong,.relation-list small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.relation-list strong{font-size:12px}.relation-list small{color:var(--color-text-secondary);font-size:10px}.relation-state{width:8px;height:8px;background:var(--color-text-muted);border-radius:50%}.relation-state.active{background:var(--color-success)}.relation-empty{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;color:var(--color-text-secondary);background:var(--color-background);border-radius:12px;font-size:12px}.permission-body{display:grid;gap:8px;padding:22px 24px}.permission-label{display:grid;margin-left:6px}.permission-label small,.permission-note{color:var(--color-text-muted);font-size:11px}.permission-note{margin:8px 0 0}
 .whatsapp-setup{display:grid;grid-template-columns:auto 1fr;gap:18px;margin-bottom:16px;padding:24px;background:linear-gradient(135deg,color-mix(in srgb,var(--color-success) 8%,var(--color-surface)),var(--color-surface) 62%);border:1px solid color-mix(in srgb,var(--color-success) 24%,var(--color-border));border-radius:var(--radius-lg)}.whatsapp-setup-icon{width:58px;height:58px;display:grid;place-items:center;color:var(--color-success);background:var(--color-surface);border:1px solid color-mix(in srgb,var(--color-success) 22%,var(--color-border));border-radius:18px}.whatsapp-setup-copy>small{color:var(--color-success);font-size:10px;font-weight:800;letter-spacing:.13em}.whatsapp-setup-copy h3{margin:4px 0 5px;font-size:19px}.whatsapp-setup-copy>p{max-width:720px;margin:0;color:var(--color-text-secondary);font-size:13px}.setup-steps{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0;padding:0;list-style:none}.setup-steps li{display:flex;align-items:center;gap:7px;padding:8px 11px;color:var(--color-text-secondary);font-size:11px;font-weight:700;background:var(--color-surface);border:1px solid var(--color-border);border-radius:999px}.setup-steps span{width:20px;height:20px;display:grid;place-items:center;color:white;background:var(--color-success);border-radius:50%;font-size:10px}.setup-actions{display:flex;align-items:center;gap:5px;flex-wrap:wrap}.signup-wait-hint{max-width:780px;margin-top:12px}.signup-wait-hint code{overflow-wrap:anywhere}.diagnostic-details{margin-top:14px;padding:14px;color:var(--color-text-secondary);background:var(--color-background);border:1px solid var(--color-border);border-radius:12px}.diagnostic-counts{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:9px}.diagnostic-counts span{padding:6px 9px;background:var(--color-surface);border-radius:8px;font-size:10px}.diagnostic-details p{margin:6px 0;font-size:11px}.diagnostic-details ul{max-height:130px;margin:8px 0 0;padding-left:18px;overflow:auto}.diagnostic-details li{margin:4px 0;font-size:10px;word-break:break-word}
-@media(max-width:640px){.intro{display:grid;padding:20px}.intro-actions{display:grid;grid-template-columns:1fr 1fr;width:100%}.intro-actions :deep(.v-chip){grid-column:1/-1;width:max-content}.intro-actions :deep(.v-btn:last-child){grid-column:1/-1}.connection-summary{grid-template-columns:repeat(2,1fr);gap:7px}.connection-summary button{min-height:68px;justify-content:center;padding:9px 5px}.connection-summary button>i{display:none}.connection-summary small{font-size:7px}.connection-summary strong{font-size:18px}.whatsapp-setup{grid-template-columns:1fr;padding:19px}.whatsapp-setup-icon{width:48px;height:48px}.setup-steps{display:grid}.setup-actions{display:grid}.setup-actions :deep(.v-btn){width:100%}.page-card{grid-template-columns:auto 1fr;padding:17px}.page-action{grid-column:1/-1}.page-action :deep(.v-btn),.page-toggle{width:100%}.page-toggle{justify-content:space-between}.token-row{gap:3px}.token-chip{font-size:8px!important}}
+@media(max-width:640px){.intro{display:grid;padding:20px}.intro-actions{display:grid;grid-template-columns:1fr;width:100%}.intro-actions :deep(.v-chip){width:max-content}.connection-summary{grid-template-columns:repeat(2,1fr);gap:7px}.connection-summary button{min-height:68px;justify-content:center;padding:9px 5px}.connection-summary button>i{display:none}.connection-summary small{font-size:7px}.connection-summary strong{font-size:18px}.whatsapp-setup{grid-template-columns:1fr;padding:19px}.whatsapp-setup-icon{width:48px;height:48px}.setup-steps{display:grid}.setup-actions{display:grid}.setup-actions :deep(.v-btn){width:100%}.page-card{grid-template-columns:auto 1fr;padding:17px}.page-action{grid-column:1/-1}.page-action :deep(.v-btn),.page-toggle{width:100%}.page-toggle{justify-content:space-between}.token-row{gap:3px}.token-chip{font-size:8px!important}.relation-summary>button{gap:9px;flex-wrap:wrap}.relation-list{grid-template-columns:1fr}.relation-empty{align-items:flex-start;flex-direction:column}}
 .picker-card{border-radius:var(--radius-lg)!important}.picker-head{display:flex;align-items:center;justify-content:space-between;padding:22px 24px;border-bottom:1px solid var(--color-border)}.picker-head small{color:var(--color-primary);font-size:10px;font-weight:800;letter-spacing:.14em}.picker-head h2{margin:2px 0 0;font-size:20px}.picker-body{padding:22px 24px!important}.picker-toolbar{display:grid;grid-template-columns:1fr minmax(240px,320px);align-items:center;gap:20px;margin-bottom:18px}.picker-toolbar div{display:grid;gap:3px}.picker-toolbar span{color:var(--color-text-muted);font-size:12px}.picker-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.picker-page{display:grid;grid-template-columns:auto auto 1fr;align-items:center;gap:12px;padding:14px;border:1px solid var(--color-border);border-radius:14px;cursor:pointer;transition:.18s ease}.picker-page:hover,.picker-page.is-selected{border-color:var(--color-primary);background:var(--color-primary-soft)}.picker-page>span{display:grid;min-width:0}.picker-page strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.picker-page small{overflow:hidden;color:var(--color-text-muted);font-size:11px;text-overflow:ellipsis;white-space:nowrap}.picker-actions{padding:16px 24px;border-top:1px solid var(--color-border)}
 @media(max-width:700px){.picker-toolbar,.picker-grid{grid-template-columns:1fr}.picker-head,.picker-actions{padding-inline:16px}}
 
@@ -421,7 +426,7 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
 .pc-header { display:flex; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid #ebedf0; }
 .pc-title { margin:0; font-size:16px; font-weight:600; color:#1a1a1a; }
 .pc-body { display:flex; min-height:500px; max-height:75vh; }
-.pc-sidebar { width:220px; background:#f7f8fa; border-right:1px solid #ebedf0; display:flex; flex-direction:column; padding:12px 10px; overflow-y:auto; }
+.pc-sidebar { display:none; }
 .pc-nav-item { display:flex; align-items:center; gap:12px; padding:10px 14px; border-radius:8px; cursor:pointer; font-size:14px; color:#4a4a4a; font-weight:500; transition:background 0.2s; margin-bottom:4px; }
 .pc-nav-item:hover { background:#eff1f4; }
 .pc-nav-item.active { background:#ffffff; color:#1a1a1a; box-shadow:0 1px 3px rgba(0,0,0,0.05); }
@@ -431,7 +436,7 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
 .pc-main-title { font-size:14px; font-weight:600; color:#1a1a1a; }
 .pc-search-box { display:flex; align-items:center; background:#f2f3f5; border-radius:8px; padding:6px 12px; gap:8px; width:220px; }
 .pc-search-box input { border:none; background:transparent; outline:none; font-size:13px; flex:1; width:100%; }
-.pc-tabs-container { display:flex; align-items:center; justify-content:space-between; padding:0 24px; border-bottom:1px solid #ebedf0; }
+.pc-tabs-container { display:none; }
 .pc-tabs { display:flex; gap:24px; }
 .pc-tab { padding:12px 0; font-size:14px; font-weight:500; color:#77798b; cursor:pointer; position:relative; display:flex; align-items:center; gap:6px; }
 .pc-tab.active { color:#1877f2; }

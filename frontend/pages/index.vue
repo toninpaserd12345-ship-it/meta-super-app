@@ -25,7 +25,7 @@ const steps = computed(() => [
 <template>
   <v-alert v-if="justConnected" type="success" variant="tonal" closable class="mb-4">{{ locale==='lo'?'ເຊື່ອມ Facebook Page ສຳເລັດ ແລະ Webhook ເປີດໃຊ້ແລ້ວ':'Facebook Page connected and Webhook is active.' }}</v-alert>
   <section class="onboarding-hero">
-    <div><small>{{ locale==='lo'?'ສະຖານະ WORKSPACE':'WORKSPACE STATUS' }}</small><h2>{{ readyCount===4 ? (locale==='lo'?'ພ້ອມເຮັດວຽກແລ້ວ':'Ready to work') : (locale==='lo'?'ກຽມ Automation ໃຫ້ພ້ອມ':'Finish your Automation setup') }}</h2><p>{{ locale==='lo'?'ຕິດຕາມສະຖານະຈິງ ໂດຍບໍ່ໃຊ້ຕົວເລກຕົວຢ່າງ':'Live workspace status without placeholder business metrics.' }}</p></div>
+    <div><small>{{ locale==='lo'?'ສະຖານະ WORKSPACE':'WORKSPACE STATUS' }}</small><h2>{{ readyCount===4 ? (locale==='lo'?'ພ້ອມເຮັດວຽກແລ້ວ':'Ready to work') : (locale==='lo'?'ກຽມ Automation ໃຫ້ພ້ອມ':'Finish your Automation setup') }}</h2><p>{{ locale==='lo'?'ສະຫຼຸບ Page, ສິນຄ້າ, ຊຸດຂໍ້ຄວາມ ແລະ Automation ຂອງ Workspace':'Page, product, Reply Set and Automation status for this workspace.' }}</p></div>
     <div class="progress"><strong>{{ readyCount }}/4</strong><span>{{ locale==='lo'?'ຂັ້ນຕອນສຳເລັດ':'steps complete' }}</span><div><i :style="{width:`${readyCount*25}%`}"/></div></div>
   </section>
 

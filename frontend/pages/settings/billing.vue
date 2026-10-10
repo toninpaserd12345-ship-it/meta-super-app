@@ -7,8 +7,6 @@ const loading = ref(true)
 
 const checkoutModal = ref(false)
 const selectedPlan = ref<any>(null)
-const checkoutForm = ref({ reference: '' })
-const checkoutLoading = ref(false)
 
 const loadBilling = async () => {
   loading.value = true
@@ -32,35 +30,7 @@ const openCheckout = (plan: any) => {
     return
   }
   selectedPlan.value = plan
-  checkoutForm.value.reference = ''
   checkoutModal.value = true
-}
-
-const submitCheckout = async () => {
-  if (!checkoutForm.value.reference) {
-    alert('Please enter a transfer reference number')
-    return
-  }
-  
-  checkoutLoading.value = true
-  try {
-    await fetchApi('/api/v1/billing/checkout', {
-      method: 'POST',
-      body: {
-        planId: selectedPlan.value.id,
-        paymentMethod: 'bank_transfer',
-        reference: checkoutForm.value.reference
-      }
-    })
-    
-    alert('Checkout successful! (Simulated for MVP)')
-    checkoutModal.value = false
-    await loadBilling()
-  } catch (err: any) {
-    alert(err.message || 'Checkout failed')
-  } finally {
-    checkoutLoading.value = false
-  }
 }
 
 const formatDate = (dateString: string) => {
@@ -127,27 +97,10 @@ onMounted(() => {
         <h3>Upgrade to {{ selectedPlan?.name }}</h3>
         
         <div class="payment-instructions">
-          <p>Please transfer <strong>{{ selectedPlan?.price.toLocaleString() }} LAK</strong> to our bank account:</p>
-          <div class="bank-details">
-            <p>Bank: <strong>BCEL</strong></p>
-            <p>Account Name: <strong>Meta Super App</strong></p>
-            <p>Account No: <strong>1234567890</strong></p>
-          </div>
+          <p>Online payment for this plan is not available yet. No payment has been created and no money will be charged.</p>
+          <p>Contact the workspace administrator to activate <strong>{{ selectedPlan?.name }}</strong>.</p>
         </div>
-
-        <form @submit.prevent="submitCheckout" class="checkout-form">
-          <div class="form-group">
-            <label>Transfer Reference Number (Ref/Txn ID)</label>
-            <input type="text" v-model="checkoutForm.reference" required placeholder="e.g. 100012398481" />
-          </div>
-          
-          <div class="modal-actions">
-            <button type="button" class="btn-secondary" @click="checkoutModal = false">Cancel</button>
-            <button type="submit" class="btn-primary" :disabled="checkoutLoading">
-              {{ checkoutLoading ? 'Processing...' : 'Submit Payment' }}
-            </button>
-          </div>
-        </form>
+        <div class="modal-actions"><button type="button" class="btn-primary" @click="checkoutModal = false">Close</button></div>
       </div>
     </div>
   </div>

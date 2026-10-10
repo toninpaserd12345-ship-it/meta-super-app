@@ -16,8 +16,5 @@ export const appNavigation: NavigationItem[] = [
   { labelKey: 'nav.replies', icon: 'mdi-message-text-fast-outline', to: '/replies', claim: 'pages:read' },
   { labelKey: 'nav.automation', icon: 'mdi-robot-happy-outline', to: '/auto-replies', claim: 'pages:read' },
   { labelKey: 'nav.guide', icon: 'mdi-book-open-page-variant-outline', to: '/automation-guide', claim: 'pages:read' },
-  { labelKey: 'nav.analytics', icon: 'mdi-chart-box-outline', to: '/analytics', claim: 'analytics:read' },
-  { labelKey: 'nav.customers', icon: 'mdi-account-group-outline', to: '/customers', claim: 'customers:read' },
-  { labelKey: 'nav.orders', icon: 'mdi-shopping-outline', to: '/orders', claim: 'orders:read' },
   { labelKey: 'nav.settings', icon: 'mdi-cog-outline', to: '/settings', claim: 'settings:read' },
 ]

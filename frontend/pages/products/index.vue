@@ -4,6 +4,7 @@ import type { ItemsResponse, Product } from '~/types/automation'
 definePageMeta({ middleware: 'auth' })
 
 const { can } = useAuth()
+const { locale } = useLocale()
 if (!can('pages:read')) throw createError({ statusCode: 403, statusMessage: 'You do not have permission to view Products.' })
 
 const { data, pending, error, refresh } = await useApi<ItemsResponse<Product>>('/proxy/api/v1/products')
@@ -85,8 +86,8 @@ async function saveProduct() {
 
 <template>
   <section class="page-head">
-    <div><p>PRODUCT CATALOG</p><h2>Products</h2><span>Keep product details in one place and reuse them in automatic replies.</span></div>
-    <div class="head-actions"><v-btn variant="outlined" prepend-icon="mdi-robot-happy-outline" to="/auto-replies">Manage Auto Replies</v-btn><v-btn color="primary" prepend-icon="mdi-plus" :disabled="!can('pages:connect')" @click="openCreate">Add product</v-btn></div>
+    <div><p>PRODUCT CATALOG</p><h2>{{locale==='lo'?'ຈັດການສິນຄ້າ':'Products'}}</h2><span>{{locale==='lo'?'ເກັບຊື່, ລາຄາ, ຮູບ ແລະລາຍລະອຽດເພື່ອໃຊ້ຮ່ວມກັບຊຸດຂໍ້ຄວາມ':'Keep product details in one place and reuse them in automatic replies.'}}</span></div>
+    <div class="head-actions"><v-btn variant="outlined" prepend-icon="mdi-robot-happy-outline" to="/auto-replies">{{locale==='lo'?'ຈັດການ Automation':'Manage Automations'}}</v-btn><v-btn color="primary" prepend-icon="mdi-plus" :disabled="!can('pages:connect')" @click="openCreate">{{locale==='lo'?'ເພີ່ມສິນຄ້າ':'Add product'}}</v-btn></div>
   </section>
 
   <v-alert v-if="notice" :type="noticeType" variant="tonal" closable class="mb-4" @click:close="notice=''">{{ notice }}</v-alert>
@@ -98,7 +99,7 @@ async function saveProduct() {
       <div class="product-icon" :style="product.imageUrl ? `background-image: url(${product.imageUrl}); background-size: cover; background-position: center;` : ''">
         <v-icon v-if="!product.imageUrl" icon="mdi-package-variant-closed"/>
       </div>
-      <div><h3>{{ product.name }}</h3><strong>{{ product.price }}</strong><p>{{ product.description || 'No product details yet.' }}</p><small>Product ID · {{ product.id }}</small></div>
+      <div><h3>{{ product.name }}</h3><strong>{{ product.price }}</strong><p v-if="product.description">{{ product.description }}</p><small>Product ID · {{ product.id }}</small></div>
       <v-btn icon="mdi-pencil-outline" variant="text" size="small" :disabled="!can('pages:connect')" :aria-label="`Edit ${product.name}`" @click="openEdit(product)"/>
     </article>
   </section>
@@ -121,7 +122,7 @@ async function saveProduct() {
         </div>
         <v-text-field v-model="form.imageUrl" label="Image URL" placeholder="https://..." hide-details class="mb-2"/>
         <v-text-field v-model="form.name" label="Product name" autofocus maxlength="120" counter/>
-        <v-text-field v-model="form.price" label="Price" placeholder="e.g. 250,000 LAK" maxlength="60" counter/>
+        <v-text-field v-model="form.price" label="Price" placeholder="Price and currency" maxlength="60" counter/>
         <v-textarea v-model="form.description" label="Product details" rows="4" maxlength="1000" counter/>
       </v-card-text>
       <v-card-actions><v-btn variant="text" @click="dialog=false">Cancel</v-btn><v-spacer/><v-btn color="primary" :loading="saving" :disabled="!form.name.trim() || !form.price.trim()" @click="saveProduct">Save product</v-btn></v-card-actions>

@@ -1,11 +1,12 @@
 <script setup lang="ts">
 const { user } = useAuth()
+const { locale } = useLocale()
 </script>
 
 <template>
   <div class="settings-section">
-    <h2>Profile Settings</h2>
-    <p class="subtitle">Manage your personal account details.</p>
+    <h2>{{locale==='lo'?'ຂໍ້ມູນບັນຊີ':'Profile Settings'}}</h2>
+    <p class="subtitle">{{locale==='lo'?'ກວດສອບຂໍ້ມູນຜູ້ໃຊ້ທີ່ເຂົ້າລະບົບ':'Review the signed-in account details.'}}</p>
     
     <div class="profile-card" v-if="user">
       <div class="avatar">

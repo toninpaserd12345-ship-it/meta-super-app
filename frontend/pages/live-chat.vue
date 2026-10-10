@@ -18,6 +18,9 @@ const conversations = ref<Record<string, ChatMessage[]>>({})
 const activeSender = ref<string | null>(null)
 const inputMessage = ref('')
 const evtSource = ref<EventSource | null>(null)
+const sending = ref(false)
+const loadError = ref('')
+const { locale } = useLocale()
 
 const activeChatMessages = computed(() => {
   if (!activeSender.value) return []
@@ -25,9 +28,8 @@ const activeChatMessages = computed(() => {
 })
 
 const sendReply = async () => {
-  if (!inputMessage.value.trim() || !activeSender.value) return
+  if (!inputMessage.value.trim() || !activeSender.value || sending.value) return
   const msg = inputMessage.value
-  inputMessage.value = ''
   
   // Find the page ID associated with this sender
   const msgs = conversations.value[activeSender.value]
@@ -35,14 +37,19 @@ const sendReply = async () => {
 
   if (!pageId) return
 
-  await $fetch('/api/proxy/api/v1/chat/send', {
-    method: 'POST',
-    page_id: pageId,
-    recipient_id: activeSender.value,
-    message: msg
-  })
-  
-  // Note: the backend will stream it back so it will appear automatically
+  sending.value = true
+  loadError.value = ''
+  try {
+    await $fetch('/api/proxy/api/v1/chat/send', {
+      method: 'POST',
+      body: { page_id: pageId, recipient_id: activeSender.value, message: msg },
+    })
+    inputMessage.value = ''
+  } catch (error: any) {
+    loadError.value = error?.data?.message || error?.statusMessage || (locale.value === 'lo' ? 'ສົ່ງຂໍ້ຄວາມບໍ່ສຳເລັດ' : 'Message could not be sent.')
+  } finally {
+    sending.value = false
+  }
 }
 
 onMounted(async () => {
@@ -66,7 +73,7 @@ onMounted(async () => {
       }
     }
   } catch (err) {
-    console.error('Failed to load history:', err)
+    loadError.value = locale.value === 'lo' ? 'ໂຫຼດປະຫວັດສົນທະນາບໍ່ສຳເລັດ' : 'Conversation history could not be loaded.'
   }
 
   const baseURL = useRuntimeConfig().public.apiBase
@@ -90,7 +97,7 @@ onMounted(async () => {
   }
   
   evtSource.value.onerror = (error) => {
-    console.error('SSE Error:', error)
+    loadError.value = locale.value === 'lo' ? 'ການເຊື່ອມຕໍ່ຂໍ້ຄວາມຂາດຊົ່ວຄາວ' : 'The live message connection was interrupted.'
   }
 })
 
@@ -112,11 +119,11 @@ const formatTime = (ts: string) => {
   <div class="chat-layout">
     <div class="chat-sidebar">
       <div class="sidebar-header">
-        <h2>Live Inbox</h2>
+        <h2>{{locale==='lo'?'ກ່ອງຂໍ້ຄວາມ':'Live Inbox'}}</h2>
       </div>
       <div class="conversation-list">
         <div v-if="Object.keys(conversations).length === 0" class="empty-list">
-          No active conversations. Waiting for messages...
+          {{locale==='lo'?'ຍັງບໍ່ມີການສົນທະນາ':'No conversations yet.'}}
         </div>
         <div 
           v-for="(msgs, senderId) in conversations" 
@@ -154,7 +161,8 @@ const formatTime = (ts: string) => {
           :class="msg.platform === 'system' ? 'outgoing' : 'incoming'"
         >
           <div class="bubble-content">
-            <span v-if="msg.type === 'image'" class="media-placeholder">[Image]</span>
+            <img v-if="msg.type === 'image' && msg.message" :src="msg.message" :alt="locale==='lo'?'ຮູບຈາກການສົນທະນາ':'Conversation image'" class="message-image">
+            <span v-else-if="msg.type === 'image'" class="media-placeholder">{{locale==='lo'?'ຮູບພາບ':'Image'}}</span>
             <span v-else>{{ msg.message }}</span>
           </div>
           <div class="bubble-time">{{ formatTime(msg.timestamp) }}</div>
@@ -162,19 +170,21 @@ const formatTime = (ts: string) => {
       </div>
       
       <div class="chat-input">
+        <div v-if="loadError" class="chat-error">{{loadError}}</div>
         <input 
           v-model="inputMessage" 
           @keyup.enter="sendReply" 
           type="text" 
-          placeholder="Type a reply..."
+          :placeholder="locale==='lo'?'ພິມຂໍ້ຄວາມຕອບກັບ':'Write a reply'"
+          :disabled="sending"
         />
-        <button @click="sendReply"><v-icon icon="mdi-send"/></button>
+        <button :disabled="sending||!inputMessage.trim()" @click="sendReply"><v-progress-circular v-if="sending" indeterminate size="18" width="2"/><v-icon v-else icon="mdi-send"/></button>
       </div>
     </div>
     
     <div class="chat-empty" v-else>
       <v-icon icon="mdi-message-text-outline" size="64" />
-      <p>Select a conversation to start chatting</p>
+      <p>{{locale==='lo'?'ເລືອກການສົນທະນາເພື່ອເບິ່ງ ແລະຕອບຂໍ້ຄວາມ':'Select a conversation to view and reply.'}}</p>
     </div>
   </div>
 </template>
@@ -327,6 +337,7 @@ const formatTime = (ts: string) => {
   font-size: 14px;
   line-height: 1.4;
 }
+.message-image{display:block;max-width:min(360px,60vw);max-height:360px;border-radius:10px;object-fit:cover}.media-placeholder{font-weight:600}
 
 .incoming .bubble-content {
   background: var(--color-surface);
@@ -347,11 +358,13 @@ const formatTime = (ts: string) => {
 }
 
 .chat-input {
+  position: relative;
   padding: 16px;
   border-top: 1px solid var(--color-border);
   display: flex;
   gap: 12px;
 }
+.chat-error{position:absolute;left:16px;right:16px;bottom:68px;padding:8px 12px;color:var(--color-error);background:var(--color-error-soft);border:1px solid color-mix(in srgb,var(--color-error) 30%,transparent);border-radius:9px;font-size:12px}
 
 .chat-input input {
   flex: 1;
@@ -378,6 +391,7 @@ const formatTime = (ts: string) => {
   display: grid;
   place-items: center;
 }
+.chat-input button:disabled{opacity:.45;cursor:not-allowed}
 
 .chat-empty {
   flex: 1;
@@ -388,4 +402,5 @@ const formatTime = (ts: string) => {
   color: var(--color-text-muted);
   gap: 16px;
 }
+@media(max-width:760px){.chat-layout{height:calc(100dvh - 96px)}.chat-sidebar{width:112px}.sidebar-header{padding:15px 10px}.sidebar-header h2{font-size:14px}.conv-item{display:grid;justify-items:center;padding:12px 8px}.conv-details{width:100%;text-align:center}.conv-name{font-size:10px;overflow:hidden;text-overflow:ellipsis}.conv-preview{display:none}.chat-header,.chat-messages{padding:14px}.message-bubble{max-width:88%}.chat-empty{padding:20px;text-align:center}}
 </style>

@@ -5,6 +5,7 @@ definePageMeta({ middleware: 'auth' })
 
 const router = useRouter()
 const { can } = useAuth()
+const { locale } = useLocale()
 if (!can('pages:read')) throw createError({ statusCode: 403, statusMessage: 'You do not have permission to view Reply Sets.' })
 
 const { data: setData, pending, error, refresh } = await useApi<ReplySet[]>('/proxy/api/v1/replies')
@@ -82,8 +83,8 @@ async function deleteSet() {
   <section class="page-head">
     <div>
       <p>AUTO REPLY LIBRARY</p>
-      <h2>Auto Reply Sets</h2>
-      <span>Build reusable message sequences, then connect them to Posts or Ads.</span>
+      <h2>{{locale==='lo'?'ຊຸດຂໍ້ຄວາມຕອບກັບ':'Reply Sets'}}</h2>
+      <span>{{locale==='lo'?'ຈັດລຳດັບຂໍ້ຄວາມ, ຮູບ, ວິດີໂອ ແລະສຽງ ແລ້ວນຳໄປໃຊ້ກັບ Automation':'Build reusable message sequences, then connect them to Posts or Ads.'}}</span>
     </div>
     <div class="head-actions">
       <v-btn variant="outlined" prepend-icon="mdi-robot-happy-outline" to="/auto-replies">Manage Auto Replies</v-btn>
@@ -129,7 +130,7 @@ async function deleteSet() {
     <v-card class="dialog-card">
       <v-card-title>Create Auto Reply Set</v-card-title>
       <v-card-text>
-        <v-text-field v-model="newSetName" label="Set name" placeholder="e.g. Durian price enquiry" autofocus variant="outlined" maxlength="120" counter @keyup.enter="createSet"/>
+        <v-text-field v-model="newSetName" label="Set name" placeholder="Name this Reply Set" autofocus variant="outlined" maxlength="120" counter @keyup.enter="createSet"/>
       </v-card-text>
       <v-card-actions>
         <v-btn variant="text" @click="createDialog=false">Cancel</v-btn><v-spacer/>

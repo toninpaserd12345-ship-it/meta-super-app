@@ -13,7 +13,7 @@ const inviteResult = ref<any>(null)
 const loadMembers = async () => {
   loading.value = true
   try {
-    members.value = await fetchApi('/api/v1/team') as any[]
+    members.value = await fetchApi('/api/proxy/api/v1/team') as any[]
   } catch (err: any) {
     console.error(err)
   } finally {
@@ -25,7 +25,7 @@ const submitInvite = async () => {
   inviteLoading.value = true
   inviteError.value = ''
   try {
-    const res = await fetchApi('/api/v1/team/invite', {
+    const res = await fetchApi('/api/proxy/api/v1/team/invite', {
       method: 'POST',
       body: inviteForm.value
     })
@@ -47,7 +47,7 @@ const closeInviteModal = () => {
 const removeMember = async (id: string) => {
   if (!confirm('Are you sure you want to remove this member?')) return
   try {
-    await fetchApi(`/api/v1/team/${id}`, { method: 'DELETE' })
+    await fetchApi(`/api/proxy/api/v1/team/${id}`, { method: 'DELETE' })
     await loadMembers()
   } catch (err: any) {
     alert(err.message || 'Failed to remove member')
@@ -123,12 +123,12 @@ onMounted(() => {
           
           <div class="form-group">
             <label>Name</label>
-            <input type="text" v-model="inviteForm.name" required placeholder="John Doe" />
+            <input type="text" v-model="inviteForm.name" required placeholder="Full name" />
           </div>
           
           <div class="form-group">
             <label>Email Address</label>
-            <input type="email" v-model="inviteForm.email" required placeholder="john@example.com" />
+            <input type="email" v-model="inviteForm.email" required placeholder="Email address" />
           </div>
           
           <div class="form-group">

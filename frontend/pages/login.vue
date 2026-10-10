@@ -11,6 +11,7 @@ if(facebookResult==='expired')errorMessage.value='This Facebook connection reque
 const emailLoading = ref(false)
 const email = ref('')
 const password = ref('')
+const { locale } = useLocale()
 
 async function loginWithFacebook(){facebookLoading.value=true;errorMessage.value='';try{const result=await $fetch<{authorizationUrl:string}>('/api/auth/facebook/start',{method:'POST'});window.location.assign(result.authorizationUrl)}catch{errorMessage.value='Unable to start Facebook Login.';facebookLoading.value=false}}
 
@@ -34,17 +35,17 @@ async function loginWithEmail(){
       <aside class="brand-panel">
         <div>
           <div class="brand-mark">M</div><div class="eyebrow">META SUPER APP</div>
-          <h1 class="text-balance">One calm place to run your business.</h1>
-          <p class="brand-copy">Bring your teams, daily operations, and business insights together in a workspace built to stay simple.</p>
+          <h1 class="text-balance">{{locale==='lo'?'ຈັດການການຂາຍ ແລະການສົນທະນາໃນບ່ອນດຽວ':'Run customer conversations from one workspace.'}}</h1>
+          <p class="brand-copy">{{locale==='lo'?'ເຊື່ອມ Facebook, WhatsApp, ສິນຄ້າ ແລະ Automation ໃຫ້ເຮັດວຽກຮ່ວມກັນ':'Connect Facebook, WhatsApp, products and Automations in one secure workspace.'}}</p>
         </div>
         <div class="trust-card"><div class="trust-icon"><v-icon icon="mdi-shield-check-outline" size="22"/></div><div><strong>Secure by design</strong><p>Your session is protected with server-side authentication and encrypted connections.</p></div></div>
-        <div class="panel-footer"><div class="avatar-stack"><span>KT</span><span>AN</span><span>PM</span></div><span>Built for modern teams</span></div>
+        <div class="panel-footer"><v-icon icon="mdi-account-group-outline"/><span>{{locale==='lo'?'ສຳລັບເຈົ້າຂອງຮ້ານ ແລະທີມງານ':'For owners and their teams'}}</span></div>
       </aside>
       <section class="form-panel">
         <div class="mobile-brand"><span>M</span><strong>Meta Super App</strong></div>
         <div class="form-wrap">
           <div class="welcome-icon"><v-icon icon="mdi-hand-wave-outline" size="25"/></div>
-          <p class="form-kicker">WELCOME</p><h2>Sign in to Workspace</h2><p class="form-subtitle">Log in as Staff or continue securely with Facebook as Owner.</p>
+          <p class="form-kicker">WELCOME</p><h2>{{locale==='lo'?'ເຂົ້າສູ່ Workspace':'Sign in to Workspace'}}</h2><p class="form-subtitle">{{locale==='lo'?'ທີມງານເຂົ້າດ້ວຍ Email ຫຼືເຈົ້າຂອງສືບຕໍ່ດ້ວຍ Facebook':'Staff can use email; owners can continue securely with Facebook.'}}</p>
           <v-alert v-if="errorMessage" type="error" variant="tonal" density="comfortable" closable class="error-alert mb-5" @click:close="errorMessage = ''">{{ errorMessage }}</v-alert>
           
           <form class="login-form mb-5" @submit.prevent="loginWithEmail">
@@ -59,12 +60,12 @@ async function loginWithEmail(){
             <button type="submit" class="btn-primary sign-in-btn mt-4 full-width" :disabled="emailLoading">{{ emailLoading ? 'Signing in...' : 'Sign In' }}</button>
           </form>
           
-          <div class="divider"><span>OR</span></div>
+          <div class="divider"><span>{{locale==='lo'?'ຫຼື':'OR'}}</span></div>
 
           <v-btn color="#1877F2" size="x-large" block prepend-icon="mdi-facebook" :loading="facebookLoading" class="facebook-btn" @click="loginWithFacebook">Continue with Facebook</v-btn>
           <div class="facebook-note"><v-icon icon="mdi-shield-lock-outline" size="18"/><span>We never receive your Facebook password. Authentication is handled securely by Meta.</span></div>
         </div>
-        <footer>© {{ new Date().getFullYear() }} Meta Super App · Privacy · Security · <strong>Version 1.0.3 (New UI)</strong></footer>
+        <footer>© {{ new Date().getFullYear() }} Meta Super App · Privacy · Security</footer>
       </section>
     </section>
   </main>
