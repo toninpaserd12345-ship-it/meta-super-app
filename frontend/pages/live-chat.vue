@@ -62,7 +62,7 @@ const markAsPurchased = async (senderId: string) => {
       method: 'PUT',
       body: { status: 'purchased' }
     })
-    leads.value[senderId].status = 'purchased'
+    lead.status = 'purchased'
   } catch (e) {
     alert(locale.value === 'lo' ? 'ອັບເດດສະຖານະບໍ່ສຳເລັດ' : 'Failed to update lead status')
   }
@@ -215,8 +215,8 @@ const formatTime = (ts: string) => {
             {{ conversations[activeSender]?.[0]?.platform }}
           </span>
         </div>
-        <div class="chat-header-actions" v-if="leads[activeSender]">
-          <button v-if="leads[activeSender].status !== 'purchased'" @click="markAsPurchased(activeSender)" class="action-btn">
+        <div class="chat-header-actions" v-if="activeSender && leads[activeSender]">
+          <button v-if="leads[activeSender]?.status !== 'purchased'" @click="markAsPurchased(activeSender!)" class="action-btn">
             {{ locale === 'lo' ? 'ປິດການຂາຍ (ຊື້ແລ້ວ)' : 'Mark as Purchased' }}
           </button>
           <span v-else class="status-badge purchased">✔ {{ locale === 'lo' ? 'ປິດການຂາຍແລ້ວ' : 'Purchased' }}</span>
