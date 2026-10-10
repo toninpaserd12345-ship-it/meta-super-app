@@ -29,12 +29,14 @@ const activeChatMessages = computed(() => {
   return conversations.value[activeSender.value] || []
 })
 
-const getSenderName = (msgs: ChatMessage[]) => {
+const getSenderName = (msgs?: ChatMessage[]) => {
+  if (!msgs || msgs.length === 0) return 'Unknown'
   const msg = msgs.find(m => m.sender_name)
   return msg?.sender_name || msgs[0]?.sender_id
 }
 
-const getSenderPic = (msgs: ChatMessage[]) => {
+const getSenderPic = (msgs?: ChatMessage[]) => {
+  if (!msgs || msgs.length === 0) return undefined
   const msg = msgs.find(m => m.sender_pic)
   return msg?.sender_pic
 }
