@@ -46,7 +46,9 @@ const activeChatMessages = computed(() => {
 const getSenderName = (msgs?: ChatMessage[]) => {
   if (!msgs || msgs.length === 0) return 'Unknown'
   const msg = msgs.find(m => m.sender_name)
-  return msg?.sender_name || msgs[0]?.sender_id
+  if (msg?.sender_name) return msg.sender_name
+  const id = msgs[0]?.sender_id || ''
+  return `${locale.value === 'lo' ? 'ລູກຄ້າ' : 'Customer'} · ${id.slice(-4)}`
 }
 
 const getSenderPic = (msgs?: ChatMessage[]) => {
