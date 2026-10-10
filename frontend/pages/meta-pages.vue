@@ -234,13 +234,13 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
       <v-expand-transition>
         <div v-if="whatsAppDetailsOpen&&whatsappDiagnostics" class="diagnostic-details">
           <div class="diagnostic-counts">
-            <span>Business portfolios <strong>{{whatsappDiagnostics.businessCount}}</strong></span>
-            <span>WhatsApp accounts <strong>{{whatsappDiagnostics.whatsAppBusinessAccountCount}}</strong></span>
-            <span>Phone numbers <strong>{{whatsappDiagnostics.phoneNumberCount}}</strong></span>
+            <span>Business portfolios <strong>{{whatsappDiagnostics?.businessCount}}</strong></span>
+            <span>WhatsApp accounts <strong>{{whatsappDiagnostics?.whatsAppBusinessAccountCount}}</strong></span>
+            <span>Phone numbers <strong>{{whatsappDiagnostics?.phoneNumberCount}}</strong></span>
           </div>
-          <p>{{whatsappDiagnostics.message}}</p>
-          <p v-if="whatsappDiagnostics.missingPermissions?.length">Missing permissions: <code>{{whatsappDiagnostics.missingPermissions.join(', ')}}</code></p>
-          <ul v-if="whatsappDiagnostics.issues?.length"><li v-for="issue in whatsappDiagnostics.issues" :key="issue"><code>{{issue}}</code></li></ul>
+          <p>{{whatsappDiagnostics?.message}}</p>
+          <p v-if="whatsappDiagnostics?.missingPermissions?.length">Missing permissions: <code>{{whatsappDiagnostics?.missingPermissions?.join(', ')}}</code></p>
+          <ul v-if="whatsappDiagnostics?.issues?.length"><li v-for="issue in whatsappDiagnostics?.issues" :key="issue"><code>{{issue}}</code></li></ul>
         </div>
       </v-expand-transition>
     </div>
