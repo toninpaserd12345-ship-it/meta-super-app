@@ -3,6 +3,7 @@ import type { MetaAdAccount, MetaCampaign, MetaAd, AutomationFlow, ItemsResponse
 
 definePageMeta({ middleware: 'auth' })
 const { can } = useAuth()
+const { l } = useLocale()
 const adAccounts = ref<MetaAdAccount[]>([])
 const campaigns = ref<MetaCampaign[]>([])
 const campaignAds = ref<Record<string, MetaAd[]>>({})
@@ -68,8 +69,8 @@ async function toggleCampaign(campaignId: string) {
 
 const campaignFlows=(campaignId:string)=>flows.value.filter(flow=>flow.targets.some(target=>target.type==='campaign'&&target.value===campaignId))
 const adFlows=(adId:string)=>flows.value.filter(flow=>flow.targets.some(target=>target.type==='ad'&&target.value===adId))
-const productName=(id:string)=>products.value.find(item=>item.id===id)?.name||'Product unavailable'
-const replySetName=(id:string)=>replySets.value.find(item=>item.id===id)?.name||'Reply Set unavailable'
+const productName=(id:string)=>products.value.find(item=>item.id===id)?.name||l({lo:'ບໍ່ພົບສິນຄ້າ',th:'ไม่พบสินค้า',en:'Product unavailable'})
+const replySetName=(id:string)=>replySets.value.find(item=>item.id===id)?.name||l({lo:'ບໍ່ພົບຊຸດຂໍ້ຄວາມ',th:'ไม่พบชุดข้อความ',en:'Reply Set unavailable'})
 
 watch(adAccountId, loadCampaigns)
 onMounted(loadData)
@@ -79,8 +80,8 @@ onMounted(loadData)
   <section class="page-head">
     <div>
       <p>MARKETING</p>
-      <h2>Campaign ແລະ Ads</h2>
-      <span>ກວດສອບ Campaign, Ads ແລະ Automation ທີ່ເຊື່ອມກັນດ້ວຍຂໍ້ມູນຈາກ Meta</span>
+      <h2>{{ l({lo:'Campaign ແລະ Ads',th:'แคมเปญและโฆษณา',en:'Campaigns and Ads'}) }}</h2>
+      <span>{{ l({lo:'ກວດສອບ Campaign, Ads ແລະ Automation ທີ່ເຊື່ອມກັນດ້ວຍຂໍ້ມູນຈາກ Meta',th:'ตรวจสอบแคมเปญ โฆษณา และ Automation ที่เชื่อมต่อด้วยข้อมูลจาก Meta',en:'Review campaigns, ads, and connected Automations using Meta data.'}) }}</span>
     </div>
   </section>
 
@@ -92,7 +93,7 @@ onMounted(loadData)
         :items="adAccounts.map((a: any) => ({ ...a, label: `${a.accountType === 'business' ? 'Business' : 'Personal'} · ${a.name}` }))"
         item-title="label"
         item-value="id"
-        label="ເລືອກບັນຊີໂຄສະນາ"
+        :label="l({lo:'ເລືອກບັນຊີໂຄສະນາ',th:'เลือกบัญชีโฆษณา',en:'Select Ad Account'})"
         variant="outlined"
         hide-details
       />
@@ -105,11 +106,11 @@ onMounted(loadData)
     <table class="campaign-table">
       <thead>
         <tr>
-          <th>Campaign Name</th>
-          <th>Status</th>
-          <th>Objective</th>
-          <th>Ad Sets / Ads</th>
-          <th>Auto Reply</th>
+          <th>{{ l({lo:'ຊື່ Campaign',th:'ชื่อแคมเปญ',en:'Campaign Name'}) }}</th>
+          <th>{{ l({lo:'ສະຖານະ',th:'สถานะ',en:'Status'}) }}</th>
+          <th>{{ l({lo:'ເປົ້າໝາຍ',th:'วัตถุประสงค์',en:'Objective'}) }}</th>
+          <th>{{ l({lo:'Ad Sets / Ads',th:'ชุดโฆษณา / โฆษณา',en:'Ad Sets / Ads'}) }}</th>
+          <th>{{ l({lo:'ຕອບກັບອັດຕະໂນມັດ',th:'ตอบกลับอัตโนมัติ',en:'Auto Reply'}) }}</th>
         </tr>
       </thead>
       <tbody v-for="campaign in campaigns" :key="campaign.id">
@@ -123,15 +124,15 @@ onMounted(loadData)
           <td>{{ campaign.adSetCount }} Sets · {{ campaign.adCount }} Ads</td>
           <td @click.stop>
             <div v-if="campaignFlows(campaign.id).length" class="automation-links"><NuxtLink v-for="flow in campaignFlows(campaign.id)" :key="flow.id" to="/auto-replies"><span :class="{active:flow.isActive}"/><div><strong>{{flow.name}}</strong><small>{{productName(flow.productId)}} → {{replySetName(flow.replySetId)}}</small></div></NuxtLink></div>
-            <v-btn v-else size="small" color="primary" variant="tonal" prepend-icon="mdi-robot-outline" to="/auto-replies">ສ້າງ Automation</v-btn>
+            <v-btn v-else size="small" color="primary" variant="tonal" prepend-icon="mdi-robot-outline" to="/auto-replies">{{ l({lo:'ສ້າງ Automation',th:'สร้าง Automation',en:'Create Automation'}) }}</v-btn>
           </td>
         </tr>
         <template v-if="expandedCampaigns.includes(campaign.id)">
           <tr v-if="!campaignAds[campaign.id]" class="ad-row">
-            <td colspan="5" class="text-center text-caption py-3"><v-progress-circular indeterminate size="20" /> Loading ads...</td>
+            <td colspan="5" class="text-center text-caption py-3"><v-progress-circular indeterminate size="20" /> {{ l({lo:'ກຳລັງໂຫຼດ Ads...',th:'กำลังโหลดโฆษณา...',en:'Loading ads...'}) }}</td>
           </tr>
           <tr v-else-if="(campaignAds[campaign.id]?.length || 0) === 0" class="ad-row">
-            <td colspan="5" class="text-center text-caption py-3">No ads found in this campaign.</td>
+            <td colspan="5" class="text-center text-caption py-3">{{ l({lo:'ບໍ່ພົບ Ads ໃນ Campaign ນີ້',th:'ไม่พบโฆษณาในแคมเปญนี้',en:'No ads found in this campaign.'}) }}</td>
           </tr>
           <tr v-else v-for="ad in campaignAds[campaign.id]" :key="ad.id" class="ad-row">
             <td class="pl-8">
@@ -146,8 +147,8 @@ onMounted(loadData)
             <td></td>
             <td>
               <div v-if="adFlows(ad.id).length" class="automation-links"><NuxtLink v-for="flow in adFlows(ad.id)" :key="flow.id" to="/auto-replies"><span :class="{active:flow.isActive}"/><div><strong>{{flow.name}}</strong><small>{{productName(flow.productId)}} → {{replySetName(flow.replySetId)}}</small></div></NuxtLink></div>
-              <span v-else-if="campaignFlows(campaign.id).length" class="text-caption text-success">ຄວບຄຸມໂດຍ Campaign Automation</span>
-              <span v-else class="text-caption text-disabled">ຍັງບໍ່ມີ Automation</span>
+              <span v-else-if="campaignFlows(campaign.id).length" class="text-caption text-success">{{ l({lo:'ຄວບຄຸມໂດຍ Campaign Automation',th:'ควบคุมโดย Campaign Automation',en:'Controlled by Campaign Automation'}) }}</span>
+              <span v-else class="text-caption text-disabled">{{ l({lo:'ຍັງບໍ່ມີ Automation',th:'ยังไม่มี Automation',en:'No Automation yet'}) }}</span>
             </td>
           </tr>
         </template>

@@ -61,7 +61,7 @@ func (s *ChatStream) Unsubscribe(accountID string, ch chan ChatEvent) {
 
 func (s *ChatStream) Broadcast(accountID string, event ChatEvent) {
 	// Save to DB first
-	if s.repo != nil {
+	if s.repo != nil && event.Type != "lead_alert" {
 		go s.repo.SaveMessage(context.Background(), event)
 	}
 

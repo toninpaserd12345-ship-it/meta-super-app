@@ -1,22 +1,26 @@
+<script setup lang="ts">
+const { t, l } = useLocale()
+</script>
+
 <template>
   <div class="settings-page">
     <div class="page-header">
       <div>
-        <h1>Settings</h1>
-        <p>Manage your account, team members, and billing</p>
+        <h1>{{ t('nav.settings') }}</h1>
+        <p>{{ l({lo:'ຈັດການບັນຊີ, ສະມາຊິກທີມ ແລະການຊຳລະເງິນ',th:'จัดการบัญชี สมาชิกทีม และการเรียกเก็บเงิน',en:'Manage your account, team members, and billing'}) }}</p>
       </div>
     </div>
     
     <div class="settings-layout">
       <nav class="settings-nav">
         <NuxtLink to="/settings" class="nav-item" exact-active-class="active">
-          <v-icon icon="mdi-account-outline" /> Profile
+          <v-icon icon="mdi-account-outline" /> {{ l({lo:'ໂປຣໄຟລ໌',th:'โปรไฟล์',en:'Profile'}) }}
         </NuxtLink>
         <NuxtLink to="/settings/team" class="nav-item" exact-active-class="active">
-          <v-icon icon="mdi-account-multiple-outline" /> Team Members
+          <v-icon icon="mdi-account-multiple-outline" /> {{ l({lo:'ສະມາຊິກທີມ',th:'สมาชิกทีม',en:'Team Members'}) }}
         </NuxtLink>
         <NuxtLink to="/settings/billing" class="nav-item" exact-active-class="active">
-          <v-icon icon="mdi-credit-card-outline" /> Billing & Plans
+          <v-icon icon="mdi-credit-card-outline" /> {{ l({lo:'ການຊຳລະ ແລະແພັກເກດ',th:'การเรียกเก็บเงินและแพ็กเกจ',en:'Billing & Plans'}) }}
         </NuxtLink>
       </nav>
       

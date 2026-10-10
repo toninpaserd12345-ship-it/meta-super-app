@@ -1,5 +1,6 @@
 <script setup lang="ts">
 const fetchApi = (url: string, options?: any) => $fetch(url, options)
+const { locale, l } = useLocale()
 
 const plans = ref<any[]>([])
 const subscription = ref<any>(null)
@@ -37,7 +38,7 @@ const openCheckout = (plan: any) => {
 
 const formatDate = (dateString: string) => {
   if (!dateString) return 'N/A'
-  return new Date(dateString).toLocaleDateString('en-US', {
+  return new Date(dateString).toLocaleDateString(locale.value === 'lo' ? 'lo-LA' : locale.value === 'th' ? 'th-TH' : 'en-US', {
     year: 'numeric', month: 'long', day: 'numeric'
   })
 }
@@ -51,12 +52,12 @@ onMounted(() => {
   <div class="settings-section">
     <div class="header-row">
       <div>
-        <h2>Billing & Plans</h2>
-        <p class="subtitle">Manage your subscription and payment methods.</p>
+        <h2>{{ l({lo:'ການຊຳລະ ແລະແພັກເກດ',th:'การเรียกเก็บเงินและแพ็กเกจ',en:'Billing & Plans'}) }}</h2>
+        <p class="subtitle">{{ l({lo:'ຈັດການ subscription ແລະວິທີຊຳລະເງິນ',th:'จัดการการสมัครสมาชิกและวิธีชำระเงิน',en:'Manage your subscription and payment methods.'}) }}</p>
       </div>
     </div>
     
-    <div v-if="loading" class="loading">Loading billing details...</div>
+    <div v-if="loading" class="loading">{{ l({lo:'ກຳລັງໂຫຼດຂໍ້ມູນ...',th:'กำลังโหลดข้อมูลการเรียกเก็บเงิน...',en:'Loading billing details...'}) }}</div>
     <v-alert v-else-if="loadError" type="error" variant="tonal" class="mb-4">
       {{ loadError }} <button class="retry-button" @click="loadBilling">Retry</button>
     </v-alert>
@@ -64,11 +65,11 @@ onMounted(() => {
     <template v-else>
       <div class="current-subscription" v-if="subscription">
         <div class="sub-status">
-          <h3>Current Plan: <strong>{{ subscription.plan?.name }}</strong></h3>
+          <h3>{{ l({lo:'ແພັກເກດປັດຈຸບັນ:',th:'แพ็กเกจปัจจุบัน:',en:'Current Plan:'}) }} <strong>{{ subscription.plan?.name }}</strong></h3>
           <div class="badge" :class="subscription.status">{{ subscription.status }}</div>
         </div>
         <p class="period">
-          Renews / Expires on: <strong>{{ formatDate(subscription.currentPeriodEnd) }}</strong>
+          {{ l({lo:'ຕໍ່ອາຍຸ / ໝົດອາຍຸ:',th:'ต่ออายุ / หมดอายุ:',en:'Renews / Expires on:'}) }} <strong>{{ formatDate(subscription.currentPeriodEnd) }}</strong>
         </p>
       </div>
 
@@ -78,7 +79,7 @@ onMounted(() => {
             <h4>{{ plan.name }}</h4>
             <div class="price">
               <span class="amount">{{ plan.price > 0 ? (plan.price.toLocaleString() + ' LAK') : 'Free' }}</span>
-              <span class="duration" v-if="plan.price > 0">/ month</span>
+              <span class="duration" v-if="plan.price > 0">/ {{ l({lo:'ເດືອນ',th:'เดือน',en:'month'}) }}</span>
             </div>
           </div>
           <ul class="features">
@@ -90,7 +91,7 @@ onMounted(() => {
             :disabled="subscription?.planId === plan.id"
             @click="openCheckout(plan)"
           >
-            {{ subscription?.planId === plan.id ? 'Current Plan' : 'Upgrade' }}
+            {{ subscription?.planId === plan.id ? l({lo:'ແພັກເກດປັດຈຸບັນ',th:'แพ็กเกจปัจจุบัน',en:'Current Plan'}) : l({lo:'ອັບເກຣດ',th:'อัปเกรด',en:'Upgrade'}) }}
           </button>
         </div>
       </div>
@@ -105,7 +106,7 @@ onMounted(() => {
           <p>Online payment for this plan is not available yet. No payment has been created and no money will be charged.</p>
           <p>Contact the workspace administrator to activate <strong>{{ selectedPlan?.name }}</strong>.</p>
         </div>
-        <div class="modal-actions"><button type="button" class="btn-primary" @click="checkoutModal = false">Close</button></div>
+        <div class="modal-actions"><button type="button" class="btn-primary" @click="checkoutModal = false">{{ l({lo:'ປິດ',th:'ปิด',en:'Close'}) }}</button></div>
       </div>
     </div>
   </div>

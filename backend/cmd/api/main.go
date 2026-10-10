@@ -97,8 +97,17 @@ func main() {
 	chatStream := usecase.NewChatStream(chatRepo)
 	metaConnector.SetChatStream(chatStream)
 	metaConnector.SetProductRepo(productRepo)
+	leads := usecase.NewLeads(db, metaConnector, chatStream, cfg.MetaGraphVersion)
+	metaConnector.SetLeadSink(leads)
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			leads.ProcessFollowUps(context.Background())
+		}
+	}()
 
-	app := httpx.NewHandler(auth, meta, team, billing, storageUseCase, replyUseCase, automationUseCase, productUseCase, chatStream, tokens, metaMode, cfg.MetaFrontendRedirect).App()
+	app := httpx.NewHandler(auth, meta, team, billing, storageUseCase, replyUseCase, automationUseCase, productUseCase, chatStream, leads, tokens, metaMode, cfg.MetaFrontendRedirect).App()
 	go func() {
 		slog.Info("Fiber API listening", "address", cfg.HTTPAddr, "environment", cfg.Environment, "storage", cfg.StorageDriver, "meta", metaMode)
 		if err := app.Listen(cfg.HTTPAddr); err != nil {

@@ -12,6 +12,7 @@ export const appNavigation: NavigationItem[] = [
   { labelKey: 'nav.chat', icon: 'mdi-chat-processing-outline', to: '/live-chat', claim: 'pages:read' },
   { labelKey: 'nav.channels', icon: 'mdi-facebook', to: '/meta-pages', claim: 'pages:read' },
   { labelKey: 'nav.ads', icon: 'mdi-bullhorn-outline', to: '/ads', claim: 'pages:read' },
+  { labelKey: 'nav.leads', icon: 'mdi-account-multiple-plus-outline', to: '/leads', claim: 'customers:read' },
   { labelKey: 'nav.products', icon: 'mdi-package-variant-closed', to: '/products', claim: 'pages:read' },
   { labelKey: 'nav.replies', icon: 'mdi-message-text-fast-outline', to: '/replies', claim: 'pages:read' },
   { labelKey: 'nav.automation', icon: 'mdi-robot-happy-outline', to: '/auto-replies', claim: 'pages:read' },

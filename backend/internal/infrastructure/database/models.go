@@ -171,3 +171,30 @@ type MetaWhatsAppConnectionModel struct {
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
 }
+
+type LeadModel struct {
+	ID string `json:"id"`; AccountID string `json:"accountId"`; PageID string `json:"pageId"`; SenderID string `json:"senderId"`; SourceType string `json:"sourceType"`; SourceID string `json:"sourceId"`; Name string `json:"name"`; Status string `json:"status"`; AssignedUserID string `json:"assignedUserId"`
+	AlertRead bool `json:"alertRead"`; FollowUpEnabled bool `json:"followUpEnabled"`; NextFollowUpAt *time.Time `json:"nextFollowUpAt,omitempty"`; FollowUpStep int `json:"followUpStep"`; CreatedAt time.Time `json:"createdAt"`; UpdatedAt time.Time `json:"updatedAt"`
+}
+
+type LeadSettingsModel struct {
+	AccountID       string `gorm:"type:uuid;primaryKey" json:"accountId"`
+	AssignmentMode  string `gorm:"size:30;not null;default:round_robin" json:"assignmentMode"`
+	AlertsEnabled   bool   `gorm:"not null;default:true" json:"alertsEnabled"`
+	FollowUpEnabled bool   `gorm:"not null;default:false" json:"followUpEnabled"`
+	CAPIEnabled     bool   `gorm:"not null;default:false" json:"capiEnabled"`
+	UpdatedAt       time.Time
+}
+
+type LeadFollowUpStepModel struct {
+	ID string `gorm:"type:uuid;primaryKey" json:"id"`; AccountID string `gorm:"type:uuid;not null;index" json:"accountId"`; StepIndex int `json:"stepIndex"`; DelayMinutes int `json:"delayMinutes"`; Message string `gorm:"type:text;not null" json:"message"`; IsEnabled bool `gorm:"not null;default:true" json:"isEnabled"`
+}
+
+type CAPIEventModel struct {
+	EventID              string `gorm:"size:100;primaryKey"`
+	AccountID            string `gorm:"type:uuid;not null;index"`
+	LeadID               string `gorm:"type:uuid;not null;index"`
+	Status               string `gorm:"size:30;not null"`
+	Error                string `gorm:"type:text"`
+	CreatedAt, UpdatedAt time.Time
+}

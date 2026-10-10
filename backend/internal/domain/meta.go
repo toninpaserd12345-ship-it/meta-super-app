@@ -140,6 +140,11 @@ type AutomationProvider interface {
 	GetReplySetItems(ctx context.Context, replySetID string, accountID string) ([]ReplyItem, error)
 }
 
+type LeadCapture struct{ AccountID, PageID, SenderID, SourceType, SourceID, Name string }
+type LeadSink interface {
+	CaptureLead(context.Context, LeadCapture) error
+}
+
 type MetaConnector interface {
 	SendMessage(ctx context.Context, accountID, pageID, recipientID, text string) error
 	AuthorizationURL(context.Context, string, string, []string) (string, error)
@@ -158,4 +163,5 @@ type MetaConnector interface {
 	VerifyWebhook(string) bool
 	ReceiveWebhook(context.Context, []byte, string) error
 	SetAutomationProvider(AutomationProvider)
+	SetLeadSink(LeadSink)
 }

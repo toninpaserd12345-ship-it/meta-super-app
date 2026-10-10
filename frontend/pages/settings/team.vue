@@ -1,6 +1,7 @@
 <script setup lang="ts">
 const fetchApi = (url: string, options?: any) => $fetch(url, options)
 const { can } = useAuth()
+const { l } = useLocale()
 
 const members = ref<any[]>([])
 const loading = ref(true)
@@ -19,7 +20,7 @@ const loadMembers = async () => {
   try {
     members.value = await fetchApi('/api/proxy/api/v1/team') as any[]
   } catch (err: any) {
-    loadError.value = err?.data?.message || err?.statusMessage || err?.message || 'Team members could not be loaded.'
+    loadError.value = err?.data?.message || err?.statusMessage || err?.message || l({lo:'ບໍ່ສາມາດໂຫຼດສະມາຊິກທີມໄດ້',th:'ไม่สามารถโหลดสมาชิกทีมได้',en:'Team members could not be loaded.'})
   } finally {
     loading.value = false
   }
@@ -34,7 +35,7 @@ const updateRole = async (member: any, role: string) => {
     await fetchApi(`/api/proxy/api/v1/team/${member.user.id}`, { method: 'PUT', body: { role } })
   } catch (err: any) {
     member.role = previous
-    loadError.value = err?.data?.message || err?.statusMessage || err?.message || 'The member role could not be updated.'
+    loadError.value = err?.data?.message || err?.statusMessage || err?.message || l({lo:'ບໍ່ສາມາດອັບເດດບົດບາດໄດ້',th:'ไม่สามารถอัปเดตบทบาทสมาชิกได้',en:'The member role could not be updated.'})
   } finally {
     updatingMember.value = ''
   }
@@ -64,7 +65,7 @@ const closeInviteModal = () => {
 }
 
 const removeMember = async (id: string) => {
-  if (!confirm('Are you sure you want to remove this member?')) return
+  if (!confirm(l({lo:'ຢືນຢັນການລຶບສະມາຊິກນີ້?',th:'ยืนยันการลบสมาชิกคนนี้?',en:'Are you sure you want to remove this member?'}))) return
   try {
     await fetchApi(`/api/proxy/api/v1/team/${id}`, { method: 'DELETE' })
     await loadMembers()
@@ -82,27 +83,27 @@ onMounted(() => {
   <div class="settings-section">
     <div class="header-row">
       <div>
-        <h2>Team Members</h2>
-        <p class="subtitle">Manage who has access to your workspace.</p>
+        <h2>{{ l({lo:'ສະມາຊິກທີມ',th:'สมาชิกทีม',en:'Team Members'}) }}</h2>
+        <p class="subtitle">{{ l({lo:'ຈັດການຜູ້ທີ່ເຂົ້າໃຊ້ Workspace ໄດ້',th:'จัดการผู้ที่สามารถเข้าถึงพื้นที่ทำงาน',en:'Manage who has access to your workspace.'}) }}</p>
       </div>
       <button class="btn-primary" :disabled="!can('users:invite')" @click="inviteModal = true">
-        <v-icon icon="mdi-account-plus-outline" /> Invite Member
+        <v-icon icon="mdi-account-plus-outline" /> {{ l({lo:'ເຊີນສະມາຊິກ',th:'เชิญสมาชิก',en:'Invite Member'}) }}
       </button>
     </div>
     
-    <div v-if="loading" class="loading">Loading members...</div>
+    <div v-if="loading" class="loading">{{ l({lo:'ກຳລັງໂຫຼດສະມາຊິກ...',th:'กำลังโหลดสมาชิก...',en:'Loading members...'}) }}</div>
     <v-alert v-else-if="loadError" type="error" variant="tonal" closable class="mb-4" @click:close="loadError=''">
-      {{ loadError }} <button class="inline-action" @click="loadMembers">Retry</button>
+      {{ loadError }} <button class="inline-action" @click="loadMembers">{{ l({lo:'ລອງໃໝ່',th:'ลองอีกครั้ง',en:'Retry'}) }}</button>
     </v-alert>
     
     <div v-else class="members-table">
       <table>
         <thead>
           <tr>
-            <th>Name</th>
-            <th>Email</th>
-            <th>Role</th>
-            <th>Actions</th>
+            <th>{{ l({lo:'ຊື່',th:'ชื่อ',en:'Name'}) }}</th>
+            <th>{{ l({lo:'ອີເມວ',th:'อีเมล',en:'Email'}) }}</th>
+            <th>{{ l({lo:'ບົດບາດ',th:'บทบาท',en:'Role'}) }}</th>
+            <th>{{ l({lo:'ການຈັດການ',th:'การจัดการ',en:'Actions'}) }}</th>
           </tr>
         </thead>
         <tbody>
@@ -123,7 +124,7 @@ onMounted(() => {
             </td>
           </tr>
           <tr v-if="members.length === 0">
-            <td colspan="4" class="empty-state">No members found</td>
+            <td colspan="4" class="empty-state">{{ l({lo:'ບໍ່ພົບສະມາຊິກ',th:'ไม่พบสมาชิก',en:'No members found'}) }}</td>
           </tr>
         </tbody>
       </table>
@@ -132,11 +133,11 @@ onMounted(() => {
     <!-- Invite Modal -->
     <div v-if="inviteModal" class="modal-overlay" @click.self="closeInviteModal">
       <div class="modal-content">
-        <h3>Invite Team Member</h3>
+        <h3>{{ l({lo:'ເຊີນສະມາຊິກທີມ',th:'เชิญสมาชิกทีม',en:'Invite Team Member'}) }}</h3>
         
         <div v-if="inviteResult" class="success-box">
           <v-icon icon="mdi-check-circle" color="green" />
-          <p>User successfully invited!</p>
+          <p>{{ l({lo:'ເຊີນຜູ້ໃຊ້ສຳເລັດ!',th:'เชิญผู้ใช้สำเร็จ!',en:'User successfully invited!'}) }}</p>
           <div v-if="inviteResult.password" class="password-box">
             <small>This user is new. Please share this temporary password with them:</small>
             <strong>{{ inviteResult.password }}</strong>
@@ -148,17 +149,17 @@ onMounted(() => {
           <div v-if="inviteError" class="error-msg">{{ inviteError }}</div>
           
           <div class="form-group">
-            <label>Name</label>
+            <label>{{ l({lo:'ຊື່',th:'ชื่อ',en:'Name'}) }}</label>
             <input type="text" v-model="inviteForm.name" required placeholder="Full name" />
           </div>
           
           <div class="form-group">
-            <label>Email Address</label>
+            <label>{{ l({lo:'ອີເມວ',th:'อีเมล',en:'Email Address'}) }}</label>
             <input type="email" v-model="inviteForm.email" required placeholder="Email address" />
           </div>
           
           <div class="form-group">
-            <label>Role</label>
+            <label>{{ l({lo:'ບົດບາດ',th:'บทบาท',en:'Role'}) }}</label>
             <select v-model="inviteForm.role">
               <option value="admin">Admin</option>
               <option value="manager">Manager</option>
@@ -167,9 +168,9 @@ onMounted(() => {
           </div>
           
           <div class="modal-actions">
-            <button type="button" class="btn-secondary" @click="closeInviteModal">Cancel</button>
+            <button type="button" class="btn-secondary" @click="closeInviteModal">{{ l({lo:'ຍົກເລີກ',th:'ยกเลิก',en:'Cancel'}) }}</button>
             <button type="submit" class="btn-primary" :disabled="inviteLoading">
-              {{ inviteLoading ? 'Inviting...' : 'Send Invite' }}
+              {{ inviteLoading ? l({lo:'ກຳລັງເຊີນ...',th:'กำลังเชิญ...',en:'Inviting...'}) : l({lo:'ສົ່ງຄຳເຊີນ',th:'ส่งคำเชิญ',en:'Send Invite'}) }}
             </button>
           </div>
         </form>

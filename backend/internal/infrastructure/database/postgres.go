@@ -28,7 +28,7 @@ func Open(dsn string) (*gorm.DB, error) {
 }
 
 func Migrate(db *gorm.DB) error {
-	if err := db.AutoMigrate(&UserModel{}, &AccountModel{}, &MembershipModel{}, &MembershipClaimModel{}, &PlanModel{}, &SubscriptionModel{}, &TransactionModel{}, &ReplySetModel{}, &ReplyItemModel{}, &AutomationRuleModel{}, &ProductModel{}, &ChatMessageModel{}, &MetaConnectionModel{}, &MetaPageTokenModel{}, &MetaWhatsAppConnectionModel{}); err != nil {
+	if err := db.AutoMigrate(&UserModel{}, &AccountModel{}, &MembershipModel{}, &MembershipClaimModel{}, &PlanModel{}, &SubscriptionModel{}, &TransactionModel{}, &ReplySetModel{}, &ReplyItemModel{}, &AutomationRuleModel{}, &ProductModel{}, &ChatMessageModel{}, &MetaConnectionModel{}, &MetaPageTokenModel{}, &MetaWhatsAppConnectionModel{}, &LeadModel{}, &LeadSettingsModel{}, &LeadFollowUpStepModel{}, &CAPIEventModel{}); err != nil {
 		return err
 	}
 	return migrateReplySetCodes(db)
@@ -46,7 +46,7 @@ func MigrateMetaCredentials(db *gorm.DB) error {
 // used on every deployment. Production may disable full seed migrations, but
 // it must never start with a schema older than the running automation API.
 func MigrateRuntimeSchema(db *gorm.DB) error {
-	if err := db.AutoMigrate(&AutomationRuleModel{}, &ChatMessageModel{}, &ProductModel{}, &ReplySetModel{}); err != nil {
+	if err := db.AutoMigrate(&AutomationRuleModel{}, &ChatMessageModel{}, &ProductModel{}, &ReplySetModel{}, &LeadModel{}, &LeadSettingsModel{}, &LeadFollowUpStepModel{}, &CAPIEventModel{}); err != nil {
 		return err
 	}
 	if err := migrateReplySetCodes(db); err != nil {

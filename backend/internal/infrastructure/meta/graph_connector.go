@@ -74,6 +74,7 @@ type GraphConnector struct {
 	inFlight      map[string]bool
 	automation    domain.AutomationProvider
 	productRepo   domain.ProductRepository
+	leadSink      domain.LeadSink
 }
 
 func (g *GraphConnector) SetChatStream(c *usecase.ChatStream) {
@@ -83,6 +84,7 @@ func (g *GraphConnector) SetChatStream(c *usecase.ChatStream) {
 func (g *GraphConnector) SetAutomationProvider(p domain.AutomationProvider) {
 	g.automation = p
 }
+func (g *GraphConnector) SetLeadSink(s domain.LeadSink) { g.leadSink = s }
 
 func NewGraphConnector(cfg GraphConfig, db *gorm.DB) *GraphConnector {
 	g := &GraphConnector{db: db, cfg: cfg, client: &http.Client{Timeout: 15 * time.Second}, states: make(map[string]oauthState), sessions: make(map[string]*graphSession), recentEvents: make(map[string]time.Time), bindings: make(map[string]domain.ProductBinding), products: make(map[string]map[string]domain.Product), replyFlows: make(map[string]map[string]domain.ReplyFlow), firstReplies: make(map[string]time.Time), conversations: make(map[string]string), deliverySteps: make(map[string]bool), inFlight: make(map[string]bool)}
@@ -352,6 +354,10 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 			}
 			g.mu.Unlock()
 			_, page, pageFound := g.findPage(entry.ID)
+			if pageFound && g.leadSink != nil {
+				accountID, _, _ := g.findPage(entry.ID)
+				_ = g.leadSink.CaptureLead(ctx, domain.LeadCapture{AccountID: accountID, PageID: entry.ID, SenderID: change.Value.From.ID, SourceType: "post", SourceID: change.Value.PostID})
+			}
 			if !found || isSpamming || busy || !pageFound {
 				continue
 			}
@@ -405,6 +411,16 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 			accountID, page, pageFound := g.findPage(entry.ID)
 			if !pageFound {
 				continue
+			}
+			if g.leadSink != nil {
+				sourceType, sourceID := "message", ""
+				if ref != nil {
+					sourceType, sourceID = "post", ref.Ref
+					if ref.AdID != "" {
+						sourceType, sourceID = "ad", ref.AdID
+					}
+				}
+				_ = g.leadSink.CaptureLead(ctx, domain.LeadCapture{AccountID: accountID, PageID: entry.ID, SenderID: message.Sender.ID, SourceType: sourceType, SourceID: sourceID})
 			}
 			messageText := strings.TrimSpace(message.Message.Text)
 			var directSet *domain.ReplySet

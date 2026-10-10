@@ -4,7 +4,7 @@ import type { AutomationFlow, ItemsResponse, Product } from '~/types/automation'
 definePageMeta({ middleware: 'auth' })
 
 const { can } = useAuth()
-const { locale } = useLocale()
+const { locale, l } = useLocale()
 if (!can('pages:read')) throw createError({ statusCode: 403, statusMessage: 'You do not have permission to view Products.' })
 
 const { data, pending, error, refresh } = await useApi<ItemsResponse<Product>>('/proxy/api/v1/products')
@@ -47,12 +47,12 @@ async function deleteProduct() {
   try {
     await $fetch(`/api/proxy/api/v1/products/${productToDelete.value.id}`, { method: 'DELETE' })
     noticeType.value = 'success'
-    notice.value = locale.value === 'lo' ? `ລຶບ “${productToDelete.value.name}” ແລ້ວ` : `Deleted “${productToDelete.value.name}”.`
+    notice.value = l({ lo: `ລຶບ “${productToDelete.value.name}” ແລ້ວ`, th: `ลบ “${productToDelete.value.name}” แล้ว`, en: `Deleted “${productToDelete.value.name}”.` })
     deleteDialog.value = false
     await refresh()
   } catch (error) {
     noticeType.value = 'error'
-    notice.value = errorMessage(error, locale.value === 'lo' ? 'ລຶບສິນຄ້າບໍ່ສຳເລັດ' : 'Unable to delete the product.')
+    notice.value = errorMessage(error, l({ lo: 'ລຶບສິນຄ້າບໍ່ສຳເລັດ', th: 'ไม่สามารถลบสินค้าได้', en: 'Unable to delete the product.' }))
   } finally {
     deleting.value = false
     productToDelete.value = null
@@ -80,7 +80,7 @@ async function uploadProductImage(event: Event) {
     form.imageUrl = result.url
   } catch (err) {
     noticeType.value = 'error'
-    notice.value = errorMessage(err, 'Failed to upload image. Please try again.')
+    notice.value = errorMessage(err, l({ lo: 'ອັບໂຫຼດຮູບບໍ່ສຳເລັດ ກະລຸນາລອງໃໝ່', th: 'อัปโหลดรูปไม่สำเร็จ โปรดลองอีกครั้ง', en: 'Failed to upload image. Please try again.' }))
   } finally {
     uploading.value = false
     input.value = '' // reset
@@ -104,11 +104,13 @@ async function saveProduct() {
     })
     dialog.value = false
     noticeType.value = 'success'
-    notice.value = form.id ? 'Product updated.' : 'Product created and ready for Auto Replies.'
+    notice.value = form.id
+      ? l({ lo: 'ອັບເດດສິນຄ້າແລ້ວ', th: 'อัปเดตสินค้าแล้ว', en: 'Product updated.' })
+      : l({ lo: 'ສ້າງສິນຄ້າແລ້ວ ແລະພ້ອມໃຊ້ກັບ Auto Reply', th: 'สร้างสินค้าแล้วและพร้อมใช้กับ Auto Reply', en: 'Product created and ready for Auto Replies.' })
     await refresh()
   } catch (error) {
     noticeType.value = 'error'
-    notice.value = errorMessage(error, 'Unable to save the product.')
+    notice.value = errorMessage(error, l({ lo: 'ບັນທຶກສິນຄ້າບໍ່ສຳເລັດ', th: 'บันทึกสินค้าไม่สำเร็จ', en: 'Unable to save the product.' }))
   } finally {
     saving.value = false
   }
@@ -117,12 +119,12 @@ async function saveProduct() {
 
 <template>
   <section class="page-head">
-    <div><p>PRODUCT CATALOG</p><h2>{{locale==='lo'?'ຈັດການສິນຄ້າ':'Products'}}</h2><span>{{locale==='lo'?'ເກັບຊື່, ລາຄາ, ຮູບ ແລະລາຍລະອຽດເພື່ອໃຊ້ຮ່ວມກັບຊຸດຂໍ້ຄວາມ':'Keep product details in one place and reuse them in automatic replies.'}}</span></div>
-    <div class="head-actions"><v-btn variant="outlined" prepend-icon="mdi-robot-happy-outline" to="/auto-replies">{{locale==='lo'?'ຈັດການ Automation':'Manage Automations'}}</v-btn><v-btn color="primary" prepend-icon="mdi-plus" :disabled="!can('pages:connect')" @click="openCreate">{{locale==='lo'?'ເພີ່ມສິນຄ້າ':'Add product'}}</v-btn></div>
+    <div><p>PRODUCT CATALOG</p><h2>{{ l({lo:'ຈັດການສິນຄ້າ',th:'จัดการสินค้า',en:'Products'}) }}</h2><span>{{ l({lo:'ເກັບຊື່, ລາຄາ, ຮູບ ແລະລາຍລະອຽດເພື່ອໃຊ້ຮ່ວມກັບຊຸດຂໍ້ຄວາມ',th:'เก็บชื่อ ราคา รูปภาพ และรายละเอียดไว้ใช้กับชุดข้อความอัตโนมัติ',en:'Keep product details in one place and reuse them in automatic replies.'}) }}</span></div>
+    <div class="head-actions"><v-btn variant="outlined" prepend-icon="mdi-robot-happy-outline" to="/auto-replies">{{ l({lo:'ຈັດການ Automation',th:'จัดการ Automation',en:'Manage Automations'}) }}</v-btn><v-btn color="primary" prepend-icon="mdi-plus" :disabled="!can('pages:connect')" @click="openCreate">{{ l({lo:'ເພີ່ມສິນຄ້າ',th:'เพิ่มสินค้า',en:'Add product'}) }}</v-btn></div>
   </section>
 
   <v-alert v-if="notice" :type="noticeType" variant="tonal" closable class="mb-4" @click:close="notice=''">{{ notice }}</v-alert>
-  <v-alert v-if="error" type="error" variant="tonal" class="mb-4">Products could not be loaded. <button class="inline-action" @click="refresh()">Try again</button></v-alert>
+  <v-alert v-if="error" type="error" variant="tonal" class="mb-4">{{ l({lo:'ໂຫຼດສິນຄ້າບໍ່ສຳເລັດ',th:'โหลดสินค้าไม่สำเร็จ',en:'Products could not be loaded.'}) }} <button class="inline-action" @click="refresh()">{{ l({lo:'ລອງໃໝ່',th:'ลองอีกครั้ง',en:'Try again'}) }}</button></v-alert>
 
   <section v-if="pending" class="product-grid"><v-skeleton-loader v-for="index in 3" :key="index" type="card"/></section>
   <section v-else-if="products.length" class="product-grid">
@@ -131,14 +133,14 @@ async function saveProduct() {
         <v-icon v-if="!product.imageUrl" icon="mdi-package-variant-closed"/>
       </div>
       <div><h3>{{ product.name }}</h3><strong>{{ product.price }}</strong><p v-if="product.description">{{ product.description }}</p><small>{{ product.code ? `ລະຫັດ (Code) · ${product.code}` : `ID · ${product.id}` }}</small></div>
-      <div class="product-actions"><v-btn icon="mdi-pencil-outline" variant="text" size="small" :disabled="!can('pages:connect')" :aria-label="`Edit ${product.name}`" @click="openEdit(product)"/><v-btn icon="mdi-delete-outline" variant="text" size="small" color="error" :disabled="!can('pages:connect')" :aria-label="`Delete ${product.name}`" @click="requestDelete(product)"/></div>
+      <div class="product-actions"><v-btn icon="mdi-pencil-outline" variant="text" size="small" :disabled="!can('pages:connect')" :aria-label="`${l({lo:'ແກ້ໄຂ',th:'แก้ไข',en:'Edit'})} ${product.name}`" @click="openEdit(product)"/><v-btn icon="mdi-delete-outline" variant="text" size="small" color="error" :disabled="!can('pages:connect')" :aria-label="`${l({lo:'ລຶບ',th:'ลบ',en:'Delete'})} ${product.name}`" @click="requestDelete(product)"/></div>
     </article>
   </section>
-  <section v-else-if="!error" class="empty-state"><div><v-icon icon="mdi-package-variant-plus" size="30"/></div><h2>Add the first product</h2><p>A product provides the name, price, image and details inserted into your Reply Sets.</p><v-btn color="primary" prepend-icon="mdi-plus" :disabled="!can('pages:connect')" @click="openCreate">Add product</v-btn></section>
+  <section v-else-if="!error" class="empty-state"><div><v-icon icon="mdi-package-variant-plus" size="30"/></div><h2>{{ l({lo:'ເພີ່ມສິນຄ້າທຳອິດ',th:'เพิ่มสินค้าชิ้นแรก',en:'Add the first product'}) }}</h2><p>{{ l({lo:'ສິນຄ້າຈະເກັບຊື່, ລາຄາ, ຮູບ ແລະລາຍລະອຽດທີ່ໃຊ້ໃນຊຸດຂໍ້ຄວາມ',th:'สินค้าจะเก็บชื่อ ราคา รูปภาพ และรายละเอียดที่ใช้ในชุดข้อความ',en:'A product provides the name, price, image and details inserted into your Reply Sets.'}) }}</p><v-btn color="primary" prepend-icon="mdi-plus" :disabled="!can('pages:connect')" @click="openCreate">{{ l({lo:'ເພີ່ມສິນຄ້າ',th:'เพิ่มสินค้า',en:'Add product'}) }}</v-btn></section>
 
   <v-dialog v-model="dialog" max-width="580">
     <v-card class="dialog-card">
-      <v-card-title>{{ form.id ? 'Edit product' : 'Add product' }}</v-card-title>
+      <v-card-title>{{ form.id ? l({lo:'ແກ້ໄຂສິນຄ້າ',th:'แก้ไขสินค้า',en:'Edit product'}) : l({lo:'ເພີ່ມສິນຄ້າ',th:'เพิ่มสินค้า',en:'Add product'}) }}</v-card-title>
       <v-card-text class="form">
         <div class="image-upload-wrapper mb-3">
           <div class="image-preview" :style="form.imageUrl ? `background-image: url(${form.imageUrl})` : ''">
@@ -146,32 +148,32 @@ async function saveProduct() {
             <v-progress-circular v-if="uploading" indeterminate color="primary" class="upload-loader"/>
           </div>
           <div class="upload-actions">
-            <v-btn variant="outlined" size="small" prepend-icon="mdi-upload" :loading="uploading" @click="fileInput?.click()">Upload image</v-btn>
+            <v-btn variant="outlined" size="small" prepend-icon="mdi-upload" :loading="uploading" @click="fileInput?.click()">{{ l({lo:'ອັບໂຫຼດຮູບ',th:'อัปโหลดรูป',en:'Upload image'}) }}</v-btn>
             <input ref="fileInput" type="file" accept="image/*" hidden @change="uploadProductImage">
-            <div class="text-caption text-grey mt-1">Or paste a URL below:</div>
+            <div class="text-caption text-grey mt-1">{{ l({lo:'ຫຼືວາງ URL ດ້ານລຸ່ມ',th:'หรือวาง URL ด้านล่าง',en:'Or paste a URL below:'}) }}</div>
           </div>
         </div>
-        <v-text-field v-model="form.imageUrl" label="Image URL" placeholder="https://..." hide-details class="mb-2"/>
-        <v-text-field v-model="form.code" :label="locale==='lo'?'ລະຫັດສິນຄ້າ (Product Code)':'Product Code'" placeholder="e.g. P01" maxlength="50" hide-details class="mb-2"/>
-        <v-text-field v-model="form.name" label="Product name" autofocus maxlength="120" counter/>
-        <v-text-field v-model="form.price" label="Price" placeholder="Price and currency" maxlength="60" counter/>
-        <v-textarea v-model="form.description" label="Product details" rows="4" maxlength="1000" counter/>
+        <v-text-field v-model="form.imageUrl" :label="l({lo:'URL ຮູບພາບ',th:'URL รูปภาพ',en:'Image URL'})" placeholder="https://..." hide-details class="mb-2"/>
+        <v-text-field v-model="form.code" :label="l({lo:'ລະຫັດສິນຄ້າ',th:'รหัสสินค้า',en:'Product Code'})" placeholder="P01" maxlength="50" hide-details class="mb-2"/>
+        <v-text-field v-model="form.name" :label="l({lo:'ຊື່ສິນຄ້າ',th:'ชื่อสินค้า',en:'Product name'})" autofocus maxlength="120" counter/>
+        <v-text-field v-model="form.price" :label="l({lo:'ລາຄາ',th:'ราคา',en:'Price'})" :placeholder="l({lo:'ລາຄາ ແລະສະກຸນເງິນ',th:'ราคาและสกุลเงิน',en:'Price and currency'})" maxlength="60" counter/>
+        <v-textarea v-model="form.description" :label="l({lo:'ລາຍລະອຽດສິນຄ້າ',th:'รายละเอียดสินค้า',en:'Product details'})" rows="4" maxlength="1000" counter/>
       </v-card-text>
-      <v-card-actions><v-btn variant="text" @click="dialog=false">Cancel</v-btn><v-spacer/><v-btn color="primary" :loading="saving" :disabled="!form.name.trim() || !form.price.trim()" @click="saveProduct">Save product</v-btn></v-card-actions>
+      <v-card-actions><v-btn variant="text" @click="dialog=false">{{ l({lo:'ຍົກເລີກ',th:'ยกเลิก',en:'Cancel'}) }}</v-btn><v-spacer/><v-btn color="primary" :loading="saving" :disabled="!form.name.trim() || !form.price.trim()" @click="saveProduct">{{ l({lo:'ບັນທຶກສິນຄ້າ',th:'บันทึกสินค้า',en:'Save product'}) }}</v-btn></v-card-actions>
     </v-card>
   </v-dialog>
 
   <v-dialog v-model="deleteDialog" max-width="500">
     <v-card class="dialog-card">
-      <v-card-title>{{locale==='lo'?'ລຶບສິນຄ້າ?':'Delete product?'}}</v-card-title>
+      <v-card-title>{{ l({lo:'ລຶບສິນຄ້າ?',th:'ลบสินค้า?',en:'Delete product?'}) }}</v-card-title>
       <v-card-text>
         <template v-if="productToDelete && productAutomations(productToDelete.id).length">
-          <v-alert type="warning" variant="tonal" class="mb-3">{{locale==='lo'?'ຍັງລຶບບໍ່ໄດ້ ເພາະສິນຄ້ານີ້ຖືກໃຊ້ໃນ Automation':'This product cannot be deleted while an Automation uses it.'}}</v-alert>
-          <div class="dependency-list"><NuxtLink v-for="flow in productAutomations(productToDelete.id)" :key="flow.id" to="/auto-replies"><v-icon icon="mdi-robot-outline"/><span><strong>{{flow.name}}</strong><small>{{flow.targets.length}} {{locale==='lo'?'ເປົ້າໝາຍ':'targets'}}</small></span><v-icon icon="mdi-arrow-right"/></NuxtLink></div>
+          <v-alert type="warning" variant="tonal" class="mb-3">{{ l({lo:'ຍັງລຶບບໍ່ໄດ້ ເພາະສິນຄ້ານີ້ຖືກໃຊ້ໃນ Automation',th:'ยังลบไม่ได้ เพราะสินค้านี้ถูกใช้ใน Automation',en:'This product cannot be deleted while an Automation uses it.'}) }}</v-alert>
+          <div class="dependency-list"><NuxtLink v-for="flow in productAutomations(productToDelete.id)" :key="flow.id" to="/auto-replies"><v-icon icon="mdi-robot-outline"/><span><strong>{{flow.name}}</strong><small>{{flow.targets.length}} {{ l({lo:'ເປົ້າໝາຍ',th:'เป้าหมาย',en:'targets'}) }}</small></span><v-icon icon="mdi-arrow-right"/></NuxtLink></div>
         </template>
-        <p v-else>{{locale==='lo'?`ຢືນຢັນການລຶບ “${productToDelete?.name||''}”. ການກະທຳນີ້ຍ້ອນກັບບໍ່ໄດ້.`:`Delete “${productToDelete?.name||''}”? This action cannot be undone.`}}</p>
+        <p v-else>{{ l({lo:`ຢືນຢັນການລຶບ “${productToDelete?.name||''}”. ການກະທຳນີ້ຍ້ອນກັບບໍ່ໄດ້.`,th:`ยืนยันการลบ “${productToDelete?.name||''}” การดำเนินการนี้ย้อนกลับไม่ได้`,en:`Delete “${productToDelete?.name||''}”? This action cannot be undone.`}) }}</p>
       </v-card-text>
-      <v-card-actions><v-btn variant="text" @click="deleteDialog=false">{{locale==='lo'?'ຍົກເລີກ':'Cancel'}}</v-btn><v-spacer/><v-btn v-if="productToDelete&&!productAutomations(productToDelete.id).length" color="error" :loading="deleting" @click="deleteProduct">{{locale==='lo'?'ລຶບສິນຄ້າ':'Delete product'}}</v-btn><v-btn v-else color="primary" to="/auto-replies">{{locale==='lo'?'ໄປຈັດການ Automation':'Manage Automations'}}</v-btn></v-card-actions>
+      <v-card-actions><v-btn variant="text" @click="deleteDialog=false">{{ l({lo:'ຍົກເລີກ',th:'ยกเลิก',en:'Cancel'}) }}</v-btn><v-spacer/><v-btn v-if="productToDelete&&!productAutomations(productToDelete.id).length" color="error" :loading="deleting" @click="deleteProduct">{{ l({lo:'ລຶບສິນຄ້າ',th:'ลบสินค้า',en:'Delete product'}) }}</v-btn><v-btn v-else color="primary" to="/auto-replies">{{ l({lo:'ໄປຈັດການ Automation',th:'ไปจัดการ Automation',en:'Manage Automations'}) }}</v-btn></v-card-actions>
     </v-card>
   </v-dialog>
 </template>

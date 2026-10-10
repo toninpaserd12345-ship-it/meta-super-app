@@ -1,14 +1,15 @@
-export type AppLocale = 'lo' | 'en'
+export type AppLocale = 'lo' | 'th' | 'en'
 
 const messages = {
   lo: {
     'nav.ads': 'ຈັດການໂຄສະນາ', 'nav.overview': 'ພາບລວມ', 'nav.chat': 'ສົນທະນາ',
     'nav.channels': 'ເພຈ ແລະ WhatsApp', 'nav.products': 'ສິນຄ້າ', 'nav.replies': 'ຊຸດຂໍ້ຄວາມ',
     'nav.automation': 'ຕອບກັບອັດຕະໂນມັດ', 'nav.guide': 'ຄູ່ມື Automation', 'nav.analytics': 'ລາຍງານ',
-    'nav.customers': 'ລູກຄ້າ', 'nav.orders': 'ຄຳສັ່ງຊື້', 'nav.settings': 'ຕັ້ງຄ່າ',
+    'nav.customers': 'ລູກຄ້າ', 'nav.leads': 'ຈັດການ Lead', 'nav.orders': 'ຄຳສັ່ງຊື້', 'nav.settings': 'ຕັ້ງຄ່າ',
     'common.workspace': 'ພື້ນທີ່ເຮັດວຽກ', 'common.signOut': 'ອອກຈາກລະບົບ', 'common.language': 'ພາສາ',
     'common.back': 'ກັບຄືນ', 'common.cancel': 'ຍົກເລີກ', 'common.continue': 'ດຳເນີນຕໍ່',
     'common.delete': 'ລຶບ', 'common.edit': 'ແກ້ໄຂ', 'common.details': 'ລາຍລະອຽດ', 'common.save': 'ບັນທຶກ', 'common.active': 'ເປີດໃຊ້', 'common.targets': 'ເປົ້າໝາຍ',
+    'common.more': 'ເພີ່ມເຕີມ', 'common.allMenus': 'ເມນູທັງໝົດ', 'common.close': 'ປິດ', 'common.retry': 'ລອງໃໝ່',
     'header.morning': 'ສະບາຍດີຕອນເຊົ້າ', 'header.afternoon': 'ສະບາຍດີຕອນບ່າຍ', 'header.evening': 'ສະບາຍດີຕອນແລງ',
     'auto.eyebrow': 'ສູນຈັດການ AUTOMATION', 'auto.title': 'ຈັດການຕອບກັບອັດຕະໂນມັດ',
     'auto.newTitle': 'ສ້າງ Automation ໃໝ່', 'auto.editTitle': 'ແກ້ໄຂ Automation', 'auto.subtitle': '1 Automation ສາມາດໃຊ້ກັບຫຼາຍໂພສ ຫຼື Campaign ໄດ້',
@@ -33,12 +34,46 @@ const messages = {
     'auto.automation': 'Automation', 'auto.response': 'ຄຳຕອບ', 'auto.create': 'ສ້າງ ແລະເປີດໃຊ້', 'auto.update': 'ບັນທຶກການແກ້ໄຂ',
     'guide.title': 'ຄູ່ມືສ້າງ Automation', 'guide.subtitle': 'ຈາກການກຽມຂໍ້ມູນ ຫາການທົດສອບຂໍ້ຄວາມຈິງ',
   },
+  th: {
+    'nav.ads': 'จัดการโฆษณา', 'nav.overview': 'ภาพรวม', 'nav.chat': 'แชตสด',
+    'nav.channels': 'เพจและ WhatsApp', 'nav.products': 'สินค้า', 'nav.replies': 'ชุดข้อความ',
+    'nav.automation': 'ตอบกลับอัตโนมัติ', 'nav.guide': 'คู่มือ Automation', 'nav.analytics': 'รายงาน',
+    'nav.customers': 'ลูกค้า', 'nav.leads': 'จัดการ Lead', 'nav.orders': 'คำสั่งซื้อ', 'nav.settings': 'การตั้งค่า',
+    'common.workspace': 'พื้นที่ทำงาน', 'common.signOut': 'ออกจากระบบ', 'common.language': 'ภาษา',
+    'common.back': 'ย้อนกลับ', 'common.cancel': 'ยกเลิก', 'common.continue': 'ดำเนินการต่อ',
+    'common.delete': 'ลบ', 'common.edit': 'แก้ไข', 'common.details': 'รายละเอียด', 'common.save': 'บันทึก', 'common.active': 'เปิดใช้งาน', 'common.targets': 'เป้าหมาย',
+    'common.more': 'เพิ่มเติม', 'common.allMenus': 'เมนูทั้งหมด', 'common.close': 'ปิด', 'common.retry': 'ลองอีกครั้ง',
+    'header.morning': 'สวัสดีตอนเช้า', 'header.afternoon': 'สวัสดีตอนบ่าย', 'header.evening': 'สวัสดีตอนเย็น',
+    'auto.eyebrow': 'ศูนย์จัดการ AUTOMATION', 'auto.title': 'จัดการการตอบกลับอัตโนมัติ',
+    'auto.newTitle': 'สร้าง Automation ใหม่', 'auto.editTitle': 'แก้ไข Automation', 'auto.subtitle': 'Automation เดียวใช้กับหลายโพสต์หรือหลายแคมเปญได้',
+    'auto.new': 'สร้าง Automation', 'auto.list': 'รายการ Automation', 'auto.connected': 'เป้าหมายที่เชื่อมต่อแล้ว',
+    'auto.search': 'ค้นหา Automation หรือเป้าหมาย', 'auto.empty': 'ยังไม่มี Automation',
+    'auto.emptyHelp': 'สร้างขั้นตอนครั้งเดียว แล้วเลือกโพสต์หรือแคมเปญได้หลายรายการ',
+    'auto.setupNeeded': 'สิ่งที่ต้องเตรียม: สินค้า ชุดข้อความที่เปิดใช้งาน และ Facebook Page ที่เชื่อมต่อแล้ว',
+    'auto.guide': 'ดูคู่มือ', 'auto.firstOnly': 'เฉพาะข้อความแรก', 'auto.everyMatch': 'ทุกข้อความที่ตรงเงื่อนไข',
+    'auto.step.setup': 'ตั้งค่า', 'auto.step.trigger': 'เลือกเป้าหมาย', 'auto.step.response': 'กำหนดคำตอบ',
+    'auto.step.behavior': 'ควบคุมการส่ง', 'auto.step.review': 'ตรวจสอบและบันทึก',
+    'auto.setupTitle': 'ตั้งชื่อและเลือก Facebook Page', 'auto.setupHelp': 'เลือก Page ก่อนเพื่อให้ระบบใช้โทเค็นที่ถูกต้อง',
+    'auto.name': 'ชื่อ Automation', 'auto.nameExample': 'ใช้ชื่อที่ชัดเจนและค้นหาได้ง่าย', 'auto.page': 'Facebook Page',
+    'auto.triggerTitle': 'ต้องการให้ Automation ทำงานที่ไหน?', 'auto.triggerHelp': 'เลือกได้หลายรายการ แคมเปญจะรวมโฆษณาใหม่ภายในแคมเปญโดยอัตโนมัติ',
+    'auto.posts': 'โพสต์', 'auto.campaigns': 'แคมเปญ', 'auto.adAccount': 'บัญชีโฆษณา', 'auto.alreadyUsed': 'ถูกใช้โดย Automation อื่นแล้ว',
+    'auto.responseTitle': 'เลือกสินค้าและชุดข้อความ', 'auto.responseHelp': 'ข้อมูลสินค้าจะแทนค่าในข้อความ และส่งข้อความที่เปิดใช้งานตามลำดับ',
+    'auto.product': 'สินค้า', 'auto.replySet': 'ชุดข้อความ', 'auto.enabledMessages': 'ข้อความที่เปิดใช้งาน',
+    'auto.sendOrder': 'ข้อความ รูปภาพ วิดีโอ และเสียงจะถูกส่งจากบนลงล่าง',
+    'auto.behaviorTitle': 'ป้องกันการตอบซ้ำ', 'auto.behaviorHelp': 'ระบบเปิดค่าที่ปลอดภัยไว้แล้วและสามารถเปลี่ยนได้',
+    'auto.firstLabel': 'ตอบเฉพาะข้อความแรกที่ตรงเงื่อนไขของลูกค้า', 'auto.cooldown': 'ระยะพักก่อนตอบอีกครั้ง (วินาที)',
+    'auto.cooldownHelp': '0 = ไม่จำกัดระยะพัก; การป้องกันข้อความแรกยังคงทำงาน',
+    'auto.reviewTitle': 'ตรวจสอบก่อนเปิดใช้งาน', 'auto.reviewHelp': 'ระบบจะบันทึกเป้าหมายทั้งหมดพร้อมกัน หรือไม่บันทึกเลยหากเกิดข้อผิดพลาด',
+    'auto.automation': 'Automation', 'auto.response': 'คำตอบ', 'auto.create': 'สร้างและเปิดใช้งาน', 'auto.update': 'บันทึกการแก้ไข',
+    'guide.title': 'คู่มือสร้าง Automation', 'guide.subtitle': 'ตั้งแต่เตรียมข้อมูลจนถึงทดสอบข้อความจริง',
+  },
   en: {
     'nav.ads': 'Ads Manager', 'nav.overview': 'Overview', 'nav.chat': 'Live Chat', 'nav.channels': 'Pages & WhatsApp',
     'nav.products': 'Products', 'nav.replies': 'Reply Sets', 'nav.automation': 'Auto Replies', 'nav.guide': 'Automation Guide',
-    'nav.analytics': 'Analytics', 'nav.customers': 'Customers', 'nav.orders': 'Orders', 'nav.settings': 'Settings',
+    'nav.analytics': 'Analytics', 'nav.customers': 'Customers', 'nav.leads': 'Lead Management', 'nav.orders': 'Orders', 'nav.settings': 'Settings',
     'common.workspace': 'Workspace', 'common.signOut': 'Sign out', 'common.language': 'Language', 'common.back': 'Back',
     'common.cancel': 'Cancel', 'common.continue': 'Continue', 'common.delete': 'Delete', 'common.edit': 'Edit', 'common.details': 'Details', 'common.save': 'Save', 'common.active': 'Active', 'common.targets': 'Targets',
+    'common.more': 'More', 'common.allMenus': 'All menus', 'common.close': 'Close', 'common.retry': 'Try again',
     'header.morning': 'Good morning', 'header.afternoon': 'Good afternoon', 'header.evening': 'Good evening',
     'auto.eyebrow': 'AUTOMATION CENTER', 'auto.title': 'Auto Reply Manager', 'auto.newTitle': 'New Automation', 'auto.editTitle': 'Edit Automation',
     'auto.subtitle': 'One automation can cover many Posts or Campaigns.', 'auto.new': 'New Automation', 'auto.list': 'Automations',
@@ -65,7 +100,8 @@ const messages = {
 export function useLocale() {
   const locale = useCookie<AppLocale>('app-locale', { default: () => 'lo', sameSite: 'lax', maxAge: 60 * 60 * 24 * 365 })
   const t = (key: string) => (messages[locale.value] as Record<string, string>)[key] || (messages.en as Record<string, string>)[key] || key
+  const l = (values: Record<AppLocale, string>) => values[locale.value] || values.en
   const setLocale = (value: AppLocale) => { locale.value = value }
   useHead(() => ({ htmlAttrs: { lang: locale.value } }))
-  return { locale, setLocale, t }
+  return { locale, setLocale, t, l }
 }

@@ -2,7 +2,7 @@
 import type { AutomationFlow, ItemsResponse, MetaPage, Product, ReplySet } from '~/types/automation'
 definePageMeta({ middleware: 'auth' })
 const route = useRoute()
-const { locale, t } = useLocale()
+const { t, l } = useLocale()
 const { data: pageData, pending: pagePending } = await useApi<ItemsResponse<MetaPage>>('/proxy/api/v1/meta/pages')
 const { data: productData } = await useApi<ItemsResponse<Product>>('/proxy/api/v1/products')
 const { data: replyData } = await useApi<ReplySet[]>('/proxy/api/v1/replies')
@@ -15,23 +15,23 @@ const activeAutomations = computed(() => automations.value.filter(item => item.i
 const justConnected = computed(() => route.query.meta === 'connected' && pages.value.length > 0)
 const readyCount = computed(() => [pages.value.length, products.value.length, replies.value.length, automations.value.length].filter(Boolean).length)
 const steps = computed(() => [
-  { done: pages.value.length > 0, icon:'mdi-facebook', title:locale.value==='lo'?'ເຊື່ອມ Facebook Page':'Connect Facebook Page', detail:pages.value.length ? `${pages.value.length} ${locale.value==='lo'?'Page ເຊື່ອມແລ້ວ':'Page(s) connected'}` : locale.value==='lo'?'ຈຳເປັນສຳລັບຮັບຂໍ້ຄວາມ':'Required to receive messages', to:'/meta-pages' },
-  { done: products.value.length > 0, icon:'mdi-package-variant-closed', title:locale.value==='lo'?'ສ້າງສິນຄ້າ':'Create a Product', detail:`${products.value.length} ${t('nav.products')}`, to:'/products' },
-  { done: replies.value.length > 0, icon:'mdi-message-text-fast-outline', title:locale.value==='lo'?'ສ້າງຊຸດຂໍ້ຄວາມ':'Build a Reply Set', detail:`${replies.value.length} ${t('nav.replies')}`, to:'/replies' },
-  { done: automations.value.length > 0, icon:'mdi-robot-happy-outline', title:locale.value==='lo'?'ສ້າງ Automation':'Create an Automation', detail:`${activeAutomations.value.length} ${locale.value==='lo'?'ເປີດໃຊ້ຢູ່':'active'}`, to:'/auto-replies' },
+  { done: pages.value.length > 0, icon:'mdi-facebook', title:l({lo:'ເຊື່ອມ Facebook Page',th:'เชื่อมต่อ Facebook Page',en:'Connect Facebook Page'}), detail:pages.value.length ? `${pages.value.length} ${l({lo:'Page ເຊື່ອມແລ້ວ',th:'เพจที่เชื่อมต่อแล้ว',en:'Page(s) connected'})}` : l({lo:'ຈຳເປັນສຳລັບຮັບຂໍ້ຄວາມ',th:'จำเป็นสำหรับรับข้อความ',en:'Required to receive messages'}), to:'/meta-pages' },
+  { done: products.value.length > 0, icon:'mdi-package-variant-closed', title:l({lo:'ສ້າງສິນຄ້າ',th:'สร้างสินค้า',en:'Create a Product'}), detail:`${products.value.length} ${t('nav.products')}`, to:'/products' },
+  { done: replies.value.length > 0, icon:'mdi-message-text-fast-outline', title:l({lo:'ສ້າງຊຸດຂໍ້ຄວາມ',th:'สร้างชุดข้อความ',en:'Build a Reply Set'}), detail:`${replies.value.length} ${t('nav.replies')}`, to:'/replies' },
+  { done: automations.value.length > 0, icon:'mdi-robot-happy-outline', title:l({lo:'ສ້າງ Automation',th:'สร้าง Automation',en:'Create an Automation'}), detail:`${activeAutomations.value.length} ${l({lo:'ເປີດໃຊ້ຢູ່',th:'กำลังใช้งาน',en:'active'})}`, to:'/auto-replies' },
 ])
 </script>
 
 <template>
-  <v-alert v-if="justConnected" type="success" variant="tonal" closable class="mb-4">{{ locale==='lo'?'ເຊື່ອມ Facebook Page ສຳເລັດ ແລະ ລະບົບຮັບຂໍ້ຄວາມເປີດໃຊ້ແລ້ວ':'Facebook Page connected and messages system is active.' }}</v-alert>
+  <v-alert v-if="justConnected" type="success" variant="tonal" closable class="mb-4">{{ l({lo:'ເຊື່ອມ Facebook Page ສຳເລັດ ແລະ ລະບົບຮັບຂໍ້ຄວາມເປີດໃຊ້ແລ້ວ',th:'เชื่อมต่อ Facebook Page สำเร็จและระบบรับข้อความเปิดใช้งานแล้ว',en:'Facebook Page connected and messages system is active.'}) }}</v-alert>
   <section class="onboarding-hero">
-    <div><small>{{ locale==='lo'?'ສະຖານະ WORKSPACE':'WORKSPACE STATUS' }}</small><h2>{{ readyCount===4 ? (locale==='lo'?'ພ້ອມເຮັດວຽກແລ້ວ':'Ready to work') : (locale==='lo'?'ກຽມ Automation ໃຫ້ພ້ອມ':'Finish your Automation setup') }}</h2><p>{{ locale==='lo'?'ສະຫຼຸບ Page, ສິນຄ້າ, ຊຸດຂໍ້ຄວາມ ແລະ Automation ຂອງ Workspace':'Page, product, Reply Set and Automation status for this workspace.' }}</p></div>
-    <div class="progress"><strong>{{ readyCount }}/4</strong><span>{{ locale==='lo'?'ຂັ້ນຕອນສຳເລັດ':'steps complete' }}</span><div><i :style="{width:`${readyCount*25}%`}"/></div></div>
+    <div><small>{{ l({lo:'ສະຖານະ WORKSPACE',th:'สถานะพื้นที่ทำงาน',en:'WORKSPACE STATUS'}) }}</small><h2>{{ readyCount===4 ? l({lo:'ພ້ອມເຮັດວຽກແລ້ວ',th:'พร้อมใช้งานแล้ว',en:'Ready to work'}) : l({lo:'ກຽມ Automation ໃຫ້ພ້ອມ',th:'ตั้งค่า Automation ให้เสร็จ',en:'Finish your Automation setup'}) }}</h2><p>{{ l({lo:'ສະຫຼຸບ Page, ສິນຄ້າ, ຊຸດຂໍ້ຄວາມ ແລະ Automation ຂອງ Workspace',th:'สรุปสถานะเพจ สินค้า ชุดข้อความ และ Automation ของพื้นที่ทำงานนี้',en:'Page, product, Reply Set and Automation status for this workspace.'}) }}</p></div>
+    <div class="progress"><strong>{{ readyCount }}/4</strong><span>{{ l({lo:'ຂັ້ນຕອນສຳເລັດ',th:'ขั้นตอนสำเร็จ',en:'steps complete'}) }}</span><div><i :style="{width:`${readyCount*25}%`}"/></div></div>
   </section>
 
   <section class="overview-grid">
-    <article class="setup-panel"><header><div><small>QUICK START</small><h3>{{ locale==='lo'?'ເລີ່ມໃຊ້ງານຕາມລຳດັບ':'Complete setup in order' }}</h3></div><v-btn variant="text" to="/automation-guide" append-icon="mdi-arrow-right">{{ t('auto.guide') }}</v-btn></header><div class="step-list"><NuxtLink v-for="(item,index) in steps" :key="item.to" :to="item.to"><span :class="{done:item.done}"><v-icon :icon="item.done?'mdi-check':item.icon"/></span><div><strong>{{ index+1 }}. {{ item.title }}</strong><small>{{ item.detail }}</small></div><v-icon icon="mdi-chevron-right"/></NuxtLink></div></article>
-    <aside class="live-panel"><small>LIVE STATUS</small><h3>{{ locale==='lo'?'ລະບົບປັດຈຸບັນ':'Current system' }}</h3><div class="status-row"><span><v-icon icon="mdi-facebook"/></span><div><strong>{{ pagePending?'…':pages.length }}</strong><small>Connected Pages</small></div></div><div class="status-row"><span><v-icon icon="mdi-robot-happy-outline"/></span><div><strong>{{ activeAutomations.length }}</strong><small>Active Automations</small></div></div><div class="status-row"><span><v-icon icon="mdi-target"/></span><div><strong>{{ automations.reduce((sum,item)=>sum+item.targets.length,0) }}</strong><small>Connected Targets</small></div></div><v-btn block color="primary" to="/auto-replies" prepend-icon="mdi-robot-happy-outline">{{ t('auto.title') }}</v-btn></aside>
+    <article class="setup-panel"><header><div><small>QUICK START</small><h3>{{ l({lo:'ເລີ່ມໃຊ້ງານຕາມລຳດັບ',th:'เริ่มใช้งานตามลำดับ',en:'Complete setup in order'}) }}</h3></div><v-btn variant="text" to="/automation-guide" append-icon="mdi-arrow-right">{{ t('auto.guide') }}</v-btn></header><div class="step-list"><NuxtLink v-for="(item,index) in steps" :key="item.to" :to="item.to"><span :class="{done:item.done}"><v-icon :icon="item.done?'mdi-check':item.icon"/></span><div><strong>{{ index+1 }}. {{ item.title }}</strong><small>{{ item.detail }}</small></div><v-icon icon="mdi-chevron-right"/></NuxtLink></div></article>
+    <aside class="live-panel"><small>LIVE STATUS</small><h3>{{ l({lo:'ລະບົບປັດຈຸບັນ',th:'ระบบปัจจุบัน',en:'Current system'}) }}</h3><div class="status-row"><span><v-icon icon="mdi-facebook"/></span><div><strong>{{ pagePending?'…':pages.length }}</strong><small>{{ l({lo:'Page ທີ່ເຊື່ອມແລ້ວ',th:'เพจที่เชื่อมต่อแล้ว',en:'Connected Pages'}) }}</small></div></div><div class="status-row"><span><v-icon icon="mdi-robot-happy-outline"/></span><div><strong>{{ activeAutomations.length }}</strong><small>{{ l({lo:'Automation ທີ່ເປີດໃຊ້',th:'Automation ที่เปิดใช้งาน',en:'Active Automations'}) }}</small></div></div><div class="status-row"><span><v-icon icon="mdi-target"/></span><div><strong>{{ automations.reduce((sum,item)=>sum+item.targets.length,0) }}</strong><small>{{ l({lo:'ເປົ້າໝາຍທີ່ເຊື່ອມແລ້ວ',th:'เป้าหมายที่เชื่อมต่อแล้ว',en:'Connected Targets'}) }}</small></div></div><v-btn block color="primary" to="/auto-replies" prepend-icon="mdi-robot-happy-outline">{{ t('auto.title') }}</v-btn></aside>
   </section>
 </template>
 

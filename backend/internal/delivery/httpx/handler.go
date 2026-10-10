@@ -31,6 +31,7 @@ type Handler struct {
 	Automation *usecase.Automation
 	Product    *usecase.Product
 	Stream     *usecase.ChatStream
+	Leads      *usecase.Leads
 
 	tokens                         domain.TokenService
 	metaMode, metaFrontendRedirect string
@@ -50,8 +51,8 @@ type facebookLoginExchange struct {
 	AccountID string `json:"accountId,omitempty"`
 }
 
-func NewHandler(auth *usecase.Auth, meta *usecase.Meta, team *usecase.Team, billing *usecase.Billing, storage *usecase.StorageUseCase, reply *usecase.Reply, automation *usecase.Automation, product *usecase.Product, stream *usecase.ChatStream, tokens domain.TokenService, metaMode, metaFrontendRedirect string) *Handler {
-	return &Handler{auth: auth, meta: meta, team: team, billing: billing, Storage: storage, Reply: reply, Automation: automation, Product: product, Stream: stream, tokens: tokens, metaMode: metaMode, metaFrontendRedirect: metaFrontendRedirect, tickets: make(map[string]loginTicket)}
+func NewHandler(auth *usecase.Auth, meta *usecase.Meta, team *usecase.Team, billing *usecase.Billing, storage *usecase.StorageUseCase, reply *usecase.Reply, automation *usecase.Automation, product *usecase.Product, stream *usecase.ChatStream, leads *usecase.Leads, tokens domain.TokenService, metaMode, metaFrontendRedirect string) *Handler {
+	return &Handler{auth: auth, meta: meta, team: team, billing: billing, Storage: storage, Reply: reply, Automation: automation, Product: product, Stream: stream, Leads: leads, tokens: tokens, metaMode: metaMode, metaFrontendRedirect: metaFrontendRedirect, tickets: make(map[string]loginTicket)}
 }
 
 func (h *Handler) App() *fiber.App {
@@ -76,6 +77,10 @@ func (h *Handler) App() *fiber.App {
 	auth.Get("/api/v1/chat/history", requireAccount(h.auth, domain.ClaimPagesRead), h.getChatHistory)
 	auth.Post("/api/v1/chat/send", requireAccount(h.auth, domain.ClaimPagesConnect), h.sendChatMessage)
 	auth.Get("/api/v1/chat/stream", requireAccount(h.auth, domain.ClaimPagesRead), h.chatStream)
+	auth.Get("/api/v1/leads", requireAccount(h.auth, "customers:read"), h.listLeads)
+	auth.Get("/api/v1/leads/settings", requireAccount(h.auth, "settings:read"), h.leadSettings)
+	auth.Put("/api/v1/leads/settings", requireAccount(h.auth, "settings:update"), h.saveLeadSettings)
+	auth.Patch("/api/v1/leads/:id/read", requireAccount(h.auth, "customers:update"), h.markLeadRead)
 
 	// Storage
 	auth.Post("/api/v1/storage/upload", requireAccount(h.auth, domain.ClaimPagesConnect), h.UploadFile)
