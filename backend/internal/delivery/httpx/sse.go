@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/meta-super-app/backend/internal/usecase"
@@ -16,7 +17,8 @@ func (h *Handler) chatStream(c fiber.Ctx) error {
 	}
 
 	c.Set("Content-Type", "text/event-stream")
-	c.Set("Cache-Control", "no-cache")
+	c.Set("Cache-Control", "no-store, no-cache, must-revalidate")
+	c.Set("X-Accel-Buffering", "no")
 	c.Set("Connection", "keep-alive")
 	c.Set("Transfer-Encoding", "chunked")
 
@@ -28,17 +30,23 @@ func (h *Handler) chatStream(c fiber.Ctx) error {
 		defer w.Close()
 
 		fmt.Fprintf(w, "event: connected\ndata: {\"status\":\"ok\"}\n\n")
+		heartbeat := time.NewTicker(20 * time.Second)
+		defer heartbeat.Stop()
 
 		for {
-			event, ok := <-ch
-			if !ok {
-				break
-			}
-
-			data, _ := json.Marshal(event)
-			_, err := fmt.Fprintf(w, "event: message\ndata: %s\n\n", data)
-			if err != nil {
-				break
+			select {
+			case event, ok := <-ch:
+				if !ok {
+					return
+				}
+				data, _ := json.Marshal(event)
+				if _, err := fmt.Fprintf(w, "event: message\ndata: %s\n\n", data); err != nil {
+					return
+				}
+			case <-heartbeat.C:
+				if _, err := fmt.Fprint(w, ": keep-alive\n\n"); err != nil {
+					return
+				}
 			}
 		}
 	}()

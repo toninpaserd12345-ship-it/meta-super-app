@@ -79,10 +79,11 @@ func (s *R2StorageService) UploadFile(ctx context.Context, fileHeader *multipart
 	}
 
 	_, err = s.client.PutObject(ctx, &s3.PutObjectInput{
-		Bucket:      aws.String(s.bucketName),
-		Key:         aws.String(objectKey),
-		Body:        file,
-		ContentType: aws.String(contentType),
+		Bucket:       aws.String(s.bucketName),
+		Key:          aws.String(objectKey),
+		Body:         file,
+		ContentType:  aws.String(contentType),
+		CacheControl: aws.String("no-store"),
 	})
 	if err != nil {
 		return "", fmt.Errorf("failed to upload file to R2: %w", err)

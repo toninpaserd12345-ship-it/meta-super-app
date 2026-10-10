@@ -67,3 +67,14 @@ func (r *MemoryRepository) GetProduct(ctx context.Context, accountID, productID 
 		ImageUrl:    p.ImageUrl,
 	}, nil
 }
+
+func (r *MemoryRepository) DeleteProduct(ctx context.Context, accountID, productID string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	product, ok := r.products[productID]
+	if !ok || product.AccountID != accountID {
+		return errors.New("product not found")
+	}
+	delete(r.products, productID)
+	return nil
+}

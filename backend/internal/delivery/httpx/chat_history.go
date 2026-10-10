@@ -8,7 +8,7 @@ func (h *Handler) getChatHistory(c fiber.Ctx) error {
 	accountID := c.Locals("accountID").(string)
 
 	if h.Stream == nil {
-		return c.JSON([]interface{}{})
+		return c.JSON(fiber.Map{"items": []interface{}{}})
 	}
 
 	history, err := h.Stream.GetHistory(c.Context(), accountID)
@@ -16,5 +16,5 @@ func (h *Handler) getChatHistory(c fiber.Ctx) error {
 		return fail(c, fiber.StatusInternalServerError, "db_error", err.Error())
 	}
 
-	return c.JSON(history)
+	return c.JSON(fiber.Map{"items": history})
 }

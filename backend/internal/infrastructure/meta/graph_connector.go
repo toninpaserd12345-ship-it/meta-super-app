@@ -1466,13 +1466,17 @@ func (g *GraphConnector) ListAds(ctx context.Context, _ string, accountID, campa
 	if err != nil {
 		return []domain.MetaAd{}, nil
 	}
-	query := url.Values{"fields": {"id,name,status,effective_status"}, "limit": {"200"}, "access_token": {token}}
+	query := url.Values{"fields": {"id,name,status,effective_status,creative{thumbnail_url,image_url}"}, "limit": {"200"}, "access_token": {token}}
 	var response struct {
 		Data []struct {
 			ID              string `json:"id"`
 			Name            string `json:"name"`
 			Status          string `json:"status"`
 			EffectiveStatus string `json:"effective_status"`
+			Creative        struct {
+				ThumbnailURL string `json:"thumbnail_url"`
+				ImageURL     string `json:"image_url"`
+			} `json:"creative"`
 		} `json:"data"`
 	}
 	if err = g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/"+url.PathEscape(campaignID)+"/ads?"+query.Encode(), &response); err != nil {
@@ -1480,7 +1484,7 @@ func (g *GraphConnector) ListAds(ctx context.Context, _ string, accountID, campa
 	}
 	items := make([]domain.MetaAd, 0, len(response.Data))
 	for _, item := range response.Data {
-		items = append(items, domain.MetaAd{ID: item.ID, Name: item.Name, Status: item.Status, EffectiveStatus: item.EffectiveStatus})
+		items = append(items, domain.MetaAd{ID: item.ID, Name: item.Name, Status: item.Status, EffectiveStatus: item.EffectiveStatus, ThumbnailURL: item.Creative.ThumbnailURL, ImageURL: item.Creative.ImageURL})
 	}
 	return items, nil
 }

@@ -91,6 +91,8 @@ type MetaAd struct {
 	Name            string `json:"name"`
 	Status          string `json:"status"`
 	EffectiveStatus string `json:"effectiveStatus"`
+	ThumbnailURL    string `json:"thumbnailUrl,omitempty"`
+	ImageURL        string `json:"imageUrl,omitempty"`
 }
 
 type ProductBinding struct {

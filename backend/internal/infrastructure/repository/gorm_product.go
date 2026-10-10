@@ -78,3 +78,14 @@ func (r *GormRepository) GetProduct(ctx context.Context, accountID, productID st
 		ImageUrl:    m.ImageUrl,
 	}, nil
 }
+
+func (r *GormRepository) DeleteProduct(ctx context.Context, accountID, productID string) error {
+	result := r.db.WithContext(ctx).Where("id = ? AND account_id = ?", productID, accountID).Delete(&database.ProductModel{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return errors.New("product not found")
+	}
+	return nil
+}
