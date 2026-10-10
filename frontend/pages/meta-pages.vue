@@ -249,7 +249,7 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
     <v-skeleton-loader v-if="pending" v-for="i in 3" :key="i" type="card"/>
     <article v-for="page in visiblePages" v-else :key="page.id" class="page-card">
       <div class="page-avatar">
-        <v-img v-if="pictureAvailable(page)" :src="pagePictureUrl(page)" :alt="`${page.name} profile picture`" cover @error="handlePictureError(page.id)"></v-img>
+        <img v-if="pictureAvailable(page)" :src="pagePictureUrl(page)" :alt="`${page.name} profile picture`" referrerpolicy="no-referrer" @error="handlePictureError(page.id)" style="width: 100%; height: 100%; object-fit: cover;">
         <v-icon v-else-if="page.category.toLowerCase().includes('whatsapp')" icon="mdi-whatsapp" color="success" size="28"/>
         <v-icon v-else icon="mdi-facebook" color="white" size="28"/>
       </div><div class="page-info"><h3>{{page.name}}</h3><p>{{page.category}}</p><p v-if="page.phoneNumber" class="page-phone"><v-icon icon="mdi-phone-outline" size="14"/>{{page.phoneNumber}}</p><small>{{page.category.toLowerCase().includes('whatsapp')?'Phone number ID':'Page ID'}} · {{page.id}}</small><div class="token-row"><v-chip class="token-chip" :color="page.tokenReady?'success':'warning'" variant="tonal" size="x-small" :prepend-icon="page.tokenReady?'mdi-key-check':'mdi-key-alert'">{{page.tokenReady?'Token ພ້ອມໃຊ້':'Token ບໍ່ພ້ອມ'}}</v-chip><v-chip v-if="page.tokenReady" class="token-chip" color="info" variant="tonal" size="x-small" prepend-icon="mdi-clock-outline">{{tokenExpiry(page)}}</v-chip></div></div>
@@ -322,7 +322,7 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
             <div v-if="availablePages.length" class="pc-grid">
               <div v-for="page in availablePages" :key="page.id" class="pc-card" :class="{'selected':selected.includes(page.id)}" @click="selected.includes(page.id)?selected=selected.filter(id=>id!==page.id):selected.push(page.id)">
                 <div class="pc-card-avatar">
-                  <v-img v-if="pictureAvailable(page)" :src="pagePictureUrl(page)" :alt="`${page.name} profile picture`" cover @error="handlePictureError(page.id)"></v-img>
+                  <img v-if="pictureAvailable(page)" :src="pagePictureUrl(page)" :alt="`${page.name} profile picture`" referrerpolicy="no-referrer" @error="handlePictureError(page.id)" style="width: 100%; height: 100%; object-fit: cover;">
                   <v-icon v-else-if="page.category.toLowerCase().includes('whatsapp')" icon="mdi-whatsapp" color="success" size="32"></v-icon>
                   <v-icon v-else icon="mdi-facebook" color="white" size="32"></v-icon>
                 </div>
