@@ -22,6 +22,8 @@ type LeadInput struct{ AccountID, PageID, SenderID, SourceType, SourceID, Name s
 type LeadSettingsInput struct {
 	AssignmentMode                              string `json:"assignmentMode"`
 	AlertsEnabled, FollowUpEnabled, CAPIEnabled bool
+	CAPIDatasetID                               string `json:"capiDatasetId"`
+	CAPIToken                                   string `json:"capiToken"`
 }
 type FollowUpStepInput struct {
 	DelayMinutes int    `json:"delayMinutes"`
@@ -112,7 +114,18 @@ func (u *Leads) SaveSettings(ctx context.Context, accountID string, in LeadSetti
 	if in.AssignmentMode == "" {
 		in.AssignmentMode = "round_robin"
 	}
-	s := database.LeadSettingsModel{AccountID: accountID, AssignmentMode: in.AssignmentMode, AlertsEnabled: in.AlertsEnabled, FollowUpEnabled: in.FollowUpEnabled, CAPIEnabled: in.CAPIEnabled}
+	var s database.LeadSettingsModel
+	u.db.WithContext(ctx).FirstOrCreate(&s, database.LeadSettingsModel{AccountID: accountID, AssignmentMode: "round_robin", AlertsEnabled: true})
+
+	s.AssignmentMode = in.AssignmentMode
+	s.AlertsEnabled = in.AlertsEnabled
+	s.FollowUpEnabled = in.FollowUpEnabled
+	s.CAPIEnabled = in.CAPIEnabled
+	s.CAPIDatasetID = in.CAPIDatasetID
+	if in.CAPIToken != "" && in.CAPIToken != "********" {
+		s.CAPIToken = in.CAPIToken
+	}
+
 	return u.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Save(&s).Error; err != nil {
 			return err
@@ -170,14 +183,24 @@ func (u *Leads) sendCAPI(ctx context.Context, lead database.LeadModel) {
 	if u.db.Create(&row).Error != nil {
 		return
 	}
-	if u.datasetID == "" || u.token == "" {
-		u.db.Model(&row).Updates(map[string]any{"status": "not_configured", "error": "META_CAPI_DATASET_ID or META_CAPI_ACCESS_TOKEN is missing"})
+	var settings database.LeadSettingsModel
+	if u.db.Where("account_id = ?", lead.AccountID).First(&settings).Error != nil {
+		u.db.Model(&row).Updates(map[string]any{"status": "not_configured", "error": "LeadSettings not found"})
+		return
+	}
+	datasetID := settings.CAPIDatasetID
+	token := settings.CAPIToken
+	if datasetID == "" || token == "" {
+		datasetID, token = u.datasetID, u.token // fallback to env
+	}
+	if datasetID == "" || token == "" {
+		u.db.Model(&row).Updates(map[string]any{"status": "not_configured", "error": "CAPI Dataset ID or Token is missing"})
 		return
 	}
 	sum := sha256.Sum256([]byte(lead.SenderID))
 	payload := map[string]any{"data": []any{map[string]any{"event_name": "Lead", "event_time": time.Now().Unix(), "event_id": eventID, "action_source": "business_messaging", "user_data": map[string]any{"external_id": []string{hex.EncodeToString(sum[:])}}, "custom_data": map[string]any{"source_type": lead.SourceType, "source_id": lead.SourceID}}}}
 	body, _ := json.Marshal(payload)
-	url := fmt.Sprintf("https://graph.facebook.com/%s/%s/events?access_token=%s", u.graphVersion, u.datasetID, u.token)
+	url := fmt.Sprintf("https://graph.facebook.com/%s/%s/events?access_token=%s", u.graphVersion, datasetID, token)
 	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := http.DefaultClient.Do(req)

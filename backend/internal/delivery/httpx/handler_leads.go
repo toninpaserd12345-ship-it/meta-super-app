@@ -21,7 +21,7 @@ func (h *Handler) leadSettings(c fiber.Ctx) error {
 	if err != nil {
 		return usecaseError(c, err)
 	}
-	return c.JSON(fiber.Map{"settings": settings, "steps": steps, "capiConfigured": false})
+	return c.JSON(fiber.Map{"settings": settings, "steps": steps, "capiConfigured": settings.CAPIToken != ""})
 }
 func (h *Handler) saveLeadSettings(c fiber.Ctx) error {
 	var body struct {

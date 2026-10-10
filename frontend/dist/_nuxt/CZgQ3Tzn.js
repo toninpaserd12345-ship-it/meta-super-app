@@ -1,1 +1,0 @@
-import{m as e}from"./H4F4lrPf.js";import{c as t,u as n}from"./Cc4jSHYC.js";import{t as r}from"./C_9K7J-J.js";var i=t(async()=>{let t,i,{user:a,fetchUser:o}=r();if(a.value||([t,i]=e(()=>o()),t=await t,i()),!a.value)return n(`/login`)},1);export{i as default};

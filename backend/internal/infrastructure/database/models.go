@@ -183,6 +183,8 @@ type LeadSettingsModel struct {
 	AlertsEnabled   bool   `gorm:"not null;default:true" json:"alertsEnabled"`
 	FollowUpEnabled bool   `gorm:"not null;default:false" json:"followUpEnabled"`
 	CAPIEnabled     bool   `gorm:"not null;default:false" json:"capiEnabled"`
+	CAPIDatasetID   string `gorm:"size:100" json:"capiDatasetId"`
+	CAPIToken       string `gorm:"type:text" json:"-"`
 	UpdatedAt       time.Time
 }
 
