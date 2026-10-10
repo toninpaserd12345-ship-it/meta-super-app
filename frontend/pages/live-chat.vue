@@ -7,6 +7,8 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 interface ChatMessage {
   id: string
   sender_id: string
+  sender_name?: string
+  sender_pic?: string
   message: string
   type: string
   timestamp: string
@@ -26,6 +28,16 @@ const activeChatMessages = computed(() => {
   if (!activeSender.value) return []
   return conversations.value[activeSender.value] || []
 })
+
+const getSenderName = (msgs: ChatMessage[]) => {
+  const msg = msgs.find(m => m.sender_name)
+  return msg?.sender_name || msgs[0]?.sender_id
+}
+
+const getSenderPic = (msgs: ChatMessage[]) => {
+  const msg = msgs.find(m => m.sender_pic)
+  return msg?.sender_pic
+}
 
 const sendReply = async () => {
   if (!inputMessage.value.trim() || !activeSender.value || sending.value) return
@@ -141,10 +153,11 @@ const formatTime = (ts: string) => {
           @click="activeSender = senderId"
         >
           <div class="conv-avatar">
-            <v-icon :icon="msgs?.[0]?.platform === 'whatsapp' ? 'mdi-whatsapp' : 'mdi-facebook-messenger'" />
+            <img v-if="getSenderPic(msgs)" :src="getSenderPic(msgs)" alt="Profile" class="avatar-img" />
+            <v-icon v-else :icon="msgs?.[0]?.platform === 'whatsapp' ? 'mdi-whatsapp' : 'mdi-facebook-messenger'" />
           </div>
           <div class="conv-details">
-            <div class="conv-name">{{ senderId }}</div>
+            <div class="conv-name">{{ getSenderName(msgs) }}</div>
             <div class="conv-preview">{{ msgs?.[msgs.length - 1]?.message || 'Media message' }}</div>
           </div>
         </div>
@@ -154,7 +167,7 @@ const formatTime = (ts: string) => {
     <div class="chat-main" v-if="activeSender">
       <div class="chat-header">
         <div class="chat-header-info">
-          <h3>{{ activeSender }}</h3>
+          <h3>{{ getSenderName(conversations[activeSender]) }}</h3>
           <span class="platform-badge" :class="conversations[activeSender]?.[0]?.platform">
             {{ conversations[activeSender]?.[0]?.platform }}
           </span>
@@ -263,6 +276,12 @@ const formatTime = (ts: string) => {
   background: var(--color-border);
   display: grid;
   place-items: center;
+  overflow: hidden;
+}
+.avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .conv-details {

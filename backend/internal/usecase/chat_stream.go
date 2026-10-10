@@ -6,13 +6,15 @@ import (
 )
 
 type ChatEvent struct {
-	AccountID string `json:"account_id"`
-	PageID    string `json:"page_id"`
-	SenderID  string `json:"sender_id"`
-	Message   string `json:"message"`
-	Type      string `json:"type"` // "text", "image", etc.
-	Timestamp string `json:"timestamp"`
-	Platform  string `json:"platform"` // "facebook" or "whatsapp" or "system"
+	AccountID  string `json:"account_id"`
+	PageID     string `json:"page_id"`
+	SenderID   string `json:"sender_id"`
+	SenderName string `json:"sender_name"`
+	SenderPic  string `json:"sender_pic"`
+	Message    string `json:"message"`
+	Type       string `json:"type"` // "text", "image", etc.
+	Timestamp  string `json:"timestamp"`
+	Platform   string `json:"platform"` // "facebook" or "whatsapp" or "system"
 }
 
 type ChatRepository interface {

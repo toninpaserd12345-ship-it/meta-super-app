@@ -75,6 +75,9 @@ type GraphConnector struct {
 	automation    domain.AutomationProvider
 	productRepo   domain.ProductRepository
 	leadSink      domain.LeadSink
+
+	profileMu    sync.RWMutex
+	userProfiles map[string]struct{ Name, Pic string }
 }
 
 func (g *GraphConnector) SetChatStream(c *usecase.ChatStream) {
@@ -87,11 +90,52 @@ func (g *GraphConnector) SetAutomationProvider(p domain.AutomationProvider) {
 func (g *GraphConnector) SetLeadSink(s domain.LeadSink) { g.leadSink = s }
 
 func NewGraphConnector(cfg GraphConfig, db *gorm.DB) *GraphConnector {
-	g := &GraphConnector{db: db, cfg: cfg, client: &http.Client{Timeout: 15 * time.Second}, states: make(map[string]oauthState), sessions: make(map[string]*graphSession), recentEvents: make(map[string]time.Time), bindings: make(map[string]domain.ProductBinding), products: make(map[string]map[string]domain.Product), replyFlows: make(map[string]map[string]domain.ReplyFlow), firstReplies: make(map[string]time.Time), conversations: make(map[string]string), deliverySteps: make(map[string]bool), inFlight: make(map[string]bool)}
+	g := &GraphConnector{db: db, cfg: cfg, client: &http.Client{Timeout: 15 * time.Second}, states: make(map[string]oauthState), sessions: make(map[string]*graphSession), recentEvents: make(map[string]time.Time), bindings: make(map[string]domain.ProductBinding), products: make(map[string]map[string]domain.Product), replyFlows: make(map[string]map[string]domain.ReplyFlow), firstReplies: make(map[string]time.Time), conversations: make(map[string]string), deliverySteps: make(map[string]bool), inFlight: make(map[string]bool), userProfiles: make(map[string]struct{ Name, Pic string })}
 	if err := g.loadState(); err != nil {
 		slog.Warn("unable to load Meta state", "error", err)
 	}
 	return g
+}
+
+func (g *GraphConnector) GetProfile(ctx context.Context, psid, token string) (string, string) {
+	if psid == "" || token == "" {
+		return "", ""
+	}
+	g.profileMu.RLock()
+	p, ok := g.userProfiles[psid]
+	g.profileMu.RUnlock()
+	if ok {
+		return p.Name, p.Pic
+	}
+
+	req, _ := http.NewRequestWithContext(ctx, "GET", "https://graph.facebook.com/"+g.cfg.GraphVersion+"/"+psid+"?fields=first_name,last_name,name,profile_pic&access_token="+token, nil)
+	resp, err := g.client.Do(req)
+	if err != nil {
+		return "", ""
+	}
+	defer resp.Body.Close()
+	
+	if resp.StatusCode != 200 {
+		return "", ""
+	}
+	var res struct {
+		Name       string `json:"name"`
+		FirstName  string `json:"first_name"`
+		LastName   string `json:"last_name"`
+		ProfilePic string `json:"profile_pic"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return "", ""
+	}
+	name := res.Name
+	if name == "" {
+		name = res.FirstName + " " + res.LastName
+	}
+	
+	g.profileMu.Lock()
+	g.userProfiles[psid] = struct{ Name, Pic string }{name, res.ProfilePic}
+	g.profileMu.Unlock()
+	return name, res.ProfilePic
 }
 
 type persistentGraphState struct {
@@ -460,14 +504,17 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 							}
 						}
 
+						senderName, senderPic := g.GetProfile(ctx, message.Sender.ID, page.AccessToken)
 						g.chatStream.Broadcast(accountID, usecase.ChatEvent{
-							AccountID: accountID,
-							PageID:    entry.ID,
-							SenderID:  message.Sender.ID,
-							Message:   msgContent,
-							Type:      msgType,
-							Timestamp: timestampStr,
-							Platform:  "facebook",
+							AccountID:  accountID,
+							PageID:     entry.ID,
+							SenderID:   message.Sender.ID,
+							SenderName: senderName,
+							SenderPic:  senderPic,
+							Message:    msgContent,
+							Type:       msgType,
+							Timestamp:  timestampStr,
+							Platform:   "facebook",
 						})
 					}
 				}

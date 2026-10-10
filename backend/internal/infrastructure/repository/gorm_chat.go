@@ -20,14 +20,16 @@ func NewGormChat(db *gorm.DB) *GormChat {
 func (r *GormChat) SaveMessage(ctx context.Context, msg usecase.ChatEvent) error {
 	id := uuid.NewString()
 	model := database.ChatMessageModel{
-		ID:        id,
-		AccountID: msg.AccountID,
-		PageID:    msg.PageID,
-		SenderID:  msg.SenderID,
-		Message:   msg.Message,
-		Type:      msg.Type,
-		Platform:  msg.Platform,
-		Timestamp: msg.Timestamp,
+		ID:         id,
+		AccountID:  msg.AccountID,
+		PageID:     msg.PageID,
+		SenderID:   msg.SenderID,
+		SenderName: msg.SenderName,
+		SenderPic:  msg.SenderPic,
+		Message:    msg.Message,
+		Type:       msg.Type,
+		Platform:   msg.Platform,
+		Timestamp:  msg.Timestamp,
 	}
 	return r.db.WithContext(ctx).Create(&model).Error
 }
@@ -47,13 +49,15 @@ func (r *GormChat) GetRecentMessages(ctx context.Context, accountID string, limi
 	events := make([]usecase.ChatEvent, len(models))
 	for i, m := range models {
 		events[len(models)-1-i] = usecase.ChatEvent{
-			AccountID: m.AccountID,
-			PageID:    m.PageID,
-			SenderID:  m.SenderID,
-			Message:   m.Message,
-			Type:      m.Type,
-			Platform:  m.Platform,
-			Timestamp: m.Timestamp,
+			AccountID:  m.AccountID,
+			PageID:     m.PageID,
+			SenderID:   m.SenderID,
+			SenderName: m.SenderName,
+			SenderPic:  m.SenderPic,
+			Message:    m.Message,
+			Type:       m.Type,
+			Platform:   m.Platform,
+			Timestamp:  m.Timestamp,
 		}
 	}
 	return events, nil
