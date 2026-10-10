@@ -1,51 +1,40 @@
 <script setup lang="ts">
+import type { AutomationFlow, ItemsResponse, MetaPage, Product, ReplySet } from '~/types/automation'
 definePageMeta({ middleware: 'auth' })
-interface MetaPage { id:string;name:string;category:string;connected:boolean;webhookStatus:string }
-interface PageList { items:MetaPage[];mode:string }
 const route = useRoute()
-const { data: metaPages, pending: metaPending, error: metaError } = await useApi<PageList>('/proxy/api/v1/meta/pages')
-const connectedPages = computed(() => metaPages.value?.items.filter(page => page.connected) ?? [])
-const justConnected = computed(() => route.query.meta === 'connected' && connectedPages.value.length > 0)
-const stats = [
-  { label:'Total revenue', value:'$24,680', change:'+12.5%', icon:'mdi-wallet-outline', color:'var(--color-primary)', tint:'var(--color-primary-softer)' },
-  { label:'Active customers', value:'1,429', change:'+8.2%', icon:'mdi-account-group-outline', color:'var(--color-success)', tint:'var(--color-success-soft)' },
-  { label:'New orders', value:'368', change:'+5.7%', icon:'mdi-shopping-outline', color:'var(--color-warning)', tint:'var(--color-warning-soft)' },
-]
-const activities = [
-  ['New order received','Order #2048 · 5 min ago','mdi-cart-outline'],
-  ['New customer','Somchai joined · 42 min ago','mdi-account-plus-outline'],
-  ['Order shipped','Order #2039 · 2 hrs ago','mdi-package-variant'],
-]
+const { locale, t } = useLocale()
+const { data: pageData, pending: pagePending } = await useApi<ItemsResponse<MetaPage>>('/proxy/api/v1/meta/pages')
+const { data: productData } = await useApi<ItemsResponse<Product>>('/proxy/api/v1/products')
+const { data: replyData } = await useApi<ReplySet[]>('/proxy/api/v1/replies')
+const { data: automationData } = await useApi<ItemsResponse<AutomationFlow>>('/proxy/api/v1/automations')
+const pages = computed(() => pageData.value?.items.filter(item => item.connected) || [])
+const products = computed(() => productData.value?.items || [])
+const replies = computed(() => replyData.value || [])
+const automations = computed(() => automationData.value?.items || [])
+const activeAutomations = computed(() => automations.value.filter(item => item.isActive))
+const justConnected = computed(() => route.query.meta === 'connected' && pages.value.length > 0)
+const readyCount = computed(() => [pages.value.length, products.value.length, replies.value.length, automations.value.length].filter(Boolean).length)
+const steps = computed(() => [
+  { done: pages.value.length > 0, icon:'mdi-facebook', title:locale.value==='lo'?'ເຊື່ອມ Facebook Page':'Connect Facebook Page', detail:pages.value.length ? `${pages.value.length} ${locale.value==='lo'?'Page ເຊື່ອມແລ້ວ':'Page(s) connected'}` : locale.value==='lo'?'ຈຳເປັນສຳລັບຮັບ Webhook':'Required to receive Webhooks', to:'/meta-pages' },
+  { done: products.value.length > 0, icon:'mdi-package-variant-closed', title:locale.value==='lo'?'ສ້າງສິນຄ້າ':'Create a Product', detail:`${products.value.length} ${t('nav.products')}`, to:'/products' },
+  { done: replies.value.length > 0, icon:'mdi-message-text-fast-outline', title:locale.value==='lo'?'ສ້າງຊຸດຂໍ້ຄວາມ':'Build a Reply Set', detail:`${replies.value.length} ${t('nav.replies')}`, to:'/replies' },
+  { done: automations.value.length > 0, icon:'mdi-robot-happy-outline', title:locale.value==='lo'?'ສ້າງ Automation':'Create an Automation', detail:`${activeAutomations.value.length} ${locale.value==='lo'?'ເປີດໃຊ້ຢູ່':'active'}`, to:'/auto-replies' },
+])
 </script>
 
 <template>
-  <v-alert v-if="justConnected" type="success" variant="tonal" closable class="mb-4">Facebook Page connected successfully. The shared Webhook is active.</v-alert>
-  <section class="facebook-status" :class="{ connected: connectedPages.length }">
-    <div class="facebook-status-icon"><v-icon :icon="connectedPages.length ? 'mdi-check-circle' : 'mdi-facebook'" size="27"/></div>
-    <div class="facebook-status-copy">
-      <small>FACEBOOK CONNECTION</small>
-      <strong v-if="metaPending">Checking Page connection…</strong>
-      <strong v-else-if="metaError">Unable to verify the connection</strong>
-      <strong v-else-if="connectedPages.length">{{ connectedPages.length }} Page{{ connectedPages.length > 1 ? 's' : '' }} connected</strong>
-      <strong v-else>No Facebook Page connected</strong>
-      <p v-if="connectedPages.length">{{ connectedPages.map(page => page.name).join(', ') }} · Webhook active</p>
-      <p v-else-if="!metaPending">Connect a Page to start receiving Webhook events.</p>
-    </div>
-    <v-btn color="primary" :variant="connectedPages.length ? 'tonal' : 'flat'" to="/meta-pages" prepend-icon="mdi-cog-outline">{{ connectedPages.length ? 'Manage Pages' : 'Connect Page' }}</v-btn>
+  <v-alert v-if="justConnected" type="success" variant="tonal" closable class="mb-4">{{ locale==='lo'?'ເຊື່ອມ Facebook Page ສຳເລັດ ແລະ Webhook ເປີດໃຊ້ແລ້ວ':'Facebook Page connected and Webhook is active.' }}</v-alert>
+  <section class="onboarding-hero">
+    <div><small>{{ locale==='lo'?'ສະຖານະ WORKSPACE':'WORKSPACE STATUS' }}</small><h2>{{ readyCount===4 ? (locale==='lo'?'ພ້ອມເຮັດວຽກແລ້ວ':'Ready to work') : (locale==='lo'?'ກຽມ Automation ໃຫ້ພ້ອມ':'Finish your Automation setup') }}</h2><p>{{ locale==='lo'?'ຕິດຕາມສະຖານະຈິງ ໂດຍບໍ່ໃຊ້ຕົວເລກຕົວຢ່າງ':'Live workspace status without placeholder business metrics.' }}</p></div>
+    <div class="progress"><strong>{{ readyCount }}/4</strong><span>{{ locale==='lo'?'ຂັ້ນຕອນສຳເລັດ':'steps complete' }}</span><div><i :style="{width:`${readyCount*25}%`}"/></div></div>
   </section>
-  <section class="stats" aria-label="Business summary">
-    <article v-for="s in stats" :key="s.label"><div :style="{color:s.color,background:s.tint}"><v-icon :icon="s.icon"/></div><small>{{s.label}}</small><strong>{{s.value}}</strong><p><b>{{s.change}}</b> from last month</p></article>
-  </section>
-  <section class="content-grid">
-    <article class="panel chart-panel"><div class="head"><div><h2>Revenue overview</h2><p>Your earnings over the last 6 months</p></div><button>Last 6 months <v-icon icon="mdi-chevron-down" size="17"/></button></div><div class="plot"><div class="lines"><i/><i/><i/><i/></div><svg viewBox="0 0 620 220" preserveAspectRatio="none" aria-label="Revenue trend"><defs><linearGradient id="fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--color-primary)" stop-opacity=".25"/><stop offset="1" stop-color="var(--color-primary)" stop-opacity="0"/></linearGradient></defs><path d="M0 185C80 170 90 135 155 148S260 82 315 105 405 42 470 75 545 20 620 38V220H0Z" fill="url(#fill)"/><path d="M0 185C80 170 90 135 155 148S260 82 315 105 405 42 470 75 545 20 620 38" fill="none" stroke="var(--color-primary)" stroke-width="4" stroke-linecap="round"/></svg><div class="months"><span>Apr</span><span>May</span><span>Jun</span><span>Jul</span><span>Aug</span><span>Sep</span></div></div></article>
-    <article class="panel activity"><div class="head"><div><h2>Recent activity</h2><p>Latest updates</p></div></div><div v-for="(a,i) in activities" :key="a[0]" class="activity-row"><span :class="`color-${i}`"><v-icon :icon="a[2]" size="18"/></span><p><strong>{{a[0]}}</strong><small>{{a[1]}}</small></p></div><button class="view-all">View all activity <v-icon icon="mdi-arrow-right" size="17"/></button></article>
+
+  <section class="overview-grid">
+    <article class="setup-panel"><header><div><small>QUICK START</small><h3>{{ locale==='lo'?'ເລີ່ມໃຊ້ງານຕາມລຳດັບ':'Complete setup in order' }}</h3></div><v-btn variant="text" to="/automation-guide" append-icon="mdi-arrow-right">{{ t('auto.guide') }}</v-btn></header><div class="step-list"><NuxtLink v-for="(item,index) in steps" :key="item.to" :to="item.to"><span :class="{done:item.done}"><v-icon :icon="item.done?'mdi-check':item.icon"/></span><div><strong>{{ index+1 }}. {{ item.title }}</strong><small>{{ item.detail }}</small></div><v-icon icon="mdi-chevron-right"/></NuxtLink></div></article>
+    <aside class="live-panel"><small>LIVE STATUS</small><h3>{{ locale==='lo'?'ລະບົບປັດຈຸບັນ':'Current system' }}</h3><div class="status-row"><span><v-icon icon="mdi-facebook"/></span><div><strong>{{ pagePending?'…':pages.length }}</strong><small>Connected Pages</small></div></div><div class="status-row"><span><v-icon icon="mdi-robot-happy-outline"/></span><div><strong>{{ activeAutomations.length }}</strong><small>Active Automations</small></div></div><div class="status-row"><span><v-icon icon="mdi-target"/></span><div><strong>{{ automations.reduce((sum,item)=>sum+item.targets.length,0) }}</strong><small>Connected Targets</small></div></div><v-btn block color="primary" to="/auto-replies" prepend-icon="mdi-robot-happy-outline">{{ t('auto.title') }}</v-btn></aside>
   </section>
 </template>
 
 <style scoped>
-.facebook-status{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:15px;margin-bottom:18px;padding:18px 20px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:18px}.facebook-status.connected{border-color:color-mix(in srgb,var(--color-success) 32%,var(--color-border))}.facebook-status-icon{width:48px;height:48px;display:grid;place-items:center;color:var(--color-primary);background:var(--color-primary-softer);border-radius:14px}.facebook-status.connected .facebook-status-icon{color:var(--color-success);background:var(--color-success-soft)}.facebook-status-copy{display:grid;gap:2px;min-width:0}.facebook-status-copy small{color:var(--color-text-muted);font-size:9px;font-weight:800;letter-spacing:.12em}.facebook-status-copy strong{font-size:14px}.facebook-status-copy p{margin:0;color:var(--color-text-secondary);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.stats article,.panel{background:var(--color-surface);border:1px solid var(--color-border);border-radius:18px}.stats article{padding:21px;display:grid;grid-template-columns:48px 1fr;column-gap:14px;min-width:0}.stats article>div{width:46px;height:46px;grid-row:span 3;display:grid;place-items:center;border-radius:14px}.stats small{color:var(--color-text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.stats strong{font-size:24px}.stats p{margin:0;color:var(--color-text-faint);font-size:9px}.stats b{color:var(--color-success)}.content-grid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(280px,.8fr);gap:18px;margin-top:18px}.panel{padding:25px;min-width:0}.head{display:flex;justify-content:space-between;gap:16px}.head h2{margin:0 0 5px;font-size:15px}.head p{margin:0;color:var(--color-text-muted);font-size:10px}.head button,.view-all{border:0;background:none;cursor:pointer}.head button{border:1px solid var(--color-border);border-radius:9px;padding:7px 10px;color:var(--color-text-secondary)}.plot{height:265px;position:relative;margin-top:25px}.plot svg{width:100%;height:220px;position:relative}.lines{position:absolute;inset:0 0 45px;display:flex;flex-direction:column;justify-content:space-between}.lines i{border-top:1px dashed var(--color-border)}.months{display:flex;justify-content:space-between;color:var(--color-text-faint);font-size:9px}.activity-row{display:flex;align-items:center;gap:11px;padding:16px 0;border-bottom:1px solid var(--color-border-subtle)}.activity-row>span{flex:0 0 36px;width:36px;height:36px;display:grid;place-items:center;border-radius:11px}.color-0{color:var(--color-primary);background:var(--color-primary-softer)}.color-1{color:var(--color-success);background:var(--color-success-soft)}.color-2{color:var(--color-warning);background:var(--color-warning-soft)}.activity-row p{margin:0;display:grid}.activity-row strong{font-size:11px}.activity-row small{color:var(--color-text-faint);font-size:9px}.view-all{display:flex;align-items:center;gap:6px;margin:18px auto 0;color:var(--color-primary);font-size:10px;font-weight:800}
-@media(max-width:1100px){.content-grid{grid-template-columns:1fr}}
-@media(max-width:800px){.stats{grid-template-columns:1fr}}
-@media(max-width:640px){.facebook-status{grid-template-columns:auto 1fr}.facebook-status :deep(.v-btn){grid-column:1/-1;width:100%}.stats{gap:12px}.content-grid{gap:12px;margin-top:12px}.panel{padding:20px}.chart-panel{overflow-x:auto}.plot{min-width:520px}.stats article{padding:18px}}
+.onboarding-hero{display:flex;justify-content:space-between;align-items:center;gap:24px;margin-bottom:16px;padding:28px;background:linear-gradient(135deg,var(--color-primary-deep),#4d43bf 65%,#6458ec);border-radius:var(--radius-lg);color:white;overflow:hidden}.onboarding-hero small,.setup-panel header small,.live-panel>small{font-size:10px;font-weight:850;letter-spacing:.13em}.onboarding-hero small{color:var(--color-brand-caption)}.onboarding-hero h2{margin:7px 0 5px;font-size:clamp(24px,3vw,34px)}.onboarding-hero p{margin:0;color:rgba(255,255,255,.7);font-size:13px}.progress{flex:0 0 190px;display:grid;gap:4px;padding:18px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.12);border-radius:15px}.progress strong{font-size:25px}.progress span{color:rgba(255,255,255,.72);font-size:11px}.progress>div{height:6px;margin-top:6px;background:rgba(255,255,255,.18);border-radius:99px;overflow:hidden}.progress i{display:block;height:100%;background:white;border-radius:inherit}.overview-grid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(260px,.7fr);gap:16px}.setup-panel,.live-panel{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}.setup-panel header{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:20px;border-bottom:1px solid var(--color-border)}.setup-panel header small,.live-panel>small{color:var(--color-primary)}.setup-panel h3,.live-panel h3{margin:5px 0 0}.step-list{display:grid}.step-list a{min-height:76px;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:14px;padding:14px 20px;border-bottom:1px solid var(--color-border-subtle);color:var(--color-text);text-decoration:none}.step-list a:last-child{border:0}.step-list a:hover{background:var(--color-surface-soft)}.step-list a>span{width:44px;height:44px;display:grid;place-items:center;color:var(--color-primary);background:var(--color-primary-soft);border-radius:13px}.step-list a>span.done{color:var(--color-success);background:var(--color-success-soft)}.step-list a>div{display:grid;gap:4px}.step-list a small{color:var(--color-text-secondary)}.live-panel{align-self:start;padding:20px}.status-row{display:flex;align-items:center;gap:12px;padding:16px 0;border-bottom:1px solid var(--color-border-subtle)}.status-row>span{width:40px;height:40px;display:grid;place-items:center;color:var(--color-primary);background:var(--color-primary-soft);border-radius:11px}.status-row>div{display:grid}.status-row strong{font-size:20px}.status-row small{color:var(--color-text-secondary)}.live-panel :deep(.v-btn){margin-top:18px}@media(max-width:900px){.overview-grid{grid-template-columns:1fr}.live-panel{width:100%}}@media(max-width:640px){.onboarding-hero{display:grid;padding:21px}.progress{width:100%;flex-basis:auto}.setup-panel header{align-items:flex-start;padding:16px}.setup-panel header :deep(.v-btn){min-width:auto}.step-list a{padding:12px 14px}.step-list a>span{width:40px;height:40px}}
 </style>

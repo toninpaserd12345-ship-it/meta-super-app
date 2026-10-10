@@ -34,6 +34,7 @@ export function useAuth() {
     const result = await $fetch<AuthResponse>('/api/auth/account', { method: 'POST', body: { accountId } })
     user.value = result.user
     activeAccount.value = result.activeAccount
+    clearApiCache()
     await refreshNuxtData()
   }
 
@@ -45,6 +46,7 @@ export function useAuth() {
   async function logout() {
     await $fetch('/api/auth/logout', { method: 'POST' })
     user.value = null
+    clearApiCache()
     await navigateTo('/login')
   }
 

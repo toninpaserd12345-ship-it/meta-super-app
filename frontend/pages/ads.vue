@@ -3,6 +3,7 @@ import type { MetaAdAccount, MetaCampaign, MetaAd, AutomationRule } from '~/type
 
 definePageMeta({ middleware: 'auth' })
 const { can } = useAuth()
+const { cachedFetch } = useApiClient()
 
 const adAccounts = ref<MetaAdAccount[]>([])
 const campaigns = ref<MetaCampaign[]>([])
@@ -18,8 +19,8 @@ const notice = ref('')
 async function loadData() {
   loading.value = true
   try {
-    const accRes = await $fetch<{ items: MetaAdAccount[] }>('/api/proxy/api/v1/meta/ad-accounts').catch(err => { notice.value = err.data?.message || err.message; return { items: [] } })
-    const ruleRes = await $fetch<{ items: AutomationRule[] }>('/api/proxy/api/v1/automation/rules').catch(() => ({ items: [] }))
+    const accRes = await cachedFetch<{ items: MetaAdAccount[] }>('/api/proxy/api/v1/meta/ad-accounts', 300_000).catch(err => { notice.value = err.data?.message || err.message; return { items: [] } })
+    const ruleRes = await cachedFetch<{ items: AutomationRule[] }>('/api/proxy/api/v1/automation/rules', 30_000).catch(() => ({ items: [] }))
 
     adAccounts.value = accRes.items || []
     rules.value = ruleRes.items || []
@@ -36,7 +37,7 @@ async function loadCampaigns() {
   if (!adAccountId.value) return
   loading.value = true
   try {
-    const res = await $fetch<{ items: MetaCampaign[] }>(`/api/proxy/api/v1/meta/ad-accounts/${adAccountId.value}/campaigns`)
+    const res = await cachedFetch<{ items: MetaCampaign[] }>(`/api/proxy/api/v1/meta/ad-accounts/${adAccountId.value}/campaigns`, 120_000)
     campaigns.value = res.items || []
   } finally {
     loading.value = false
@@ -51,7 +52,7 @@ async function toggleCampaign(campaignId: string) {
   expandedCampaigns.value.push(campaignId)
   if (!campaignAds.value[campaignId]) {
     try {
-      const res = await $fetch<{ items: MetaAd[] }>(`/api/proxy/api/v1/meta/campaigns/${campaignId}/ads`)
+      const res = await cachedFetch<{ items: MetaAd[] }>(`/api/proxy/api/v1/meta/campaigns/${campaignId}/ads`, 120_000)
       campaignAds.value[campaignId] = res.items || []
     } catch (e) {
       // ignore

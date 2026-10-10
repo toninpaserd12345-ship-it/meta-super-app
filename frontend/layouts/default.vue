@@ -6,8 +6,7 @@
   </div>
 </template>
 <style scoped>
-.app-layout{min-height:100dvh;background:var(--color-background)}.app-main{min-width:0;margin-left:236px;min-height:100dvh}.content-container{width:100%;max-width:1680px;margin:0 auto;padding:40px clamp(24px,4vw,64px) 56px}
-@media(min-width:1800px){.content-container{max-width:none}}
-@media(max-width:1023px) and (min-width:641px){.app-main{margin-left:78px}.content-container{padding:32px 28px 48px}}
-@media(max-width:640px){.app-main{margin-left:0}.content-container{padding:24px 16px calc(100px + env(safe-area-inset-bottom))}}
+.app-layout{min-height:100dvh;background:var(--color-background)}.app-main{min-width:0;margin-left:var(--sidebar-width);min-height:100dvh}.content-container{width:100%;max-width:var(--content-max-width);margin:0 auto;padding:32px clamp(20px,3vw,48px) 56px}
+@media(max-width:1023px) and (min-width:641px){.app-main{margin-left:var(--sidebar-compact-width)}.content-container{padding:28px 24px 48px}}
+@media(max-width:640px){.app-main{margin-left:0}.content-container{padding:20px 14px calc(102px + env(safe-area-inset-bottom))}}
 </style>
