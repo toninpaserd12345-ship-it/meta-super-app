@@ -3,8 +3,6 @@ import type { MetaAdAccount, MetaCampaign, MetaAd, AutomationFlow, ItemsResponse
 
 definePageMeta({ middleware: 'auth' })
 const { can } = useAuth()
-const { cachedFetch } = useApiClient()
-
 const adAccounts = ref<MetaAdAccount[]>([])
 const campaigns = ref<MetaCampaign[]>([])
 const campaignAds = ref<Record<string, MetaAd[]>>({})
@@ -21,11 +19,11 @@ const notice = ref('')
 async function loadData() {
   loading.value = true
   try {
-    const accRes = await cachedFetch<{ items: MetaAdAccount[] }>('/api/proxy/api/v1/meta/ad-accounts', 300_000).catch(err => { notice.value = err.data?.message || err.message; return { items: [] } })
+    const accRes = await $fetch<{ items: MetaAdAccount[] }>('/api/proxy/api/v1/meta/ad-accounts').catch(err => { notice.value = err.data?.message || err.message; return { items: [] } })
     const [flowRes, productRes, replyRes] = await Promise.all([
-      cachedFetch<ItemsResponse<AutomationFlow>>('/api/proxy/api/v1/automations', 30_000).catch(() => ({ items: [] })),
-      cachedFetch<ItemsResponse<Product>>('/api/proxy/api/v1/products', 60_000).catch(() => ({ items: [] })),
-      cachedFetch<ReplySet[]>('/api/proxy/api/v1/replies', 60_000).catch(() => []),
+      $fetch<ItemsResponse<AutomationFlow>>('/api/proxy/api/v1/automations').catch(() => ({ items: [] })),
+      $fetch<ItemsResponse<Product>>('/api/proxy/api/v1/products').catch(() => ({ items: [] })),
+      $fetch<ReplySet[]>('/api/proxy/api/v1/replies').catch(() => []),
     ])
 
     adAccounts.value = accRes.items || []
@@ -45,7 +43,7 @@ async function loadCampaigns() {
   if (!adAccountId.value) return
   loading.value = true
   try {
-    const res = await cachedFetch<{ items: MetaCampaign[] }>(`/api/proxy/api/v1/meta/ad-accounts/${adAccountId.value}/campaigns`, 120_000)
+    const res = await $fetch<{ items: MetaCampaign[] }>(`/api/proxy/api/v1/meta/ad-accounts/${adAccountId.value}/campaigns`)
     campaigns.value = res.items || []
   } finally {
     loading.value = false
@@ -60,7 +58,7 @@ async function toggleCampaign(campaignId: string) {
   expandedCampaigns.value.push(campaignId)
   if (!campaignAds.value[campaignId]) {
     try {
-      const res = await cachedFetch<{ items: MetaAd[] }>(`/api/proxy/api/v1/meta/campaigns/${campaignId}/ads`, 120_000)
+      const res = await $fetch<{ items: MetaAd[] }>(`/api/proxy/api/v1/meta/campaigns/${campaignId}/ads`)
       campaignAds.value[campaignId] = res.items || []
     } catch (e) {
       // ignore
@@ -137,8 +135,11 @@ onMounted(loadData)
           </tr>
           <tr v-else v-for="ad in campaignAds[campaign.id]" :key="ad.id" class="ad-row">
             <td class="pl-8">
-              <v-icon icon="mdi-bullhorn-outline" size="small" class="mr-2 text-disabled" />
-              {{ ad.name }}
+              <div class="ad-identity">
+                <img v-if="ad.thumbnailUrl || ad.imageUrl" :src="ad.thumbnailUrl || ad.imageUrl" :alt="ad.name" loading="lazy">
+                <span v-else class="ad-placeholder"><v-icon icon="mdi-bullhorn-outline" size="small" /></span>
+                <span>{{ ad.name }}</span>
+              </div>
             </td>
             <td><v-chip size="small" variant="text" :color="ad.effectiveStatus === 'ACTIVE' ? 'success' : 'default'">{{ ad.effectiveStatus }}</v-chip></td>
             <td><small class="text-disabled">{{ ad.id }}</small></td>
@@ -206,5 +207,6 @@ onMounted(loadData)
 .ad-row:last-child td {
   border-bottom: 1px solid var(--color-border);
 }
+.ad-identity{display:flex;align-items:center;gap:10px;min-width:220px}.ad-identity img,.ad-placeholder{width:48px;height:48px;flex:0 0 48px;border-radius:9px;background:var(--color-surface);object-fit:cover}.ad-placeholder{display:grid;place-items:center;color:var(--color-text-muted)}
 .automation-links{display:grid;gap:5px;min-width:190px}.automation-links a{display:flex;align-items:center;gap:7px;color:var(--color-text);text-decoration:none}.automation-links a>span{width:7px;height:7px;background:var(--color-text-muted);border-radius:50%}.automation-links a>span.active{background:var(--color-success)}.automation-links a>div{display:grid;min-width:0}.automation-links strong,.automation-links small{max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.automation-links strong{font-size:11px}.automation-links small{color:var(--color-text-secondary);font-size:9px}
 </style>

@@ -262,10 +262,17 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 				Sender struct {
 					ID string `json:"id"`
 				} `json:"sender"`
-				Message struct {
-					MID      string           `json:"mid"`
-					Text     string           `json:"text"`
-					Referral *webhookReferral `json:"referral"`
+				Timestamp int64 `json:"timestamp"`
+				Message   struct {
+					MID         string           `json:"mid"`
+					Text        string           `json:"text"`
+					Referral    *webhookReferral `json:"referral"`
+					Attachments []struct {
+						Type    string `json:"type"`
+						Payload struct {
+							URL string `json:"url"`
+						} `json:"payload"`
+					} `json:"attachments"`
 				} `json:"message"`
 				Referral *webhookReferral `json:"referral"`
 				Postback struct {
@@ -394,6 +401,34 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 			if message.Sender.ID == "" {
 				continue
 			}
+
+			if g.chatStream != nil {
+				msgType := "text"
+				msgContent := message.Message.Text
+				if len(message.Message.Attachments) > 0 {
+					msgType = message.Message.Attachments[0].Type
+					msgContent = message.Message.Attachments[0].Payload.URL
+				}
+				if msgContent != "" {
+					accountID, _, pageFound := g.findPage(entry.ID)
+					if pageFound {
+						timestampStr := fmt.Sprintf("%d", message.Timestamp)
+						if message.Timestamp == 0 {
+							timestampStr = fmt.Sprintf("%d", time.Now().UnixMilli())
+						}
+						g.chatStream.Broadcast(accountID, usecase.ChatEvent{
+							AccountID: accountID,
+							PageID:    entry.ID,
+							SenderID:  message.Sender.ID,
+							Message:   msgContent,
+							Type:      msgType,
+							Timestamp: timestampStr,
+							Platform:  "facebook",
+						})
+					}
+				}
+			}
+
 			seenKey := entry.ID + ":" + message.Sender.ID
 			sourceType, sourceID, resolvedKey := "", "", ""
 			if ref != nil {

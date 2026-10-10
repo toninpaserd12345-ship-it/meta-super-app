@@ -1,0 +1,1 @@
+import{k as e}from"./Car86Ubo.js";import{i as t}from"./Cc4jSHYC.js";import{t as n}from"./CNs_Ozdc.js";var r=e({__name:`[section]`,setup(e){throw n({middleware:`auth`}),t({statusCode:404,statusMessage:`Page not found`})}});export{r as default};

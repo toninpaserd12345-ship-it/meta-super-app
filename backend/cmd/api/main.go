@@ -92,7 +92,12 @@ func main() {
 	}
 	metaConnector.SetAutomationProvider(appProvider)
 
-	app := httpx.NewHandler(auth, meta, team, billing, storageUseCase, replyUseCase, automationUseCase, productUseCase, tokens, metaMode, cfg.MetaFrontendRedirect).App()
+	// Initialize Chat Stream
+	chatRepo := repository.NewGormChat(db)
+	chatStream := usecase.NewChatStream(chatRepo)
+	metaConnector.SetChatStream(chatStream)
+
+	app := httpx.NewHandler(auth, meta, team, billing, storageUseCase, replyUseCase, automationUseCase, productUseCase, chatStream, tokens, metaMode, cfg.MetaFrontendRedirect).App()
 	go func() {
 		slog.Info("Fiber API listening", "address", cfg.HTTPAddr, "environment", cfg.Environment, "storage", cfg.StorageDriver, "meta", metaMode)
 		if err := app.Listen(cfg.HTTPAddr); err != nil {

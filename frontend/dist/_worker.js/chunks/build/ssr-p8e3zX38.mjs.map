@@ -1,0 +1,1 @@
+{"version":3,"file":"ssr-p8e3zX38.mjs","sources":["../../../../node_modules/nuxt/dist/app/composables/ssr.js"],"names":["$fetch$1","$fetch","useRequestEvent","nuxtApp","useNuxtApp","ssrContext","event","useRequestFetch"],"mappings":"","x_google_ignoreList":[0]}

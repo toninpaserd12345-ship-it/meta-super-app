@@ -76,13 +76,21 @@ onMounted(async () => {
     loadError.value = locale.value === 'lo' ? 'ໂຫຼດປະຫວັດສົນທະນາບໍ່ສຳເລັດ' : 'Conversation history could not be loaded.'
   }
 
-  const baseURL = useRuntimeConfig().public.apiBase
   const url = '/api/proxy/api/v1/chat/stream'
   
   evtSource.value = new EventSource(url)
   
+  evtSource.value.onopen = () => {
+    loadError.value = ''
+  }
+
   evtSource.value.onmessage = (event) => {
-    const data = JSON.parse(event.data) as ChatMessage
+    let data: ChatMessage
+    try {
+      data = JSON.parse(event.data) as ChatMessage
+    } catch {
+      return
+    }
     data.id = data.timestamp + Math.random() // Temp ID
     
     // Determine the key for the conversation. Group by SenderID.
@@ -162,6 +170,8 @@ const formatTime = (ts: string) => {
         >
           <div class="bubble-content">
             <img v-if="msg.type === 'image' && msg.message" :src="msg.message" :alt="locale==='lo'?'ຮູບຈາກການສົນທະນາ':'Conversation image'" class="message-image">
+            <video v-else-if="msg.type === 'video' && msg.message" :src="msg.message" controls class="message-video"/>
+            <audio v-else-if="msg.type === 'audio' && msg.message" :src="msg.message" controls class="message-audio"/>
             <span v-else-if="msg.type === 'image'" class="media-placeholder">{{locale==='lo'?'ຮູບພາບ':'Image'}}</span>
             <span v-else>{{ msg.message }}</span>
           </div>
@@ -337,7 +347,7 @@ const formatTime = (ts: string) => {
   font-size: 14px;
   line-height: 1.4;
 }
-.message-image{display:block;max-width:min(360px,60vw);max-height:360px;border-radius:10px;object-fit:cover}.media-placeholder{font-weight:600}
+.message-image,.message-video{display:block;max-width:min(360px,60vw);max-height:360px;border-radius:10px;object-fit:contain}.message-audio{display:block;width:min(360px,60vw);max-width:100%}.media-placeholder{font-weight:600}
 
 .incoming .bubble-content {
   background: var(--color-surface);

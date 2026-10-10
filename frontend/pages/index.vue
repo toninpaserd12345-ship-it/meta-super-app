@@ -15,7 +15,7 @@ const activeAutomations = computed(() => automations.value.filter(item => item.i
 const justConnected = computed(() => route.query.meta === 'connected' && pages.value.length > 0)
 const readyCount = computed(() => [pages.value.length, products.value.length, replies.value.length, automations.value.length].filter(Boolean).length)
 const steps = computed(() => [
-  { done: pages.value.length > 0, icon:'mdi-facebook', title:locale.value==='lo'?'ເຊື່ອມ Facebook Page':'Connect Facebook Page', detail:pages.value.length ? `${pages.value.length} ${locale.value==='lo'?'Page ເຊື່ອມແລ້ວ':'Page(s) connected'}` : locale.value==='lo'?'ຈຳເປັນສຳລັບຮັບ Webhook':'Required to receive Webhooks', to:'/meta-pages' },
+  { done: pages.value.length > 0, icon:'mdi-facebook', title:locale.value==='lo'?'ເຊື່ອມ Facebook Page':'Connect Facebook Page', detail:pages.value.length ? `${pages.value.length} ${locale.value==='lo'?'Page ເຊື່ອມແລ້ວ':'Page(s) connected'}` : locale.value==='lo'?'ຈຳເປັນສຳລັບຮັບຂໍ້ຄວາມ':'Required to receive messages', to:'/meta-pages' },
   { done: products.value.length > 0, icon:'mdi-package-variant-closed', title:locale.value==='lo'?'ສ້າງສິນຄ້າ':'Create a Product', detail:`${products.value.length} ${t('nav.products')}`, to:'/products' },
   { done: replies.value.length > 0, icon:'mdi-message-text-fast-outline', title:locale.value==='lo'?'ສ້າງຊຸດຂໍ້ຄວາມ':'Build a Reply Set', detail:`${replies.value.length} ${t('nav.replies')}`, to:'/replies' },
   { done: automations.value.length > 0, icon:'mdi-robot-happy-outline', title:locale.value==='lo'?'ສ້າງ Automation':'Create an Automation', detail:`${activeAutomations.value.length} ${locale.value==='lo'?'ເປີດໃຊ້ຢູ່':'active'}`, to:'/auto-replies' },
@@ -23,7 +23,7 @@ const steps = computed(() => [
 </script>
 
 <template>
-  <v-alert v-if="justConnected" type="success" variant="tonal" closable class="mb-4">{{ locale==='lo'?'ເຊື່ອມ Facebook Page ສຳເລັດ ແລະ Webhook ເປີດໃຊ້ແລ້ວ':'Facebook Page connected and Webhook is active.' }}</v-alert>
+  <v-alert v-if="justConnected" type="success" variant="tonal" closable class="mb-4">{{ locale==='lo'?'ເຊື່ອມ Facebook Page ສຳເລັດ ແລະ ລະບົບຮັບຂໍ້ຄວາມເປີດໃຊ້ແລ້ວ':'Facebook Page connected and messages system is active.' }}</v-alert>
   <section class="onboarding-hero">
     <div><small>{{ locale==='lo'?'ສະຖານະ WORKSPACE':'WORKSPACE STATUS' }}</small><h2>{{ readyCount===4 ? (locale==='lo'?'ພ້ອມເຮັດວຽກແລ້ວ':'Ready to work') : (locale==='lo'?'ກຽມ Automation ໃຫ້ພ້ອມ':'Finish your Automation setup') }}</h2><p>{{ locale==='lo'?'ສະຫຼຸບ Page, ສິນຄ້າ, ຊຸດຂໍ້ຄວາມ ແລະ Automation ຂອງ Workspace':'Page, product, Reply Set and Automation status for this workspace.' }}</p></div>
     <div class="progress"><strong>{{ readyCount }}/4</strong><span>{{ locale==='lo'?'ຂັ້ນຕອນສຳເລັດ':'steps complete' }}</span><div><i :style="{width:`${readyCount*25}%`}"/></div></div>

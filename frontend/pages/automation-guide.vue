@@ -3,24 +3,24 @@ definePageMeta({ middleware: 'auth' })
 const { locale, t } = useLocale()
 const open = ref(1)
 const steps = computed(() => locale.value === 'lo' ? [
-  { icon:'mdi-facebook', title:'1. ເຊື່ອມ Facebook Page', summary:'ໃຫ້ສະຖານະ Page ແລະ Webhook ເປັນສີຂຽວ', details:['ໄປທີ່ ເພຈ ແລະ WhatsApp','ກົດ Connect Facebook ແລະອະນຸຍາດ pages_messaging','ເປີດ Page ທີ່ຕ້ອງການ ແລ້ວກວດ Webhook status'] },
+  { icon:'mdi-facebook', title:'1. ເຊື່ອມ Facebook Page', summary:'ໃຫ້ສະຖານະ Page ແລະ ການຮັບຂໍ້ຄວາມເປັນສີຂຽວ', details:['ໄປທີ່ ເພຈ ແລະ WhatsApp','ກົດ Connect Facebook ແລະອະນຸຍາດ pages_messaging','ເປີດ Page ທີ່ຕ້ອງການ ແລ້ວກວດ ສະຖານະການຮັບຂໍ້ຄວາມ'] },
   { icon:'mdi-package-variant-closed', title:'2. ສ້າງສິນຄ້າ', summary:'ເກັບຊື່, ລາຄາ ແລະລາຍລະອຽດໄວ້ໃຊ້ໃນຄຳຕອບ', details:['ໄປທີ່ ສິນຄ້າ','ເພີ່ມຊື່, ລາຄາ, ລາຍລະອຽດ ແລະຮູບ','ບັນທຶກແລ້ວກວດຄວາມຖືກຕ້ອງ'] },
   { icon:'mdi-message-text-fast-outline', title:'3. ສ້າງຊຸດຂໍ້ຄວາມ', summary:'ຈັດລຳດັບ text, image, video ຫຼື audio', details:['ໄປທີ່ ຊຸດຂໍ້ຄວາມ','ເພີ່ມຂໍ້ຄວາມ ຫຼື media ຕາມລຳດັບ','ປິດລາຍການທີ່ຍັງບໍ່ຢາກສົ່ງ'] },
   { icon:'mdi-robot-happy-outline', title:'4. ສ້າງ Automation', summary:'ຜູກ Page + ໂພສ/Campaign + ສິນຄ້າ + ຊຸດຂໍ້ຄວາມ', details:['ຕັ້ງຊື່ ແລະເລືອກ Page','ເລືອກໂພສ ຫຼື Campaign ໄດ້ຫຼາຍລາຍການ','ເລືອກສິນຄ້າ ແລະຊຸດຂໍ້ຄວາມ','ໃຊ້ First message only ເພື່ອບໍ່ໃຫ້ຕອບຊ້ຳ'] },
-  { icon:'mdi-flask-outline', title:'5. ທົດສອບກ່ອນໃຊ້ຈິງ', summary:'ສົ່ງ 1 ຂໍ້ຄວາມ ແລະກວດ log/ລຳດັບຄຳຕອບ', details:['ເປີດ Automation ແລະສົ່ງຂໍ້ຄວາມຈາກ user ທົດສອບ','ກວດວ່າສົ່ງພຽງຄັ້ງດຽວ ແລະລຳດັບຖືກຕ້ອງ','ຖ້າບໍ່ສົ່ງ ໃຫ້ກວດ Page, Webhook, permission ແລະ Automation status'] },
+  { icon:'mdi-flask-outline', title:'5. ທົດສອບກ່ອນໃຊ້ຈິງ', summary:'ສົ່ງ 1 ຂໍ້ຄວາມ ແລະກວດ log/ລຳດັບຄຳຕອບ', details:['ເປີດ Automation ແລະສົ່ງຂໍ້ຄວາມຈາກ user ທົດສອບ','ກວດວ່າສົ່ງພຽງຄັ້ງດຽວ ແລະລຳດັບຖືກຕ້ອງ','ຖ້າບໍ່ສົ່ງ ໃຫ້ກວດ Page, ສະຖານະການຮັບຂໍ້ຄວາມ, permission ແລະ Automation status'] },
 ] : [
-  { icon:'mdi-facebook', title:'1. Connect a Facebook Page', summary:'Make sure the Page and Webhook statuses are green.', details:['Open Pages & WhatsApp','Connect Facebook and allow pages_messaging','Enable the Page and verify its Webhook status'] },
+  { icon:'mdi-facebook', title:'1. Connect a Facebook Page', summary:'Make sure the Page and ສະຖານະການຮັບຂໍ້ຄວາມes are green.', details:['Open Pages & WhatsApp','Connect Facebook and allow pages_messaging','Enable the Page and verify its ສະຖານະການຮັບຂໍ້ຄວາມ'] },
   { icon:'mdi-package-variant-closed', title:'2. Create a Product', summary:'Save product details used by replies.', details:['Open Products','Add name, price, details and image','Save and review the preview'] },
   { icon:'mdi-message-text-fast-outline', title:'3. Build a Reply Set', summary:'Arrange text, image, video or audio in order.', details:['Open Reply Sets','Add messages and media in send order','Disable anything that should not send'] },
   { icon:'mdi-robot-happy-outline', title:'4. Create an Automation', summary:'Connect Page, targets, Product and Reply Set.', details:['Name it and select a Page','Select multiple Posts or Campaigns','Choose Product and Reply Set','Use First message only to prevent duplicates'] },
-  { icon:'mdi-flask-outline', title:'5. Test before launch', summary:'Send one message and verify logs and reply order.', details:['Enable it and send from a test user','Verify one reply and correct order','If it fails, check Page, Webhook, permissions and status'] },
+  { icon:'mdi-flask-outline', title:'5. Test before launch', summary:'Send one message and verify logs and reply order.', details:['Enable it and send from a test user','Verify one reply and correct order','If it fails, check Page, ສະຖານະການຮັບຂໍ້ຄວາມ, permissions and status'] },
 ])
 </script>
 
 <template>
   <section class="guide-hero"><div><small>GETTING STARTED</small><h2>{{ t('guide.title') }}</h2><p>{{ t('guide.subtitle') }}</p></div><v-btn color="primary" to="/auto-replies" prepend-icon="mdi-plus">{{ t('auto.new') }}</v-btn></section>
   <section class="guide-layout">
-    <aside><strong>{{ locale==='lo'?'ກ່ອນເລີ່ມ':'Before you start' }}</strong><ul><li>Facebook Page connected</li><li>Webhook active</li><li>pages_messaging permission</li><li>{{ locale==='lo'?'ມີສິນຄ້າ ແລະຊຸດຂໍ້ຄວາມ':'A Product and Reply Set' }}</li></ul><v-alert type="info" variant="tonal" density="compact">{{ locale==='lo'?'ແນະນຳ: ທົດສອບກັບ 1 Page ແລະ 1 Post ກ່ອນ':'Tip: test with one Page and one Post first.' }}</v-alert></aside>
+    <aside><strong>{{ locale==='lo'?'ກ່ອນເລີ່ມ':'Before you start' }}</strong><ul><li>Facebook Page connected</li><li>Messages active</li><li>pages_messaging permission</li><li>{{ locale==='lo'?'ມີສິນຄ້າ ແລະຊຸດຂໍ້ຄວາມ':'A Product and Reply Set' }}</li></ul><v-alert type="info" variant="tonal" density="compact">{{ locale==='lo'?'ແນະນຳ: ທົດສອບກັບ 1 Page ແລະ 1 Post ກ່ອນ':'Tip: test with one Page and one Post first.' }}</v-alert></aside>
     <main><article v-for="(item,index) in steps" :key="item.title" :class="{open:open===index+1}"><button @click="open=open===index+1?0:index+1"><span><v-icon :icon="item.icon"/></span><div><strong>{{ item.title }}</strong><small>{{ item.summary }}</small></div><v-icon :icon="open===index+1?'mdi-chevron-up':'mdi-chevron-down'"/></button><div v-if="open===index+1" class="details"><ol><li v-for="detail in item.details" :key="detail">{{ detail }}</li></ol><div class="step-link"><v-btn v-if="index===0" to="/meta-pages" variant="tonal">{{ locale==='lo'?'ໄປຈັດການ Page':'Manage Pages' }}</v-btn><v-btn v-else-if="index===1" to="/products" variant="tonal">{{ t('nav.products') }}</v-btn><v-btn v-else-if="index===2" to="/replies" variant="tonal">{{ t('nav.replies') }}</v-btn><v-btn v-else-if="index===3" to="/auto-replies" color="primary">{{ t('auto.new') }}</v-btn></div></div></article></main>
   </section>
 </template>
