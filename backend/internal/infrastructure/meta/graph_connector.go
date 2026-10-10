@@ -97,14 +97,14 @@ func NewGraphConnector(cfg GraphConfig, db *gorm.DB) *GraphConnector {
 	return g
 }
 
-func (g *GraphConnector) fetchNameViaConversation(ctx context.Context, pageID, psid, token string) string {
+func (g *GraphConnector) fetchNameViaConversation(ctx context.Context, pageID, psid, token string) (string, string) {
 	// 1. Get conversation ID
 	reqUrl := "https://graph.facebook.com/" + g.cfg.Version + "/" + pageID + "/conversations?user_id=" + psid + "&access_token=" + token
 	req, _ := http.NewRequestWithContext(ctx, "GET", reqUrl, nil)
 	resp, err := g.client.Do(req)
 	if err != nil || resp.StatusCode != 200 {
 		if resp != nil { resp.Body.Close() }
-		return ""
+		return "", ""
 	}
 	
 	var convList struct {
@@ -113,42 +113,43 @@ func (g *GraphConnector) fetchNameViaConversation(ctx context.Context, pageID, p
 		} `json:"data"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&convList); err != nil || len(convList.Data) == 0 {
-		resp.Body.Close()
-		return ""
+		if resp != nil { resp.Body.Close() }
+		return "", ""
 	}
 	resp.Body.Close()
 
 	convID := convList.Data[0].ID
 
 	// 2. Fetch participants
-	reqUrl = "https://graph.facebook.com/" + g.cfg.Version + "/" + convID + "?fields=participants&access_token=" + token
+	reqUrl = "https://graph.facebook.com/" + g.cfg.Version + "/" + convID + "?fields=participants{id,name,profile_pic}&access_token=" + token
 	req, _ = http.NewRequestWithContext(ctx, "GET", reqUrl, nil)
 	resp2, err := g.client.Do(req)
 	if err != nil || resp2.StatusCode != 200 {
 		if resp2 != nil { resp2.Body.Close() }
-		return ""
+		return "", ""
 	}
 
 	var convDetails struct {
 		Participants struct {
 			Data []struct {
-				Name string `json:"name"`
-				ID   string `json:"id"`
+				Name       string `json:"name"`
+				ID         string `json:"id"`
+				ProfilePic string `json:"profile_pic"`
 			} `json:"data"`
 		} `json:"participants"`
 	}
 	if err := json.NewDecoder(resp2.Body).Decode(&convDetails); err != nil {
-		resp2.Body.Close()
-		return ""
+		if resp2 != nil { resp2.Body.Close() }
+		return "", ""
 	}
 	resp2.Body.Close()
 
 	for _, p := range convDetails.Participants.Data {
 		if p.ID == psid {
-			return p.Name
+			return p.Name, p.ProfilePic
 		}
 	}
-	return ""
+	return "", ""
 }
 
 func (g *GraphConnector) GetProfile(ctx context.Context, pageID, psid, token string) (string, string) {
@@ -171,12 +172,12 @@ func (g *GraphConnector) GetProfile(ctx context.Context, pageID, psid, token str
 	
 	if resp.StatusCode != 200 {
 		if pageID != "" {
-			name := g.fetchNameViaConversation(ctx, pageID, psid, token)
+			name, pic := g.fetchNameViaConversation(ctx, pageID, psid, token)
 			if name != "" {
 				g.profileMu.Lock()
-				g.userProfiles[psid] = struct{ Name, Pic string }{name, ""}
+				g.userProfiles[psid] = struct{ Name, Pic string }{name, pic}
 				g.profileMu.Unlock()
-				return name, ""
+				return name, pic
 			}
 		}
 		return "", ""
