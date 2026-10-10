@@ -43,7 +43,7 @@ func MigrateMetaCredentials(db *gorm.DB) error {
 // used on every deployment. Production may disable full seed migrations, but
 // it must never start with a schema older than the running automation API.
 func MigrateRuntimeSchema(db *gorm.DB) error {
-	if err := db.AutoMigrate(&AutomationRuleModel{}); err != nil {
+	if err := db.AutoMigrate(&AutomationRuleModel{}, &ChatMessageModel{}); err != nil {
 		return err
 	}
 	// Older releases stored one row per Ad/Post without a flow identity. Group

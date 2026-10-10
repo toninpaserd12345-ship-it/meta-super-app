@@ -73,6 +73,7 @@ type GraphConnector struct {
 	deliverySteps map[string]bool
 	inFlight      map[string]bool
 	automation    domain.AutomationProvider
+	productRepo   domain.ProductRepository
 }
 
 func (g *GraphConnector) SetChatStream(c *usecase.ChatStream) {
@@ -416,6 +417,25 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 						if message.Timestamp == 0 {
 							timestampStr = fmt.Sprintf("%d", time.Now().UnixMilli())
 						}
+
+						// Auto-reply for product code/name
+						if g.productRepo != nil && msgType == "text" {
+							products, err := g.productRepo.ListProducts(ctx, accountID)
+							if err == nil {
+								msgLower := strings.TrimSpace(strings.ToLower(msgContent))
+								for _, p := range products {
+									if msgLower == strings.ToLower(p.ID) || msgLower == strings.ToLower(p.Name) {
+										replyText := fmt.Sprintf("%s\n\n%s\n\nລາຄາ: %s", p.Name, p.Description, p.Price)
+										if p.ImageUrl != "" {
+											_ = g.SendMedia(ctx, accountID, entry.ID, message.Sender.ID, "image", p.ImageUrl)
+										}
+										_ = g.SendMessage(ctx, accountID, entry.ID, message.Sender.ID, replyText)
+										break
+									}
+								}
+							}
+						}
+
 						g.chatStream.Broadcast(accountID, usecase.ChatEvent{
 							AccountID: accountID,
 							PageID:    entry.ID,
@@ -1970,4 +1990,8 @@ func graphResponseError(status int, value *graphError) error {
 		return fmt.Errorf("meta graph request failed with status %d", status)
 	}
 	return fmt.Errorf("meta graph error %d: %s", value.Code, value.Message)
+}
+
+func (g *GraphConnector) SetProductRepo(r domain.ProductRepository) {
+	g.productRepo = r
 }

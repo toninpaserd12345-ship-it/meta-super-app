@@ -96,6 +96,7 @@ func main() {
 	chatRepo := repository.NewGormChat(db)
 	chatStream := usecase.NewChatStream(chatRepo)
 	metaConnector.SetChatStream(chatStream)
+	metaConnector.SetProductRepo(productRepo)
 
 	app := httpx.NewHandler(auth, meta, team, billing, storageUseCase, replyUseCase, automationUseCase, productUseCase, chatStream, tokens, metaMode, cfg.MetaFrontendRedirect).App()
 	go func() {
