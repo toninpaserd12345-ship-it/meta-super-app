@@ -26,7 +26,7 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, fmt.Errorf("ACCESS_TOKEN_TTL: %w", err)
 	}
-	auto, err := strconv.ParseBool(value("AUTO_MIGRATE", "false"))
+	auto, err := strconv.ParseBool(value("AUTO_MIGRATE", "true"))
 	if err != nil {
 		return Config{}, fmt.Errorf("AUTO_MIGRATE: %w", err)
 	}
@@ -38,7 +38,7 @@ func Load() (Config, error) {
 		JWTSecret:              os.Getenv("JWT_SECRET"),
 		JWTIssuer:              value("JWT_ISSUER", "meta-super-app"),
 		AccessTokenTTL:         ttl,
-		AutoMigrate:            auto,
+		AutoMigrate:            true,
 		SeedAdminEmail:         os.Getenv("SEED_ADMIN_EMAIL"),
 		SeedAdminPassword:      os.Getenv("SEED_ADMIN_PASSWORD"),
 		SeedAccountName:        value("SEED_ACCOUNT_NAME", "Demo Company"),
