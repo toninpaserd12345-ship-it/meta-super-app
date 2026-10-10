@@ -108,7 +108,7 @@ func (g *GraphConnector) GetProfile(ctx context.Context, psid, token string) (st
 		return p.Name, p.Pic
 	}
 
-	req, _ := http.NewRequestWithContext(ctx, "GET", "https://graph.facebook.com/"+g.cfg.Version+"/"+psid+"?fields=first_name,last_name,name,profile_pic&access_token="+token, nil)
+	req, _ := http.NewRequestWithContext(ctx, "GET", "https://graph.facebook.com/"+g.cfg.Version+"/"+psid+"?fields=first_name,last_name,profile_pic&access_token="+token, nil)
 	resp, err := g.client.Do(req)
 	if err != nil {
 		return "", ""
@@ -127,10 +127,7 @@ func (g *GraphConnector) GetProfile(ctx context.Context, psid, token string) (st
 	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
 		return "", ""
 	}
-	name := res.Name
-	if name == "" {
-		name = res.FirstName + " " + res.LastName
-	}
+	name := strings.TrimSpace(res.FirstName + " " + res.LastName)
 	
 	g.profileMu.Lock()
 	g.userProfiles[psid] = struct{ Name, Pic string }{name, res.ProfilePic}
