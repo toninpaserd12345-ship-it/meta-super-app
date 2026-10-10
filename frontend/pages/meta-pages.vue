@@ -72,7 +72,7 @@ const visiblePages=computed(()=>pages.value.filter(page=>{
   const matchesPlatform=mainPlatformFilter.value==='all'||page.category.toLowerCase().includes('whatsapp')
   return matchesStatus&&matchesPlatform
 }))
-const pagePictureUrl=(page:MetaPage)=>`/api/meta/page-picture/${encodeURIComponent(page.id)}?attempt=${pictureAttempts.value[page.id]||0}`
+const pagePictureUrl=(page:MetaPage)=>page.pictureUrl || `/api/meta/page-picture/${encodeURIComponent(page.id)}?attempt=${pictureAttempts.value[page.id]||0}`
 const pictureAvailable=(page:MetaPage)=>page.tokenReady&&!failedPictures.value[page.id]
 const handlePictureError=(pageId:string)=>{
   const attempt=pictureAttempts.value[pageId]||0
