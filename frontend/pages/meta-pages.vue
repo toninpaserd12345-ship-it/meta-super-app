@@ -72,8 +72,8 @@ const visiblePages=computed(()=>pages.value.filter(page=>{
   const matchesPlatform=mainPlatformFilter.value==='all'||page.category.toLowerCase().includes('whatsapp')
   return matchesStatus&&matchesPlatform
 }))
-const pagePictureUrl=(page:MetaPage)=>page.pictureUrl || `/api/meta/page-picture/${encodeURIComponent(page.id)}?attempt=${pictureAttempts.value[page.id]||0}`
-const pictureAvailable=(page:MetaPage)=>page.tokenReady&&!failedPictures.value[page.id]
+const pagePictureUrl=(page:MetaPage)=>page.category.toLowerCase().includes('whatsapp') ? (page.pictureUrl||'') : `https://graph.facebook.com/v20.0/${page.id}/picture?type=normal`;//`/api/meta/page-picture/${encodeURIComponent(page.id)}?attempt=${pictureAttempts.value[page.id]||0}`
+const pictureAvailable=(page:MetaPage)=>!failedPictures.value[page.id]
 const handlePictureError=(pageId:string)=>{
   const attempt=pictureAttempts.value[pageId]||0
   if(attempt<2){pictureAttempts.value={...pictureAttempts.value,[pageId]:attempt+1};return}
@@ -251,7 +251,7 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
       <div class="page-avatar">
         <v-img v-if="pictureAvailable(page)" :src="pagePictureUrl(page)" :alt="`${page.name} profile picture`" cover @error="handlePictureError(page.id)"></v-img>
         <v-icon v-else-if="page.category.toLowerCase().includes('whatsapp')" icon="mdi-whatsapp" color="success" size="28"/>
-        <v-icon v-else icon="mdi-facebook" color="blue" size="28"/>
+        <v-icon v-else icon="mdi-facebook" color="white" size="28"/>
       </div><div class="page-info"><h3>{{page.name}}</h3><p>{{page.category}}</p><p v-if="page.phoneNumber" class="page-phone"><v-icon icon="mdi-phone-outline" size="14"/>{{page.phoneNumber}}</p><small>{{page.category.toLowerCase().includes('whatsapp')?'Phone number ID':'Page ID'}} · {{page.id}}</small><div class="token-row"><v-chip class="token-chip" :color="page.tokenReady?'success':'warning'" variant="tonal" size="x-small" :prepend-icon="page.tokenReady?'mdi-key-check':'mdi-key-alert'">{{page.tokenReady?'Token ພ້ອມໃຊ້':'Token ບໍ່ພ້ອມ'}}</v-chip><v-chip v-if="page.tokenReady" class="token-chip" color="info" variant="tonal" size="x-small" prepend-icon="mdi-clock-outline">{{tokenExpiry(page)}}</v-chip></div></div>
       <div class="page-action"><div v-if="page.connected" class="page-toggle"><span><strong>Webhook active</strong><small>Receiving events</small></span><v-switch :model-value="true" color="success" hide-details density="compact" :loading="toggling===page.id" :disabled="toggling!==null||!can('pages:connect')" :aria-label="`Pause Webhook for ${page.name}`" @update:model-value="value=>setPageEnabled(page,Boolean(value))"/></div><v-btn v-else color="primary" variant="flat" prepend-icon="mdi-play-circle-outline" :loading="toggling===page.id" :disabled="toggling!==null||!can('pages:connect')||!page.tokenReady" @click="setPageEnabled(page,true)">Enable Webhook</v-btn></div>
       <div class="relation-summary">
@@ -324,7 +324,7 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
                 <div class="pc-card-avatar">
                   <v-img v-if="pictureAvailable(page)" :src="pagePictureUrl(page)" :alt="`${page.name} profile picture`" cover @error="handlePictureError(page.id)"></v-img>
                   <v-icon v-else-if="page.category.toLowerCase().includes('whatsapp')" icon="mdi-whatsapp" color="success" size="32"></v-icon>
-                  <v-icon v-else icon="mdi-facebook" color="blue" size="32"></v-icon>
+                  <v-icon v-else icon="mdi-facebook" color="white" size="32"></v-icon>
                 </div>
                 <div class="pc-card-info">
                   <div class="pc-card-name">{{page.name}}</div>
