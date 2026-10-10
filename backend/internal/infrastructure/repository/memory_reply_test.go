@@ -10,7 +10,7 @@ import (
 func TestMemoryReplySetCRUDAndItemOrder(t *testing.T) {
 	ctx := context.Background()
 	repo := NewMemory("")
-	set := &domain.ReplySet{AccountID: "account-1", Name: "Price reply"}
+	set := &domain.ReplySet{AccountID: "account-1", Code: "PRICE-01", Name: "Price reply"}
 
 	if err := repo.CreateSet(ctx, set); err != nil {
 		t.Fatalf("CreateSet() error = %v", err)
@@ -19,7 +19,7 @@ func TestMemoryReplySetCRUDAndItemOrder(t *testing.T) {
 		t.Fatalf("CreateSet() did not populate identity and timestamps: %#v", set)
 	}
 
-	other := &domain.ReplySet{AccountID: "account-2", Name: "Other account"}
+	other := &domain.ReplySet{AccountID: "account-2", Code: "PRICE-01", Name: "Other account"}
 	if err := repo.CreateSet(ctx, other); err != nil {
 		t.Fatalf("CreateSet(other) error = %v", err)
 	}
@@ -70,6 +70,7 @@ func TestMemoryReplySetCRUDAndItemOrder(t *testing.T) {
 	}
 
 	set.Name = "Updated reply"
+	set.Code = "PRICE-UPDATED"
 	if err = repo.UpdateSet(ctx, set); err != nil {
 		t.Fatalf("UpdateSet() error = %v", err)
 	}
@@ -77,7 +78,7 @@ func TestMemoryReplySetCRUDAndItemOrder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetSetByID(updated) error = %v", err)
 	}
-	if updated.Name != "Updated reply" || len(updated.Items) != len(items) {
+	if updated.Name != "Updated reply" || updated.Code != "PRICE-UPDATED" || len(updated.Items) != len(items) {
 		t.Fatalf("UpdateSet() lost data: %#v", updated)
 	}
 

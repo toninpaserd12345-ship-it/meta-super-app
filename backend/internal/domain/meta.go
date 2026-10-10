@@ -136,6 +136,7 @@ type ReplyStep struct {
 type AutomationProvider interface {
 	FindActiveRuleForTrigger(ctx context.Context, pageID, triggerType, triggerValue string) (*AutomationRule, error)
 	GetKeywordRules(ctx context.Context, pageID string) ([]AutomationRule, error)
+	FindReplySetByTrigger(ctx context.Context, accountID, trigger string) (*ReplySet, error)
 	GetReplySetItems(ctx context.Context, replySetID string, accountID string) ([]ReplyItem, error)
 }
 

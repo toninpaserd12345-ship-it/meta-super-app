@@ -402,6 +402,15 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 			if message.Sender.ID == "" {
 				continue
 			}
+			accountID, page, pageFound := g.findPage(entry.ID)
+			if !pageFound {
+				continue
+			}
+			messageText := strings.TrimSpace(message.Message.Text)
+			var directSet *domain.ReplySet
+			if g.automation != nil && messageText != "" {
+				directSet, _ = g.automation.FindReplySetByTrigger(ctx, accountID, messageText)
+			}
 
 			if g.chatStream != nil {
 				msgType := "text"
@@ -411,7 +420,6 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 					msgContent = message.Message.Attachments[0].Payload.URL
 				}
 				if msgContent != "" {
-					accountID, _, pageFound := g.findPage(entry.ID)
 					if pageFound {
 						timestampStr := fmt.Sprintf("%d", message.Timestamp)
 						if message.Timestamp == 0 {
@@ -419,7 +427,7 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 						}
 
 						// Auto-reply for product code/name
-						if g.productRepo != nil && msgType == "text" {
+						if directSet == nil && g.productRepo != nil && msgType == "text" {
 							products, err := g.productRepo.ListProducts(ctx, accountID)
 							if err == nil {
 								msgLower := strings.TrimSpace(strings.ToLower(msgContent))
@@ -467,7 +475,21 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 
 			var rule *domain.AutomationRule
 			if g.automation != nil {
-				if ref != nil {
+				if directSet != nil {
+					sourceType, sourceID = "reply_set_name", directSet.Name
+					resolvedKey = bindingKey(entry.ID, sourceType, directSet.ID)
+					rule = &domain.AutomationRule{
+						AccountID:       accountID,
+						PageID:          entry.ID,
+						TriggerType:     sourceType,
+						TriggerValue:    directSet.Name,
+						ReplySetID:      directSet.ID,
+						FlowID:          "reply-set-name:" + directSet.ID,
+						FlowName:        directSet.Name,
+						CooldownSeconds: 2,
+						IsActive:        true,
+					}
+				} else if ref != nil {
 					// Match the exact Post/Ad first. A campaign target is resolved
 					// lazily from the referral Ad so newly-created Ads are covered.
 					rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, sourceType, sourceID)
@@ -531,7 +553,6 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 				g.inFlight[replyKey] = true
 			}
 			g.mu.Unlock()
-			_, page, pageFound := g.findPage(entry.ID)
 			if !found || isSpamming || busy || !pageFound {
 				continue
 			}
@@ -548,9 +569,13 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 					continue
 				}
 				stepKey := seenKey + ":" + resolvedKey + ":" + step.ID
-				g.mu.RLock()
-				stepDone := g.deliverySteps[stepKey]
-				g.mu.RUnlock()
+				stepDone := false
+				trackDeliveryStep := rule.TriggerType != "reply_set_name"
+				if trackDeliveryStep {
+					g.mu.RLock()
+					stepDone = g.deliverySteps[stepKey]
+					g.mu.RUnlock()
+				}
 				if stepDone {
 					continue
 				}
@@ -571,9 +596,11 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 					sendFailed = true
 					break
 				}
-				g.mu.Lock()
-				g.deliverySteps[stepKey] = true
-				g.mu.Unlock()
+				if trackDeliveryStep {
+					g.mu.Lock()
+					g.deliverySteps[stepKey] = true
+					g.mu.Unlock()
+				}
 			}
 			if sendFailed {
 				g.releaseReply(replyKey)

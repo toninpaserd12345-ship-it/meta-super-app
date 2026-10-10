@@ -5,12 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/meta-super-app/backend/internal/usecase"
 	"io"
 	"log/slog"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/meta-super-app/backend/internal/domain"
+	"github.com/meta-super-app/backend/internal/usecase"
 )
 
 // SendWhatsAppMessage sends a text message via WhatsApp Business API
@@ -144,11 +146,22 @@ func (g *GraphConnector) processWhatsAppWebhook(ctx context.Context, body []byte
 				if senderPhone == "" || textBody == "" {
 					continue
 				}
+				var directSet *domain.ReplySet
+				if g.automation != nil {
+					directSet, _ = g.automation.FindReplySetByTrigger(ctx, accountID, textBody)
+				}
 				seenKey := "whatsapp:" + phoneNumberID + ":" + senderPhone
+				if directSet != nil {
+					seenKey += ":reply-set-name:" + directSet.ID
+				}
 				g.mu.Lock()
 				lastReply, alreadyReplied := g.firstReplies[seenKey]
 				busy := g.inFlight[seenKey]
-				if !alreadyReplied || time.Since(lastReply) >= 24*time.Hour {
+				cooldown := 24 * time.Hour
+				if directSet != nil {
+					cooldown = 2 * time.Second
+				}
+				if !alreadyReplied || time.Since(lastReply) >= cooldown {
 					g.inFlight[seenKey] = true
 				} else {
 					busy = true
@@ -169,33 +182,26 @@ func (g *GraphConnector) processWhatsAppWebhook(ctx context.Context, body []byte
 					})
 				}
 
-				if g.automation != nil && !busy {
+				if g.automation != nil && !busy && directSet != nil {
+					sent, sendErr := g.sendWhatsAppReplySet(ctx, accountID, phoneNumberID, page.AccessToken, senderPhone, directSet.ID, nil)
+					if sendErr != nil {
+						slog.Error("send WhatsApp Reply Set by name", "reply_set_id", directSet.ID, "error", sendErr)
+					}
+					if sent {
+						g.mu.Lock()
+						g.firstReplies[seenKey] = time.Now()
+						g.mu.Unlock()
+					}
+				} else if g.automation != nil && !busy {
 					keywordRules, err := g.automation.GetKeywordRules(ctx, phoneNumberID)
 					if err == nil {
 						sent := false
 						for _, kr := range keywordRules {
 							if matchesKeywords(textBody, []string{kr.TriggerValue}) {
 								slog.Info("WhatsApp automation triggered!", "rule_id", kr.ID)
-								items, itemErr := g.automation.GetReplySetItems(ctx, kr.ReplySetID, accountID)
-								if itemErr != nil {
-									slog.Error("load WhatsApp reply set", "rule_id", kr.ID, "error", itemErr)
-									break
-								}
-								for _, item := range g.resolveReplyItems(&kr, items) {
-									if !item.IsEnabled {
-										continue
-									}
-									var sendErr error
-									if item.Type == "text" {
-										sendErr = g.sendWhatsAppMessage(ctx, phoneNumberID, page.AccessToken, senderPhone, item.Content)
-									} else {
-										sendErr = g.sendWhatsAppMedia(ctx, phoneNumberID, page.AccessToken, senderPhone, item.Type, item.Content)
-									}
-									if sendErr != nil {
-										slog.Error("send WhatsApp automatic reply", "rule_id", kr.ID, "error", sendErr)
-										break
-									}
-									sent = true
+								sent, err = g.sendWhatsAppReplySet(ctx, accountID, phoneNumberID, page.AccessToken, senderPhone, kr.ReplySetID, &kr)
+								if err != nil {
+									slog.Error("send WhatsApp automatic reply", "rule_id", kr.ID, "error", err)
 								}
 								if sent {
 									g.mu.Lock()
@@ -214,4 +220,30 @@ func (g *GraphConnector) processWhatsAppWebhook(ctx context.Context, body []byte
 		}
 	}
 	return nil
+}
+
+func (g *GraphConnector) sendWhatsAppReplySet(ctx context.Context, accountID, phoneNumberID, accessToken, recipientID, replySetID string, rule *domain.AutomationRule) (bool, error) {
+	items, err := g.automation.GetReplySetItems(ctx, replySetID, accountID)
+	if err != nil {
+		return false, err
+	}
+	sent := false
+	for _, item := range g.resolveReplyItems(rule, items) {
+		if !item.IsEnabled {
+			continue
+		}
+		if sent {
+			time.Sleep(1500 * time.Millisecond)
+		}
+		if item.Type == "text" {
+			err = g.sendWhatsAppMessage(ctx, phoneNumberID, accessToken, recipientID, item.Content)
+		} else {
+			err = g.sendWhatsAppMedia(ctx, phoneNumberID, accessToken, recipientID, item.Type, item.Content)
+		}
+		if err != nil {
+			return sent, err
+		}
+		sent = true
+	}
+	return sent, nil
 }

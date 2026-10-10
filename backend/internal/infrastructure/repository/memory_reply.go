@@ -57,7 +57,7 @@ func (r *MemoryRepository) UpdateSet(ctx context.Context, set *domain.ReplySet) 
 	if !ok {
 		return errors.New("reply set not found")
 	}
-	current.Name, current.UpdatedAt = set.Name, time.Now()
+	current.Code, current.Name, current.UpdatedAt = set.Code, set.Name, time.Now()
 	r.replySets[set.ID] = current
 	return nil
 }

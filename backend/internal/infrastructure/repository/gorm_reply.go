@@ -18,6 +18,7 @@ func (r *GormRepository) CreateSet(ctx context.Context, set *domain.ReplySet) er
 	model := database.ReplySetModel{
 		ID:        id,
 		AccountID: set.AccountID,
+		Code:      set.Code,
 		Name:      set.Name,
 	}
 
@@ -58,7 +59,10 @@ func (r *GormRepository) GetSetByID(ctx context.Context, setID string) (*domain.
 }
 
 func (r *GormRepository) UpdateSet(ctx context.Context, set *domain.ReplySet) error {
-	return r.db.WithContext(ctx).Model(&database.ReplySetModel{}).Where("id = ?", set.ID).Update("name", set.Name).Error
+	return r.db.WithContext(ctx).Model(&database.ReplySetModel{}).Where("id = ?", set.ID).Updates(map[string]any{
+		"code": set.Code,
+		"name": set.Name,
+	}).Error
 }
 
 func (r *GormRepository) DeleteSet(ctx context.Context, setID string) error {
@@ -106,6 +110,7 @@ func toDomainReplySet(m database.ReplySetModel) domain.ReplySet {
 	set := domain.ReplySet{
 		ID:        m.ID,
 		AccountID: m.AccountID,
+		Code:      m.Code,
 		Name:      m.Name,
 		CreatedAt: m.CreatedAt,
 		UpdatedAt: m.UpdatedAt,

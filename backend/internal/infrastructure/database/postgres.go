@@ -28,7 +28,10 @@ func Open(dsn string) (*gorm.DB, error) {
 }
 
 func Migrate(db *gorm.DB) error {
-	return db.AutoMigrate(&UserModel{}, &AccountModel{}, &MembershipModel{}, &MembershipClaimModel{}, &PlanModel{}, &SubscriptionModel{}, &TransactionModel{}, &ReplySetModel{}, &ReplyItemModel{}, &AutomationRuleModel{}, &ProductModel{}, &ChatMessageModel{}, &MetaConnectionModel{}, &MetaPageTokenModel{}, &MetaWhatsAppConnectionModel{})
+	if err := db.AutoMigrate(&UserModel{}, &AccountModel{}, &MembershipModel{}, &MembershipClaimModel{}, &PlanModel{}, &SubscriptionModel{}, &TransactionModel{}, &ReplySetModel{}, &ReplyItemModel{}, &AutomationRuleModel{}, &ProductModel{}, &ChatMessageModel{}, &MetaConnectionModel{}, &MetaPageTokenModel{}, &MetaWhatsAppConnectionModel{}); err != nil {
+		return err
+	}
+	return migrateReplySetCodes(db)
 }
 
 // MigrateMetaCredentials keeps the credential tables compatible with the
@@ -43,7 +46,10 @@ func MigrateMetaCredentials(db *gorm.DB) error {
 // used on every deployment. Production may disable full seed migrations, but
 // it must never start with a schema older than the running automation API.
 func MigrateRuntimeSchema(db *gorm.DB) error {
-	if err := db.AutoMigrate(&AutomationRuleModel{}, &ChatMessageModel{}, &ProductModel{}); err != nil {
+	if err := db.AutoMigrate(&AutomationRuleModel{}, &ChatMessageModel{}, &ProductModel{}, &ReplySetModel{}); err != nil {
+		return err
+	}
+	if err := migrateReplySetCodes(db); err != nil {
 		return err
 	}
 	// Older releases stored one row per Ad/Post without a flow identity. Group
@@ -55,5 +61,24 @@ func MigrateRuntimeSchema(db *gorm.DB) error {
 			flow_name = CASE WHEN COALESCE(flow_name, '') = '' THEN 'Imported automation' ELSE flow_name END,
 			first_message_only = TRUE
 		WHERE COALESCE(flow_id, '') = ''
+	`).Error
+}
+
+// migrateReplySetCodes preserves old Reply Sets while giving every set a
+// stable, human-readable code. The partial case-insensitive index prevents
+// duplicate codes inside one workspace without blocking a rolling deploy
+// while legacy rows are being backfilled.
+func migrateReplySetCodes(db *gorm.DB) error {
+	if err := db.Exec(`
+		UPDATE reply_set_models
+		SET code = 'RS-' || upper(substr(replace(id, '-', ''), 1, 16))
+		WHERE code IS NULL OR trim(code) = ''
+	`).Error; err != nil {
+		return err
+	}
+	return db.Exec(`
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_reply_set_account_code
+		ON reply_set_models (account_id, lower(code))
+		WHERE code IS NOT NULL AND trim(code) <> ''
 	`).Error
 }

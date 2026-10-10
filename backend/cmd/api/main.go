@@ -135,6 +135,10 @@ func (p *appAutomationProvider) GetKeywordRules(ctx context.Context, pageID stri
 	return p.automation.GetKeywordRules(ctx, pageID)
 }
 
+func (p *appAutomationProvider) FindReplySetByTrigger(ctx context.Context, accountID, trigger string) (*domain.ReplySet, error) {
+	return p.reply.FindSetByTrigger(ctx, accountID, trigger)
+}
+
 func (p *appAutomationProvider) GetReplySetItems(ctx context.Context, replySetID string, accountID string) ([]domain.ReplyItem, error) {
 	return p.reply.GetReplySetItems(ctx, replySetID, accountID)
 }

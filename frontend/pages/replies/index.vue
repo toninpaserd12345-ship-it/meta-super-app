@@ -20,6 +20,11 @@ const setToDelete = ref<ReplySet | null>(null)
 const notice = ref('')
 const noticeType = ref<'success' | 'error'>('success')
 
+function openCreateDialog() {
+  newSetName.value = ''
+  createDialog.value = true
+}
+
 function itemStats(items: ReplyItem[]) {
   return items.reduce<Record<string, number>>((result, item) => {
     result[item.type] = (result[item.type] || 0) + 1
@@ -88,11 +93,14 @@ async function deleteSet() {
     </div>
     <div class="head-actions">
       <v-btn variant="outlined" prepend-icon="mdi-robot-happy-outline" to="/auto-replies">Manage Auto Replies</v-btn>
-      <v-btn color="primary" prepend-icon="mdi-plus" :disabled="!can('pages:connect')" @click="createDialog=true">Create Reply Set</v-btn>
+      <v-btn color="primary" prepend-icon="mdi-plus" :disabled="!can('pages:connect')" @click="openCreateDialog">Create Reply Set</v-btn>
     </div>
   </section>
 
   <v-alert v-if="notice" :type="noticeType" variant="tonal" closable class="mb-4" @click:close="notice=''">{{ notice }}</v-alert>
+  <v-alert type="info" variant="tonal" class="mb-4" icon="mdi-keyboard-outline">
+    {{ locale==='lo' ? 'ຊຸດຂໍ້ຄວາມນີ້ເປັນຂອງຮ້ານ/Workspace ປັດຈຸບັນ ແລະໃຊ້ໄດ້ກັບທຸກ Messenger ຫຼື WhatsApp ທີ່ຮ້ານນີ້ເຊື່ອມຕໍ່. ເມື່ອລູກຄ້າພິມຊື່ຊຸດຕົງກັນ ລະບົບຈະສົ່ງຊຸດນັ້ນທັນທີ.' : 'Reply Sets belong to the current store/workspace and work across every Messenger or WhatsApp channel connected to that store. Sending the exact set name triggers the sequence immediately.' }}
+  </v-alert>
   <v-alert v-if="error" type="error" variant="tonal" class="mb-4">
     Reply Sets could not be loaded. <button class="inline-action" @click="refresh()">Try again</button>
   </v-alert>
@@ -123,7 +131,7 @@ async function deleteSet() {
     <div><v-icon icon="mdi-message-plus-outline" size="30"/></div>
     <h2>Create your first Reply Set</h2>
     <p>Add text, images, video or audio in the exact order customers should receive them.</p>
-    <v-btn color="primary" prepend-icon="mdi-plus" :disabled="!can('pages:connect')" @click="createDialog=true">Create Reply Set</v-btn>
+    <v-btn color="primary" prepend-icon="mdi-plus" :disabled="!can('pages:connect')" @click="openCreateDialog">Create Reply Set</v-btn>
   </section>
 
   <v-dialog v-model="createDialog" max-width="500">
@@ -131,6 +139,7 @@ async function deleteSet() {
       <v-card-title>Create Auto Reply Set</v-card-title>
       <v-card-text>
         <v-text-field v-model="newSetName" label="Set name" placeholder="Name this Reply Set" autofocus variant="outlined" maxlength="120" counter @keyup.enter="createSet"/>
+        <p class="dialog-hint">Customers can send this exact name to receive the sequence automatically.</p>
       </v-card-text>
       <v-card-actions>
         <v-btn variant="text" @click="createDialog=false">Cancel</v-btn><v-spacer/>
@@ -152,7 +161,7 @@ async function deleteSet() {
 </template>
 
 <style scoped>
-.page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:18px;padding:24px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}.page-head p{margin:0 0 7px;color:var(--color-primary);font-size:10px;font-weight:800;letter-spacing:.13em}.page-head h2{margin:0 0 7px;font-size:24px}.page-head span{color:var(--color-text-secondary);font-size:13px}.head-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}.set-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.set-card{display:grid;grid-template-columns:auto 1fr auto;gap:15px;align-items:start;min-width:0;padding:20px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg);cursor:pointer;transition:var(--transition-fast)}.set-card:hover{border-color:color-mix(in srgb,var(--color-primary) 45%,var(--color-border));box-shadow:var(--shadow-card);transform:translateY(-2px)}.set-icon{width:48px;height:48px;display:grid;place-items:center;color:var(--color-primary);background:var(--color-primary-soft);border-radius:14px}.set-copy{min-width:0}.set-copy h3{margin:1px 0 4px;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.set-copy p{margin:0 0 12px;color:var(--color-text-secondary);font-size:12px}.chips{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.chips>span{color:var(--color-text-muted);font-size:11px}.set-actions{display:flex}.empty-state{min-height:390px;display:grid;place-items:center;align-content:center;text-align:center;padding:36px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}.empty-state>div{width:58px;height:58px;display:grid;place-items:center;color:var(--color-primary);background:var(--color-primary-soft);border-radius:17px}.empty-state h2{margin:18px 0 6px}.empty-state p{max-width:480px;margin:0 0 20px;color:var(--color-text-secondary);line-height:1.6}.inline-action{border:0;color:var(--color-primary);background:none;font-weight:800;cursor:pointer}.dialog-card{border-radius:var(--radius-lg)!important}
+.page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:18px;padding:24px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}.page-head p{margin:0 0 7px;color:var(--color-primary);font-size:10px;font-weight:800;letter-spacing:.13em}.page-head h2{margin:0 0 7px;font-size:24px}.page-head span{color:var(--color-text-secondary);font-size:13px}.head-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}.set-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.set-card{display:grid;grid-template-columns:auto 1fr auto;gap:15px;align-items:start;min-width:0;padding:20px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg);cursor:pointer;transition:var(--transition-fast)}.set-card:hover{border-color:color-mix(in srgb,var(--color-primary) 45%,var(--color-border));box-shadow:var(--shadow-card);transform:translateY(-2px)}.set-icon{width:48px;height:48px;display:grid;place-items:center;color:var(--color-primary);background:var(--color-primary-soft);border-radius:14px}.set-copy{min-width:0}.set-copy h3{margin:1px 0 4px;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.set-copy p{margin:0 0 12px;color:var(--color-text-secondary);font-size:12px}.chips{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.chips>span{color:var(--color-text-muted);font-size:11px}.set-actions{display:flex}.empty-state{min-height:390px;display:grid;place-items:center;align-content:center;text-align:center;padding:36px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}.empty-state>div{width:58px;height:58px;display:grid;place-items:center;color:var(--color-primary);background:var(--color-primary-soft);border-radius:17px}.empty-state h2{margin:18px 0 6px}.empty-state p{max-width:480px;margin:0 0 20px;color:var(--color-text-secondary);line-height:1.6}.inline-action{border:0;color:var(--color-primary);background:none;font-weight:800;cursor:pointer}.dialog-card{border-radius:var(--radius-lg)!important}.dialog-hint{margin:0;color:var(--color-text-secondary);font-size:12px;line-height:1.5}
 @media(max-width:900px){.set-grid{grid-template-columns:1fr}}
 @media(max-width:640px){.page-head{display:grid;padding:20px}.head-actions{display:grid;grid-template-columns:1fr 1fr;width:100%}.set-card{grid-template-columns:auto 1fr}.set-actions{grid-column:1/-1;justify-content:flex-end}}
 </style>

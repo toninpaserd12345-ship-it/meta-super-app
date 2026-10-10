@@ -1,12 +1,16 @@
 package httpx
 
 import (
+	"errors"
+
 	"github.com/gofiber/fiber/v3"
 	"github.com/meta-super-app/backend/internal/domain"
+	"github.com/meta-super-app/backend/internal/usecase"
 )
 
 // Request bodies
 type createReplySetRequest struct {
+	Code string `json:"code"`
 	Name string `json:"name"`
 }
 
@@ -52,8 +56,11 @@ func (h *Handler) CreateReplySet(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
-	set, err := h.Reply.CreateSet(c.Context(), accountID, req.Name)
+	set, err := h.Reply.CreateSet(c.Context(), accountID, req.Code, req.Name)
 	if err != nil {
+		if errors.Is(err, usecase.ErrInvalidReplySetCode) || errors.Is(err, usecase.ErrReplySetCodeExists) || errors.Is(err, usecase.ErrReplySetNameExists) {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": err.Error()})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
@@ -69,8 +76,11 @@ func (h *Handler) UpdateReplySet(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
-	err := h.Reply.UpdateSet(c.Context(), setID, accountID, req.Name)
+	err := h.Reply.UpdateSet(c.Context(), setID, accountID, req.Code, req.Name)
 	if err != nil {
+		if errors.Is(err, usecase.ErrInvalidReplySetCode) || errors.Is(err, usecase.ErrReplySetCodeExists) || errors.Is(err, usecase.ErrReplySetNameExists) {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": err.Error()})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 

@@ -8,6 +8,7 @@ import (
 type ReplySet struct {
 	ID        string      `json:"id"`
 	AccountID string      `json:"accountId"`
+	Code      string      `json:"code"`
 	Name      string      `json:"name"`
 	Items     []ReplyItem `json:"items"`
 	CreatedAt time.Time   `json:"createdAt"`

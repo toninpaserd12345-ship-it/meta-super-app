@@ -54,6 +54,7 @@ type ReplySetModel struct {
 	ID        string           `gorm:"type:uuid;primaryKey"`
 	AccountID string           `gorm:"type:uuid;not null;index"`
 	Account   AccountModel     `gorm:"foreignKey:AccountID;constraint:OnDelete:CASCADE"`
+	Code      string           `gorm:"size:60"`
 	Name      string           `gorm:"size:255;not null"`
 	Items     []ReplyItemModel `gorm:"foreignKey:ReplySetID;constraint:OnDelete:CASCADE"`
 	CreatedAt time.Time
