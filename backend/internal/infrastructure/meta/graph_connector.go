@@ -108,7 +108,7 @@ func (g *GraphConnector) GetProfile(ctx context.Context, psid, token string) (st
 		return p.Name, p.Pic
 	}
 
-	req, _ := http.NewRequestWithContext(ctx, "GET", "https://graph.facebook.com/"+g.cfg.GraphVersion+"/"+psid+"?fields=first_name,last_name,name,profile_pic&access_token="+token, nil)
+	req, _ := http.NewRequestWithContext(ctx, "GET", "https://graph.facebook.com/"+g.cfg.Version+"/"+psid+"?fields=first_name,last_name,name,profile_pic&access_token="+token, nil)
 	resp, err := g.client.Do(req)
 	if err != nil {
 		return "", ""
