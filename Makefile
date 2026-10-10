@@ -1,4 +1,10 @@
-.PHONY: frontend-dev frontend-check backend-dev backend-check db-up db-down
+.PHONY: check check-full frontend-dev frontend-check backend-dev backend-check db-up db-down
+
+check:
+	./scripts/check.sh quick
+
+check-full:
+	./scripts/check.sh full
 
 frontend-dev:
 	cd frontend && npm run dev
