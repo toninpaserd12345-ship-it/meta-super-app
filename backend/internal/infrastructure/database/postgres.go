@@ -71,7 +71,7 @@ func MigrateRuntimeSchema(db *gorm.DB) error {
 func migrateReplySetCodes(db *gorm.DB) error {
 	if err := db.Exec(`
 		UPDATE reply_set_models
-		SET code = 'RS-' || upper(substr(replace(id, '-', ''), 1, 16))
+		SET code = 'RS-' || upper(substr(replace(id::text, '-', ''), 1, 16))
 		WHERE code IS NULL OR trim(code) = ''
 	`).Error; err != nil {
 		return err

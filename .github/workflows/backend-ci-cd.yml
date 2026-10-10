@@ -126,4 +126,20 @@ jobs:
             docker-compose -p meta-super-app -f docker-compose.prod.yml stop api
             docker-compose -p meta-super-app -f docker-compose.prod.yml rm -f api
             docker-compose -p meta-super-app -f docker-compose.prod.yml up -d
+
+            # Do not report a successful deployment until the API is actually
+            # serving traffic. Print the container logs when startup fails so
+            # migration/configuration errors are visible in the workflow.
+            healthy=0
+            for attempt in $(seq 1 20); do
+              if curl -fsS http://127.0.0.1:8080/health >/dev/null; then
+                healthy=1
+                break
+              fi
+              sleep 3
+            done
+            if [ "$healthy" -ne 1 ]; then
+              docker-compose -p meta-super-app -f docker-compose.prod.yml logs --tail=120 api
+              exit 1
+            fi
             
