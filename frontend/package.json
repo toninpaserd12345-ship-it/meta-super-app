@@ -7,7 +7,7 @@
     "build": "nuxt build",
     "preview": "nuxt preview",
     "typecheck": "nuxt typecheck",
-    "deploy": "NITRO_PRESET=cloudflare-pages nuxt build && npx wrangler pages deploy dist --project-name=meta-super-app-frontend --branch main"
+    "deploy": "NITRO_PRESET=cloudflare-pages nuxt build && npx wrangler pages deploy .output/public --project-name=meta-super-app-frontend --branch main"
   },
   "dependencies": {
     "@fontsource/noto-sans-lao": "^5.3.0",
