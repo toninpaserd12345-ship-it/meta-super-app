@@ -112,6 +112,7 @@ type ProductBinding struct {
 
 type Product struct {
 	ID          string `json:"id"`
+	Code        string `json:"code"`
 	Name        string `json:"name"`
 	Price       string `json:"price"`
 	Description string `json:"description"`

@@ -19,6 +19,7 @@ func (r *GormRepository) ListProducts(ctx context.Context, accountID string) ([]
 	for i, m := range models {
 		result[i] = domain.Product{
 			ID:          m.ID,
+			Code:        m.Code,
 			Name:        m.Name,
 			Price:       m.Price,
 			Description: m.Description,
@@ -38,6 +39,7 @@ func (r *GormRepository) SaveProduct(ctx context.Context, accountID string, prod
 	model := database.ProductModel{
 		ID:          product.ID,
 		AccountID:   accountID,
+		Code:        product.Code,
 		Name:        product.Name,
 		Price:       product.Price,
 		Description: product.Description,
@@ -72,6 +74,7 @@ func (r *GormRepository) GetProduct(ctx context.Context, accountID, productID st
 	}
 	return &domain.Product{
 		ID:          m.ID,
+		Code:        m.Code,
 		Name:        m.Name,
 		Price:       m.Price,
 		Description: m.Description,

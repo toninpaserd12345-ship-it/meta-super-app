@@ -73,6 +73,7 @@ type ProductModel struct {
 	ID          string       `gorm:"type:uuid;primaryKey"`
 	AccountID   string       `gorm:"type:uuid;index;not null"`
 	Account     AccountModel `gorm:"foreignKey:AccountID;constraint:OnDelete:CASCADE"`
+	Code        string       `gorm:"size:50;index"`
 	Name        string       `gorm:"size:120;not null"`
 	Price       string       `gorm:"size:60;not null"`
 	Description string       `gorm:"size:1000"`

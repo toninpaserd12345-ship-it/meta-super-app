@@ -4,6 +4,7 @@ export interface ItemsResponse<T> {
 
 export interface Product {
   id: string
+  code?: string
   name: string
   price: string
   description: string
@@ -23,6 +24,7 @@ export interface ReplyItem {
 
 export interface ReplySet {
   id: string
+  code?: string
   accountId?: string
   name: string
   items: ReplyItem[]
@@ -34,6 +36,7 @@ export type AutomationTriggerType = 'post' | 'ad' | 'campaign' | 'adset' | 'keyw
 
 export interface AutomationRule {
   id: string
+  code?: string
   accountId?: string
   pageId: string
   triggerType: AutomationTriggerType
@@ -55,6 +58,7 @@ export interface AutomationTarget {
 
 export interface AutomationFlow {
   id: string
+  code?: string
   accountId?: string
   name: string
   pageId: string
@@ -70,12 +74,14 @@ export interface AutomationFlow {
 
 export interface MetaPage {
   id: string
+  code?: string
   name: string
   connected: boolean
 }
 
 export interface MetaPost {
   id: string
+  code?: string
   message: string
   createdTime: string
   permalinkUrl: string
@@ -84,6 +90,7 @@ export interface MetaPost {
 
 export interface MetaAdAccount {
   id: string
+  code?: string
   name: string
   accountStatus: number
   accountType: 'personal' | 'business'
@@ -93,6 +100,7 @@ export interface MetaAdAccount {
 
 export interface MetaCampaign {
   id: string
+  code?: string
   name: string
   status: string
   effectiveStatus: string
@@ -103,6 +111,7 @@ export interface MetaCampaign {
 
 export interface MetaAd {
   id: string
+  code?: string
   name: string
   status: string
   effectiveStatus: string

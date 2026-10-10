@@ -16,7 +16,7 @@ const saving = ref(false)
 const uploading = ref(false)
 const notice = ref('')
 const noticeType = ref<'success' | 'error'>('success')
-const form = reactive<Product>({ id: '', name: '', price: '', description: '', imageUrl: '' })
+const form = reactive<Product & { code?: string }>({ id: '', code: '', name: '', price: '', description: '', imageUrl: '' })
 const deleteDialog = ref(false)
 const deleting = ref(false)
 const productToDelete = ref<Product | null>(null)
@@ -24,7 +24,7 @@ const productToDelete = ref<Product | null>(null)
 const fileInput = ref<HTMLInputElement>()
 
 function openCreate() {
-  Object.assign(form, { id: '', name: '', price: '', description: '', imageUrl: '' })
+  Object.assign(form, { id: '', code: '', name: '', price: '', description: '', imageUrl: '' })
   dialog.value = true
 }
 
@@ -130,7 +130,7 @@ async function saveProduct() {
       <div class="product-icon" :style="product.imageUrl ? `background-image: url(${product.imageUrl}); background-size: cover; background-position: center;` : ''">
         <v-icon v-if="!product.imageUrl" icon="mdi-package-variant-closed"/>
       </div>
-      <div><h3>{{ product.name }}</h3><strong>{{ product.price }}</strong><p v-if="product.description">{{ product.description }}</p><small>Product ID · {{ product.id }}</small></div>
+      <div><h3>{{ product.name }}</h3><strong>{{ product.price }}</strong><p v-if="product.description">{{ product.description }}</p><small>{{ product.code ? `ລະຫັດ (Code) · ${product.code}` : `ID · ${product.id}` }}</small></div>
       <div class="product-actions"><v-btn icon="mdi-pencil-outline" variant="text" size="small" :disabled="!can('pages:connect')" :aria-label="`Edit ${product.name}`" @click="openEdit(product)"/><v-btn icon="mdi-delete-outline" variant="text" size="small" color="error" :disabled="!can('pages:connect')" :aria-label="`Delete ${product.name}`" @click="requestDelete(product)"/></div>
     </article>
   </section>
@@ -152,6 +152,7 @@ async function saveProduct() {
           </div>
         </div>
         <v-text-field v-model="form.imageUrl" label="Image URL" placeholder="https://..." hide-details class="mb-2"/>
+        <v-text-field v-model="form.code" :label="locale==='lo'?'ລະຫັດສິນຄ້າ (Product Code)':'Product Code'" placeholder="e.g. P01" maxlength="50" hide-details class="mb-2"/>
         <v-text-field v-model="form.name" label="Product name" autofocus maxlength="120" counter/>
         <v-text-field v-model="form.price" label="Price" placeholder="Price and currency" maxlength="60" counter/>
         <v-textarea v-model="form.description" label="Product details" rows="4" maxlength="1000" counter/>

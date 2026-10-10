@@ -424,7 +424,7 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 							if err == nil {
 								msgLower := strings.TrimSpace(strings.ToLower(msgContent))
 								for _, p := range products {
-									if msgLower == strings.ToLower(p.ID) || msgLower == strings.ToLower(p.Name) {
+									if msgLower == strings.ToLower(p.ID) || msgLower == strings.ToLower(p.Name) || (p.Code != "" && msgLower == strings.ToLower(p.Code)) {
 										replyText := fmt.Sprintf("%s\n\n%s\n\nລາຄາ: %s", p.Name, p.Description, p.Price)
 										if p.ImageUrl != "" {
 											_ = g.SendMedia(ctx, accountID, entry.ID, message.Sender.ID, "image", p.ImageUrl)
