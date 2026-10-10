@@ -1,8 +1,11 @@
 <script setup lang="ts">
 const fetchApi = (url: string, options?: any) => $fetch(url, options)
+const { can } = useAuth()
 
 const members = ref<any[]>([])
 const loading = ref(true)
+const loadError = ref('')
+const updatingMember = ref('')
 
 const inviteModal = ref(false)
 const inviteForm = ref({ email: '', name: '', role: 'employee' })
@@ -12,12 +15,28 @@ const inviteResult = ref<any>(null)
 
 const loadMembers = async () => {
   loading.value = true
+  loadError.value = ''
   try {
     members.value = await fetchApi('/api/proxy/api/v1/team') as any[]
   } catch (err: any) {
-    console.error(err)
+    loadError.value = err?.data?.message || err?.statusMessage || err?.message || 'Team members could not be loaded.'
   } finally {
     loading.value = false
+  }
+}
+
+const updateRole = async (member: any, role: string) => {
+  if (!role || role === member.role) return
+  const previous = member.role
+  member.role = role
+  updatingMember.value = member.user.id
+  try {
+    await fetchApi(`/api/proxy/api/v1/team/${member.user.id}`, { method: 'PUT', body: { role } })
+  } catch (err: any) {
+    member.role = previous
+    loadError.value = err?.data?.message || err?.statusMessage || err?.message || 'The member role could not be updated.'
+  } finally {
+    updatingMember.value = ''
   }
 }
 
@@ -66,12 +85,15 @@ onMounted(() => {
         <h2>Team Members</h2>
         <p class="subtitle">Manage who has access to your workspace.</p>
       </div>
-      <button class="btn-primary" @click="inviteModal = true">
+      <button class="btn-primary" :disabled="!can('users:invite')" @click="inviteModal = true">
         <v-icon icon="mdi-account-plus-outline" /> Invite Member
       </button>
     </div>
     
     <div v-if="loading" class="loading">Loading members...</div>
+    <v-alert v-else-if="loadError" type="error" variant="tonal" closable class="mb-4" @click:close="loadError=''">
+      {{ loadError }} <button class="inline-action" @click="loadMembers">Retry</button>
+    </v-alert>
     
     <div v-else class="members-table">
       <table>
@@ -88,10 +110,14 @@ onMounted(() => {
             <td>{{ member.user.name }}</td>
             <td>{{ member.user.email }}</td>
             <td>
-              <span class="badge" :class="member.role">{{ member.role }}</span>
+              <select class="role-select" :value="member.role" :disabled="!can('users:update') || updatingMember===member.user.id" @change="updateRole(member, ($event.target as HTMLSelectElement).value)">
+                <option value="admin">Admin</option>
+                <option value="manager">Manager</option>
+                <option value="employee">Employee</option>
+              </select>
             </td>
             <td>
-              <button class="btn-icon text-danger" @click="removeMember(member.user.id)" title="Remove">
+              <button class="btn-icon text-danger" :disabled="!can('users:remove')" @click="removeMember(member.user.id)" title="Remove">
                 <v-icon icon="mdi-delete-outline" />
               </button>
             </td>
@@ -199,6 +225,8 @@ onMounted(() => {
 .badge.employee { background: #dcfce7; color: #166534; }
 
 .text-danger { color: #ef4444; }
+.role-select{min-height:40px;padding:6px 10px;border:1px solid var(--color-border);border-radius:9px;color:var(--color-text);background:var(--color-surface)}
+.inline-action{margin-left:8px;border:0;color:var(--color-primary);background:none;font-weight:700;cursor:pointer}
 
 .modal-overlay {
   position: fixed;

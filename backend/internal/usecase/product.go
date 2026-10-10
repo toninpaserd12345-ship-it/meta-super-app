@@ -38,3 +38,11 @@ func (u *Product) SaveProduct(ctx context.Context, userID, accountID string, pro
 func (u *Product) GetProduct(ctx context.Context, userID, accountID, productID string) (*domain.Product, error) {
 	return u.repo.GetProduct(ctx, accountID, productID)
 }
+
+func (u *Product) DeleteProduct(ctx context.Context, userID, accountID, productID string) error {
+	productID = strings.TrimSpace(productID)
+	if productID == "" {
+		return errors.New("product ID is required")
+	}
+	return u.repo.DeleteProduct(ctx, accountID, productID)
+}

@@ -106,4 +106,6 @@ export interface MetaAd {
   name: string
   status: string
   effectiveStatus: string
+  thumbnailUrl?: string
+  imageUrl?: string
 }

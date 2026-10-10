@@ -4,21 +4,23 @@ const fetchApi = (url: string, options?: any) => $fetch(url, options)
 const plans = ref<any[]>([])
 const subscription = ref<any>(null)
 const loading = ref(true)
+const loadError = ref('')
 
 const checkoutModal = ref(false)
 const selectedPlan = ref<any>(null)
 
 const loadBilling = async () => {
   loading.value = true
+  loadError.value = ''
   try {
     const [plansData, subData] = await Promise.all([
-      fetchApi('/api/v1/billing/plans'),
-      fetchApi('/api/v1/billing/subscription')
+      fetchApi('/api/proxy/api/v1/billing/plans'),
+      fetchApi('/api/proxy/api/v1/billing/subscription')
     ])
     plans.value = plansData as any[]
     subscription.value = subData
   } catch (err: any) {
-    console.error(err)
+    loadError.value = err?.data?.message || err?.statusMessage || err?.message || 'Billing details could not be loaded.'
   } finally {
     loading.value = false
   }
@@ -55,6 +57,9 @@ onMounted(() => {
     </div>
     
     <div v-if="loading" class="loading">Loading billing details...</div>
+    <v-alert v-else-if="loadError" type="error" variant="tonal" class="mb-4">
+      {{ loadError }} <button class="retry-button" @click="loadBilling">Retry</button>
+    </v-alert>
     
     <template v-else>
       <div class="current-subscription" v-if="subscription">
@@ -257,4 +262,5 @@ onMounted(() => {
   gap: 12px;
   margin-top: 16px;
 }
+.retry-button{margin-left:8px;border:0;color:var(--color-primary);background:none;font-weight:700;cursor:pointer}
 </style>

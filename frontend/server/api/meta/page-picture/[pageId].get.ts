@@ -11,6 +11,7 @@ export default defineEventHandler(async (event) => {
     const context = await getAuthContext(event)
     requireClaim(context, 'pages:read')
     const response = await fetch(getUpstreamUrl(event, `api/v1/meta/pages/${encodeURIComponent(pageId)}/picture`), {
+      cache: 'no-store',
       headers: {
         Authorization: `Bearer ${getSessionToken(event)}`,
         'X-Account-ID': context.activeAccount.id,
@@ -25,7 +26,9 @@ export default defineEventHandler(async (event) => {
     return new Response(await response.arrayBuffer(), {
       headers: {
         'Content-Type': contentType,
-        'Cache-Control': 'private, max-age=600',
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
         'X-Content-Type-Options': 'nosniff',
       },
     })

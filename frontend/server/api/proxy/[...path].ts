@@ -17,6 +17,31 @@ export default defineEventHandler(async (event) => {
     setHeader(event, 'Pragma', 'no-cache')
     setHeader(event, 'Expires', '0')
 
+    // EventSource needs the upstream response body to remain a stream. Parsing
+    // this endpoint with ofetch buffers the response and leaves Live Chat stuck.
+    if (event.method === 'GET' && path === 'api/v1/chat/stream') {
+      const response = await fetch(getUpstreamUrl(event, path), {
+        headers: {
+          Authorization: `Bearer ${getSessionToken(event)}`,
+          'X-Account-ID': context.activeAccount.id,
+          Accept: 'text/event-stream',
+        },
+        cache: 'no-store',
+      })
+      if (!response.ok || !response.body) {
+        throw createError({ statusCode: response.status || 502, statusMessage: 'Unable to open the live message stream.' })
+      }
+      return new Response(response.body, {
+        status: response.status,
+        headers: {
+          'Content-Type': 'text/event-stream; charset=utf-8',
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+          'X-Accel-Buffering': 'no',
+          Connection: 'keep-alive',
+        },
+      })
+    }
+
     const contentType = getHeader(event, 'content-type') || ''
     const requestBody = ['GET', 'HEAD'].includes(event.method)
       ? undefined
@@ -36,6 +61,7 @@ export default defineEventHandler(async (event) => {
         ...(contentType ? { 'Content-Type': contentType } : {}),
       },
       timeout: 30_000,
+      cache: 'no-store',
     })
   } catch (error) {
     throw upstreamError(error)
