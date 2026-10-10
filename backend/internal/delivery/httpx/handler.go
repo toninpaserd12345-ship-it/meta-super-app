@@ -76,7 +76,6 @@ func (h *Handler) App() *fiber.App {
 	auth.Get("/api/v1/chat/history", requireAccount(h.auth, domain.ClaimPagesRead), h.getChatHistory)
 	auth.Post("/api/v1/chat/send", requireAccount(h.auth, domain.ClaimPagesConnect), h.sendChatMessage)
 	auth.Get("/api/v1/chat/stream", requireAccount(h.auth, domain.ClaimPagesRead), h.chatStream)
-	auth.Get("/api/v1/dashboard", requireAccount(h.auth, "dashboard:read"), h.dashboard)
 
 	// Storage
 	auth.Post("/api/v1/storage/upload", requireAccount(h.auth, domain.ClaimPagesConnect), h.UploadFile)
@@ -113,6 +112,7 @@ func (h *Handler) App() *fiber.App {
 	auth.Get("/api/v1/meta/campaigns/:campaignID/ads", requireAccount(h.auth, domain.ClaimPagesRead), h.metaAds)
 	auth.Get("/api/v1/products", requireAccount(h.auth, domain.ClaimPagesRead), h.products)
 	auth.Post("/api/v1/products", requireAccount(h.auth, domain.ClaimPagesConnect), h.saveProduct)
+	auth.Delete("/api/v1/products/:id", requireAccount(h.auth, domain.ClaimPagesConnect), h.deleteProduct)
 	// Team Management
 	auth.Get("/api/v1/team", requireAccount(h.auth, "users:read"), h.teamList)
 	auth.Post("/api/v1/team/invite", requireAccount(h.auth, "users:invite"), h.teamInvite)
@@ -162,6 +162,29 @@ func (h *Handler) saveProduct(c fiber.Ctx) error {
 		item.ImageUrl = h.Storage.GetPublicURL(item.ImageUrl)
 	}
 	return c.JSON(fiber.Map{"item": item})
+}
+
+func (h *Handler) deleteProduct(c fiber.Ctx) error {
+	ctx, cancel := requestContext(c)
+	defer cancel()
+	accountID := c.Locals("accountID").(string)
+	productID := c.Params("id")
+	rules, err := h.Automation.GetRules(ctx, accountID)
+	if err != nil {
+		return usecaseError(c, err)
+	}
+	for _, rule := range rules {
+		if rule.ProductID == productID {
+			return fail(c, fiber.StatusConflict, "product_in_use", "This product is used by an Automation. Remove or change that Automation before deleting the product.")
+		}
+	}
+	if err = h.Product.DeleteProduct(ctx, userID(c), accountID, productID); err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			return fail(c, fiber.StatusNotFound, "product_not_found", "The product was not found in this workspace.")
+		}
+		return usecaseError(c, err)
+	}
+	return c.SendStatus(fiber.StatusNoContent)
 }
 
 func (h *Handler) login(c fiber.Ctx) error {
@@ -226,9 +249,6 @@ func (h *Handler) accounts(c fiber.Ctx) error {
 	}
 	return c.JSON(fiber.Map{"items": user.Accounts})
 }
-func (h *Handler) dashboard(c fiber.Ctx) error {
-	return c.JSON(fiber.Map{"accountId": c.Locals("accountID"), "summary": fiber.Map{"customers": 0, "orders": 0}})
-}
 func (h *Handler) metaPages(c fiber.Ctx) error {
 	ctx, cancel := requestContext(c)
 	defer cancel()
@@ -269,7 +289,8 @@ func (h *Handler) metaPagePicture(c fiber.Ctx) error {
 		return usecaseError(c, err)
 	}
 	c.Set(fiber.HeaderContentType, picture.ContentType)
-	c.Set(fiber.HeaderCacheControl, "private, max-age=600")
+	c.Set(fiber.HeaderCacheControl, "no-store, no-cache, must-revalidate")
+	c.Set(fiber.HeaderPragma, "no-cache")
 	return c.Send(picture.Data)
 }
 func (h *Handler) startMetaOAuth(c fiber.Ctx) error {

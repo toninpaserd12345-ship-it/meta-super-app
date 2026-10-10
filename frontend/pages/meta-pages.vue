@@ -33,7 +33,6 @@ const whatsAppCode = ref('')
 const whatsAppDetailsOpen = ref(false)
 
 const pickerOpen = ref(false)
-const activePlatform = ref('all')
 const activeView = ref('pending')
 const expandedPages = ref<string[]>([])
 const permissionsOpen = ref(false)
@@ -197,7 +196,7 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
 </script>
 
 <template>
-  <section class="intro"><div><p>META CHANNELS</p><h2>Facebook & WhatsApp</h2><span>ຈັດການບັນຊີ, Webhook ແລະຄວາມສຳພັນກັບ Automation ໃນບ່ອນດຽວ</span></div><div class="intro-actions"><v-chip :color="error?'error':'success'" variant="tonal" :prepend-icon="error?'mdi-alert-circle-outline':'mdi-access-point'">{{error?'ການເຊື່ອມຕໍ່ຕ້ອງກວດສອບ':'ພ້ອມໃຊ້ງານ'}}</v-chip><v-btn v-if="inactivePages.length" variant="outlined" prepend-icon="mdi-checkbox-multiple-marked-outline" @click="search='';pickerOpen=true">ເລືອກບັນຊີ</v-btn><v-btn color="success" :prepend-icon="whatsAppConnecting?'mdi-loading':'mdi-whatsapp'" :disabled="authorizing||whatsAppConnecting" @click="connectWhatsApp">{{whatsAppConnecting?'ກຳລັງລໍຖ້າ Meta…':'ເຊື່ອມຕໍ່ WhatsApp'}}</v-btn><v-btn color="primary" prepend-icon="mdi-facebook" :loading="authorizing" :disabled="whatsAppConnecting" @click="permissionsOpen=true">{{needsReconnect?'ເຊື່ອມ Facebook ໃໝ່':'ເຊື່ອມຕໍ່ Facebook'}}</v-btn></div></section>
+  <section class="intro"><div><p>META CHANNELS</p><h2>Facebook</h2><span>ຈັດການບັນຊີ, Webhook ແລະຄວາມສຳພັນກັບ Automation ໃນບ່ອນດຽວ</span></div><div class="intro-actions"><v-chip :color="error?'error':'success'" variant="tonal" :prepend-icon="error?'mdi-alert-circle-outline':'mdi-access-point'">{{error?'ການເຊື່ອມຕໍ່ຕ້ອງກວດສອບ':'ພ້ອມໃຊ້ງານ'}}</v-chip><v-btn v-if="inactivePages.length" variant="outlined" prepend-icon="mdi-checkbox-multiple-marked-outline" @click="search='';pickerOpen=true">ເລືອກບັນຊີ</v-btn><v-btn v-if="false" color="success" :prepend-icon="whatsAppConnecting?'mdi-loading':'mdi-whatsapp'" :disabled="authorizing||whatsAppConnecting" @click="connectWhatsApp">{{whatsAppConnecting?'ກຳລັງລໍຖ້າ Meta…':'ເຊື່ອມຕໍ່ WhatsApp'}}</v-btn><v-btn color="primary" prepend-icon="mdi-facebook" :loading="authorizing" :disabled="whatsAppConnecting" @click="permissionsOpen=true">{{needsReconnect?'ເຊື່ອມ Facebook ໃໝ່':'ເຊື່ອມຕໍ່ Facebook'}}</v-btn></div></section>
   <v-alert v-if="message" :type="messageType" variant="tonal" closable class="mb-4" @click:close="message=''">{{message}}</v-alert>
   <v-alert v-if="error" type="error" variant="tonal" class="mb-4">
     <strong>{{loadErrorMessage}}</strong><br>
@@ -207,11 +206,11 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
   </v-alert>
   <section v-if="!error" class="connection-summary">
     <button :class="{active:statusFilter==='all'&&mainPlatformFilter==='all'}" @click="statusFilter='all';mainPlatformFilter='all'"><v-icon icon="mdi-facebook"/><span><small>ALL ACCOUNTS</small><strong>{{pages.length}}</strong></span></button>
-    <button :class="{active:mainPlatformFilter==='whatsapp'}" @click="statusFilter='all';mainPlatformFilter='whatsapp'"><v-icon icon="mdi-whatsapp"/><span><small>WHATSAPP NUMBERS</small><strong>{{whatsappPages.length}}</strong></span></button>
+    <button v-if="false" :class="{active:mainPlatformFilter==='whatsapp'}" @click="statusFilter='all';mainPlatformFilter='whatsapp'"><v-icon icon="mdi-whatsapp"/><span><small>WHATSAPP NUMBERS</small><strong>{{whatsappPages.length}}</strong></span></button>
     <button :class="{active:statusFilter==='active'&&mainPlatformFilter==='all'}" @click="statusFilter='active';mainPlatformFilter='all'"><v-icon icon="mdi-webhook"/><span><small>WEBHOOK ACTIVE</small><strong>{{activePages.length}}</strong></span></button>
     <button :class="{active:statusFilter==='available'&&mainPlatformFilter==='all'}" @click="statusFilter='available';mainPlatformFilter='all'"><v-icon icon="mdi-power-plug-off-outline"/><span><small>NOT ACTIVE</small><strong>{{inactivePages.length}}</strong></span></button>
   </section>
-  <section v-if="!pending&&!error&&!whatsappPages.length" class="whatsapp-setup">
+  <section v-if="false" class="whatsapp-setup">
     <div class="whatsapp-setup-icon"><v-icon icon="mdi-whatsapp" size="34"/></div>
     <div class="whatsapp-setup-copy">
       <small>WHATSAPP SETUP</small>
@@ -291,58 +290,15 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
       <div class="pc-body">
         
         <div class="pc-sidebar">
-          <div class="pc-nav-item" :class="{active: activePlatform==='all'}" @click="activePlatform='all'">
+          <div class="pc-nav-item active">
             <v-icon color="warning" size="20">mdi-clock-outline</v-icon>
             <span>ລໍຖ້າການເປີດໃຊ້ງານ</span>
           </div>
-          <div class="pc-nav-item" :class="{active: activePlatform==='facebook'}" @click="activePlatform='facebook'">
-            <img src="https://upload.wikimedia.org/wikipedia/commons/b/b8/2021_Facebook_icon.svg" width="20" height="20" alt="FB"/>
+          <div class="pc-nav-item">
+            <v-icon size="20" color="primary">mdi-facebook</v-icon>
             <span>Facebook</span>
           </div>
-          <div class="pc-nav-item" :class="{active: activePlatform==='instagram'}" @click="activePlatform='instagram'">
-            <img src="https://upload.wikimedia.org/wikipedia/commons/9/95/Instagram_logo_2022.svg" width="20" height="20" alt="IG"/>
-            <span>Instagram</span>
-          </div>
-          <div class="pc-nav-item" :class="{active: activePlatform==='threads'}" @click="activePlatform='threads'">
-            <v-icon size="20">mdi-at</v-icon>
-            <span>Threads</span>
-            <span class="pc-badge-beta">Beta</span>
-          </div>
-          <div class="pc-nav-item" :class="{active: activePlatform==='tiktok'}" @click="activePlatform='tiktok'">
-            <v-icon size="20" color="black">mdi-music-note</v-icon>
-            <span>TikTok</span>
-          </div>
-          <div class="pc-nav-item" :class="{active: activePlatform==='whatsapp'}" @click="activePlatform='whatsapp'">
-            <v-icon size="20" color="success">mdi-whatsapp</v-icon>
-            <span>WhatsApp</span>
-          </div>
-          <div class="pc-nav-item" :class="{active: activePlatform==='telegram'}" @click="activePlatform='telegram'">
-            <v-icon size="20" color="info">mdi-telegram</v-icon>
-            <span>Telegram</span>
-          </div>
-          <div class="pc-nav-item" :class="{active: activePlatform==='booking'}" @click="activePlatform='booking'">
-            <v-icon size="20" color="blue-darken-4">mdi-alpha-b-circle</v-icon>
-            <span>Booking</span>
-            <span class="pc-badge-beta">Beta</span>
-          </div>
-          <div class="pc-nav-item" :class="{active: activePlatform==='airbnb'}" @click="activePlatform='airbnb'">
-            <v-icon size="20" color="red">mdi-home-heart</v-icon>
-            <span>Airbnb</span>
-            <span class="pc-badge-beta">Beta</span>
-          </div>
-          <div class="pc-nav-item" :class="{active: activePlatform==='youtube'}" @click="activePlatform='youtube'">
-            <v-icon size="20" color="red">mdi-youtube</v-icon>
-            <span>YouTube</span>
-            <span class="pc-badge-beta">Beta</span>
-          </div>
-          <div class="pc-nav-item" :class="{active: activePlatform==='shopee'}" @click="activePlatform='shopee'">
-            <v-icon size="20" color="orange">mdi-shopping</v-icon>
-            <span>Shopee</span>
-          </div>
-          <div class="pc-nav-item" :class="{active: activePlatform==='line'}" @click="activePlatform='line'">
-            <v-icon size="20" color="green">mdi-chat</v-icon>
-            <span>Line</span>
-          </div>
+          <div class="pc-channel-note">WhatsApp ເຊື່ອມຕໍ່ຈາກປຸ່ມ “ເຊື່ອມຕໍ່ WhatsApp” ຢູ່ດ້ານເທິງ.</div>
         </div>
         
         <div class="pc-main">
@@ -351,7 +307,6 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
             <div class="pc-search-box">
               <v-icon size="18" color="grey">mdi-magnify</v-icon>
               <input type="text" v-model="search" placeholder="ຄົ້ນຫາໜ້າ" />
-              <v-icon size="18" color="grey">mdi-filter-variant</v-icon>
             </div>
           </div>
           
@@ -360,26 +315,11 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
               <div class="pc-tab" :class="{active: activeView==='pending'}" @click="activeView='pending'">
                 ລໍຖ້າການເປີດໃຊ້ງານ <span class="pc-tab-badge" v-if="availablePages.length">{{availablePages.length}}</span>
               </div>
-              <div class="pc-tab" :class="{active: activeView==='hidden'}" @click="activeView='hidden'">
-                ໜ້າທີ່ຊ່ອນຢູ່
-              </div>
-            </div>
-            <div class="pc-conn-code">
-              <v-icon size="16" color="primary">mdi-key-outline</v-icon>
-              <span class="text-primary" style="font-size:13px; font-weight:600; cursor:pointer;">ຣຫັດເຊື່ອມຕໍ່</span>
             </div>
           </div>
           
           <div class="pc-content">
-            <div v-if="activePlatform !== 'all' && activePlatform !== 'facebook' && activePlatform !== 'instagram' && activePlatform !== 'whatsapp'" class="pc-empty" style="flex-direction:column; gap:16px;">
-               <v-icon size="64" color="grey-lighten-1">mdi-power-plug-off</v-icon>
-               <h3 style="color:#666;">ຍັງບໍ່ໄດ້ເຊື່ອມຕໍ່ {{activePlatform.charAt(0).toUpperCase() + activePlatform.slice(1)}}</h3>
-               <v-btn color="primary" variant="flat">ເຊື່ອມຕໍ່ບັນຊີ {{activePlatform}}</v-btn>
-            </div>
-            <div v-else-if="activeView === 'hidden'" class="pc-empty">
-              <v-alert type="info" variant="tonal" class="w-100">ບໍ່ມີໜ້າທີ່ຊ່ອນຢູ່</v-alert>
-            </div>
-            <div v-else-if="availablePages.length" class="pc-grid">
+            <div v-if="availablePages.length" class="pc-grid">
               <div v-for="page in availablePages" :key="page.id" class="pc-card" :class="{'selected':selected.includes(page.id)}" @click="selected.includes(page.id)?selected=selected.filter(id=>id!==page.id):selected.push(page.id)">
                 <div class="pc-card-avatar">
                   <v-img v-if="pictureAvailable(page)" :src="pagePictureUrl(page)" :alt="`${page.name} profile picture`" cover @error="handlePictureError(page.id)"></v-img>
@@ -405,7 +345,6 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
             <div class="pc-footer-left" @click="selected.length === availablePages.length ? selected=[] : selected=availablePages.map(p=>p.id)">
               <v-icon size="18" class="mr-2">mdi-checkbox-multiple-marked-outline</v-icon>
               <span>ເລືອກທັງໝົດ / ບໍ່ເລືອກທັງໝົດ</span>
-              <div class="pc-hotkey"><v-icon size="14">mdi-apple-keyboard-command</v-icon> A</div>
             </div>
             <v-btn color="primary" prepend-icon="mdi-lightning-bolt" size="large" :disabled="!selected.length" :loading="activating" @click="activateSelected" class="text-none px-6" style="border-radius: 8px;">ເປີດໃຊ້ງານ</v-btn>
           </div>
@@ -457,5 +396,6 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
 .pc-footer { padding:16px 24px; display:flex; align-items:center; justify-content:space-between; border-top:1px solid #ebedf0; background:#ffffff; }
 .pc-footer-left { display:flex; align-items:center; font-size:13px; color:#65676b; cursor:pointer; user-select:none; }
 .pc-hotkey { display:flex; align-items:center; gap:2px; background:#f2f3f5; border:1px solid #d0d5dc; padding:2px 6px; border-radius:4px; font-size:11px; margin-left:8px; font-weight:600; color:#1a1a1a; }
+.pc-channel-note { margin:12px; padding:12px; color:var(--color-text-secondary); background:var(--color-surface); border:1px solid var(--color-border); border-radius:10px; font-size:12px; line-height:1.55; }
 
 </style>
