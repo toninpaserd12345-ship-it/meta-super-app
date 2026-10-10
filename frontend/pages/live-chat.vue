@@ -4,6 +4,17 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 
 
 
+
+interface Lead {
+  id: string
+  accountId: string
+  pageId: string
+  senderId: string
+  sourceType: string
+  sourceId: string
+  name: string
+  status: string
+}
 interface ChatMessage {
   id: string
   sender_id: string
@@ -16,6 +27,7 @@ interface ChatMessage {
   page_id: string
 }
 
+const leads = ref<Record<string, Lead>>({})
 const conversations = ref<Record<string, ChatMessage[]>>({})
 const activeSender = ref<string | null>(null)
 const inputMessage = ref('')
@@ -69,10 +81,18 @@ const sendReply = async () => {
 onMounted(async () => {
   if (import.meta.server) return
   
-  // Load initial history
+  // Load initial history and leads
   try {
-    const history = await $fetch<{items: ChatMessage[]}>('/api/proxy/api/v1/chat/history').then(r => r.items)
-    if (history && history.length > 0) {
+    const [historyRes, leadsRes] = await Promise.all([
+      $fetch<{items: ChatMessage[]}>('/api/proxy/api/v1/chat/history').catch(()=>({items:[]})),
+      $fetch<{items: Lead[]}>('/api/proxy/api/v1/leads').catch(()=>({items:[]}))
+    ])
+    
+    const leadsList = leadsRes.items || []
+    leadsList.forEach(l => { leads.value[l.senderId] = l })
+    
+    const history = historyRes.items || []
+    if (history.length > 0) {
       for (const msg of history) {
         msg.id = msg.timestamp + Math.random()
         const key = msg.sender_id
@@ -81,7 +101,6 @@ onMounted(async () => {
         }
         conversations.value[key].push(msg)
       }
-      // Sort each conversation
       for (const key in conversations.value) {
         conversations.value[key]?.sort((a, b) => Number(a.timestamp) - Number(b.timestamp))
       }
@@ -159,8 +178,15 @@ const formatTime = (ts: string) => {
             <v-icon v-else :icon="msgs?.[0]?.platform === 'whatsapp' ? 'mdi-whatsapp' : 'mdi-facebook-messenger'" />
           </div>
           <div class="conv-details">
-            <div class="conv-name">{{ getSenderName(msgs) }}</div>
+            <div class="conv-name">
+              {{ getSenderName(msgs) }}
+              <span v-if="leads[senderId]" class="status-badge" :class="leads[senderId].status">{{ leads[senderId].status }}</span>
+            </div>
             <div class="conv-preview">{{ msgs?.[msgs.length - 1]?.message || 'Media message' }}</div>
+            <div class="conv-meta" v-if="leads[senderId]">
+              <span class="meta-tag page-tag"><v-icon icon="mdi-flag" size="12"/> {{ leads[senderId].pageId }}</span>
+              <span class="meta-tag ad-tag" v-if="leads[senderId].sourceType === 'ad'"><v-icon icon="mdi-bullhorn" size="12"/> Ad: {{ leads[senderId].sourceId }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -434,4 +460,38 @@ const formatTime = (ts: string) => {
   gap: 16px;
 }
 @media(max-width:760px){.chat-layout{height:calc(100dvh - 96px)}.chat-sidebar{width:112px}.sidebar-header{padding:15px 10px}.sidebar-header h2{font-size:14px}.conv-item{display:grid;justify-items:center;padding:12px 8px}.conv-details{width:100%;text-align:center}.conv-name{font-size:10px;overflow:hidden;text-overflow:ellipsis}.conv-preview{display:none}.chat-header,.chat-messages{padding:14px}.message-bubble{max-width:88%}.chat-empty{padding:20px;text-align:center}}
+
+.status-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 6px;
+  background: #f0f0f0;
+  color: #555;
+  text-transform: capitalize;
+  display: inline-block;
+  vertical-align: middle;
+}
+.status-badge.new { background: #E7F3FF; color: #1877F2; }
+.status-badge.purchased { background: #E7FCE3; color: #25D366; }
+
+.conv-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.meta-tag {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 12px;
+  background: var(--color-background);
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.ad-tag { background: #FFF3E0; color: #E65100; }
+.page-tag { background: #F3E5F5; color: #7B1FA2; }
+
 </style>
