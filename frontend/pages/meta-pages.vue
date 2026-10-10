@@ -92,9 +92,9 @@ async function connectFacebook(){
 }
 function apiMessage(error:any,fallback:string){return error?.data?.error?.message||error?.data?.message||error?.data?.statusMessage||error?.statusMessage||fallback}
 async function setPageEnabled(page:MetaPage,enabled:boolean){
-  if(!enabled&&!confirm(`Pause Webhook for “${page.name}”? New events from this Page will stop until it is enabled again.`))return
+  if(!enabled&&!confirm(`ປິດການໃຊ້ງານສຳລັບ “${page.name}”? ຂໍ້ຄວາມໃໝ່ຈາກເພຈນີ້ຈະບໍ່ເຂົ້າລະບົບຈົນກວ່າຈະເປີດຄືນ.`))return
   toggling.value=page.id;message.value=''
-  try{await $fetch(`/api/proxy/api/v1/meta/pages/${enabled?'connect':'disconnect'}`,{method:'POST',body:{pageId:page.id}});await refresh();messageType.value='success';message.value=`${page.name}: Webhook ${enabled?'enabled':'paused'}.`}
+  try{await $fetch(`/api/proxy/api/v1/meta/pages/${enabled?'connect':'disconnect'}`,{method:'POST',body:{pageId:page.id}});await refresh();messageType.value='success';message.value=`${page.name}: ${enabled?'ເປີດການໃຊ້ງານສຳເລັດ':'ປິດການໃຊ້ງານສຳເລັດ'}.`}
   catch(error:any){messageType.value='error';message.value=apiMessage(error,`Unable to ${enabled?'enable':'pause'} ${page.name}. Check the Page permission and try again.`);await refresh()}
   finally{toggling.value=null}
 }
@@ -106,8 +106,8 @@ async function activateSelected(){
   const successIds=chosen.filter((_,index)=>results[index]?.status==='fulfilled')
   const failed=chosen.length-successIds.length
   selected.value=selected.value.filter(id=>!successIds.includes(id));await refresh();activating.value=false
-  if(!failed){pickerOpen.value=false;messageType.value='success';message.value=`${successIds.length} Page${successIds.length===1?'':'s'} activated. Webhooks are ready.`;return}
-  messageType.value='error';message.value=`Activated ${successIds.length} of ${chosen.length} Pages. ${failed} failed because Meta rejected the Page permission.`
+  if(!failed){pickerOpen.value=false;messageType.value='success';message.value=`ເປີດການໃຊ້ງານສຳເລັດ ${successIds.length} ບັນຊີ. ລະບົບພ້ອມຮັບຂໍ້ຄວາມແລ້ວ.`;return}
+  messageType.value='error';message.value=`ເປີດການໃຊ້ງານສຳເລັດ ${successIds.length} ຈາກ ${chosen.length} ບັນຊີ. ຜິດພາດ ${failed} ບັນຊີ ເນື່ອງຈາກ Meta ປະຕິເສດສິດໃນການເຂົ້າເຖິງ.`
 }
 
 declare global {
@@ -149,7 +149,7 @@ async function finishWhatsAppSignup(){
   const code=whatsAppCode.value;const session={...whatsAppSession.value};whatsAppCode.value='';whatsAppSession.value={}
   try{
     await $fetch('/api/proxy/api/v1/meta/whatsapp/signup/complete',{method:'POST',body:{code,businessId:session.businessId||'',wabaId:session.wabaId,phoneNumberId:session.phoneNumberId||''},timeout:30000})
-    await refresh();messageType.value='success';message.value='WhatsApp connected. The webhook is subscribed and ready to receive messages.'
+    await refresh();messageType.value='success';message.value='ເຊື່ອມຕໍ່ WhatsApp ສຳເລັດ. ລະບົບພ້ອມຮັບຂໍ້ຄວາມແລ້ວ.'
   }catch(error:any){messageType.value='error';message.value=apiMessage(error,'WhatsApp setup could not be completed. Check the selected Business Account and phone number.')}
   finally{whatsAppConnecting.value=false}
 }
@@ -196,7 +196,7 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
 </script>
 
 <template>
-  <section class="intro"><div><p>META CHANNELS</p><h2>Facebook</h2><span>ຈັດການບັນຊີ, Webhook ແລະຄວາມສຳພັນກັບ Automation ໃນບ່ອນດຽວ</span></div><div class="intro-actions"><v-chip :color="error?'error':'success'" variant="tonal" :prepend-icon="error?'mdi-alert-circle-outline':'mdi-access-point'">{{error?'ການເຊື່ອມຕໍ່ຕ້ອງກວດສອບ':'ພ້ອມໃຊ້ງານ'}}</v-chip><v-btn v-if="inactivePages.length" variant="outlined" prepend-icon="mdi-checkbox-multiple-marked-outline" @click="search='';pickerOpen=true">ເລືອກບັນຊີ</v-btn><v-btn v-if="false" color="success" :prepend-icon="whatsAppConnecting?'mdi-loading':'mdi-whatsapp'" :disabled="authorizing||whatsAppConnecting" @click="connectWhatsApp">{{whatsAppConnecting?'ກຳລັງລໍຖ້າ Meta…':'ເຊື່ອມຕໍ່ WhatsApp'}}</v-btn><v-btn color="primary" prepend-icon="mdi-facebook" :loading="authorizing" :disabled="whatsAppConnecting" @click="permissionsOpen=true">{{needsReconnect?'ເຊື່ອມ Facebook ໃໝ່':'ເຊື່ອມຕໍ່ Facebook'}}</v-btn></div></section>
+  <section class="intro"><div><p>META CHANNELS</p><h2>Facebook</h2><span>ຈັດການບັນຊີ, ການຕອບກັບ ແລະ ຕັ້ງຄ່າຂໍ້ຄວາມອັດຕະໂນມັດ (Automation) ໃນບ່ອນດຽວ</span></div><div class="intro-actions"><v-chip :color="error?'error':'success'" variant="tonal" :prepend-icon="error?'mdi-alert-circle-outline':'mdi-access-point'">{{error?'ການເຊື່ອມຕໍ່ຕ້ອງກວດສອບ':'ພ້ອມໃຊ້ງານ'}}</v-chip><v-btn v-if="inactivePages.length" variant="outlined" prepend-icon="mdi-checkbox-multiple-marked-outline" @click="search='';pickerOpen=true">ເລືອກບັນຊີ</v-btn><v-btn v-if="false" color="success" :prepend-icon="whatsAppConnecting?'mdi-loading':'mdi-whatsapp'" :disabled="authorizing||whatsAppConnecting" @click="connectWhatsApp">{{whatsAppConnecting?'ກຳລັງລໍຖ້າ Meta…':'ເຊື່ອມຕໍ່ WhatsApp'}}</v-btn><v-btn color="primary" prepend-icon="mdi-facebook" :loading="authorizing" :disabled="whatsAppConnecting" @click="permissionsOpen=true">{{needsReconnect?'ເຊື່ອມ Facebook ໃໝ່':'ເຊື່ອມຕໍ່ Facebook'}}</v-btn></div></section>
   <v-alert v-if="message" :type="messageType" variant="tonal" closable class="mb-4" @click:close="message=''">{{message}}</v-alert>
   <v-alert v-if="error" type="error" variant="tonal" class="mb-4">
     <strong>{{loadErrorMessage}}</strong><br>
@@ -207,7 +207,7 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
   <section v-if="!error" class="connection-summary">
     <button :class="{active:statusFilter==='all'&&mainPlatformFilter==='all'}" @click="statusFilter='all';mainPlatformFilter='all'"><v-icon icon="mdi-facebook"/><span><small>ALL ACCOUNTS</small><strong>{{pages.length}}</strong></span></button>
     <button v-if="false" :class="{active:mainPlatformFilter==='whatsapp'}" @click="statusFilter='all';mainPlatformFilter='whatsapp'"><v-icon icon="mdi-whatsapp"/><span><small>WHATSAPP NUMBERS</small><strong>{{whatsappPages.length}}</strong></span></button>
-    <button :class="{active:statusFilter==='active'&&mainPlatformFilter==='all'}" @click="statusFilter='active';mainPlatformFilter='all'"><v-icon icon="mdi-webhook"/><span><small>WEBHOOK ACTIVE</small><strong>{{activePages.length}}</strong></span></button>
+    <button :class="{active:statusFilter==='active'&&mainPlatformFilter==='all'}" @click="statusFilter='active';mainPlatformFilter='all'"><v-icon icon="mdi-webhook"/><span><small>ເປີດນຳໃຊ້ແລ້ວ</small><strong>{{activePages.length}}</strong></span></button>
     <button :class="{active:statusFilter==='available'&&mainPlatformFilter==='all'}" @click="statusFilter='available';mainPlatformFilter='all'"><v-icon icon="mdi-power-plug-off-outline"/><span><small>NOT ACTIVE</small><strong>{{inactivePages.length}}</strong></span></button>
   </section>
   <section v-if="false" class="whatsapp-setup">
@@ -219,7 +219,7 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
       <ol class="setup-steps">
         <li><span>1</span>Continue with Meta</li>
         <li><span>2</span>Choose your WhatsApp account</li>
-        <li><span>3</span>Webhook turns on automatically</li>
+        <li><span>3</span>ລະບົບຈະເປີດຮັບຂໍ້ຄວາມອັດຕະໂນມັດ</li>
       </ol>
       <div class="setup-actions">
         <v-btn color="success" :prepend-icon="whatsAppConnecting?'mdi-loading':'mdi-whatsapp'" :disabled="whatsAppConnecting" @click="connectWhatsApp">
@@ -253,7 +253,7 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
         <v-icon v-else-if="page.category.toLowerCase().includes('whatsapp')" icon="mdi-whatsapp" color="success" size="28"/>
         <v-icon v-else icon="mdi-facebook" color="white" size="28"/>
       </div><div class="page-info"><h3>{{page.name}}</h3><p>{{page.category}}</p><p v-if="page.phoneNumber" class="page-phone"><v-icon icon="mdi-phone-outline" size="14"/>{{page.phoneNumber}}</p><small>{{page.category.toLowerCase().includes('whatsapp')?'Phone number ID':'Page ID'}} · {{page.id}}</small><div class="token-row"><v-chip class="token-chip" :color="page.tokenReady?'success':'warning'" variant="tonal" size="x-small" :prepend-icon="page.tokenReady?'mdi-key-check':'mdi-key-alert'">{{page.tokenReady?'Token ພ້ອມໃຊ້':'Token ບໍ່ພ້ອມ'}}</v-chip><v-chip v-if="page.tokenReady" class="token-chip" color="info" variant="tonal" size="x-small" prepend-icon="mdi-clock-outline">{{tokenExpiry(page)}}</v-chip></div></div>
-      <div class="page-action"><div v-if="page.connected" class="page-toggle"><span><strong>Webhook active</strong><small>Receiving events</small></span><v-switch :model-value="true" color="success" hide-details density="compact" :loading="toggling===page.id" :disabled="toggling!==null||!can('pages:connect')" :aria-label="`Pause Webhook for ${page.name}`" @update:model-value="value=>setPageEnabled(page,Boolean(value))"/></div><v-btn v-else color="primary" variant="flat" prepend-icon="mdi-play-circle-outline" :loading="toggling===page.id" :disabled="toggling!==null||!can('pages:connect')||!page.tokenReady" @click="setPageEnabled(page,true)">Enable Webhook</v-btn></div>
+      <div class="page-action"><div v-if="page.connected" class="page-toggle"><span><strong>ເປີດນຳໃຊ້ແລ້ວ</strong><small>ກຳລັງຮັບຂໍ້ຄວາມ</small></span><v-switch :model-value="true" color="success" hide-details density="compact" :loading="toggling===page.id" :disabled="toggling!==null||!can('pages:connect')" :aria-label="`ປິດການໃຊ້ງານສຳລັບ ${page.name}`" @update:model-value="value=>setPageEnabled(page,Boolean(value))"/></div><v-btn v-else color="primary" variant="flat" prepend-icon="mdi-play-circle-outline" :loading="toggling===page.id" :disabled="toggling!==null||!can('pages:connect')||!page.tokenReady" @click="setPageEnabled(page,true)">ເປີດການໃຊ້ງານ</v-btn></div>
       <div class="relation-summary">
         <button @click="togglePageDetails(page.id)"><span><v-icon icon="mdi-robot-happy-outline"/>{{pageRelationCounts(page.id).automations}} Automation</span><span><v-icon icon="mdi-check-decagram-outline"/>{{pageRelationCounts(page.id).active}} ເປີດໃຊ້</span><span><v-icon icon="mdi-target"/>{{pageRelationCounts(page.id).targets}} ເປົ້າໝາຍ</span><v-icon :icon="expandedPages.includes(page.id)?'mdi-chevron-up':'mdi-chevron-down'"/></button>
         <div v-if="expandedPages.includes(page.id)" class="relation-details">
@@ -274,7 +274,7 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
 
   <v-dialog v-model="permissionsOpen" max-width="620">
     <v-card class="picker-card"><v-card-title class="picker-head"><div><small>FACEBOOK PERMISSIONS</small><h2>Choose features</h2></div><v-btn icon="mdi-close" variant="text" @click="permissionsOpen=false"/></v-card-title><v-card-text class="permission-body">
-      <v-alert type="info" variant="tonal" density="compact">Page access, Webhooks and Messenger permissions are included automatically. Select only the additional features you need.</v-alert>
+      <v-alert type="info" variant="tonal" density="compact">ສິດໃນການເຂົ້າເຖິງເພຈ ແລະ ການຮັບສົ່ງຂໍ້ຄວາມ ແມ່ນຖືກລວມໄວ້ແລ້ວອັດຕະໂນມັດ. ໃຫ້ທ່ານເລືອກສະເພາະສິດເພີ່ມເຕີມທີ່ຕ້ອງການໃຊ້ງານເທົ່ານັ້ນ.</v-alert>
       <v-checkbox v-for="item in optionalPermissions" :key="item.value" v-model="selectedPermissions" :value="item.value" color="primary" hide-details><template #label><span class="permission-label"><strong>{{item.label}}</strong><small>{{item.description}}</small></span></template></v-checkbox>
       <p class="permission-note">Meta may require App Review and Advanced Access before these features work for public users.</p>
     </v-card-text><v-card-actions class="picker-actions"><v-btn variant="text" @click="selectedPermissions=[]">Required only</v-btn><v-spacer/><v-btn color="primary" prepend-icon="mdi-facebook" :loading="authorizing" @click="permissionsOpen=false;connectFacebook()">Continue with Facebook</v-btn></v-card-actions></v-card>

@@ -892,6 +892,12 @@ func (g *GraphConnector) ListPages(ctx context.Context, _ string, accountID stri
 	for _, page := range pages {
 		result = append(result, page.MetaPage)
 	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].Name == result[j].Name {
+			return result[i].ID < result[j].ID
+		}
+		return result[i].Name < result[j].Name
+	})
 	return result, nil
 }
 
