@@ -81,6 +81,7 @@ func (h *Handler) App() *fiber.App {
 	auth.Get("/api/v1/leads/settings", requireAccount(h.auth, "settings:read"), h.leadSettings)
 	auth.Put("/api/v1/leads/settings", requireAccount(h.auth, "settings:update"), h.saveLeadSettings)
 	auth.Patch("/api/v1/leads/:id/read", requireAccount(h.auth, "customers:update"), h.markLeadRead)
+	auth.Put("/api/v1/leads/:id/status", requireAccount(h.auth, "customers:update"), h.updateLeadStatus)
 
 	// Storage
 	auth.Post("/api/v1/storage/upload", requireAccount(h.auth, domain.ClaimPagesConnect), h.UploadFile)

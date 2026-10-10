@@ -217,3 +217,22 @@ func (u *Leads) sendCAPI(ctx context.Context, lead database.LeadModel) {
 	}
 	u.db.Model(&row).Updates(map[string]any{"status": status, "error": msg})
 }
+
+func (u *Leads) UpdateStatus(ctx context.Context, accountID, senderID, status string) error {
+	var lead database.LeadModel
+	if err := u.db.WithContext(ctx).Where("account_id=? AND sender_id=?", accountID, senderID).First(&lead).Error; err != nil {
+		return err
+	}
+	if lead.Status == status {
+		return nil
+	}
+	
+	if err := u.db.WithContext(ctx).Model(&lead).Update("status", status).Error; err != nil {
+		return err
+	}
+	
+	if status == "purchased" {
+		go u.sendCAPI(context.Background(), lead)
+	}
+	return nil
+}

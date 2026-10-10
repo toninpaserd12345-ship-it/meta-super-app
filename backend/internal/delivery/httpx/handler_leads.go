@@ -46,3 +46,19 @@ func (h *Handler) markLeadRead(c fiber.Ctx) error {
 	}
 	return c.JSON(fiber.Map{"updated": true})
 }
+
+func (h *Handler) updateLeadStatus(c fiber.Ctx) error {
+	var body struct {
+		Status string `json:"status"`
+	}
+	if err := c.Bind().JSON(&body); err != nil {
+		return fail(c, fiber.StatusBadRequest, "invalid_request", err.Error())
+	}
+	ctx, cancel := requestContext(c)
+	defer cancel()
+	// id is actually sender_id
+	if err := h.Leads.UpdateStatus(ctx, c.Locals("accountID").(string), c.Params("id"), body.Status); err != nil {
+		return usecaseError(c, err)
+	}
+	return c.JSON(fiber.Map{"status": "success"})
+}
