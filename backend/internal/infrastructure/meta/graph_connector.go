@@ -94,7 +94,31 @@ func NewGraphConnector(cfg GraphConfig, db *gorm.DB) *GraphConnector {
 	if err := g.loadState(); err != nil {
 		slog.Warn("unable to load Meta state", "error", err)
 	}
+	go g.cleanupRoutine()
 	return g
+}
+
+func (g *GraphConnector) cleanupRoutine() {
+	ticker := time.NewTicker(1 * time.Hour)
+	defer ticker.Stop()
+	for range ticker.C {
+		g.mu.Lock()
+		// firstReplies tracks anti-spam 24h
+		for k, t := range g.firstReplies {
+			if time.Since(t) > 24*time.Hour {
+				delete(g.firstReplies, k)
+			}
+		}
+		// conversations and deliverySteps are transient states for automations, safe to clear fully every hour
+		g.conversations = make(map[string]string)
+		g.deliverySteps = make(map[string]bool)
+		g.mu.Unlock()
+		
+		g.profileMu.Lock()
+		// userProfiles cache is also safe to clear periodically to prevent unlimited growth
+		g.userProfiles = make(map[string]struct{ Name, Pic string })
+		g.profileMu.Unlock()
+	}
 }
 
 func (g *GraphConnector) fetchNameViaConversation(ctx context.Context, pageID, psid, token string) (string, string) {

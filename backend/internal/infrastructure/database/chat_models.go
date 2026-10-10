@@ -4,7 +4,7 @@ import "time"
 
 type ChatMessageModel struct {
 	ID        string       `gorm:"type:uuid;primaryKey"`
-	AccountID string       `gorm:"type:uuid;index;not null"`
+	AccountID string       `gorm:"type:uuid;index;index:idx_account_created,priority:1;not null"`
 	Account   AccountModel `gorm:"foreignKey:AccountID;constraint:OnDelete:CASCADE"`
 	PageID    string       `gorm:"size:50;index;not null"`
 	SenderID   string       `gorm:"size:50;index;not null"` // Facebook User ID or WhatsApp Number
@@ -14,5 +14,5 @@ type ChatMessageModel struct {
 	Type       string       `gorm:"size:20;not null"` // text, image, video, audio, etc.
 	Platform  string       `gorm:"size:20;not null"` // facebook, whatsapp, system (for outgoing)
 	Timestamp string       `gorm:"size:20;not null"`
-	CreatedAt time.Time    `gorm:"index"`
+	CreatedAt time.Time    `gorm:"index;index:idx_account_created,priority:2"`
 }

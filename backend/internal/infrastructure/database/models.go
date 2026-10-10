@@ -173,8 +173,21 @@ type MetaWhatsAppConnectionModel struct {
 }
 
 type LeadModel struct {
-	ID string `json:"id"`; AccountID string `json:"accountId"`; PageID string `json:"pageId"`; SenderID string `json:"senderId"`; SourceType string `json:"sourceType"`; SourceID string `json:"sourceId"`; Name string `json:"name"`; Status string `json:"status"`; AssignedUserID string `json:"assignedUserId"`
-	AlertRead bool `json:"alertRead"`; FollowUpEnabled bool `json:"followUpEnabled"`; NextFollowUpAt *time.Time `json:"nextFollowUpAt,omitempty"`; FollowUpStep int `json:"followUpStep"`; CreatedAt time.Time `json:"createdAt"`; UpdatedAt time.Time `json:"updatedAt"`
+	ID              string     `gorm:"type:uuid;primaryKey" json:"id"`
+	AccountID       string     `gorm:"type:uuid;index;not null" json:"accountId"`
+	PageID          string     `gorm:"size:50;index;not null" json:"pageId"`
+	SenderID        string     `gorm:"size:50;index;not null" json:"senderId"`
+	SourceType      string     `gorm:"size:20" json:"sourceType"`
+	SourceID        string     `gorm:"size:100" json:"sourceId"`
+	Name            string     `gorm:"size:255" json:"name"`
+	Status          string     `gorm:"size:50;index" json:"status"`
+	AssignedUserID  string     `gorm:"type:uuid;index" json:"assignedUserId"`
+	AlertRead       bool       `gorm:"index" json:"alertRead"`
+	FollowUpEnabled bool       `json:"followUpEnabled"`
+	NextFollowUpAt  *time.Time `gorm:"index" json:"nextFollowUpAt,omitempty"`
+	FollowUpStep    int        `json:"followUpStep"`
+	CreatedAt       time.Time  `gorm:"index" json:"createdAt"`
+	UpdatedAt       time.Time  `json:"updatedAt"`
 }
 
 type LeadSettingsModel struct {
