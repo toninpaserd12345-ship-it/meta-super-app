@@ -970,24 +970,25 @@ func (g *GraphConnector) findPage(pageID string) (string, graphPage, bool) {
 	g.mu.RUnlock()
 
 	if g.db != nil {
-		var whatsApp database.MetaWhatsAppConnectionModel
-		if err := g.db.First(&whatsApp, "phone_number_id = ?", pageID).Error; err == nil {
-			decrypted := g.decryptToken(whatsApp.AccessToken)
+		var whatsApp []database.MetaWhatsAppConnectionModel
+		if err := g.db.Where("phone_number_id = ?", pageID).Limit(1).Find(&whatsApp).Error; err == nil && len(whatsApp) > 0 {
+			decrypted := g.decryptToken(whatsApp[0].AccessToken)
 			page := graphPage{MetaPage: domain.MetaPage{
-				ID:            whatsApp.PhoneNumberID,
-				Name:          firstNonEmpty(whatsApp.VerifiedName, whatsApp.DisplayPhoneNumber, "WhatsApp"),
+				ID:            whatsApp[0].PhoneNumberID,
+				Name:          firstNonEmpty(whatsApp[0].VerifiedName, whatsApp[0].DisplayPhoneNumber, "WhatsApp"),
 				Category:      "WhatsApp",
-				PictureURL:    whatsApp.PictureURL,
-				PhoneNumber:   whatsApp.DisplayPhoneNumber,
-				Connected:     whatsApp.IsConnected,
+				PictureURL:    whatsApp[0].PictureURL,
+				PhoneNumber:   whatsApp[0].DisplayPhoneNumber,
+				Connected:     whatsApp[0].IsConnected,
 				TokenReady:    decrypted != "",
-				WebhookStatus: map[bool]string{true: "subscribed", false: "disconnected"}[whatsApp.IsConnected],
+				WebhookStatus: map[bool]string{true: "subscribed", false: "disconnected"}[whatsApp[0].IsConnected],
 			}, AccessToken: decrypted}
-			g.cachePage(whatsApp.AccountID, page)
-			return whatsApp.AccountID, page, true
+			g.cachePage(whatsApp[0].AccountID, page)
+			return whatsApp[0].AccountID, page, true
 		}
-		var model database.MetaPageTokenModel
-		if err := g.db.First(&model, "page_id = ?", pageID).Error; err == nil {
+		var models []database.MetaPageTokenModel
+		if err := g.db.Where("page_id = ?", pageID).Limit(1).Find(&models).Error; err == nil && len(models) > 0 {
+			model := models[0]
 			decrypted := g.decryptToken(model.AccessToken)
 			page := graphPage{
 				MetaPage: domain.MetaPage{
@@ -1007,6 +1008,46 @@ func (g *GraphConnector) findPage(pageID string) (string, graphPage, bool) {
 			g.sessions[model.AccountID].Pages[model.PageID] = page
 			g.mu.Unlock()
 			return model.AccountID, page, true
+		}
+
+		// Fallback: Check all active user Meta connections to discover and auto-sync newly routed or un-synced pages
+		var connections []database.MetaConnectionModel
+		if err := g.db.Order("updated_at DESC").Find(&connections).Error; err == nil && len(connections) > 0 {
+			for _, conn := range connections {
+				userToken := g.decryptToken(conn.UserToken)
+				if userToken == "" {
+					continue
+				}
+				fetchedPages, _, fetchErr := g.fetchPages(context.Background(), userToken)
+				if fetchErr != nil {
+					continue
+				}
+				for pID, fPage := range fetchedPages {
+					if fPage.Category != "WhatsApp" && fPage.AccessToken != "" {
+						encTok := g.encryptToken(fPage.AccessToken)
+						if encTok != "" {
+							_ = g.db.Save(&database.MetaPageTokenModel{
+								PageID:      pID,
+								AccountID:   conn.AccountID,
+								Name:        fPage.Name,
+								Category:    fPage.Category,
+								PictureURL:  fPage.PictureURL,
+								AccessToken: encTok,
+								IsConnected: true,
+							}).Error
+						}
+					}
+				}
+				if targetPage, found := fetchedPages[pageID]; found {
+					g.mu.Lock()
+					if g.sessions[conn.AccountID] == nil {
+						g.sessions[conn.AccountID] = &graphSession{Pages: make(map[string]graphPage)}
+					}
+					g.sessions[conn.AccountID].Pages[pageID] = targetPage
+					g.mu.Unlock()
+					return conn.AccountID, targetPage, true
+				}
+			}
 		}
 	}
 	return "", graphPage{}, false
@@ -1108,6 +1149,23 @@ func (g *GraphConnector) CompleteAuthorization(ctx context.Context, state, code 
 		}).Error; err != nil {
 			return nil, fmt.Errorf("save encrypted Meta authorization: %w", err)
 		}
+
+		for id, page := range pages {
+			if page.Category != "WhatsApp" && page.AccessToken != "" {
+				encTok := g.encryptToken(page.AccessToken)
+				if encTok != "" {
+					_ = g.db.Save(&database.MetaPageTokenModel{
+						PageID:      id,
+						AccountID:   pending.AccountID,
+						Name:        page.Name,
+						Category:    page.Category,
+						PictureURL:  page.PictureURL,
+						AccessToken: encTok,
+						IsConnected: true,
+					}).Error
+				}
+			}
+		}
 	}
 	g.mu.Lock()
 	for id, page := range pages {
@@ -1208,6 +1266,31 @@ func (g *GraphConnector) ListPages(ctx context.Context, _ string, accountID stri
 	}
 	for id, page := range pages {
 		session.Pages[id] = page
+		if g.db != nil && accountID != "" && page.Category != "WhatsApp" && page.AccessToken != "" {
+			encTok := g.encryptToken(page.AccessToken)
+			if encTok != "" {
+				var existing database.MetaPageTokenModel
+				if err := g.db.Where("page_id = ?", id).Limit(1).Find(&existing).Error; err != nil || existing.PageID == "" {
+					_ = g.db.Save(&database.MetaPageTokenModel{
+						PageID:      id,
+						AccountID:   accountID,
+						Name:        page.Name,
+						Category:    page.Category,
+						PictureURL:  page.PictureURL,
+						AccessToken: encTok,
+						IsConnected: page.Connected,
+					}).Error
+				} else {
+					_ = g.db.Model(&existing).Updates(map[string]interface{}{
+						"name":         page.Name,
+						"category":     page.Category,
+						"picture_url":  page.PictureURL,
+						"access_token": encTok,
+						"is_connected": page.Connected,
+					}).Error
+				}
+			}
+		}
 	}
 	if err := g.persistStateLocked(); err != nil {
 		slog.Warn("unable to persist refreshed Meta Pages", "error", err)
