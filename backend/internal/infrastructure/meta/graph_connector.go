@@ -628,6 +628,8 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 				sourceType, sourceID = "post", ref.Ref
 				if ref.AdID != "" {
 					sourceType, sourceID = "ad", ref.AdID
+				} else if ref.Source == "ADS" && ref.Ref != "" {
+					sourceType, sourceID = "ad", ref.Ref
 				}
 				if sourceID != "" {
 					resolvedKey = bindingKey(entry.ID, sourceType, sourceID)
@@ -648,7 +650,7 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 			// If sourceID is still unknown and we have DB access, check recent lead record
 			if sourceID == "" && g.db != nil {
 				var lead database.LeadModel
-				if err := g.db.Where("page_id = ? AND sender_id = ?", entry.ID, customerID).Order("created_at DESC").First(&lead).Error; err == nil {
+				if err := g.db.Where("page_id = ? AND sender_id = ? AND source_id <> '' AND source_id IS NOT NULL", entry.ID, customerID).Order("created_at DESC").First(&lead).Error; err == nil {
 					if lead.SourceID != "" {
 						sourceType, sourceID = lead.SourceType, lead.SourceID
 						resolvedKey = bindingKey(entry.ID, sourceType, sourceID)
@@ -656,6 +658,14 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 						g.conversations[seenKey] = resolvedKey
 						g.mu.Unlock()
 					}
+				}
+			}
+
+			hasImage := false
+			for _, att := range message.Message.Attachments {
+				if att.Type == "image" {
+					hasImage = true
+					break
 				}
 			}
 
@@ -675,10 +685,17 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 						CooldownSeconds: 2,
 						IsActive:        true,
 					}
-				} else if ref != nil || (sourceID != "" && isAskingPrice(messageText)) {
-					// Either customer arrived from referral Ad/Post, OR customer is asking for price on an Ad they came from!
+				} else if ref != nil || (sourceID != "" && (isAskingPrice(messageText) || hasImage)) {
+					// Either customer arrived from referral Ad/Post, OR customer is asking for price / sending image for an Ad they came from!
 					rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, sourceType, sourceID)
-					if rule == nil && sourceType == "ad" {
+					if rule == nil {
+						altType := "ad"
+						if sourceType == "ad" {
+							altType = "post"
+						}
+						rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, altType, sourceID)
+					}
+					if rule == nil && (sourceType == "ad" || (ref != nil && ref.Source == "ADS")) {
 						campaignID, adSetID := g.resolveAdHierarchy(ctx, entry.ID, sourceID)
 						if adSetID != "" {
 							rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, "adset", adSetID)
@@ -712,7 +729,7 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 				replyKey += ":" + rule.FlowID
 			}
 			g.mu.Lock()
-			if found && ref != nil {
+			if found && resolvedKey != "" {
 				g.conversations[seenKey] = resolvedKey
 			}
 			lastReplyTime, alreadyReplied := g.firstReplies[replyKey]
@@ -722,6 +739,9 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 				if isAskingPrice(messageText) {
 					// Explicit price inquiries have a short 30-second cooldown so they aren't suppressed by FirstMessageOnly
 					isSpamming = time.Since(lastReplyTime) < 30*time.Second
+				} else if hasImage {
+					// Image inquiries have a 1-minute cooldown
+					isSpamming = time.Since(lastReplyTime) < 1*time.Minute
 				} else if rule != nil && rule.FlowID != "" {
 					if rule.FirstMessageOnly {
 						isSpamming = true
@@ -757,7 +777,7 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 				}
 				stepKey := seenKey + ":" + resolvedKey + ":" + step.ID
 				stepDone := false
-				trackDeliveryStep := rule.TriggerType != "reply_set_name"
+				trackDeliveryStep := rule.TriggerType != "reply_set_name" && !isAskingPrice(messageText) && !hasImage
 				if trackDeliveryStep {
 					g.mu.RLock()
 					stepDone = g.deliverySteps[stepKey]
@@ -900,20 +920,20 @@ func matchesKeywords(text string, keywords []string) bool {
 
 var priceKeywords = []string{
 	// Lao price variations & misspellings
-	"ລາຄາ", "ລາຂາ", "ລະຄາ", "ລາກາ", "ລາຄ່າ", "ລາຂ່າ", "ຂໍລາຄາ", "ຂໍລາຄ່າ",
+	"ລາຄາ", "ລາຂາ", "ລະຄາ", "ລາກາ", "ລາຄ່າ", "ລາຂ່າ", "ຂໍລາຄາ", "ຂໍລາຄ່າ", "ລາຄາເທົ່າໃດ", "ລາຄາທໍ່ໃດ", "ລາຄາແນວໃດ", "ລາຄາຈັກບາດ", "ລາຄາຈັກກີບ",
 	// Lao how much variations & misspellings
-	"ທໍ່ໃດ", "ເທົ່າໃດ", "ທໍໃດ", "ເທົາໃດ", "ທໍ່ໄດ", "ເທົ່າໄດ", "ເທົາໄດ", "ທໍໄດ",
+	"ທໍ່ໃດ", "ເທົ່າໃດ", "ທໍໃດ", "ເທົາໃດ", "ທໍ່ໄດ", "ເທົ່າໄດ", "ເທົາໄດ", "ທໍໄດ", "ທໍ່ໄດ໋", "ເທົ່າໃດ໋",
 	"ທໍ່ໃດນິ", "ທໍ່ໃດນີ້", "ເທົ່າໃດນິ", "ເທົ່າໃດນີ້", "ທໍໃດນິ", "ທໍໃດນີ້",
-	"ຈັກບາດ", "ຈັກກີບ", "ຈັກພັນ", "ຈັກຫມື່ນ", "ຈັກໝື່ນ", "ຈັກແສນ", "ຈັກລ້ານ",
+	"ຈັກບາດ", "ຈັກກີບ", "ຈັກພັນ", "ຈັກຫມື່ນ", "ຈັກໝື່ນ", "ຈັກແສນ", "ຈັກລ້ານ", "ຈັກບາດນິ", "ຈັກກີບນິ",
 	"ຂາຍແນວໃດ", "ຂາຍຈັ່ງໃດ", "ຂາຍແນວໄດ", "ຂາຍຈັ່ງໄດ", "ໂຕລະທໍ່ໃດ", "ອັນລະທໍ່ໃດ", "ຊຸດລະທໍ່ໃດ",
 	// Lao interest & contact
-	"ສົນໃຈ", "ສນໃຈ", "ສົນໄຈ", "ສນໄຈ", "ສົນໃຈເດີ້", "ສົນໃຈເຈົ້າ", "ສົນໃຈຄັບ", "ຂໍລາຍລະອຽດ",
+	"ສົນໃຈ", "ສນໃຈ", "ສົນໄຈ", "ສນໄຈ", "ສົນໃຈເດີ້", "ສົນໃຈເຈົ້າ", "ສົນໃຈຄັບ", "ຂໍລາຍລະອຽດ", "ມີເຄື່ອງບໍ່", "ຍັງມີບໍ່",
 
 	// Thai price & how much variations & misspellings
 	"ราคา", "ราค่า", "ระคา", "ลากา", "ขอราคา", "มีราคาไหม", "ราคาเท่าไหร่", "ราคาเท่าไร",
 	"เท่าไหร่", "เท่าไร", "เท่ารัย", "เท่าไหร่คะ", "เท่าไหร่ครับ", "เท่าไรครับ", "เท่าไรคะ",
 	"กี่บาท", "กี่กีบ", "ตัวละเท่าไหร่", "อันละเท่าไหร่", "ชุดละเท่าไหร่", "ชิ้นละเท่าไหร่",
-	"ขายยังไง", "ขายเท่าไหร่",
+	"ขายยังไง", "ขายเท่าไหร่", "มีของไหม", "ยังมีไหม",
 	// Thai interest & contact
 	"สนใจ", "สนใจครับ", "สนใจค่ะ", "ขอรายละเอียด", "สอบถาม", "สอบถามราคา",
 
@@ -921,13 +941,18 @@ var priceKeywords = []string{
 	"pm", "ib", "inbox", "dm",
 
 	// English
-	"price", "how much", "cost",
+	"price", "how much", "howmuch", "cost",
 }
 
 func isAskingPrice(text string) bool {
+	if text == "" {
+		return false
+	}
 	cleaned := strings.ToLower(strings.TrimSpace(text))
+	noSpaces := strings.ReplaceAll(cleaned, " ", "")
 	for _, kw := range priceKeywords {
-		if strings.Contains(cleaned, strings.ToLower(kw)) {
+		kwLower := strings.ToLower(kw)
+		if strings.Contains(cleaned, kwLower) || strings.Contains(noSpaces, strings.ReplaceAll(kwLower, " ", "")) {
 			return true
 		}
 	}

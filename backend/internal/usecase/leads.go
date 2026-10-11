@@ -54,6 +54,12 @@ func (u *Leads) capture(ctx context.Context, in LeadInput) error {
 	}
 	var existing database.LeadModel
 	if err := u.db.WithContext(ctx).Where("account_id=? AND page_id=? AND sender_id=?", in.AccountID, in.PageID, in.SenderID).First(&existing).Error; err == nil {
+		if (existing.SourceID == "" || existing.SourceType == "message") && in.SourceID != "" && in.SourceType != "message" {
+			_ = u.db.WithContext(ctx).Model(&existing).Updates(map[string]interface{}{
+				"source_type": in.SourceType,
+				"source_id":   in.SourceID,
+			}).Error
+		}
 		return nil
 	}
 	var settings database.LeadSettingsModel

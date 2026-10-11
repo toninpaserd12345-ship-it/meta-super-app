@@ -341,3 +341,35 @@ func TestFetchPagesIncludesWhatsAppDisplayNumber(t *testing.T) {
 		t.Fatalf("WhatsApp diagnostics = %#v", diagnostics)
 	}
 }
+
+func TestIsAskingPrice(t *testing.T) {
+	cases := []struct {
+		input    string
+		expected bool
+	}{
+		{"User ລາຄາ ທໍ່ໃດ", true},
+		{"ລາຄາເທົ່າໃດ", true},
+		{"ສົນໃຈ ລາຂາ ທໍໃດນິ", true},
+		{"ລາຄ່າ", true},
+		{"ຈັກບາດ", true},
+		{"ຈັກກີບນິ", true},
+		{"ຂາຍແນວໃດ", true},
+		{"how much is this?", true},
+		{"price please", true},
+		{"ib", true},
+		{"inbox", true},
+		{"ราคาเท่าไหร่ครับ", true},
+		{"มีของไหม", true},
+		{"ສະບາຍດີ", false},
+		{"ok", false},
+		{"hello", false},
+	}
+
+	for _, c := range cases {
+		got := isAskingPrice(c.input)
+		if got != c.expected {
+			t.Errorf("isAskingPrice(%q) = %v, want %v", c.input, got, c.expected)
+		}
+	}
+}
+
