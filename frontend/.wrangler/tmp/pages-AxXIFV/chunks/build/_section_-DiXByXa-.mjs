@@ -1,0 +1,2 @@
+import{v as e,r as s}from"../virtual/entry.mjs";import"../nitro/nitro.mjs";import"../routes/renderer.mjs";import"../_/shared.esm-bundler.mjs";var t=e.defineComponent({__name:"[section]",__ssrInlineRender:!0,setup(e){throw s({statusCode:404,statusMessage:"Page not found"})}}),r=t.setup;t.setup=(s,t)=>{const o=e.useSSRContext();return(o.modules||(o.modules=new Set)).add("pages/[section].vue"),r?r(s,t):void 0};var o=t;export{o as default};
+//# sourceMappingURL=_section_-DiXByXa-.mjs.map

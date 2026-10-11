@@ -22,6 +22,34 @@ const deleting = ref(false)
 const productToDelete = ref<Product | null>(null)
 
 const fileInput = ref<HTMLInputElement>()
+const searchQuery = ref('')
+const copiedCodeId = ref<string | null>(null)
+
+const filteredProducts = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return products.value
+  return products.value.filter(p => 
+    p.name.toLowerCase().includes(q) ||
+    (p.code && p.code.toLowerCase().includes(q)) ||
+    p.price.toLowerCase().includes(q) ||
+    (p.description && p.description.toLowerCase().includes(q))
+  )
+})
+
+function copyCode(code: string, id: string) {
+  navigator.clipboard.writeText(`#${code}`)
+  copiedCodeId.value = id
+  noticeType.value = 'success'
+  notice.value = l({
+    lo: `ຄັດລອກໂຄ້ດ #${code} ແລ້ວ! ພິມໃນແຊັດໄດ້ທັນທີ`,
+    th: `คัดลอกโค้ด #${code} แล้ว! พิมพ์ในแชทได้ทันที`,
+    en: `Copied #${code}! Type this in chat to reply instantly.`,
+  })
+  setTimeout(() => { 
+    copiedCodeId.value = null
+    notice.value = ''
+  }, 3000)
+}
 
 function openCreate() {
   Object.assign(form, { id: '', code: '', name: '', price: '', description: '', imageUrl: '' })
@@ -96,6 +124,7 @@ async function saveProduct() {
       method: 'POST',
       body: {
         id: form.id || undefined,
+        code: form.code?.trim() || undefined,
         name: form.name.trim(),
         price: form.price.trim(),
         description: form.description.trim(),
@@ -126,14 +155,61 @@ async function saveProduct() {
   <v-alert v-if="notice" :type="noticeType" variant="tonal" closable class="mb-4" @click:close="notice=''">{{ notice }}</v-alert>
   <v-alert v-if="error" type="error" variant="tonal" class="mb-4">{{ l({lo:'ໂຫຼດສິນຄ້າບໍ່ສຳເລັດ',th:'โหลดสินค้าไม่สำเร็จ',en:'Products could not be loaded.'}) }} <button class="inline-action" @click="refresh()">{{ l({lo:'ລອງໃໝ່',th:'ลองอีกครั้ง',en:'Try again'}) }}</button></v-alert>
 
+  <!-- Product Search & Filter Toolbar -->
+  <div class="product-toolbar mb-4">
+    <div class="product-search-box">
+      <v-icon icon="mdi-magnify" size="18" class="search-icon"/>
+      <input 
+        v-model="searchQuery" 
+        type="text" 
+        :placeholder="l({lo:'ຄົ້ນຫາຊື່ສິນຄ້າ, ໂຄ້ດ (#P01), ລາຄາ...',th:'ค้นหาชื่อสินค้า, โค้ด (#P01), ราคา...',en:'Search product name, code (#P01), price...'})" 
+      />
+      <button v-if="searchQuery" class="clear-btn" @click="searchQuery = ''"><v-icon icon="mdi-close" size="14"/></button>
+    </div>
+    <div class="product-count-chip">
+      {{ filteredProducts.length }} {{ l({lo:'ລາຍການ',th:'รายการ',en:'items'}) }}
+    </div>
+  </div>
+
   <section v-if="pending" class="product-grid"><v-skeleton-loader v-for="index in 3" :key="index" type="card"/></section>
-  <section v-else-if="products.length" class="product-grid">
-    <article v-for="product in products" :key="product.id" class="product-card">
+  <section v-else-if="filteredProducts.length" class="product-grid">
+    <article v-for="product in filteredProducts" :key="product.id" class="product-card">
       <div class="product-icon" :style="product.imageUrl ? `background-image: url(${product.imageUrl}); background-size: cover; background-position: center;` : ''">
         <v-icon v-if="!product.imageUrl" icon="mdi-package-variant-closed"/>
       </div>
-      <div><h3>{{ product.name }}</h3><strong>{{ product.price }}</strong><p v-if="product.description">{{ product.description }}</p><small>{{ product.code ? `ລະຫັດ (Code) · ${product.code}` : `ID · ${product.id}` }}</small></div>
-      <div class="product-actions"><v-btn icon="mdi-pencil-outline" variant="text" size="small" :disabled="!can('pages:connect')" :aria-label="`${l({lo:'ແກ້ໄຂ',th:'แก้ไข',en:'Edit'})} ${product.name}`" @click="openEdit(product)"/><v-btn icon="mdi-delete-outline" variant="text" size="small" color="error" :disabled="!can('pages:connect')" :aria-label="`${l({lo:'ລຶບ',th:'ลบ',en:'Delete'})} ${product.name}`" @click="requestDelete(product)"/></div>
+      <div class="product-main-details">
+        <div class="product-title-row">
+          <h3>{{ product.name }}</h3>
+          <span class="price-tag">{{ product.price }}</span>
+        </div>
+        <p v-if="product.description">{{ product.description }}</p>
+        <div class="product-meta-row">
+          <button 
+            v-if="product.code" 
+            type="button" 
+            class="code-copy-pill" 
+            @click="copyCode(product.code, product.id)" 
+            :title="l({lo:'ຄລິກເພື່ອຄັດລອກໂຄ້ດ',th:'คลิกเพื่อคัดลอกโค้ด',en:'Click to copy code'})"
+          >
+            <v-icon icon="mdi-lightning-bolt" size="13"/>
+            <strong>#{{ product.code }}</strong>
+            <v-icon :icon="copiedCodeId === product.id ? 'mdi-check' : 'mdi-content-copy'" size="12" class="ml-1"/>
+          </button>
+          <small v-else class="text-muted">ID · {{ product.id.slice(0, 8) }}</small>
+        </div>
+      </div>
+      <div class="product-actions">
+        <v-btn 
+          icon="mdi-robot-happy-outline" 
+          variant="text" 
+          size="small" 
+          color="primary"
+          to="/auto-replies"
+          :title="l({lo:'ໄປທີ່ Auto-Reply Flow',th:'ไปที่ Auto-Reply Flow',en:'Go to Auto-Reply Flow'})"
+        />
+        <v-btn icon="mdi-pencil-outline" variant="text" size="small" :disabled="!can('pages:connect')" :aria-label="`${l({lo:'ແກ້ໄຂ',th:'แก้ไข',en:'Edit'})} ${product.name}`" @click="openEdit(product)"/>
+        <v-btn icon="mdi-delete-outline" variant="text" size="small" color="error" :disabled="!can('pages:connect')" :aria-label="`${l({lo:'ລຶບ',th:'ลบ',en:'Delete'})} ${product.name}`" @click="requestDelete(product)"/>
+      </div>
     </article>
   </section>
   <section v-else-if="!error" class="empty-state"><div><v-icon icon="mdi-package-variant-plus" size="30"/></div><h2>{{ l({lo:'ເພີ່ມສິນຄ້າທຳອິດ',th:'เพิ่มสินค้าชิ้นแรก',en:'Add the first product'}) }}</h2><p>{{ l({lo:'ສິນຄ້າຈະເກັບຊື່, ລາຄາ, ຮູບ ແລະລາຍລະອຽດທີ່ໃຊ້ໃນຊຸດຂໍ້ຄວາມ',th:'สินค้าจะเก็บชื่อ ราคา รูปภาพ และรายละเอียดที่ใช้ในชุดข้อความ',en:'A product provides the name, price, image and details inserted into your Reply Sets.'}) }}</p><v-btn color="primary" prepend-icon="mdi-plus" :disabled="!can('pages:connect')" @click="openCreate">{{ l({lo:'ເພີ່ມສິນຄ້າ',th:'เพิ่มสินค้า',en:'Add product'}) }}</v-btn></section>
@@ -179,8 +255,28 @@ async function saveProduct() {
 </template>
 
 <style scoped>
+.product-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.product-search-box{position:relative;display:flex;align-items:center;max-width:420px;width:100%}
+.product-search-box input{width:100%;height:40px;border:1px solid var(--color-border);border-radius:20px;padding:0 32px 0 36px;font-size:13px;background:var(--color-surface);color:var(--color-text);outline:none;transition:border-color .15s ease}
+.product-search-box input:focus{border-color:var(--color-primary)}
+.product-search-box .search-icon{position:absolute;left:12px;color:var(--color-text-muted);pointer-events:none}
+.product-search-box .clear-btn{position:absolute;right:10px;background:none;border:none;color:var(--color-text-muted);cursor:pointer}
+.product-count-chip{padding:6px 14px;border-radius:20px;background:var(--color-surface);border:1px solid var(--color-border);font-size:12px;font-weight:750;color:var(--color-text-secondary)}
+.product-title-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.price-tag{display:inline-block;padding:2px 8px;border-radius:10px;background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;font-size:12.5px;font-weight:800}
+.code-copy-pill{display:inline-flex;align-items:center;gap:3px;padding:3px 9px;border-radius:12px;background:var(--color-primary-soft);color:var(--color-primary);border:1px solid color-mix(in srgb,var(--color-primary) 30%,transparent);font-size:11.5px;cursor:pointer;transition:all .15s ease}
+.code-copy-pill:hover{background:var(--color-primary);color:#fff}
 .image-upload-wrapper{display:flex;gap:16px;align-items:center}.image-preview{width:80px;height:80px;border-radius:12px;background-color:var(--color-surface-variant);background-size:cover;background-position:center;display:grid;place-items:center;position:relative;border:1px solid var(--color-border)}.upload-loader{position:absolute}
-.page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:18px;padding:24px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}.page-head p{margin:0 0 7px;color:var(--color-primary);font-size:10px;font-weight:800;letter-spacing:.13em}.page-head h2{margin:0 0 7px;font-size:24px}.page-head span{color:var(--color-text-secondary);font-size:13px}.head-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}.product-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.product-card{display:grid;grid-template-columns:auto 1fr auto;gap:15px;align-items:start;padding:20px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}.product-icon{width:48px;height:48px;display:grid;place-items:center;color:var(--color-primary);background:var(--color-primary-soft);border-radius:14px}.product-actions{display:flex}.product-card h3{margin:1px 0 3px;font-size:15px}.product-card strong{color:var(--color-primary);font-size:13px}.product-card p{min-height:38px;margin:8px 0;color:var(--color-text-secondary);font-size:12px;line-height:1.55}.product-card small{color:var(--color-text-muted);font-size:10px}.dependency-list{display:grid;gap:8px}.dependency-list a{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:11px;color:var(--color-text);background:var(--color-background);border:1px solid var(--color-border);border-radius:10px;text-decoration:none}.dependency-list a span{display:grid}.dependency-list small{color:var(--color-text-secondary)}.empty-state{min-height:390px;display:grid;place-items:center;align-content:center;text-align:center;padding:36px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}.empty-state>div{width:58px;height:58px;display:grid;place-items:center;color:var(--color-primary);background:var(--color-primary-soft);border-radius:17px}.empty-state h2{margin:18px 0 6px}.empty-state p{max-width:480px;margin:0 0 20px;color:var(--color-text-secondary)}.dialog-card{border-radius:var(--radius-lg)!important}.form{display:grid;gap:4px;padding-top:18px!important}.inline-action{border:0;color:var(--color-primary);background:none;font-weight:800;cursor:pointer}
-@media(max-width:900px){.product-grid{grid-template-columns:1fr}}
-@media(max-width:640px){.page-head{display:grid;padding:20px}.head-actions{display:grid;grid-template-columns:1fr 1fr;width:100%}}
+.page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:18px;padding:24px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}.page-head p{margin:0 0 7px;color:var(--color-primary);font-size:10px;font-weight:800;letter-spacing:.13em}.page-head h2{margin:0 0 7px;font-size:24px}.page-head span{color:var(--color-text-secondary);font-size:13px}.head-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}.product-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.product-card{display:grid;grid-template-columns:auto 1fr auto;gap:15px;align-items:start;padding:20px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}.product-icon{width:56px;height:56px;display:grid;place-items:center;color:var(--color-primary);background:var(--color-primary-soft);border-radius:14px;flex-shrink:0}.product-actions{display:flex;gap:4px}.product-card h3{margin:0;font-size:15px;font-weight:750}.product-card p{min-height:34px;margin:6px 0;color:var(--color-text-secondary);font-size:12px;line-height:1.5}.product-card small{color:var(--color-text-muted);font-size:10px}.dependency-list{display:grid;gap:8px}.dependency-list a{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:11px;color:var(--color-text);background:var(--color-background);border:1px solid var(--color-border);border-radius:10px;text-decoration:none}.dependency-list a span{display:grid}.dependency-list small{color:var(--color-text-secondary)}.empty-state{min-height:390px;display:grid;place-items:center;align-content:center;text-align:center;padding:36px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}.empty-state>div{width:58px;height:58px;display:grid;place-items:center;color:var(--color-primary);background:var(--color-primary-soft);border-radius:17px}.empty-state h2{margin:18px 0 6px}.empty-state p{max-width:480px;margin:0 0 20px;color:var(--color-text-secondary)}.dialog-card{border-radius:var(--radius-lg)!important}.form{display:grid;gap:4px;padding-top:18px!important}.inline-action{border:0;color:var(--color-primary);background:none;font-weight:800;cursor:pointer}
+@media(max-width:760px){
+  .product-grid{grid-template-columns:1fr}
+}
+@media(max-width:640px){
+  .page-head{display:grid;padding:16px;border-radius:18px}
+  .head-actions{display:grid;grid-template-columns:1fr 1fr;width:100%;gap:8px}
+  .product-card{padding:14px 16px;border-radius:16px;gap:12px}
+  .product-icon{width:48px;height:48px;border-radius:12px}
+  .product-card p{min-height:auto;margin:4px 0 6px}
+  .image-upload-wrapper{flex-direction:column;align-items:flex-start}
+}
 </style>

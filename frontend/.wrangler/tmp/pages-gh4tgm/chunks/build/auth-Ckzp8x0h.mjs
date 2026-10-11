@@ -1,0 +1,2 @@
+import{_ as r,v as e}from"../virtual/entry.mjs";import{K as t}from"../routes/renderer.mjs";import"../nitro/nitro.mjs";import"../_/shared.esm-bundler.mjs";var s={};var o=s.setup;s.setup=(r,t)=>{const s=e.useSSRContext();return(s.modules||(s.modules=new Set)).add("layouts/auth.vue"),o?o(r,t):void 0};var u=r(s,[["ssrRender",function(r,e,s,o){t(r.$slots,"default",{},null,e,s)}]]);export{u as default};
+//# sourceMappingURL=auth-Ckzp8x0h.mjs.map

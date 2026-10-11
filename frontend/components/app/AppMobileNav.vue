@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { appNavigation } from '~/config/navigation'
+import { useNavDrawer } from '~/composables/useNavDrawer'
 const route = useRoute()
 const { can } = useAuth()
 const { t } = useLocale()
 const { toggle: toggleDrawer, isOpen } = useNavDrawer()
 
-const primaryRoutes = ['/', '/live-chat', '/meta-pages', '/auto-replies']
+const primaryRoutes = ['/', '/live-chat', '/leads', '/auto-replies']
 const allItems = computed(() => appNavigation.filter(item => !item.claim || can(item.claim)))
 const items = computed(() => {
   return primaryRoutes

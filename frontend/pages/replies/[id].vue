@@ -6,6 +6,7 @@ definePageMeta({ middleware: 'auth' })
 const route = useRoute()
 const router = useRouter()
 const { can } = useAuth()
+const { locale, l } = useLocale()
 if (!can('pages:read')) throw createError({ statusCode: 403, statusMessage: 'You do not have permission to view Reply Sets.' })
 
 const { data: replySet, pending, error, refresh } = await useApi<ReplySet>(`/proxy/api/v1/replies/${String(route.params.id)}`)
@@ -15,6 +16,7 @@ const saving = ref(false)
 const uploadingIndex = ref(-1)
 const notice = ref('')
 const noticeType = ref<'success' | 'error'>('success')
+const previewOpen = ref(false)
 
 watch(replySet, (value) => {
   if (!value) return
@@ -44,6 +46,22 @@ function addItem(type: ReplyItemType) {
 
 function removeItem(index: number) {
   items.value.splice(index, 1)
+}
+
+function duplicateItem(index: number) {
+  const item = items.value[index]
+  if (!item) return
+  items.value.splice(index + 1, 0, {
+    ...item,
+    content: item.content,
+    orderIndex: index + 1,
+    isEnabled: true,
+  })
+}
+
+function insertVariable(index: number, variable: string) {
+  if (!items.value[index]) return
+  items.value[index].content = (items.value[index].content ? items.value[index].content + ' ' : '') + variable
 }
 
 function moveItem(index: number, direction: number) {
@@ -122,9 +140,16 @@ async function saveChanges() {
       <div>
         <p>AUTO REPLY SET</p>
         <h2>{{ replySet.name }}</h2>
-        <span>Arrange messages in the exact order customers should receive them.</span>
+        <span>{{ locale==='lo'?'ຈັດລຳດັບຂໍ້ຄວາມຕາມລຳດັບທີ່ຕ້ອງການໃຫ້ລູກຄ້າໄດ້ຮັບ':'Arrange messages in the exact order customers should receive them.' }}</span>
       </div>
-      <v-btn color="primary" prepend-icon="mdi-content-save-outline" :loading="saving" :disabled="!can('pages:connect') || !canSave" @click="saveChanges">Save changes</v-btn>
+      <div class="d-flex align-center gap-2">
+        <v-btn variant="outlined" prepend-icon="mdi-eye-outline" @click="previewOpen = true">
+          {{ locale==='lo'?'ເບິ່ງຕົວຢ່າງແຊັດ':'Preview Chat' }}
+        </v-btn>
+        <v-btn color="primary" prepend-icon="mdi-content-save-outline" :loading="saving" :disabled="!can('pages:connect') || !canSave" @click="saveChanges">
+          {{ locale==='lo'?'ບັນທຶກຊຸດຂໍ້ຄວາມ':'Save changes' }}
+        </v-btn>
+      </div>
     </section>
 
     <v-alert v-if="notice" :type="noticeType" variant="tonal" closable class="mb-4" @click:close="notice=''">{{ notice }}</v-alert>
@@ -133,17 +158,22 @@ async function saveChanges() {
 
     <template v-else-if="replySet">
       <section class="name-panel">
-        <v-text-field v-model="name" label="Reply Set name" variant="outlined" maxlength="120" counter hide-details/>
+        <v-text-field v-model="name" :label="locale==='lo'?'ຊື່ຊຸດຂໍ້ຄວາມ':'Reply Set name'" variant="outlined" maxlength="120" counter hide-details/>
         <v-alert type="info" variant="tonal" density="compact">
-          This Reply Set belongs to the current store/workspace and works across its connected Messenger and WhatsApp channels. Customers send the exact set name to receive it. Product variables: <code v-text="'{{product.name}}'"/>, <code v-text="'{{product.price}}'"/> and <code v-text="'{{product.description}}'"/>.
+          {{ locale==='lo'?'ຊຸດຂໍ້ຄວາມນີ້ໃຊ້ໄດ້ກັບທຸກຊ່ອງທາງ Messenger & WhatsApp ທີ່ຮ້ານນີ້ເຊື່ອມຕໍ່. ຄລິກປຸ່ມຕົວປ່ຽນລຸ່ມນີ້ເພື່ອດຶງຊື່/ລາຄາສິນຄ້າອັດຕະໂນມັດ.':'This Reply Set belongs to the current store and triggers across all channels. Use the variable buttons below to insert product details dynamically.' }}
         </v-alert>
       </section>
 
       <div class="builder-layout">
         <main class="sequence" aria-label="Message sequence">
-          <div class="sequence-head"><div><small>MESSAGE SEQUENCE</small><strong>{{ items.length }} step{{ items.length === 1 ? '' : 's' }}</strong></div><span>Messages send from top to bottom</span></div>
+          <div class="sequence-head">
+            <div><small>MESSAGE SEQUENCE</small><strong>{{ items.length }} step{{ items.length === 1 ? '' : 's' }}</strong></div>
+            <span>{{ locale==='lo'?'ລະບົບຈະສົ່ງຈາກເທິງລົງລຸ່ມ ພ້ອມໜ່ວງເວລາການພິມ 1-2 ວິ':'Sends top to bottom with 1-2s humanized typing simulation' }}</span>
+          </div>
           <section v-if="!items.length" class="sequence-empty">
-            <v-icon icon="mdi-message-plus-outline" size="32"/><h3>Add the first message</h3><p>Choose a message type from the panel on the right.</p>
+            <v-icon icon="mdi-message-plus-outline" size="32"/>
+            <h3>{{ locale==='lo'?'ເລີ່ມຕົ້ນເພີ່ມຂໍ້ຄວາມທຳອິດ':'Add the first message' }}</h3>
+            <p>{{ locale==='lo'?'ເລືອກປະເພດຂໍ້ຄວາມຈາກແຖບດ້ານຂວາ':'Choose a message type from the panel on the right.' }}</p>
           </section>
           <article v-for="(item,index) in items" :key="item.id || `${item.type}-${index}`" class="message-card" :class="{ disabled: !item.isEnabled }">
             <div class="order-controls">
@@ -152,8 +182,26 @@ async function saveChanges() {
               <v-btn icon="mdi-chevron-down" variant="text" size="small" :disabled="index===items.length-1" :aria-label="`Move message ${index+1} down`" @click="moveItem(index,1)"/>
             </div>
             <div class="message-editor">
-              <div class="message-title"><span><v-icon :icon="messageTypes.find(option=>option.type===item.type)?.icon" size="18"/>{{ item.type }}</span><div class="message-actions"><v-switch v-model="item.isEnabled" color="success" density="compact" hide-details :label="item.isEnabled ? 'Send' : 'Skip'"/><v-btn icon="mdi-delete-outline" variant="text" size="small" color="error" :aria-label="`Delete message ${index+1}`" @click="removeItem(index)"/></div></div>
-              <v-textarea v-if="item.type==='text'" v-model="item.content" label="Message text" variant="outlined" rows="4" auto-grow maxlength="2000" counter hide-details/>
+              <div class="message-title">
+                <span><v-icon :icon="messageTypes.find(option=>option.type===item.type)?.icon" size="18"/>{{ item.type }}</span>
+                <div class="message-actions">
+                  <v-switch v-model="item.isEnabled" color="success" density="compact" hide-details :label="item.isEnabled ? (locale==='lo'?'ສົ່ງ':'Send') : (locale==='lo'?'ຂ້າມ':'Skip')"/>
+                  <v-btn icon="mdi-content-copy" variant="text" size="small" color="primary" :title="locale==='lo'?'ຄັດລອກຂັ້ນຕອນນີ້':'Duplicate'" :aria-label="`Duplicate message ${index+1}`" @click="duplicateItem(index)"/>
+                  <v-btn icon="mdi-delete-outline" variant="text" size="small" color="error" :aria-label="`Delete message ${index+1}`" @click="removeItem(index)"/>
+                </div>
+              </div>
+
+              <!-- Variable & Emoji Helper for Text Items -->
+              <div v-if="item.type==='text'" class="d-flex align-center gap-1 flex-wrap mb-2">
+                <span class="text-caption text-medium-emphasis mr-1">{{ locale==='lo'?'ຕົວປ່ຽນ:':'Variables:' }}</span>
+                <v-chip size="x-small" variant="tonal" color="primary" @click="insertVariable(index, '{{product.name}}')">+ &#123;&#123;product.name&#125;&#125;</v-chip>
+                <v-chip size="x-small" variant="tonal" color="primary" @click="insertVariable(index, '{{product.price}}')">+ &#123;&#123;product.price&#125;&#125;</v-chip>
+                <v-chip size="x-small" variant="tonal" color="primary" @click="insertVariable(index, '{{product.description}}')">+ &#123;&#123;product.description&#125;&#125;</v-chip>
+                <span class="text-disabled mx-1">|</span>
+                <v-chip v-for="em in ['✨','🔥','📦','💰','🙏','⚡']" :key="em" size="x-small" variant="text" @click="insertVariable(index, em)">{{ em }}</v-chip>
+              </div>
+
+              <v-textarea v-if="item.type==='text'" v-model="item.content" :label="locale==='lo'?'ເນື້ອໃນຂໍ້ຄວາມ':'Message text'" variant="outlined" rows="4" auto-grow maxlength="2000" counter hide-details/>
               <template v-else>
                 <v-img v-if="item.type==='image' && item.content" :src="item.content" max-height="240" contain class="media-preview"/>
                 <video v-else-if="item.type==='video' && item.content" :src="item.content" controls class="media-preview"/>
@@ -166,13 +214,46 @@ async function saveChanges() {
         </main>
 
         <aside class="toolbox">
-          <small>ADD MESSAGE</small><h3>Choose a type</h3>
+          <small>ADD MESSAGE</small><h3>{{ locale==='lo'?'ເລືອກປະເພດຂໍ້ຄວາມ':'Choose a type' }}</h3>
           <button v-for="option in messageTypes" :key="option.type" @click="addItem(option.type)">
             <span><v-icon :icon="option.icon"/></span><div><strong>{{ option.label }}</strong><small>{{ option.description }}</small></div><v-icon icon="mdi-plus" size="18"/>
           </button>
-          <v-btn block color="primary" variant="tonal" class="mt-4" prepend-icon="mdi-robot-happy-outline" to="/auto-replies">Use in Auto Reply</v-btn>
+          <v-btn block color="primary" variant="tonal" class="mt-4" prepend-icon="mdi-robot-happy-outline" to="/auto-replies">{{ locale==='lo'?'ນຳໄປໃຊ້ໃນ Automation':'Use in Auto Reply' }}</v-btn>
+          <v-btn block variant="outlined" color="info" class="mt-2" prepend-icon="mdi-eye-outline" @click="previewOpen=true">{{ locale==='lo'?'ເບິ່ງຕົວຢ່າງລຳດັບຂໍ້ຄວາມ':'Preview sequence' }}</v-btn>
         </aside>
       </div>
+
+      <!-- Live Preview Dialog -->
+      <v-dialog v-model="previewOpen" max-width="480">
+        <v-card rounded="xl" class="pa-4">
+          <div class="d-flex align-center justify-between mb-3">
+            <div class="d-flex align-center gap-2">
+              <v-avatar color="primary" size="32"><v-icon icon="mdi-robot-outline" color="white" size="18"/></v-avatar>
+              <div>
+                <strong class="text-subtitle-2">{{ replySet?.name }}</strong>
+                <div class="text-caption text-medium-emphasis">Customer Chat Preview</div>
+              </div>
+            </div>
+            <v-spacer/>
+            <v-btn icon="mdi-close" variant="text" size="small" @click="previewOpen=false"/>
+          </div>
+          <div class="pa-3 rounded-lg" style="background: #f0f2f5; min-height: 280px; display: flex; flex-direction: column; gap: 10px;">
+            <div v-for="(item, idx) in items.filter(i => i.isEnabled)" :key="idx" class="d-flex flex-column align-start" style="max-width: 88%;">
+              <div class="text-caption text-disabled mb-1 font-weight-bold">Step {{ idx + 1 }} · {{ item.type }} (1-2s delay)</div>
+              <div v-if="item.type==='text'" class="pa-3 rounded-xl bg-white text-body-2" style="white-space: pre-wrap; word-break: break-word; color: #1c1e21; border-bottom-left-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.06);">
+                {{ item.content || '(empty message)' }}
+              </div>
+              <v-img v-else-if="item.type==='image'" :src="item.content" max-height="180" class="rounded-lg bg-white" contain/>
+              <div v-else class="pa-2 rounded bg-white text-caption text-medium-emphasis">
+                [{{ item.type }}: {{ item.content }}]
+              </div>
+            </div>
+          </div>
+          <div class="text-caption text-medium-emphasis mt-3 text-center">
+            {{ locale==='lo'?'ລະບົບຈະສົ່ງຂໍ້ຄວາມຕາມລຳດັບເທື່ອລະອັນ ພ້ອມສະແດງສະຖານະກຳລັງພິມ...':'Messages send sequentially from top to bottom with natural typing indicators.' }}
+          </div>
+        </v-card>
+      </v-dialog>
     </template>
   </div>
 </template>

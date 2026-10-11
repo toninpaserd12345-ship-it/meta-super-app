@@ -67,10 +67,12 @@ const togglePageDetails=(pageId:string)=>{
   expandedPages.value=expandedPages.value.includes(pageId)?expandedPages.value.filter(id=>id!==pageId):[...expandedPages.value,pageId]
 }
 
+const pageSearch = ref('')
 const visiblePages=computed(()=>pages.value.filter(page=>{
   const matchesStatus=statusFilter.value==='all'||(statusFilter.value==='active'?page.connected:!page.connected)
   const matchesPlatform=mainPlatformFilter.value==='all'||page.category.toLowerCase().includes('whatsapp')
-  return matchesStatus&&matchesPlatform
+  const matchesSearch=!pageSearch.value.trim()||page.name.toLowerCase().includes(pageSearch.value.trim().toLowerCase())||page.id.includes(pageSearch.value.trim())
+  return matchesStatus&&matchesPlatform&&matchesSearch
 }))
 const pagePictureUrl=(page:MetaPage)=>page.category.toLowerCase().includes('whatsapp') ? (page.pictureUrl||'') : `https://graph.facebook.com/v20.0/${page.id}/picture?type=normal`;//`/api/meta/page-picture/${encodeURIComponent(page.id)}?attempt=${pictureAttempts.value[page.id]||0}`
 const pictureAvailable=(page:MetaPage)=>!failedPictures.value[page.id]
@@ -210,6 +212,23 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
     <button :class="{active:statusFilter==='active'&&mainPlatformFilter==='all'}" @click="statusFilter='active';mainPlatformFilter='all'"><v-icon icon="mdi-webhook"/><span><small>ເປີດນຳໃຊ້ແລ້ວ</small><strong>{{activePages.length}}</strong></span></button>
     <button :class="{active:statusFilter==='available'&&mainPlatformFilter==='all'}" @click="statusFilter='available';mainPlatformFilter='all'"><v-icon icon="mdi-power-plug-off-outline"/><span><small>NOT ACTIVE</small><strong>{{inactivePages.length}}</strong></span></button>
   </section>
+
+  <!-- Page Search & Filter Toolbar -->
+  <div v-if="!error && pages.length" class="mb-4 d-flex align-center gap-3 flex-wrap">
+    <v-text-field
+      v-model="pageSearch"
+      density="compact"
+      variant="outlined"
+      prepend-inner-icon="mdi-magnify"
+      placeholder="ຄົ້ນຫາເພຈຕາມຊື່ ຫຼື ID..."
+      hide-details
+      clearable
+      style="max-width: 360px; min-width: 220px;"
+    />
+    <v-chip size="small" variant="tonal" color="primary">
+      {{ visiblePages.length }} / {{ pages.length }} ເພຈ
+    </v-chip>
+  </div>
   <section v-if="false" class="whatsapp-setup">
     <div class="whatsapp-setup-icon"><v-icon icon="mdi-whatsapp" size="34"/></div>
     <div class="whatsapp-setup-copy">
@@ -253,7 +272,19 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
         <v-icon v-else-if="page.category.toLowerCase().includes('whatsapp')" icon="mdi-whatsapp" color="success" size="28"/>
         <v-icon v-else icon="mdi-facebook" color="white" size="28"/>
       </div><div class="page-info"><h3>{{page.name}}</h3><p>{{page.category}}</p><p v-if="page.phoneNumber" class="page-phone"><v-icon icon="mdi-phone-outline" size="14"/>{{page.phoneNumber}}</p><small>{{page.category.toLowerCase().includes('whatsapp')?'Phone number ID':'Page ID'}} · {{page.id}}</small><div class="token-row"><v-chip class="token-chip" :color="page.tokenReady?'success':'warning'" variant="tonal" size="x-small" :prepend-icon="page.tokenReady?'mdi-key-check':'mdi-key-alert'">{{page.tokenReady?'Token ພ້ອມໃຊ້':'Token ບໍ່ພ້ອມ'}}</v-chip><v-chip v-if="page.tokenReady" class="token-chip" color="info" variant="tonal" size="x-small" prepend-icon="mdi-clock-outline">{{tokenExpiry(page)}}</v-chip></div></div>
-      <div class="page-action"><div v-if="page.connected" class="page-toggle"><span><strong>ເປີດນຳໃຊ້ແລ້ວ</strong><small>ກຳລັງຮັບຂໍ້ຄວາມ</small></span><v-switch :model-value="true" color="success" hide-details density="compact" :loading="toggling===page.id" :disabled="toggling!==null||!can('pages:connect')" :aria-label="`ປິດການໃຊ້ງານສຳລັບ ${page.name}`" @update:model-value="value=>setPageEnabled(page,Boolean(value))"/></div><v-btn v-else color="primary" variant="flat" prepend-icon="mdi-play-circle-outline" :loading="toggling===page.id" :disabled="toggling!==null||!can('pages:connect')||!page.tokenReady" @click="setPageEnabled(page,true)">ເປີດການໃຊ້ງານ</v-btn></div>
+      <div class="page-action">
+        <div v-if="page.connected" class="d-flex flex-column align-end gap-1">
+          <div class="page-toggle">
+            <span><strong>ເປີດນຳໃຊ້ແລ້ວ</strong><small>ກຳລັງຮັບຂໍ້ຄວາມ</small></span>
+            <v-switch :model-value="true" color="success" hide-details density="compact" :loading="toggling===page.id" :disabled="toggling!==null||!can('pages:connect')" :aria-label="`ປິດການໃຊ້ງານສຳລັບ ${page.name}`" @update:model-value="value=>setPageEnabled(page,Boolean(value))"/>
+          </div>
+          <div class="d-flex align-center gap-1 mt-1">
+            <v-btn size="x-small" variant="tonal" color="info" prepend-icon="mdi-chat-outline" to="/live-chat">Live Chat</v-btn>
+            <v-btn size="x-small" variant="tonal" color="primary" prepend-icon="mdi-robot-happy-outline" to="/auto-replies">Auto Reply</v-btn>
+          </div>
+        </div>
+        <v-btn v-else color="primary" variant="flat" prepend-icon="mdi-play-circle-outline" :loading="toggling===page.id" :disabled="toggling!==null||!can('pages:connect')||!page.tokenReady" @click="setPageEnabled(page,true)">ເປີດການໃຊ້ງານ</v-btn>
+      </div>
       <div class="relation-summary">
         <button @click="togglePageDetails(page.id)"><span><v-icon icon="mdi-robot-happy-outline"/>{{pageRelationCounts(page.id).automations}} Automation</span><span><v-icon icon="mdi-check-decagram-outline"/>{{pageRelationCounts(page.id).active}} ເປີດໃຊ້</span><span><v-icon icon="mdi-target"/>{{pageRelationCounts(page.id).targets}} ເປົ້າໝາຍ</span><v-icon :icon="expandedPages.includes(page.id)?'mdi-chevron-up':'mdi-chevron-down'"/></button>
         <div v-if="expandedPages.includes(page.id)" class="relation-details">
@@ -397,5 +428,15 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
 .pc-footer-left { display:flex; align-items:center; font-size:13px; color:#65676b; cursor:pointer; user-select:none; }
 .pc-hotkey { display:flex; align-items:center; gap:2px; background:#f2f3f5; border:1px solid #d0d5dc; padding:2px 6px; border-radius:4px; font-size:11px; margin-left:8px; font-weight:600; color:#1a1a1a; }
 .pc-channel-note { margin:12px; padding:12px; color:var(--color-text-secondary); background:var(--color-surface); border:1px solid var(--color-border); border-radius:10px; font-size:12px; line-height:1.55; }
+
+@media (max-width: 640px) {
+  .pc-body { min-height: 380px; max-height: 70vh; }
+  .pc-main-head { flex-direction: column; align-items: stretch; gap: 10px; padding: 14px 16px; }
+  .pc-search-box { width: 100%; }
+  .pc-content { padding: 14px 16px; }
+  .pc-grid { grid-template-columns: 1fr; gap: 10px; }
+  .pc-footer { padding: 12px 16px; flex-direction: column; gap: 12px; align-items: stretch; }
+  .pc-footer :deep(.v-btn) { width: 100%; }
+}
 
 </style>

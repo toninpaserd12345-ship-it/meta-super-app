@@ -74,6 +74,39 @@ const adFlows=(adId:string)=>flows.value.filter(flow=>flow.targets.some(target=>
 const productName=(id:string)=>products.value.find(item=>item.id===id)?.name||l({lo:'ບໍ່ພົບສິນຄ້າ',th:'ไม่พบสินค้า',en:'Product unavailable'})
 const replySetName=(id:string)=>replySets.value.find(item=>item.id===id)?.name||l({lo:'ບໍ່ພົບຊຸດຂໍ້ຄວາມ',th:'ไม่พบชุดข้อความ',en:'Reply Set unavailable'})
 
+const search = ref('')
+const statusFilter = ref<'all' | 'active' | 'paused'>('all')
+
+const filteredCampaigns = computed(() => {
+  let list = campaigns.value
+  if (statusFilter.value === 'active') list = list.filter(c => c.effectiveStatus === 'ACTIVE')
+  else if (statusFilter.value === 'paused') list = list.filter(c => c.effectiveStatus !== 'ACTIVE')
+  const q = search.value.trim().toLowerCase()
+  if (!q) return list
+  return list.filter(c => c.name.toLowerCase().includes(q) || (c.objective || '').toLowerCase().includes(q) || c.id.includes(q))
+})
+
+const activeCount = computed(() => campaigns.value.filter(c => c.effectiveStatus === 'ACTIVE').length)
+const connectedCount = computed(() => campaigns.value.filter(c => campaignFlows(c.id).length > 0).length)
+
+async function expandAll() {
+  for (const c of filteredCampaigns.value) {
+    if (!expandedCampaigns.value.includes(c.id)) {
+      expandedCampaigns.value.push(c.id)
+      if (!campaignAds.value[c.id]) {
+        try {
+          const res = await $fetch<{ items: MetaAd[] }>(`/api/proxy/api/v1/meta/campaigns/${c.id}/ads`)
+          campaignAds.value[c.id] = res.items || []
+        } catch {}
+      }
+    }
+  }
+}
+
+function collapseAll() {
+  expandedCampaigns.value = []
+}
+
 watch(adAccountId, loadCampaigns)
 onMounted(loadData)
 </script>
@@ -85,20 +118,74 @@ onMounted(loadData)
       <h2>{{ l({lo:'Campaign ແລະ Ads',th:'แคมเปญและโฆษณา',en:'Campaigns and Ads'}) }}</h2>
       <span>{{ l({lo:'ກວດສອບ Campaign, Ads ແລະ Automation ທີ່ເຊື່ອມກັນດ້ວຍຂໍ້ມູນຈາກ Meta',th:'ตรวจสอบแคมเปญ โฆษณา และ Automation ที่เชื่อมต่อด้วยข้อมูลจาก Meta',en:'Review campaigns, ads, and connected Automations using Meta data.'}) }}</span>
     </div>
+    <div class="d-flex align-center gap-2 flex-wrap">
+      <v-btn variant="tonal" color="primary" prepend-icon="mdi-robot-happy-outline" to="/auto-replies">
+        {{ l({lo:'ຈັດການ Automation',th:'จัดการ Automation',en:'Manage Automations'}) }}
+      </v-btn>
+    </div>
   </section>
 
+  <!-- KPI Metrics Banner -->
+  <div class="kpi-grid mb-4">
+    <div class="kpi-card">
+      <div class="kpi-value text-primary">{{ campaigns.length }}</div>
+      <div class="kpi-label">{{ l({lo:'ແຄມເປນທັງໝົດ',th:'แคมเปญทั้งหมด',en:'Total Campaigns'}) }}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-value text-success">{{ activeCount }}</div>
+      <div class="kpi-label">{{ l({lo:'ກຳລັງເປີດໃຊ້ງານ',th:'เปิดใช้งานอยู่',en:'Active Campaigns'}) }}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-value text-info">{{ connectedCount }}</div>
+      <div class="kpi-label">{{ l({lo:'ເຊື່ອມ Automation ແລ້ວ',th:'เชื่อมต่อ Automation แล้ว',en:'Connected Automations'}) }}</div>
+    </div>
+  </div>
+
   <v-alert v-if="notice" type="error" variant="tonal" class="mb-4">{{ notice }}</v-alert>
-  <v-card class="mb-4 pa-4" variant="outlined">
-    <div style="max-width: 400px">
-      <v-select
-        v-model="adAccountId"
-        :items="adAccounts.map((a: any) => ({ ...a, label: `${a.accountType === 'business' ? 'Business' : 'Personal'} · ${a.name}` }))"
-        item-title="label"
-        item-value="id"
-        :label="l({lo:'ເລືອກບັນຊີໂຄສະນາ',th:'เลือกบัญชีโฆษณา',en:'Select Ad Account'})"
+
+  <!-- Filter & Ad Account Toolbar -->
+  <v-card class="mb-4 pa-3" variant="outlined" rounded="lg">
+    <div class="d-flex align-center gap-3 flex-wrap">
+      <div style="min-width: 260px; max-width: 380px;">
+        <v-select
+          v-model="adAccountId"
+          :items="adAccounts.map((a: any) => ({ ...a, label: `${a.accountType === 'business' ? 'Business' : 'Personal'} · ${a.name}` }))"
+          item-title="label"
+          item-value="id"
+          :label="l({lo:'ເລືອກບັນຊີໂຄສະນາ',th:'เลือกบัญชีโฆษณา',en:'Select Ad Account'})"
+          variant="outlined"
+          density="compact"
+          hide-details
+        />
+      </div>
+
+      <v-btn-toggle v-model="statusFilter" mandatory density="compact" color="primary" variant="outlined">
+        <v-btn value="all" size="small">{{ l({lo:'ທັງໝົດ',th:'ทั้งหมด',en:'All'}) }} ({{ campaigns.length }})</v-btn>
+        <v-btn value="active" size="small" color="success">{{ l({lo:'ເປີດຢູ່',th:'เปิดอยู่',en:'Active'}) }} ({{ activeCount }})</v-btn>
+        <v-btn value="paused" size="small">{{ l({lo:'ປິດຢູ່',th:'ปิดอยู่',en:'Paused'}) }}</v-btn>
+      </v-btn-toggle>
+
+      <v-text-field
+        v-model="search"
+        density="compact"
         variant="outlined"
+        prepend-inner-icon="mdi-magnify"
+        :placeholder="l({lo:'ຄົ້ນຫາແຄມເປນ...',th:'ค้นหาแคมเปญ...',en:'Search campaigns...'})"
         hide-details
+        clearable
+        style="min-width: 200px; max-width: 300px;"
       />
+
+      <v-spacer />
+
+      <div class="d-flex align-center gap-1">
+        <v-btn size="small" variant="text" prepend-icon="mdi-unfold-more-horizontal" @click="expandAll">
+          {{ l({lo:'ເປີດທັງໝົດ',th:'ขยายทั้งหมด',en:'Expand all'}) }}
+        </v-btn>
+        <v-btn size="small" variant="text" prepend-icon="mdi-unfold-less-horizontal" @click="collapseAll">
+          {{ l({lo:'ຫຍໍ້ທັງໝົດ',th:'ย่อทั้งหมด',en:'Collapse all'}) }}
+        </v-btn>
+      </div>
     </div>
   </v-card>
 
@@ -115,7 +202,7 @@ onMounted(loadData)
           <th>{{ l({lo:'ຕອບກັບອັດຕະໂນມັດ',th:'ตอบกลับอัตโนมัติ',en:'Auto Reply'}) }}</th>
         </tr>
       </thead>
-      <tbody v-for="campaign in campaigns" :key="campaign.id">
+      <tbody v-for="campaign in filteredCampaigns" :key="campaign.id">
         <tr class="campaign-row" :class="{ expanded: expandedCampaigns.includes(campaign.id) }" @click="toggleCampaign(campaign.id)">
           <td>
             <v-icon :icon="expandedCampaigns.includes(campaign.id) ? 'mdi-chevron-down' : 'mdi-chevron-right'" class="mr-2" />
@@ -172,6 +259,30 @@ onMounted(loadData)
 .page-head h2 { margin: 0 0 6px; font-size: 24px; }
 .page-head span { color: var(--color-text-secondary); font-size: 13px; }
 
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+.kpi-card {
+  padding: 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.kpi-value {
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+.kpi-label {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
 .campaign-table-card {
   overflow-x: auto;
   border-radius: var(--radius-lg);
@@ -212,4 +323,14 @@ onMounted(loadData)
 }
 .ad-identity{display:flex;align-items:center;gap:10px;min-width:220px}.ad-identity img,.ad-placeholder{width:48px;height:48px;flex:0 0 48px;border-radius:9px;background:var(--color-surface);object-fit:cover}.ad-placeholder{display:grid;place-items:center;color:var(--color-text-muted)}
 .automation-links{display:grid;gap:5px;min-width:190px}.automation-links a{display:flex;align-items:center;gap:7px;color:var(--color-text);text-decoration:none}.automation-links a>span{width:7px;height:7px;background:var(--color-text-muted);border-radius:50%}.automation-links a>span.active{background:var(--color-success)}.automation-links a>div{display:grid;min-width:0}.automation-links strong,.automation-links small{max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.automation-links strong{font-size:11px}.automation-links small{color:var(--color-text-secondary);font-size:9px}
+
+@media (max-width: 640px) {
+  .page-head { padding: 16px; border-radius: 18px; }
+  .campaign-table-card { border-radius: 16px; -webkit-overflow-scrolling: touch; }
+  .campaign-table th { padding: 10px 12px; font-size: 10px; }
+  .campaign-row td { padding: 12px 10px; font-size: 13px; }
+  .ad-row td { padding: 10px 10px; font-size: 12px; }
+  .ad-identity { min-width: 180px; }
+  .ad-identity img, .ad-placeholder { width: 40px; height: 40px; flex: 0 0 40px; }
+}
 </style>

@@ -96,6 +96,18 @@ func (u *Reply) FindSetByTrigger(ctx context.Context, accountID, trigger string)
 			return &set, nil
 		}
 	}
+
+	// Also support command-like triggers with prefixes: /code, #code, :code
+	stripped := strings.TrimSpace(strings.TrimLeft(trigger, "/#:!#"))
+	if stripped != "" && stripped != trigger {
+		for index := range sets {
+			if strings.EqualFold(strings.TrimSpace(sets[index].Name), stripped) || (sets[index].Code != "" && strings.EqualFold(sets[index].Code, stripped)) {
+				set := sets[index]
+				return &set, nil
+			}
+		}
+	}
+
 	return nil, nil
 }
 

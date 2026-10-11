@@ -1,0 +1,2 @@
+import{d as r,e as s,n as e}from"../virtual/entry.mjs";import{u as t}from"./useAuth-CjuuxPlA.mjs";import"../nitro/nitro.mjs";import"../routes/renderer.mjs";import"../_/shared.esm-bundler.mjs";import"./useApi-B_j3XEem.mjs";import"./ssr-p8e3zX38.mjs";var m=r(async()=>{let r,m;const{user:o,fetchUser:a}=t();if(o.value||([r,m]=s(()=>a()),r=await r,m()),!o.value)return e("/login")});export{m as default};
+//# sourceMappingURL=auth-BEI-hmuv.mjs.map

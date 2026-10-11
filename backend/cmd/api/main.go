@@ -158,8 +158,13 @@ func (p *appAutomationProvider) FindReplySetByTrigger(ctx context.Context, accou
 		products, prodErr := p.product.ListProducts(ctx, "", accountID)
 		if prodErr == nil {
 			triggerLower := strings.ToLower(strings.TrimSpace(trigger))
+			strippedLower := strings.ToLower(strings.TrimSpace(strings.TrimLeft(trigger, "/#:!# ")))
 			for _, prod := range products {
-				if triggerLower == strings.ToLower(prod.ID) || triggerLower == strings.ToLower(prod.Name) || (prod.Code != "" && triggerLower == strings.ToLower(prod.Code)) {
+				match := triggerLower == strings.ToLower(prod.ID) || triggerLower == strings.ToLower(prod.Name) || (prod.Code != "" && triggerLower == strings.ToLower(prod.Code))
+				if !match && strippedLower != "" {
+					match = strippedLower == strings.ToLower(prod.ID) || strippedLower == strings.ToLower(prod.Name) || (prod.Code != "" && strippedLower == strings.ToLower(prod.Code))
+				}
+				if match {
 					flows, flowErr := p.automation.GetFlows(ctx, accountID)
 					if flowErr == nil {
 						for _, f := range flows {

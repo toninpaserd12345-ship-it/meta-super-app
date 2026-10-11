@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { appNavigation } from '~/config/navigation'
+import { useNavDrawer } from '~/composables/useNavDrawer'
 const route = useRoute()
 const { can, logout } = useAuth()
 const { locale, setLocale, t } = useLocale()

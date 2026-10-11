@@ -20,6 +20,19 @@ const setToDelete = ref<ReplySet | null>(null)
 const notice = ref('')
 const noticeType = ref<'success' | 'error'>('success')
 
+const search = ref('')
+const filteredSets = computed(() => {
+  const query = search.value.trim().toLowerCase()
+  if (!query) return sets.value
+  return sets.value.filter(s => s.name.toLowerCase().includes(query))
+})
+
+function copyTriggerCode(name: string) {
+  navigator.clipboard.writeText(`#${name}`)
+  noticeType.value = 'success'
+  notice.value = locale.value === 'lo' ? `ຄັດລອກລະຫັດ #${name} ສຳເລັດ! ພ້ອມນຳໄປພິມໃນແຊັດ.` : `คัดลอกรหัส #${name} สำเร็จ! พร้อมนำไปพิมพ์ในแชท.`
+}
+
 function openCreateDialog() {
   newSetName.value = ''
   createDialog.value = true
@@ -89,18 +102,41 @@ async function deleteSet() {
     <div>
       <p>AUTO REPLY LIBRARY</p>
       <h2>{{locale==='lo'?'ຊຸດຂໍ້ຄວາມຕອບກັບ':'Reply Sets'}}</h2>
-      <span>{{locale==='lo'?'ຈັດລຳດັບຂໍ້ຄວາມ, ຮູບ, ວິດີໂອ ແລະສຽງ ແລ້ວນຳໄປໃຊ້ກັບ Automation':'Build reusable message sequences, then connect them to Posts or Ads.'}}</span>
+      <span>{{locale==='lo'?'ຈັດລຳດັບຂໍ້ຄວາມ, ຮູບ, ວິດີໂອ ແລະສຽງ ແລ້ວນຳໄປໃຊ້ກັບ Automation ຫຼືພິມໂຄດ #ຊື່ ໃນແຊັດເພື່ອສົ່ງທັນທີ':'Build reusable message sequences, trigger via #code in Live Chat, or connect to Posts & Ads.'}}</span>
     </div>
     <div class="head-actions">
-      <v-btn variant="outlined" prepend-icon="mdi-robot-happy-outline" to="/auto-replies">Manage Auto Replies</v-btn>
-      <v-btn color="primary" prepend-icon="mdi-plus" :disabled="!can('pages:connect')" @click="openCreateDialog">Create Reply Set</v-btn>
+      <v-btn variant="outlined" prepend-icon="mdi-robot-happy-outline" to="/auto-replies">{{ locale==='lo'?'ຈັດການ Automation':'Manage Automations' }}</v-btn>
+      <v-btn variant="tonal" color="info" prepend-icon="mdi-chat-outline" to="/live-chat">{{ locale==='lo'?'ໄປທີ່ Live Chat':'Open Live Chat' }}</v-btn>
+      <v-btn color="primary" prepend-icon="mdi-plus" :disabled="!can('pages:connect')" @click="openCreateDialog">{{ locale==='lo'?'ສ້າງຊຸດຂໍ້ຄວາມໃໝ່':'Create Reply Set' }}</v-btn>
     </div>
   </section>
 
   <v-alert v-if="notice" :type="noticeType" variant="tonal" closable class="mb-4" @click:close="notice=''">{{ notice }}</v-alert>
-  <v-alert type="info" variant="tonal" class="mb-4" icon="mdi-keyboard-outline">
-    {{ locale==='lo' ? 'ຊຸດຂໍ້ຄວາມນີ້ເປັນຂອງຮ້ານ/Workspace ປັດຈຸບັນ ແລະໃຊ້ໄດ້ກັບທຸກ Messenger ຫຼື WhatsApp ທີ່ຮ້ານນີ້ເຊື່ອມຕໍ່. ເມື່ອລູກຄ້າພິມຊື່ຊຸດຕົງກັນ ລະບົບຈະສົ່ງຊຸດນັ້ນທັນທີ.' : 'Reply Sets belong to the current store/workspace and work across every Messenger or WhatsApp channel connected to that store. Sending the exact set name triggers the sequence immediately.' }}
-  </v-alert>
+
+  <!-- Quick Filter & Search Bar -->
+  <v-card class="mb-4 pa-3" variant="outlined" rounded="lg">
+    <div class="d-flex align-center gap-3 flex-wrap">
+      <v-text-field
+        v-model="search"
+        density="compact"
+        variant="outlined"
+        prepend-inner-icon="mdi-magnify"
+        :placeholder="locale==='lo'?'ຄົ້ນຫາຊຸດຂໍ້ຄວາມ...':'Search reply sets by name...'"
+        hide-details
+        clearable
+        style="max-width: 400px; min-width: 240px;"
+      />
+      <v-chip size="small" variant="tonal" color="primary">
+        {{ filteredSets.length }} / {{ sets.length }} {{ locale==='lo'?'ລາຍການ':'sets' }}
+      </v-chip>
+      <v-spacer />
+      <span class="text-caption text-medium-emphasis">
+        <v-icon icon="mdi-lightbulb-outline" size="small" class="mr-1" />
+        {{ locale==='lo'?'ຄລິກປຸ່ມໂຄດເພື່ອຄັດລອກ #ລະຫັດ ໄປພິມໃນແຊັດໄດ້ທັນທີ':'Click #code chip to copy quick-trigger code for Live Chat' }}
+      </span>
+    </div>
+  </v-card>
+
   <v-alert v-if="error" type="error" variant="tonal" class="mb-4">
     Reply Sets could not be loaded. <button class="inline-action" @click="refresh()">Try again</button>
   </v-alert>
@@ -109,29 +145,72 @@ async function deleteSet() {
     <v-skeleton-loader v-for="index in 3" :key="index" type="card"/>
   </section>
 
-  <section v-else-if="sets.length" class="set-grid">
-    <article v-for="set in sets" :key="set.id" class="set-card" @click="router.push(`/replies/${set.id}`)">
+  <section v-else-if="filteredSets.length" class="set-grid">
+    <article v-for="set in filteredSets" :key="set.id" class="set-card" @click="router.push(`/replies/${set.id}`)">
       <div class="set-icon"><v-icon icon="mdi-message-text-fast-outline"/></div>
       <div class="set-copy">
-        <h3>{{ set.name }}</h3>
+        <div class="d-flex align-center gap-2 flex-wrap mb-1">
+          <h3 class="mb-0">{{ set.name }}</h3>
+          <!-- 1-Click Copy Trigger Code -->
+          <v-tooltip :text="locale==='lo'?'ຄລິກເພື່ອຄັດລອກລະຫັດສົ່ງດ່ວນ':'Click to copy trigger code'" location="top">
+            <template #activator="{ props: tipProps }">
+              <v-chip
+                v-bind="tipProps"
+                size="x-small"
+                color="primary"
+                variant="flat"
+                prepend-icon="mdi-pound"
+                class="font-weight-bold"
+                @click.stop="copyTriggerCode(set.name)"
+              >
+                #{{ set.name }}
+              </v-chip>
+            </template>
+          </v-tooltip>
+        </div>
         <p>{{ set.items?.length || 0 }} message{{ (set.items?.length || 0) === 1 ? '' : 's' }}</p>
         <div class="chips">
-          <v-chip v-for="(count, type) in itemStats(set.items || [])" :key="type" size="x-small" color="primary" variant="tonal">{{ count }} {{ type }}</v-chip>
-          <span v-if="!set.items?.length">Empty set — open to add the first message</span>
+          <v-chip v-for="(count, type) in itemStats(set.items || [])" :key="type" size="x-small" color="secondary" variant="tonal">{{ count }} {{ type }}</v-chip>
+          <span v-if="!set.items?.length" class="text-caption text-disabled">Empty set — open to add messages</span>
         </div>
       </div>
-      <div class="set-actions">
-        <v-btn icon="mdi-pencil-outline" variant="text" size="small" :aria-label="`Edit ${set.name}`" @click.stop="router.push(`/replies/${set.id}`)"/>
-        <v-btn icon="mdi-delete-outline" variant="text" size="small" color="error" :disabled="!can('pages:connect')" :aria-label="`Delete ${set.name}`" @click.stop="requestDelete(set)"/>
+      <div class="set-actions d-flex flex-column gap-1">
+        <div class="d-flex align-center gap-1">
+          <v-btn icon="mdi-pencil-outline" variant="text" size="small" :aria-label="`Edit ${set.name}`" @click.stop="router.push(`/replies/${set.id}`)"/>
+          <v-btn icon="mdi-delete-outline" variant="text" size="small" color="error" :disabled="!can('pages:connect')" :aria-label="`Delete ${set.name}`" @click.stop="requestDelete(set)"/>
+        </div>
+        <div class="d-flex align-center gap-1 mt-1">
+          <v-btn
+            size="x-small"
+            variant="tonal"
+            color="primary"
+            prepend-icon="mdi-robot-happy-outline"
+            to="/auto-replies"
+            @click.stop
+          >
+            Auto
+          </v-btn>
+          <v-btn
+            size="x-small"
+            variant="tonal"
+            color="info"
+            prepend-icon="mdi-chat-outline"
+            to="/live-chat"
+            @click.stop
+          >
+            Chat
+          </v-btn>
+        </div>
       </div>
     </article>
   </section>
 
   <section v-else-if="!error" class="empty-state">
     <div><v-icon icon="mdi-message-plus-outline" size="30"/></div>
-    <h2>Create your first Reply Set</h2>
-    <p>Add text, images, video or audio in the exact order customers should receive them.</p>
-    <v-btn color="primary" prepend-icon="mdi-plus" :disabled="!can('pages:connect')" @click="openCreateDialog">Create Reply Set</v-btn>
+    <h2>{{ search ? (locale==='lo'?'ບໍ່ພົບຊຸດຂໍ້ຄວາມທີ່ຄົ້ນຫາ':'No matching Reply Sets') : (locale==='lo'?'ສ້າງຊຸດຂໍ້ຄວາມທຳອິດຂອງທ່ານ':'Create your first Reply Set') }}</h2>
+    <p>{{ search ? (locale==='lo'?'ລອງປ່ຽນຄຳຄົ້ນຫາໃໝ່':'Try adjusting your search query') : (locale==='lo'?'ເພີ່ມຂໍ້ຄວາມ, ຮູບ, ວິດີໂອຕາມລຳດັບທີ່ຕ້ອງການສົ່ງໃຫ້ລູກຄ້າ':'Add text, images, video or audio in the exact order customers should receive them.') }}</p>
+    <v-btn v-if="!search" color="primary" prepend-icon="mdi-plus" :disabled="!can('pages:connect')" @click="openCreateDialog">{{ locale==='lo'?'ສ້າງຊຸດຂໍ້ຄວາມ':'Create Reply Set' }}</v-btn>
+    <v-btn v-else variant="outlined" @click="search=''">{{ locale==='lo'?'ລ້າງການຄົ້ນຫາ':'Clear search' }}</v-btn>
   </section>
 
   <v-dialog v-model="createDialog" max-width="500">

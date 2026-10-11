@@ -38,6 +38,10 @@ const editingId = ref('')
 const expandedId = ref('')
 const hydrating = ref(false)
 const search = ref('')
+const flowFilter = ref<'all' | 'active' | 'paused'>('all')
+const postSearch = ref('')
+const campaignSearch = ref('')
+const duplicatingId = ref('')
 const notice = ref('')
 const noticeType = ref<'success' | 'error' | 'warning'>('success')
 
@@ -46,11 +50,58 @@ const selectedSet = computed(() => replySets.value.find(item => item.id === repl
 const selectedPage = computed(() => pages.value.find(item => item.id === pageId.value))
 const selectedIds = computed(() => new Set(targets.value.map(item => `${item.type}:${item.value}`)))
 const filteredFlows = computed(() => {
+  let list = flows.value
+  if (flowFilter.value === 'active') list = list.filter(f => f.isActive)
+  else if (flowFilter.value === 'paused') list = list.filter(f => !f.isActive)
   const value = search.value.trim().toLowerCase()
-  if (!value) return flows.value
-  return flows.value.filter(flow => [flow.name, productName(flow.productId), setName(flow.replySetId), pageName(flow.pageId), ...flow.targets.map(item => item.name || item.value)].join(' ').toLowerCase().includes(value))
+  if (!value) return list
+  return list.filter(flow => [flow.name, productName(flow.productId), setName(flow.replySetId), pageName(flow.pageId), ...flow.targets.map(item => item.name || item.value)].join(' ').toLowerCase().includes(value))
+})
+const filteredPosts = computed(() => {
+  const query = postSearch.value.trim().toLowerCase()
+  if (!query) return posts.value
+  return posts.value.filter(p => (p.message || '').toLowerCase().includes(query) || p.id.includes(query))
+})
+const filteredCampaigns = computed(() => {
+  const query = campaignSearch.value.trim().toLowerCase()
+  if (!query) return campaigns.value
+  return campaigns.value.filter(c => c.name.toLowerCase().includes(query) || c.id.includes(query))
 })
 const stepReady = computed(() => step.value === 1 ? Boolean(name.value.trim() && pageId.value) : step.value === 2 ? targets.value.length > 0 : step.value === 3 ? Boolean(productId.value && replySetId.value) : true)
+
+function selectAllAvailablePosts() {
+  const available = posts.value.filter(p => !isUsed('post', p.id))
+  targets.value = available.map(p => ({ type: 'post', value: p.id, name: p.message || 'Facebook Post' }))
+}
+function clearAllTargets() {
+  targets.value = []
+}
+
+async function duplicateFlow(flow: AutomationFlow) {
+  duplicatingId.value = flow.id
+  try {
+    await $fetch('/api/proxy/api/v1/automations', {
+      method: 'POST',
+      body: {
+        name: `${flow.name} (Copy)`,
+        pageId: flow.pageId,
+        productId: flow.productId,
+        replySetId: flow.replySetId,
+        firstMessageOnly: flow.firstMessageOnly,
+        cooldownSeconds: flow.cooldownSeconds,
+        targets: flow.targets.map(t => ({ type: t.type, value: t.value, name: t.name })),
+      },
+    })
+    await refreshFlows()
+    noticeType.value = 'success'
+    notice.value = locale.value === 'lo' ? `ຄັດລອກ “${flow.name}” ສຳເລັດ!` : `Duplicated "${flow.name}" successfully!`
+  } catch (error) {
+    noticeType.value = 'error'
+    notice.value = apiError(error, 'Could not duplicate automation.')
+  } finally {
+    duplicatingId.value = ''
+  }
+}
 
 function productName(id: string) { return products.value.find(item => item.id === id)?.name || 'No product' }
 function productImage(id: string) { return products.value.find(item => item.id === id)?.imageUrl || '' }
@@ -144,8 +195,58 @@ watch(adAccountId, loadCampaigns)
   <template v-if="view==='dashboard'">
     <section class="summary-grid"><article><v-icon icon="mdi-robot-happy-outline"/><div><strong>{{ flows.length }}</strong><span>{{ t('auto.list') }}</span></div></article><article><v-icon icon="mdi-target"/><div><strong>{{ flows.reduce((sum,item)=>sum+item.targets.length,0) }}</strong><span>{{ t('auto.connected') }}</span></div></article><article><v-icon icon="mdi-check-circle-outline"/><div><strong>{{ flows.filter(item=>item.isActive).length }}</strong><span>{{ t('common.active') }}</span></div></article></section>
     <v-alert v-if="!products.length || !usableSets.length || !pages.length" type="info" variant="tonal" class="mb-4">{{ t('auto.setupNeeded') }}</v-alert>
-    <section class="rules-panel"><div class="panel-head"><div><small>LIVE CONFIGURATION</small><h3>{{ t('auto.list') }}</h3></div><v-text-field v-model="search" density="compact" variant="outlined" prepend-inner-icon="mdi-magnify" :placeholder="t('auto.search')" hide-details/></div>
-      <div v-if="filteredFlows.length" class="rule-list"><div v-for="flow in filteredFlows" :key="flow.id" class="flow-block"><article class="flow-row"><div class="flow-icon"><v-icon icon="mdi-robot-happy-outline"/></div><div class="rule-main"><strong>{{ flow.name }}</strong><span>{{ productName(flow.productId) }} → {{ setName(flow.replySetId) }}</span><small>{{ pageName(flow.pageId) }} · {{ flow.targets.length }} {{ t('common.targets') }} · {{ flow.firstMessageOnly ? t('auto.firstOnly') : t('auto.everyMatch') }}</small><div class="chips"><v-chip v-for="target in flow.targets.slice(0,3)" :key="target.id || `${target.type}:${target.value}`" size="x-small" variant="tonal">{{ target.type }} · {{ target.name || target.value }}</v-chip><v-chip v-if="flow.targets.length>3" size="x-small">+{{ flow.targets.length-3 }}</v-chip></div></div><v-switch :model-value="flow.isActive" color="success" hide-details density="compact" :aria-label="t('common.active')" :disabled="!can('pages:connect')" @update:model-value="setStatus(flow,Boolean($event))"/><div class="flow-actions"><v-btn icon="mdi-pencil-outline" :aria-label="t('common.edit')" variant="text" :disabled="!can('pages:connect')" @click="editFlow(flow)"/><v-btn :icon="expandedId===flow.id?'mdi-chevron-up':'mdi-chevron-down'" :aria-label="t('common.details')" variant="text" @click="expandedId=expandedId===flow.id?'':flow.id"/><v-btn icon="mdi-delete-outline" :aria-label="t('common.delete')" variant="text" color="error" :loading="deletingId===flow.id" :disabled="!can('pages:connect')" @click="deleteFlow(flow)"/></div></article><section v-if="expandedId===flow.id" class="flow-details"><div><span>{{ t('auto.page') }}</span><strong>{{ pageName(flow.pageId) }}</strong></div><div><span>{{ t('auto.product') }}</span><strong>{{ productName(flow.productId) }}</strong></div><div><span>{{ t('auto.replySet') }}</span><strong>{{ setName(flow.replySetId) }}</strong></div><div><span>{{ t('auto.cooldown') }}</span><strong>{{ flow.cooldownSeconds }}s</strong></div><div class="detail-targets"><span>{{ t('common.targets') }}</span><div class="chips"><v-chip v-for="target in flow.targets" :key="target.id || `${target.type}:${target.value}`" size="small" color="primary" variant="tonal">{{ target.type }} · {{ target.name || target.value }}</v-chip></div></div><v-btn color="primary" variant="tonal" prepend-icon="mdi-pencil-outline" :disabled="!can('pages:connect')" @click="editFlow(flow)">{{ t('common.edit') }}</v-btn></section></div></div>
+    <section class="rules-panel">
+      <div class="panel-head flex-wrap gap-2">
+        <div><small>LIVE CONFIGURATION</small><h3>{{ t('auto.list') }}</h3></div>
+        <div class="d-flex align-center gap-2 flex-wrap">
+          <v-btn-toggle v-model="flowFilter" mandatory density="compact" color="primary" variant="outlined">
+            <v-btn value="all" size="small">{{ locale==='lo'?'ທັງໝົດ':'All' }} ({{ flows.length }})</v-btn>
+            <v-btn value="active" size="small" color="success">{{ locale==='lo'?'ເປີດຢູ່':'Active' }} ({{ flows.filter(f => f.isActive).length }})</v-btn>
+            <v-btn value="paused" size="small">{{ locale==='lo'?'ປິດຢູ່':'Paused' }} ({{ flows.filter(f => !f.isActive).length }})</v-btn>
+          </v-btn-toggle>
+          <v-text-field v-model="search" density="compact" variant="outlined" prepend-inner-icon="mdi-magnify" :placeholder="t('auto.search')" hide-details clearable style="min-width: 200px;"/>
+        </div>
+      </div>
+      <div v-if="filteredFlows.length" class="rule-list">
+        <div v-for="flow in filteredFlows" :key="flow.id" class="flow-block">
+          <article class="flow-row">
+            <div class="flow-icon"><v-icon icon="mdi-robot-happy-outline"/></div>
+            <div class="rule-main">
+              <strong>{{ flow.name }}</strong>
+              <span>{{ productName(flow.productId) }} → {{ setName(flow.replySetId) }}</span>
+              <small>{{ pageName(flow.pageId) }} · {{ flow.targets.length }} {{ t('common.targets') }} · {{ flow.firstMessageOnly ? t('auto.firstOnly') : t('auto.everyMatch') }}</small>
+              <div class="chips">
+                <v-chip v-for="target in flow.targets.slice(0,3)" :key="target.id || `${target.type}:${target.value}`" size="x-small" variant="tonal">{{ target.type }} · {{ target.name || target.value }}</v-chip>
+                <v-chip v-if="flow.targets.length>3" size="x-small">+{{ flow.targets.length-3 }}</v-chip>
+              </div>
+            </div>
+            <v-switch :model-value="flow.isActive" color="success" hide-details density="compact" :aria-label="t('common.active')" :disabled="!can('pages:connect')" @update:model-value="setStatus(flow,Boolean($event))"/>
+            <div class="flow-actions">
+              <v-btn icon="mdi-content-copy" :aria-label="locale==='lo'?'ຄັດລອກ':'Duplicate'" :title="locale==='lo'?'ຄັດລອກ Automation':'Duplicate'" variant="text" size="small" :loading="duplicatingId===flow.id" :disabled="!can('pages:connect')" @click.stop="duplicateFlow(flow)"/>
+              <v-btn icon="mdi-pencil-outline" :aria-label="t('common.edit')" variant="text" size="small" :disabled="!can('pages:connect')" @click="editFlow(flow)"/>
+              <v-btn :icon="expandedId===flow.id?'mdi-chevron-up':'mdi-chevron-down'" :aria-label="t('common.details')" variant="text" size="small" @click="expandedId=expandedId===flow.id?'':flow.id"/>
+              <v-btn icon="mdi-delete-outline" :aria-label="t('common.delete')" variant="text" size="small" color="error" :loading="deletingId===flow.id" :disabled="!can('pages:connect')" @click="deleteFlow(flow)"/>
+            </div>
+          </article>
+          <section v-if="expandedId===flow.id" class="flow-details">
+            <div><span>{{ t('auto.page') }}</span><strong>{{ pageName(flow.pageId) }}</strong></div>
+            <div><span>{{ t('auto.product') }}</span><strong>{{ productName(flow.productId) }}</strong></div>
+            <div><span>{{ t('auto.replySet') }}</span><strong>{{ setName(flow.replySetId) }}</strong></div>
+            <div><span>{{ t('auto.cooldown') }}</span><strong>{{ flow.cooldownSeconds }}s</strong></div>
+            <div class="detail-targets">
+              <span>{{ t('common.targets') }}</span>
+              <div class="chips">
+                <v-chip v-for="target in flow.targets" :key="target.id || `${target.type}:${target.value}`" size="small" color="primary" variant="tonal">{{ target.type }} · {{ target.name || target.value }}</v-chip>
+              </div>
+            </div>
+            <div class="d-flex align-center gap-2 flex-wrap">
+              <v-btn color="primary" variant="tonal" prepend-icon="mdi-pencil-outline" :disabled="!can('pages:connect')" @click="editFlow(flow)">{{ t('common.edit') }}</v-btn>
+              <v-btn color="info" variant="tonal" prepend-icon="mdi-chat-outline" to="/live-chat">{{ locale==='lo'?'ໄປທີ່ Live Chat':'Live Chat' }}</v-btn>
+              <v-btn color="secondary" variant="tonal" prepend-icon="mdi-message-text-outline" :to="`/replies/${flow.replySetId}`">{{ locale==='lo'?'ແກ້ໄຂຊຸດຂໍ້ຄວາມ':'Reply Set' }}</v-btn>
+            </div>
+          </section>
+        </div>
+      </div>
       <div v-else class="empty"><v-icon icon="mdi-robot-happy-outline" size="38"/><h3>{{ t('auto.empty') }}</h3><p>{{ t('auto.emptyHelp') }}</p><v-btn color="primary" prepend-icon="mdi-plus" :disabled="!products.length || !usableSets.length || !pages.length" @click="startWizard">{{ t('auto.new') }}</v-btn><v-btn variant="text" to="/automation-guide">{{ t('auto.guide') }}</v-btn></div>
     </section>
   </template>
@@ -156,16 +257,36 @@ watch(adAccountId, loadCampaigns)
       <template v-if="step===1"><div class="section-title"><small>STEP 1</small><h3>{{ t('auto.setupTitle') }}</h3><p>{{ t('auto.setupHelp') }}</p></div><div class="form-grid"><v-text-field v-model="name" :label="t('auto.name')" :placeholder="t('auto.nameExample')" variant="outlined"/><v-select v-model="pageId" :items="pages" item-title="name" item-value="id" :label="t('auto.page')" variant="outlined"/></div></template>
       <template v-else-if="step===2">
         <div class="section-title"><small>STEP 2</small><h3>{{ t('auto.triggerTitle') }}</h3><p>{{ t('auto.triggerHelp') }}</p></div>
-        <v-btn-toggle v-model="targetType" mandatory color="primary" class="target-toggle"><v-btn value="post" prepend-icon="mdi-post-outline">{{ t('auto.posts') }}</v-btn><v-btn value="campaign" prepend-icon="mdi-bullhorn-outline">{{ t('auto.campaigns') }}</v-btn></v-btn-toggle>
+        <v-btn-toggle v-model="targetType" mandatory color="primary" class="target-toggle mb-3"><v-btn value="post" prepend-icon="mdi-post-outline">{{ t('auto.posts') }}</v-btn><v-btn value="campaign" prepend-icon="mdi-bullhorn-outline">{{ t('auto.campaigns') }}</v-btn></v-btn-toggle>
         <div v-if="loading" class="loading"><v-progress-circular indeterminate color="primary"/></div>
-        <div v-else-if="targetType==='post'" class="target-list">
-          <button v-for="post in posts" :key="post.id" :disabled="isUsed('post',post.id)" :class="{selected:isSelected('post',post.id),disabled:isUsed('post',post.id)}" @click="toggleTarget({type:'post',value:post.id,name:post.message || 'Facebook Post'})">
-            <v-checkbox-btn :model-value="isSelected('post',post.id)"/>
-            <img v-if="post.pictureUrl" :src="post.pictureUrl" :alt="post.message || 'Facebook post'" loading="lazy" class="target-image">
-            <div><strong>{{ post.message || 'Facebook Post' }}</strong><span>{{ post.id }}</span><small v-if="isUsed('post',post.id)">{{ t('auto.alreadyUsed') }}</small></div>
-          </button>
+        <div v-else-if="targetType==='post'">
+          <div class="d-flex align-center gap-2 mb-3 flex-wrap">
+            <v-text-field v-model="postSearch" density="compact" variant="outlined" prepend-inner-icon="mdi-magnify" :placeholder="locale==='lo'?'ຄົ້ນຫາໂພສຕາມແຄັບຊັນ ຫຼື ID...':'Search posts by message or ID...'" hide-details clearable style="max-width: 360px; min-width: 200px;"/>
+            <v-btn size="small" variant="tonal" color="primary" prepend-icon="mdi-checkbox-multiple-marked-outline" @click="selectAllAvailablePosts">{{ locale==='lo'?'ເລືອກທຸກໂພສທີ່ວ່າງ':'Select all available' }}</v-btn>
+            <v-btn size="small" variant="text" :disabled="!targets.length" @click="clearAllTargets">{{ locale==='lo'?'ລ້າງການເລືອກ':'Clear' }}</v-btn>
+            <v-spacer/>
+            <span class="text-caption text-medium-emphasis">{{ targets.length }} {{ locale==='lo'?'ໂພສຖືກເລືອກ':'selected' }}</span>
+          </div>
+          <div class="target-list">
+            <button v-for="post in filteredPosts" :key="post.id" :disabled="isUsed('post',post.id)" :class="{selected:isSelected('post',post.id),disabled:isUsed('post',post.id)}" @click="toggleTarget({type:'post',value:post.id,name:post.message || 'Facebook Post'})">
+              <v-checkbox-btn :model-value="isSelected('post',post.id)"/>
+              <img v-if="post.pictureUrl" :src="post.pictureUrl" :alt="post.message || 'Facebook post'" loading="lazy" class="target-image">
+              <div><strong>{{ post.message || 'Facebook Post' }}</strong><span>{{ post.id }}</span><small v-if="isUsed('post',post.id)">{{ t('auto.alreadyUsed') }}</small></div>
+            </button>
+          </div>
         </div>
-        <template v-else><v-select v-model="adAccountId" :items="adAccounts.map(item=>({...item,label:`${item.accountType==='business'?'Business':'Personal'} · ${item.name}`}))" item-title="label" item-value="id" :label="t('auto.adAccount')" variant="outlined"/><div class="target-list"><button v-for="campaign in campaigns" :key="campaign.id" :disabled="isUsed('campaign',campaign.id)" :class="{selected:isSelected('campaign',campaign.id),disabled:isUsed('campaign',campaign.id)}" @click="toggleTarget({type:'campaign',value:campaign.id,name:campaign.name})"><v-checkbox-btn :model-value="isSelected('campaign',campaign.id)"/><div><strong>{{ campaign.name }}</strong><span>{{ campaign.adSetCount }} ad sets · {{ campaign.adCount }} ads</span><small>{{ isUsed('campaign',campaign.id)?t('auto.alreadyUsed'):campaign.effectiveStatus }}</small></div></button></div></template>
+        <template v-else>
+          <div class="d-flex align-center gap-2 mb-3 flex-wrap">
+            <v-select v-model="adAccountId" :items="adAccounts.map(item=>({...item,label:`${item.accountType==='business'?'Business':'Personal'} · ${item.name}`}))" item-title="label" item-value="id" :label="t('auto.adAccount')" variant="outlined" density="compact" hide-details style="max-width: 320px;"/>
+            <v-text-field v-model="campaignSearch" density="compact" variant="outlined" prepend-inner-icon="mdi-magnify" :placeholder="locale==='lo'?'ຄົ້ນຫາແຄມເປນ...':'Search campaigns...'" hide-details clearable style="max-width: 320px;"/>
+          </div>
+          <div class="target-list">
+            <button v-for="campaign in filteredCampaigns" :key="campaign.id" :disabled="isUsed('campaign',campaign.id)" :class="{selected:isSelected('campaign',campaign.id),disabled:isUsed('campaign',campaign.id)}" @click="toggleTarget({type:'campaign',value:campaign.id,name:campaign.name})">
+              <v-checkbox-btn :model-value="isSelected('campaign',campaign.id)"/>
+              <div><strong>{{ campaign.name }}</strong><span>{{ campaign.adSetCount }} ad sets · {{ campaign.adCount }} ads</span><small>{{ isUsed('campaign',campaign.id)?t('auto.alreadyUsed'):campaign.effectiveStatus }}</small></div>
+            </button>
+          </div>
+        </template>
       </template>
       <template v-else-if="step===3"><div class="section-title"><small>STEP 3</small><h3>{{ t('auto.responseTitle') }}</h3><p>{{ t('auto.responseHelp') }}</p></div><div class="form-grid"><v-select v-model="productId" :items="products" item-title="name" item-value="id" :label="t('auto.product')" variant="outlined"/><v-select v-model="replySetId" :items="usableSets" :item-title="setLabel" item-value="id" :label="t('auto.replySet')" variant="outlined"/></div><div v-if="selectedProduct || selectedSet" class="response-preview"><img v-if="selectedProduct?.imageUrl" :src="selectedProduct.imageUrl" :alt="selectedProduct.name" loading="lazy"><div><strong>{{ selectedProduct?.name }}</strong><span>{{ setLabel(selectedSet) }}</span><small>{{ selectedSet?.items.filter(item=>item.isEnabled).length || 0 }} {{ t('auto.enabledMessages') }} · {{ t('auto.sendOrder') }}</small></div></div></template>
       <template v-else-if="step===4"><div class="section-title"><small>STEP 4</small><h3>{{ t('auto.behaviorTitle') }}</h3><p>{{ t('auto.behaviorHelp') }}</p></div><v-switch v-model="firstMessageOnly" color="primary" :label="t('auto.firstLabel')" inset/><v-text-field v-model.number="cooldownSeconds" type="number" min="0" max="86400" :label="t('auto.cooldown')" :hint="t('auto.cooldownHelp')" persistent-hint variant="outlined"/></template>

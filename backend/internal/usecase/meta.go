@@ -91,3 +91,11 @@ func (u *Meta) ReceiveWebhook(ctx context.Context, body []byte, signature string
 func (u *Meta) SendMessage(ctx context.Context, accountID, pageID, recipientID, text string) error {
 	return u.connector.SendMessage(ctx, accountID, pageID, recipientID, text)
 }
+
+func (u *Meta) SendSenderAction(ctx context.Context, pageID, recipientID, action string) error {
+	return u.connector.SendSenderAction(ctx, pageID, recipientID, action)
+}
+
+func (u *Meta) SendMedia(ctx context.Context, accountID, pageID, recipientID, mediaType, mediaURL string) error {
+	return u.connector.SendMedia(ctx, accountID, pageID, recipientID, mediaType, mediaURL)
+}

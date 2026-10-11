@@ -3,7 +3,6 @@ package usecase_test
 import (
 	"context"
 	"errors"
-	"regexp"
 	"testing"
 
 	"github.com/meta-super-app/backend/internal/infrastructure/repository"
@@ -55,13 +54,18 @@ func TestReplySetCodeIsNormalizedAndUniquePerWorkspace(t *testing.T) {
 	}
 }
 
-func TestReplySetGeneratesCodeForLegacyClient(t *testing.T) {
+func TestReplySetFindsTriggerWithPrefix(t *testing.T) {
 	service := usecase.NewReply(repository.NewMemory(""))
-	created, err := service.CreateSet(context.Background(), "account-1", "", "ລາຄາສິນຄ້າ")
+	ctx := context.Background()
+	created, err := service.CreateSet(ctx, "account-1", "P01", "Set One")
 	if err != nil {
 		t.Fatalf("CreateSet() error = %v", err)
 	}
-	if created.Code == "" || !regexp.MustCompile(`^[A-Z0-9][A-Z0-9_-]{1,59}$`).MatchString(created.Code) {
-		t.Fatalf("generated code %q is invalid", created.Code)
+
+	for _, trig := range []string{"P01", "#P01", "/P01", ":P01", "Set One", "#Set One", "/Set One"} {
+		found, err := service.FindSetByTrigger(ctx, "account-1", trig)
+		if err != nil || found == nil || found.ID != created.ID {
+			t.Errorf("FindSetByTrigger(%q) = %#v, %v; want %q", trig, found, err, created.ID)
+		}
 	}
 }
