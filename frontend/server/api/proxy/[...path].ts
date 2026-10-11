@@ -37,7 +37,6 @@ export default defineEventHandler(async (event) => {
           'Content-Type': 'text/event-stream; charset=utf-8',
           'Cache-Control': 'no-store, no-cache, must-revalidate',
           'X-Accel-Buffering': 'no',
-          Connection: 'keep-alive',
         },
       })
     }

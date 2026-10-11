@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 
 definePageMeta({ middleware: 'auth' })
 
@@ -39,6 +39,19 @@ const loadError = ref('')
 const { locale, l } = useLocale()
 const liveConnected = ref(false)
 let pollTimer: ReturnType<typeof setInterval> | null = null
+const messagesContainer = ref<HTMLElement | null>(null)
+
+const scrollToBottom = () => {
+  nextTick(() => {
+    if (messagesContainer.value) {
+      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+    }
+  })
+}
+
+watch(activeSender, () => {
+  scrollToBottom()
+})
 
 const activeChatMessages = computed(() => {
   if (!activeSender.value) return []
@@ -76,13 +89,16 @@ const markAsPurchased = async (senderId: string) => {
 
 const sendReply = async () => {
   if (!inputMessage.value.trim() || !activeSender.value || sending.value) return
-  const msg = inputMessage.value
+  const msg = inputMessage.value.trim()
   
   // Find the page ID associated with this sender
   const msgs = conversations.value[activeSender.value]
-  const pageId = msgs?.[0]?.page_id
+  const pageId = msgs?.find(m => m.page_id)?.page_id || leads.value[activeSender.value]?.pageId
 
-  if (!pageId) return
+  if (!pageId) {
+    loadError.value = l({lo:'ບໍ່ພົບ Page ID ສຳລັບການສົນທະນານີ້',th:'ไม่พบ Page ID สำหรับการสนทนานี้',en:'No Page ID found for this conversation'})
+    return
+  }
 
   sending.value = true
   loadError.value = ''
@@ -92,8 +108,10 @@ const sendReply = async () => {
       body: { page_id: pageId, recipient_id: activeSender.value, message: msg },
     })
     inputMessage.value = ''
+    await fetchHistoryAndLeads(true)
+    scrollToBottom()
   } catch (error: any) {
-    loadError.value = error?.data?.message || error?.statusMessage || (locale.value === 'lo' ? 'ສົ່ງຂໍ້ຄວາມບໍ່ສຳເລັດ' : 'Message could not be sent.')
+    loadError.value = error?.data?.message || error?.statusMessage || l({lo:'ສົ່ງຂໍ້ຄວາມບໍ່ສຳເລັດ',th:'ส่งข้อความไม่สำเร็จ',en:'Message could not be sent.'})
   } finally {
     sending.value = false
   }
@@ -108,9 +126,16 @@ const mergeMessages = (items: ChatMessage[]) => {
   for (const item of items) byKey.set(messageKey(item), { ...item, id: messageKey(item) })
   const next: Record<string, ChatMessage[]> = {}
   for (const item of byKey.values()) (next[item.sender_id] ||= []).push(item)
-  for (const list of Object.values(next)) list.sort((a,b) => Number(a.timestamp === 'now' ? Date.now() : a.timestamp) - Number(b.timestamp === 'now' ? Date.now() : b.timestamp))
+  for (const list of Object.values(next)) {
+    list.sort((a,b) => {
+      const timeA = a.timestamp === 'now' ? Date.now() : (Number(a.timestamp) || new Date(a.timestamp).getTime() || 0)
+      const timeB = b.timestamp === 'now' ? Date.now() : (Number(b.timestamp) || new Date(b.timestamp).getTime() || 0)
+      return timeA - timeB
+    })
+  }
   conversations.value = next
   if (!activeSender.value && Object.keys(next).length) activeSender.value = Object.keys(next)[0] || null
+  scrollToBottom()
 }
 
 const fetchHistoryAndLeads = async (silent = false) => {
@@ -133,36 +158,43 @@ const fetchHistoryAndLeads = async (silent = false) => {
 const connectLiveChat = () => {
   if (evtSource.value) {
     evtSource.value.close()
+    evtSource.value = null
   }
 
   const url = '/api/proxy/api/v1/chat/stream'
-  evtSource.value = new EventSource(url)
-  
-  evtSource.value.onopen = async () => {
-    liveConnected.value = true
-    loadError.value = ''
-    await fetchHistoryAndLeads()
-  }
-
-  evtSource.value.onmessage = (event) => {
-    let data: ChatMessage
-    try {
-      data = JSON.parse(event.data) as ChatMessage
-    } catch {
-      return
+  try {
+    const es = new EventSource(url)
+    evtSource.value = es
+    
+    es.onopen = async () => {
+      liveConnected.value = true
+      await fetchHistoryAndLeads(true)
     }
-    if (data.type !== 'lead_alert') mergeMessages([data])
-    void fetchHistoryAndLeads(true)
-  }
 
-  evtSource.value.onerror = (error) => {
+    es.onmessage = (event) => {
+      let data: ChatMessage
+      try {
+        data = JSON.parse(event.data) as ChatMessage
+      } catch {
+        return
+      }
+      if (data.type !== 'lead_alert') {
+        mergeMessages([data])
+      }
+      void fetchHistoryAndLeads(true)
+    }
+
+    es.onerror = () => {
+      liveConnected.value = false
+      es.close()
+      evtSource.value = null
+      clearTimeout(reconnectTimeout)
+      reconnectTimeout = setTimeout(() => {
+        connectLiveChat()
+      }, 5000)
+    }
+  } catch {
     liveConnected.value = false
-    loadError.value = l({lo:'ສາຍ real-time ຂາດຊົ່ວຄາວ; ລະບົບຍັງອັບເດດດ້ວຍ polling ແລະກຳລັງເຊື່ອມໃໝ່',th:'การเชื่อมต่อ real-time ขาดชั่วคราว ระบบยังอัปเดตด้วย polling และกำลังเชื่อมต่อใหม่',en:'Real-time connection paused; polling remains active while reconnecting.'})
-    evtSource.value?.close()
-    clearTimeout(reconnectTimeout)
-    reconnectTimeout = setTimeout(() => {
-      connectLiveChat()
-    }, 5000)
   }
 }
 
@@ -242,7 +274,7 @@ const formatTime = (ts: string) => {
         </div>
       </div>
       
-      <div class="chat-messages">
+      <div class="chat-messages" ref="messagesContainer">
         <div 
           v-for="msg in activeChatMessages" 
           :key="msg.id"
@@ -283,7 +315,9 @@ const formatTime = (ts: string) => {
 <style scoped>
 .chat-layout {
   display: flex;
-  height: calc(100vh - 120px);
+  height: calc(100vh - 180px);
+  max-height: calc(100dvh - 180px);
+  min-height: 520px;
   background: var(--color-surface);
   border-radius: 12px;
   border: 1px solid var(--color-border);
@@ -485,7 +519,7 @@ const formatTime = (ts: string) => {
   display: flex;
   gap: 12px;
 }
-.chat-error{position:absolute;left:16px;right:16px;bottom:68px;padding:8px 12px;color:var(--color-error);background:var(--color-error-soft);border:1px solid color-mix(in srgb,var(--color-error) 30%,transparent);border-radius:9px;font-size:12px}
+.chat-error{position:absolute;left:16px;right:16px;bottom:calc(100% + 8px);padding:8px 12px;color:var(--color-error);background:var(--color-error-soft);border:1px solid color-mix(in srgb,var(--color-error) 30%,transparent);border-radius:9px;font-size:12px;z-index:10}
 
 .chat-input input {
   flex: 1;

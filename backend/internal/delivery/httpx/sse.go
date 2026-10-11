@@ -77,7 +77,7 @@ func (h *Handler) sendChatMessage(c fiber.Ctx) error {
 			SenderID:  body.RecipientID, // In the UI, SenderID is used to group the chat. Even though WE are the sender, group it by recipient.
 			Message:   body.Message,
 			Type:      "text",
-			Timestamp: "now",
+			Timestamp: fmt.Sprintf("%d", time.Now().UnixMilli()),
 			Platform:  "system", // indicating we sent it
 		})
 	}
