@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/google/uuid"
 	"github.com/meta-super-app/backend/internal/infrastructure/database"
 	"gorm.io/gorm"
 	"io"
@@ -544,6 +545,12 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 			if !pageFound {
 				continue
 			}
+			if _, err := uuid.Parse(accountID); err != nil && g.db != nil {
+				var realAccount database.AccountModel
+				if err := g.db.First(&realAccount).Error; err == nil {
+					accountID = realAccount.ID
+				}
+			}
 			
 			customerID := message.Sender.ID
 			isSystem := false
@@ -771,48 +778,52 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 			}
 			items = g.resolveReplyItems(rule, items)
 
-			for index, step := range items {
-				if !step.IsEnabled {
-					continue
-				}
-				stepKey := seenKey + ":" + resolvedKey + ":" + step.ID
-				stepDone := false
-				trackDeliveryStep := rule.TriggerType != "reply_set_name" && !isAskingPrice(messageText) && !hasImage
-				if trackDeliveryStep {
-					g.mu.RLock()
-					stepDone = g.deliverySteps[stepKey]
-					g.mu.RUnlock()
-				}
-				if stepDone {
-					continue
-				}
+			go func(rule *domain.AutomationRule, items []domain.ReplyItem, seenKey, resolvedKey, replyKey, pageID, senderID, sourceType, sourceID, messageText string, hasImage bool) {
+				sendCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+				defer cancel()
+				for index, step := range items {
+					if !step.IsEnabled {
+						continue
+					}
+					stepKey := seenKey + ":" + resolvedKey + ":" + step.ID
+					stepDone := false
+					trackDeliveryStep := rule.TriggerType != "reply_set_name" && !isAskingPrice(messageText) && !hasImage
+					if trackDeliveryStep {
+						g.mu.RLock()
+						stepDone = g.deliverySteps[stepKey]
+						g.mu.RUnlock()
+					}
+					if stepDone {
+						continue
+					}
 
-				// Add a slight delay between sending multiple steps to simulate typing/make it feel natural
-				if index > 0 {
-					time.Sleep(1500 * time.Millisecond)
-				}
+					// Add a slight delay between sending multiple steps to simulate typing/make it feel natural
+					if index > 0 {
+						time.Sleep(1500 * time.Millisecond)
+					}
 
-				var err error
-				if step.Type == "text" {
-					err = g.SendMessage(ctx, rule.AccountID, page.ID, message.Sender.ID, step.Content)
-				} else {
-					err = g.SendMedia(ctx, rule.AccountID, page.ID, message.Sender.ID, step.Type, step.Content)
+					var err error
+					if step.Type == "text" {
+						err = g.SendMessage(sendCtx, rule.AccountID, pageID, senderID, step.Content)
+					} else {
+						err = g.SendMedia(sendCtx, rule.AccountID, pageID, senderID, step.Type, step.Content)
+					}
+					if err != nil {
+						slog.Error("automatic flow message step failed", "page_id", pageID, "sender_id", senderID, "source_id", sourceID, "step", index+1, "type", step.Type, "error", err)
+						continue
+					}
+					if trackDeliveryStep {
+						g.mu.Lock()
+						g.deliverySteps[stepKey] = true
+						g.mu.Unlock()
+					}
 				}
-				if err != nil {
-					slog.Error("automatic flow message step failed", "page_id", entry.ID, "sender_id", message.Sender.ID, "source_id", sourceID, "step", index+1, "type", step.Type, "error", err)
-					continue
-				}
-				if trackDeliveryStep {
-					g.mu.Lock()
-					g.deliverySteps[stepKey] = true
-					g.mu.Unlock()
-				}
-			}
-			g.mu.Lock()
-			g.firstReplies[replyKey] = time.Now()
-			delete(g.inFlight, replyKey)
-			g.mu.Unlock()
-			slog.Info("automatic product reply sent", "page_id", entry.ID, "sender_id", message.Sender.ID, "source_type", sourceType, "source_id", sourceID)
+				g.mu.Lock()
+				g.firstReplies[replyKey] = time.Now()
+				delete(g.inFlight, replyKey)
+				g.mu.Unlock()
+				slog.Info("automatic product reply sent", "page_id", pageID, "sender_id", senderID, "source_type", sourceType, "source_id", sourceID)
+			}(rule, items, seenKey, resolvedKey, replyKey, page.ID, message.Sender.ID, sourceType, sourceID, messageText, hasImage)
 		}
 	}
 	return nil
@@ -962,7 +973,15 @@ func isAskingPrice(text string) bool {
 func (g *GraphConnector) findPage(pageID string) (string, graphPage, bool) {
 	g.mu.RLock()
 	for accountID, session := range g.sessions {
-		if page, ok := session.Pages[pageID]; ok {
+		if _, err := uuid.Parse(accountID); err == nil {
+			if page, ok := session.Pages[pageID]; ok && page.AccessToken != "" {
+				g.mu.RUnlock()
+				return accountID, page, true
+			}
+		}
+	}
+	for accountID, session := range g.sessions {
+		if page, ok := session.Pages[pageID]; ok && page.AccessToken != "" {
 			g.mu.RUnlock()
 			return accountID, page, true
 		}
@@ -2016,8 +2035,8 @@ func (g *GraphConnector) SaveReplyFlow(_ context.Context, _, accountID string, f
 }
 
 func (g *GraphConnector) SendMessage(ctx context.Context, accountID, pageID, recipientID, text string) error {
-	foundAccountID, page, found := g.findPage(pageID)
-	if !found || foundAccountID != accountID {
+	_, page, found := g.findPage(pageID)
+	if !found || page.AccessToken == "" {
 		return errors.New("meta page not found or not connected")
 	}
 
@@ -2046,9 +2065,9 @@ func (g *GraphConnector) SendMessage(ctx context.Context, accountID, pageID, rec
 }
 
 func (g *GraphConnector) SendMedia(ctx context.Context, accountID, pageID, recipientID, mediaType, mediaURL string) error {
-	foundAccountID, page, found := g.findPage(pageID)
-	if !found || foundAccountID != accountID {
-		return errors.New("meta page not found")
+	_, page, found := g.findPage(pageID)
+	if !found || page.AccessToken == "" {
+		return errors.New("meta page not found or not connected")
 	}
 	if page.Category == "WhatsApp" {
 		return g.sendWhatsAppMedia(ctx, page.ID, page.AccessToken, recipientID, mediaType, mediaURL)

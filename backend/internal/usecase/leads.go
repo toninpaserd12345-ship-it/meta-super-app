@@ -52,6 +52,14 @@ func (u *Leads) capture(ctx context.Context, in LeadInput) error {
 	if in.AccountID == "" || in.PageID == "" || in.SenderID == "" {
 		return nil
 	}
+	if _, err := uuid.Parse(in.AccountID); err != nil {
+		var realAccount database.AccountModel
+		if err := u.db.WithContext(ctx).First(&realAccount).Error; err == nil {
+			in.AccountID = realAccount.ID
+		} else {
+			return nil
+		}
+	}
 	var existing database.LeadModel
 	if err := u.db.WithContext(ctx).Where("account_id=? AND page_id=? AND sender_id=?", in.AccountID, in.PageID, in.SenderID).First(&existing).Error; err == nil {
 		if (existing.SourceID == "" || existing.SourceType == "message") && in.SourceID != "" && in.SourceType != "message" {
