@@ -596,13 +596,30 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 								msgLower := strings.TrimSpace(strings.ToLower(msgContent))
 								for _, p := range products {
 									if msgLower == strings.ToLower(p.ID) || msgLower == strings.ToLower(p.Name) || (p.Code != "" && msgLower == strings.ToLower(p.Code)) {
-										replyText := fmt.Sprintf("%s\n\n%s\n\nລາຄາ: %s", p.Name, p.Description, p.Price)
-										if p.ImageUrl != "" {
-											if err := g.SendMedia(ctx, accountID, entry.ID, message.Sender.ID, "image", p.ImageUrl); err == nil {
-												time.Sleep(1500 * time.Millisecond)
+										product := p
+										go func(pageID, recipientID string, prod domain.Product) {
+											sendCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+											defer cancel()
+
+											_ = g.SendSenderAction(sendCtx, pageID, recipientID, "mark_seen")
+											time.Sleep(1500 * time.Millisecond)
+
+											if prod.ImageUrl != "" {
+												_ = g.SendSenderAction(sendCtx, pageID, recipientID, "typing_on")
+												time.Sleep(2500 * time.Millisecond)
+												_ = g.SendMedia(sendCtx, accountID, pageID, recipientID, "image", prod.ImageUrl)
+												time.Sleep(1200 * time.Millisecond)
 											}
-										}
-										_ = g.SendMessage(ctx, accountID, entry.ID, message.Sender.ID, replyText)
+
+											_ = g.SendSenderAction(sendCtx, pageID, recipientID, "typing_on")
+											replyText := fmt.Sprintf("%s\n\n%s\n\nລາຄາ: %s", prod.Name, prod.Description, prod.Price)
+											delayMs := 1800 + (len([]rune(replyText)) * 20)
+											if delayMs > 4000 {
+												delayMs = 4000
+											}
+											time.Sleep(time.Duration(delayMs) * time.Millisecond)
+											_ = g.SendMessage(sendCtx, accountID, pageID, recipientID, replyText)
+										}(entry.ID, message.Sender.ID, product)
 										break
 									}
 								}
@@ -781,6 +798,11 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 			go func(rule *domain.AutomationRule, items []domain.ReplyItem, seenKey, resolvedKey, replyKey, pageID, senderID, sourceType, sourceID, messageText string, hasImage bool) {
 				sendCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 				defer cancel()
+
+				// Simulate realistic human reading time and mark the conversation as seen
+				_ = g.SendSenderAction(sendCtx, pageID, senderID, "mark_seen")
+				time.Sleep(1500 * time.Millisecond)
+
 				for index, step := range items {
 					if !step.IsEnabled {
 						continue
@@ -797,10 +819,30 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 						continue
 					}
 
-					// Add a slight delay between sending multiple steps to simulate typing/make it feel natural
+					// Slight human pause between multiple steps
 					if index > 0 {
-						time.Sleep(1500 * time.Millisecond)
+						time.Sleep(1200 * time.Millisecond)
 					}
+
+					// Show animated typing indicator "..." in chat
+					_ = g.SendSenderAction(sendCtx, pageID, senderID, "typing_on")
+
+					// Calculate dynamic typing/upload delay to make it feel genuinely human
+					var typingDelay time.Duration
+					if step.Type == "text" {
+						runeCount := len([]rune(step.Content))
+						delayMs := 1800 + (runeCount * 25)
+						if delayMs < 2000 {
+							delayMs = 2000
+						} else if delayMs > 4500 {
+							delayMs = 4500
+						}
+						typingDelay = time.Duration(delayMs) * time.Millisecond
+					} else {
+						// For image, voice, audio, or video, simulate selecting and uploading the media
+						typingDelay = 2500 * time.Millisecond
+					}
+					time.Sleep(typingDelay)
 
 					var err error
 					if step.Type == "text" {
@@ -2061,6 +2103,31 @@ func (g *GraphConnector) SendMessage(ctx context.Context, accountID, pageID, rec
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
 		return fmt.Errorf("facebook send message failed: %s", string(body))
 	}
+	return nil
+}
+
+func (g *GraphConnector) SendSenderAction(ctx context.Context, pageID, recipientID, action string) error {
+	_, page, found := g.findPage(pageID)
+	if !found || page.AccessToken == "" || page.Category == "WhatsApp" {
+		return nil
+	}
+	payload, err := json.Marshal(map[string]any{
+		"recipient":     map[string]string{"id": recipientID},
+		"sender_action": action,
+	})
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://graph.facebook.com/"+g.cfg.Version+"/"+url.PathEscape(page.ID)+"/messages?access_token="+url.QueryEscape(page.AccessToken), strings.NewReader(string(payload)))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := g.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
 	return nil
 }
 
