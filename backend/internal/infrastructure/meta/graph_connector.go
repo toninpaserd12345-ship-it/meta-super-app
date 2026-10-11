@@ -602,20 +602,19 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 											defer cancel()
 
 											_ = g.SendSenderAction(sendCtx, pageID, recipientID, "mark_seen")
-											time.Sleep(1500 * time.Millisecond)
+											time.Sleep(500 * time.Millisecond)
 
 											if prod.ImageUrl != "" {
-												_ = g.SendSenderAction(sendCtx, pageID, recipientID, "typing_on")
-												time.Sleep(2500 * time.Millisecond)
+												time.Sleep(1000 * time.Millisecond)
 												_ = g.SendMedia(sendCtx, accountID, pageID, recipientID, "image", prod.ImageUrl)
-												time.Sleep(1200 * time.Millisecond)
+												time.Sleep(800 * time.Millisecond)
 											}
 
 											_ = g.SendSenderAction(sendCtx, pageID, recipientID, "typing_on")
 											replyText := fmt.Sprintf("%s\n\n%s\n\nລາຄາ: %s", prod.Name, prod.Description, prod.Price)
-											delayMs := 1800 + (len([]rune(replyText)) * 20)
-											if delayMs > 4000 {
-												delayMs = 4000
+											delayMs := 1200 + (len([]rune(replyText)) * 15)
+											if delayMs > 2500 {
+												delayMs = 2500
 											}
 											time.Sleep(time.Duration(delayMs) * time.Millisecond)
 											_ = g.SendMessage(sendCtx, accountID, pageID, recipientID, replyText)
@@ -799,9 +798,9 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 				sendCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 				defer cancel()
 
-				// Simulate realistic human reading time and mark the conversation as seen
+				// Mark conversation as seen
 				_ = g.SendSenderAction(sendCtx, pageID, senderID, "mark_seen")
-				time.Sleep(1500 * time.Millisecond)
+				time.Sleep(500 * time.Millisecond)
 
 				for index, step := range items {
 					if !step.IsEnabled {
@@ -819,30 +818,28 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 						continue
 					}
 
-					// Slight human pause between multiple steps
-					if index > 0 {
+					if step.Type == "image" {
+						// For images, a 1-second delay is enough without typing indicator
+						time.Sleep(1000 * time.Millisecond)
+					} else if step.Type == "text" {
+						if index > 0 {
+							time.Sleep(800 * time.Millisecond)
+						}
+						// Only show animated typing indicator "..." for text messages
+						_ = g.SendSenderAction(sendCtx, pageID, senderID, "typing_on")
+
+						runeCount := len([]rune(step.Content))
+						delayMs := 1200 + (runeCount * 15)
+						if delayMs < 1500 {
+							delayMs = 1500
+						} else if delayMs > 2800 {
+							delayMs = 2800
+						}
+						time.Sleep(time.Duration(delayMs) * time.Millisecond)
+					} else {
+						// Other media (voice/audio/video)
 						time.Sleep(1200 * time.Millisecond)
 					}
-
-					// Show animated typing indicator "..." in chat
-					_ = g.SendSenderAction(sendCtx, pageID, senderID, "typing_on")
-
-					// Calculate dynamic typing/upload delay to make it feel genuinely human
-					var typingDelay time.Duration
-					if step.Type == "text" {
-						runeCount := len([]rune(step.Content))
-						delayMs := 1800 + (runeCount * 25)
-						if delayMs < 2000 {
-							delayMs = 2000
-						} else if delayMs > 4500 {
-							delayMs = 4500
-						}
-						typingDelay = time.Duration(delayMs) * time.Millisecond
-					} else {
-						// For image, voice, audio, or video, simulate selecting and uploading the media
-						typingDelay = 2500 * time.Millisecond
-					}
-					time.Sleep(typingDelay)
 
 					var err error
 					if step.Type == "text" {
