@@ -636,6 +636,27 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 				g.mu.RLock()
 				resolvedKey = g.conversations[seenKey]
 				g.mu.RUnlock()
+				if resolvedKey != "" {
+					parts := strings.Split(resolvedKey, ":")
+					if len(parts) >= 3 {
+						sourceType = parts[1]
+						sourceID = strings.Join(parts[2:], ":")
+					}
+				}
+			}
+
+			// If sourceID is still unknown and we have DB access, check recent lead record
+			if sourceID == "" && g.db != nil {
+				var lead database.LeadModel
+				if err := g.db.Where("page_id = ? AND sender_id = ?", entry.ID, customerID).Order("created_at DESC").First(&lead).Error; err == nil {
+					if lead.SourceID != "" {
+						sourceType, sourceID = lead.SourceType, lead.SourceID
+						resolvedKey = bindingKey(entry.ID, sourceType, sourceID)
+						g.mu.Lock()
+						g.conversations[seenKey] = resolvedKey
+						g.mu.Unlock()
+					}
+				}
 			}
 
 			var rule *domain.AutomationRule
@@ -654,9 +675,8 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 						CooldownSeconds: 2,
 						IsActive:        true,
 					}
-				} else if ref != nil {
-					// Match the exact Post/Ad first. A campaign target is resolved
-					// lazily from the referral Ad so newly-created Ads are covered.
+				} else if ref != nil || (sourceID != "" && isAskingPrice(messageText)) {
+					// Either customer arrived from referral Ad/Post, OR customer is asking for price on an Ad they came from!
 					rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, sourceType, sourceID)
 					if rule == nil && sourceType == "ad" {
 						campaignID, adSetID := g.resolveAdHierarchy(ctx, entry.ID, sourceID)
@@ -699,7 +719,10 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 
 			isSpamming := false
 			if alreadyReplied {
-				if rule != nil && rule.FlowID != "" {
+				if isAskingPrice(messageText) {
+					// Explicit price inquiries have a short 30-second cooldown so they aren't suppressed by FirstMessageOnly
+					isSpamming = time.Since(lastReplyTime) < 30*time.Second
+				} else if rule != nil && rule.FlowID != "" {
 					if rule.FirstMessageOnly {
 						isSpamming = true
 					} else if rule.CooldownSeconds > 0 {
@@ -869,6 +892,42 @@ func matchesKeywords(text string, keywords []string) bool {
 	text = strings.ToLower(text)
 	for _, keyword := range keywords {
 		if strings.Contains(text, strings.ToLower(strings.TrimSpace(keyword))) {
+			return true
+		}
+	}
+	return false
+}
+
+var priceKeywords = []string{
+	// Lao price variations & misspellings
+	"ລາຄາ", "ລາຂາ", "ລະຄາ", "ລາກາ", "ລາຄ່າ", "ລາຂ່າ", "ຂໍລາຄາ", "ຂໍລາຄ່າ",
+	// Lao how much variations & misspellings
+	"ທໍ່ໃດ", "ເທົ່າໃດ", "ທໍໃດ", "ເທົາໃດ", "ທໍ່ໄດ", "ເທົ່າໄດ", "ເທົາໄດ", "ທໍໄດ",
+	"ທໍ່ໃດນິ", "ທໍ່ໃດນີ້", "ເທົ່າໃດນິ", "ເທົ່າໃດນີ້", "ທໍໃດນິ", "ທໍໃດນີ້",
+	"ຈັກບາດ", "ຈັກກີບ", "ຈັກພັນ", "ຈັກຫມື່ນ", "ຈັກໝື່ນ", "ຈັກແສນ", "ຈັກລ້ານ",
+	"ຂາຍແນວໃດ", "ຂາຍຈັ່ງໃດ", "ຂາຍແນວໄດ", "ຂາຍຈັ່ງໄດ", "ໂຕລະທໍ່ໃດ", "ອັນລະທໍ່ໃດ", "ຊຸດລະທໍ່ໃດ",
+	// Lao interest & contact
+	"ສົນໃຈ", "ສນໃຈ", "ສົນໄຈ", "ສນໄຈ", "ສົນໃຈເດີ້", "ສົນໃຈເຈົ້າ", "ສົນໃຈຄັບ", "ຂໍລາຍລະອຽດ",
+
+	// Thai price & how much variations & misspellings
+	"ราคา", "ราค่า", "ระคา", "ลากา", "ขอราคา", "มีราคาไหม", "ราคาเท่าไหร่", "ราคาเท่าไร",
+	"เท่าไหร่", "เท่าไร", "เท่ารัย", "เท่าไหร่คะ", "เท่าไหร่ครับ", "เท่าไรครับ", "เท่าไรคะ",
+	"กี่บาท", "กี่กีบ", "ตัวละเท่าไหร่", "อันละเท่าไหร่", "ชุดละเท่าไหร่", "ชิ้นละเท่าไหร่",
+	"ขายยังไง", "ขายเท่าไหร่",
+	// Thai interest & contact
+	"สนใจ", "สนใจครับ", "สนใจค่ะ", "ขอรายละเอียด", "สอบถาม", "สอบถามราคา",
+
+	// Slang / abbreviations
+	"pm", "ib", "inbox", "dm",
+
+	// English
+	"price", "how much", "cost",
+}
+
+func isAskingPrice(text string) bool {
+	cleaned := strings.ToLower(strings.TrimSpace(text))
+	for _, kw := range priceKeywords {
+		if strings.Contains(cleaned, strings.ToLower(kw)) {
 			return true
 		}
 	}
