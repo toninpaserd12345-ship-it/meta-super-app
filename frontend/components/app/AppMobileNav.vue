@@ -1,11 +1,79 @@
 <script setup lang="ts">
 import { appNavigation } from '~/config/navigation'
-const route = useRoute(); const { can } = useAuth(); const { t } = useLocale(); const moreOpen = ref(false)
-const primaryRoutes = new Set(['/', '/meta-pages', '/auto-replies'])
+const route = useRoute()
+const { can } = useAuth()
+const { t } = useLocale()
+const { toggle: toggleDrawer, isOpen } = useNavDrawer()
+
+const primaryRoutes = ['/', '/live-chat', '/meta-pages', '/auto-replies']
 const allItems = computed(() => appNavigation.filter(item => !item.claim || can(item.claim)))
-const items = computed(() => allItems.value.filter(item => primaryRoutes.has(item.to)))
+const items = computed(() => {
+  return primaryRoutes
+    .map(path => allItems.value.find(item => item.to === path))
+    .filter((item): item is NonNullable<typeof item> => Boolean(item))
+})
 </script>
-<template><nav class="mobile-nav" :aria-label="t('common.allMenus')"><NuxtLink v-for="item in items" :key="item.to" :to="item.to" :class="{ active: item.to === '/' ? route.path === '/' : route.path.startsWith(item.to) }"><v-icon :icon="item.icon" size="21"/><span>{{ t(item.labelKey) }}</span></NuxtLink><button :class="{active:moreOpen}" @click="moreOpen=true"><v-icon icon="mdi-menu" size="22"/><span>{{ t('common.more') }}</span></button></nav><v-dialog v-model="moreOpen" transition="dialog-bottom-transition"><div class="mobile-menu"><header><strong>{{ t('common.allMenus') }}</strong><button :aria-label="t('common.close')" @click="moreOpen=false"><v-icon icon="mdi-close"/></button></header><div><NuxtLink v-for="item in allItems" :key="item.to" :to="item.to" @click="moreOpen=false"><v-icon :icon="item.icon"/><span>{{ t(item.labelKey) }}</span><v-icon icon="mdi-chevron-right"/></NuxtLink></div></div></v-dialog></template>
+
+<template>
+  <nav class="mobile-nav" :aria-label="t('common.allMenus')">
+    <NuxtLink 
+      v-for="item in items" 
+      :key="item.to" 
+      :to="item.to" 
+      :class="{ active: item.to === '/' ? route.path === '/' : route.path.startsWith(item.to) }"
+    >
+      <v-icon :icon="item.icon" size="21"/>
+      <span>{{ t(item.labelKey) }}</span>
+    </NuxtLink>
+    <button :class="{ active: isOpen }" @click="toggleDrawer">
+      <v-icon icon="mdi-menu" size="22"/>
+      <span>{{ t('common.more') }}</span>
+    </button>
+  </nav>
+</template>
+
 <style scoped>
-.mobile-nav{display:none}.mobile-menu{width:min(100%,520px);max-height:82dvh;overflow:auto;position:fixed;inset:auto 0 0;margin:auto;padding:16px 16px calc(22px + env(safe-area-inset-bottom));background:var(--color-surface);border-radius:24px 24px 0 0;box-shadow:var(--shadow-modal)}.mobile-menu header{display:flex;justify-content:space-between;align-items:center;padding:4px 4px 14px}.mobile-menu header strong{font-size:18px}.mobile-menu button{width:44px;height:44px;border:0;border-radius:12px;background:var(--color-background)}.mobile-menu>div{display:grid;grid-template-columns:1fr 1fr;gap:8px}.mobile-menu a{min-height:58px;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:10px 12px;color:var(--color-text);background:var(--color-background);border-radius:13px;text-decoration:none;font-size:13px;font-weight:650}@media(max-width:640px){.mobile-nav{height:70px;display:flex;position:fixed;z-index:30;inset:auto 10px max(10px,env(safe-area-inset-bottom)) 10px;padding:6px;background:rgba(255,255,255,.96);border:1px solid var(--color-border);border-radius:19px;box-shadow:0 12px 34px rgba(31,35,75,.18);backdrop-filter:blur(16px)}.mobile-nav a,.mobile-nav>button{flex:1;min-width:0;border:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border-radius:14px;color:var(--color-text-secondary);background:none;text-decoration:none;font-size:9px;font-weight:650}.mobile-nav a.active,.mobile-nav>button.active{color:var(--color-primary);background:var(--color-primary-soft)}}@media(max-width:390px){.mobile-menu>div{grid-template-columns:1fr}}
+.mobile-nav {
+  display: none;
+}
+@media (max-width: 640px) {
+  .mobile-nav {
+    height: 68px;
+    display: flex;
+    position: fixed;
+    z-index: 80;
+    inset: auto 12px max(10px, env(safe-area-inset-bottom)) 12px;
+    padding: 6px;
+    background: rgba(255, 255, 255, 0.96);
+    border: 1px solid var(--color-border);
+    border-radius: 19px;
+    box-shadow: 0 12px 34px rgba(31, 35, 75, 0.16);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+  .mobile-nav a,
+  .mobile-nav > button {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    border-radius: 14px;
+    color: var(--color-text-secondary);
+    background: none;
+    text-decoration: none;
+    font-size: 10px;
+    font-weight: 650;
+    cursor: pointer;
+    transition: 0.18s ease;
+  }
+  .mobile-nav a.active,
+  .mobile-nav > button.active {
+    color: var(--color-primary);
+    background: var(--color-primary-soft);
+  }
+}
 </style>

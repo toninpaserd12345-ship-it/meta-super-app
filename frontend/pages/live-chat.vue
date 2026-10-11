@@ -223,7 +223,7 @@ const formatTime = (ts: string) => {
 
 <template>
   <div class="chat-layout">
-    <div class="chat-sidebar">
+    <div class="chat-sidebar" :class="{ 'mobile-hidden': activeSender }">
       <div class="sidebar-header">
         <h2>{{locale==='lo'?'ກ່ອງຂໍ້ຄວາມ':'Live Inbox'}}</h2>
         <span class="live-state" :class="{online:liveConnected}"><i/>{{ liveConnected ? l({lo:'Real-time ເຊື່ອມແລ້ວ',th:'เชื่อมต่อ Real-time แล้ว',en:'Real-time connected'}) : l({lo:'ກຳລັງເຊື່ອມຕໍ່',th:'กำลังเชื่อมต่อ',en:'Connecting'}) }}</span>
@@ -261,6 +261,9 @@ const formatTime = (ts: string) => {
     <div class="chat-main" v-if="activeSender">
       <div class="chat-header">
         <div class="chat-header-info">
+          <button class="mobile-chat-back" @click="activeSender = null" :title="locale === 'lo' ? 'ກັບຄືນ' : 'Back'">
+            <v-icon icon="mdi-arrow-left" size="20"/>
+          </button>
           <h3>{{ getSenderName(conversations[activeSender]) }}</h3>
           <span class="platform-badge" :class="conversations[activeSender]?.[0]?.platform">
             {{ conversations[activeSender]?.[0]?.platform }}
@@ -557,7 +560,30 @@ const formatTime = (ts: string) => {
   color: var(--color-text-muted);
   gap: 16px;
 }
-@media(max-width:760px){.chat-layout{height:calc(100dvh - 96px)}.chat-sidebar{width:112px}.sidebar-header{padding:15px 10px}.sidebar-header h2{font-size:14px}.conv-item{display:grid;justify-items:center;padding:12px 8px}.conv-details{width:100%;text-align:center}.conv-name{font-size:10px;overflow:hidden;text-overflow:ellipsis}.conv-preview{display:none}.chat-header,.chat-messages{padding:14px}.message-bubble{max-width:88%}.chat-empty{padding:20px;text-align:center}}
+.mobile-chat-back {
+  display: none;
+}
+@media(max-width:760px){
+  .chat-layout{height:calc(100dvh - 120px)}
+  .chat-sidebar{width:160px}
+  .sidebar-header{padding:14px 10px}
+  .sidebar-header h2{font-size:14px}
+  .conv-item{padding:10px 8px}
+  .conv-name{font-size:12px}
+  .conv-preview{font-size:11px}
+  .chat-header,.chat-messages{padding:14px}
+  .message-bubble{max-width:88%}
+}
+@media(max-width:640px){
+  .chat-layout{height:calc(100dvh - 130px);border-radius:10px}
+  .chat-sidebar{width:100%!important;border-right:none}
+  .chat-sidebar.mobile-hidden{display:none!important}
+  .chat-main{width:100%!important}
+  .chat-empty{display:none!important}
+  .mobile-chat-back{display:inline-grid;place-items:center;width:34px;height:34px;border:none;border-radius:8px;background:var(--color-background);color:var(--color-text);cursor:pointer;margin-right:8px;flex-shrink:0}
+  .chat-header{padding:10px 12px}
+  .chat-messages{padding:12px 10px}
+}
 
 .status-badge {
   font-size: 10px;
