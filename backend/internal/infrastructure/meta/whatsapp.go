@@ -241,7 +241,8 @@ func (g *GraphConnector) sendWhatsAppReplySet(ctx context.Context, accountID, ph
 			err = g.sendWhatsAppMedia(ctx, phoneNumberID, accessToken, recipientID, item.Type, item.Content)
 		}
 		if err != nil {
-			return sent, err
+			slog.Error("whatsapp reply set step failed", "phone_number_id", phoneNumberID, "recipient", recipientID, "type", item.Type, "error", err)
+			continue
 		}
 		sent = true
 	}

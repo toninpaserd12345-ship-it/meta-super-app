@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -89,6 +90,7 @@ func main() {
 	appProvider := &appAutomationProvider{
 		automation: automationUseCase,
 		reply:      replyUseCase,
+		product:    productUseCase,
 	}
 	metaConnector.SetAutomationProvider(appProvider)
 
@@ -134,6 +136,7 @@ func main() {
 type appAutomationProvider struct {
 	automation *usecase.Automation
 	reply      *usecase.Reply
+	product    *usecase.Product
 }
 
 func (p *appAutomationProvider) FindActiveRuleForTrigger(ctx context.Context, pageID, triggerType, triggerValue string) (*domain.AutomationRule, error) {
@@ -145,7 +148,33 @@ func (p *appAutomationProvider) GetKeywordRules(ctx context.Context, pageID stri
 }
 
 func (p *appAutomationProvider) FindReplySetByTrigger(ctx context.Context, accountID, trigger string) (*domain.ReplySet, error) {
-	return p.reply.FindSetByTrigger(ctx, accountID, trigger)
+	set, err := p.reply.FindSetByTrigger(ctx, accountID, trigger)
+	if err == nil && set != nil {
+		return set, nil
+	}
+
+	// Also check if trigger matches any Product Code or Product Name that has an Automation Flow
+	if p.product != nil {
+		products, prodErr := p.product.ListProducts(ctx, "", accountID)
+		if prodErr == nil {
+			triggerLower := strings.ToLower(strings.TrimSpace(trigger))
+			for _, prod := range products {
+				if triggerLower == strings.ToLower(prod.ID) || triggerLower == strings.ToLower(prod.Name) || (prod.Code != "" && triggerLower == strings.ToLower(prod.Code)) {
+					flows, flowErr := p.automation.GetFlows(ctx, accountID)
+					if flowErr == nil {
+						for _, f := range flows {
+							if f.IsActive && f.ProductID == prod.ID && f.ReplySetID != "" {
+								return p.reply.GetSet(ctx, f.ReplySetID, accountID)
+							}
+						}
+					}
+					break
+				}
+			}
+		}
+	}
+
+	return nil, nil
 }
 
 func (p *appAutomationProvider) GetReplySetItems(ctx context.Context, replySetID string, accountID string) ([]domain.ReplyItem, error) {

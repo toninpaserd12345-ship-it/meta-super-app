@@ -591,7 +591,9 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 									if msgLower == strings.ToLower(p.ID) || msgLower == strings.ToLower(p.Name) || (p.Code != "" && msgLower == strings.ToLower(p.Code)) {
 										replyText := fmt.Sprintf("%s\n\n%s\n\nລາຄາ: %s", p.Name, p.Description, p.Price)
 										if p.ImageUrl != "" {
-											_ = g.SendMedia(ctx, accountID, entry.ID, message.Sender.ID, "image", p.ImageUrl)
+											if err := g.SendMedia(ctx, accountID, entry.ID, message.Sender.ID, "image", p.ImageUrl); err == nil {
+												time.Sleep(1500 * time.Millisecond)
+											}
 										}
 										_ = g.SendMessage(ctx, accountID, entry.ID, message.Sender.ID, replyText)
 										break
@@ -726,7 +728,6 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 			}
 			items = g.resolveReplyItems(rule, items)
 
-			sendFailed := false
 			for index, step := range items {
 				if !step.IsEnabled {
 					continue
@@ -755,19 +756,14 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 					err = g.SendMedia(ctx, rule.AccountID, page.ID, message.Sender.ID, step.Type, step.Content)
 				}
 				if err != nil {
-					slog.Error("automatic flow message failed", "page_id", entry.ID, "sender_id", message.Sender.ID, "source_id", sourceID, "step", index+1, "error", err)
-					sendFailed = true
-					break
+					slog.Error("automatic flow message step failed", "page_id", entry.ID, "sender_id", message.Sender.ID, "source_id", sourceID, "step", index+1, "type", step.Type, "error", err)
+					continue
 				}
 				if trackDeliveryStep {
 					g.mu.Lock()
 					g.deliverySteps[stepKey] = true
 					g.mu.Unlock()
 				}
-			}
-			if sendFailed {
-				g.releaseReply(replyKey)
-				continue
 			}
 			g.mu.Lock()
 			g.firstReplies[replyKey] = time.Now()
@@ -1890,7 +1886,38 @@ func (g *GraphConnector) SendMedia(ctx context.Context, accountID, pageID, recip
 	if page.Category == "WhatsApp" {
 		return g.sendWhatsAppMedia(ctx, page.ID, page.AccessToken, recipientID, mediaType, mediaURL)
 	}
-	payload, err := json.Marshal(map[string]any{"recipient": map[string]string{"id": recipientID}, "messaging_type": "RESPONSE", "message": map[string]any{"attachment": map[string]any{"type": mediaType, "payload": map[string]any{"url": mediaURL, "is_reusable": true}}}})
+
+	mType := strings.ToLower(strings.TrimSpace(mediaType))
+	switch mType {
+	case "voice", "audio":
+		mType = "audio"
+	case "video":
+		mType = "video"
+	case "image":
+		mType = "image"
+	default:
+		mType = "file"
+	}
+
+	attachmentPayload := map[string]any{
+		"url": mediaURL,
+	}
+	if mType == "image" {
+		attachmentPayload["is_reusable"] = true
+	}
+
+	payloadMap := map[string]any{
+		"recipient":      map[string]string{"id": recipientID},
+		"messaging_type": "RESPONSE",
+		"message": map[string]any{
+			"attachment": map[string]any{
+				"type":    mType,
+				"payload": attachmentPayload,
+			},
+		},
+	}
+
+	payload, err := json.Marshal(payloadMap)
 	if err != nil {
 		return err
 	}
