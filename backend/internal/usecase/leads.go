@@ -115,6 +115,15 @@ func (u *Leads) List(ctx context.Context, accountID string) ([]database.LeadMode
 	err := u.db.WithContext(ctx).Where("account_id=?", accountID).Order("created_at desc").Find(&rows).Error
 	return rows, err
 }
+
+func (u *Leads) GetLeadBySender(ctx context.Context, accountID, senderID string) (*database.LeadModel, error) {
+	var lead database.LeadModel
+	err := u.db.WithContext(ctx).Where("account_id=? AND sender_id=?", accountID, senderID).Order("updated_at desc").First(&lead).Error
+	if err != nil {
+		return nil, err
+	}
+	return &lead, nil
+}
 func (u *Leads) Settings(ctx context.Context, accountID string) (database.LeadSettingsModel, []database.LeadFollowUpStepModel, error) {
 	var s database.LeadSettingsModel
 	err := u.db.WithContext(ctx).FirstOrCreate(&s, database.LeadSettingsModel{AccountID: accountID, AssignmentMode: "round_robin", AlertsEnabled: true}).Error

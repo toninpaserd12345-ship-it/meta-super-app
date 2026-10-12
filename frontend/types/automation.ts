@@ -118,3 +118,55 @@ export interface MetaAd {
   thumbnailUrl?: string
   imageUrl?: string
 }
+
+export interface MetaInsightResult {
+  type: string
+  value?: number
+  cost?: number
+}
+
+export interface MetaInsightItem {
+  entityType: 'account' | 'campaign' | 'adset' | 'ad'
+  entityId: string
+  entityName: string
+  campaignId?: string
+  campaignName?: string
+  adSetId?: string
+  adSetName?: string
+  adId?: string
+  adName?: string
+  spend?: number
+  impressions?: number
+  reach?: number
+  frequency?: number
+  linkClicks?: number
+  linkCtr?: number
+  linkCpc?: number
+  cpm?: number
+  results: MetaInsightResult
+  qualityRanking?: string
+  engagementRateRanking?: string
+  conversionRateRanking?: string
+}
+
+export interface MetaInsightPoint {
+  date: string
+  spend?: number
+  results?: number
+  costPerResult?: number
+  linkCtr?: number
+  frequency?: number
+}
+
+export interface MetaInsightsReport {
+  currency: string
+  timezone: string
+  level: 'campaign' | 'adset' | 'ad'
+  dateStart: string
+  dateStop: string
+  generatedAt: string
+  summary?: MetaInsightItem
+  items: MetaInsightItem[]
+  trend: MetaInsightPoint[]
+  warnings: string[]
+}

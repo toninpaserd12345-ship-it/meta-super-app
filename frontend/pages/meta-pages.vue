@@ -40,6 +40,7 @@ const selectedPermissions = ref<string[]>([])
 const optionalPermissions=[
   {value:'pages_manage_posts',label:'Manage posts',description:'Create and manage Page posts'},
   {value:'read_insights',label:'Insights',description:'Read Page performance insights'},
+  {value:'ads_management',label:'Manage ads',description:'Turn Campaigns, Ad Sets and Ads on or off from this workspace'},
 ]
 const search = ref('')
 const selected = ref<string[]>([])

@@ -3,6 +3,8 @@ package usecase
 import (
 	"context"
 	"errors"
+	"strings"
+	"time"
 
 	"github.com/meta-super-app/backend/internal/domain"
 )
@@ -82,6 +84,35 @@ func (u *Meta) ListAds(ctx context.Context, userID, accountID, campaignID string
 		return nil, errors.New("campaign is required")
 	}
 	return u.connector.ListAds(ctx, userID, accountID, campaignID)
+}
+func (u *Meta) AdsInsights(ctx context.Context, userID, accountID, adAccountID, level, since, until string) (*domain.MetaInsightsReport, error) {
+	if adAccountID == "" {
+		return nil, errors.New("ad account is required")
+	}
+	level = strings.ToLower(strings.TrimSpace(level))
+	if level != "campaign" && level != "adset" && level != "ad" {
+		return nil, errors.New("insights level must be campaign, adset, or ad")
+	}
+	start, err := time.Parse("2006-01-02", since)
+	if err != nil {
+		return nil, errors.New("invalid insights start date")
+	}
+	stop, err := time.Parse("2006-01-02", until)
+	if err != nil || stop.Before(start) || stop.Sub(start) > 366*24*time.Hour {
+		return nil, errors.New("invalid insights date range")
+	}
+	return u.connector.AdsInsights(ctx, userID, accountID, adAccountID, level, since, until)
+}
+func (u *Meta) UpdateAdEntityStatus(ctx context.Context, userID, accountID, entityType, entityID, status string) error {
+	entityType = strings.ToLower(strings.TrimSpace(entityType))
+	status = strings.ToUpper(strings.TrimSpace(status))
+	if entityType != "campaign" && entityType != "adset" && entityType != "ad" {
+		return errors.New("unsupported ad entity type")
+	}
+	if entityID == "" || (status != "ACTIVE" && status != "PAUSED") {
+		return errors.New("invalid ad status update")
+	}
+	return u.connector.UpdateAdEntityStatus(ctx, userID, accountID, entityID, status)
 }
 func (u *Meta) VerifyWebhook(token string) bool { return u.connector.VerifyWebhook(token) }
 func (u *Meta) ReceiveWebhook(ctx context.Context, body []byte, signature string) error {

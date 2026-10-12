@@ -101,11 +101,41 @@ const matchingCodes = computed(() => {
   ).slice(0, 6)
 })
 
+const route = useRoute()
+const router = useRouter()
+const isMounted = ref(false)
+
+const selectConversation = (senderId: string) => {
+  activeSender.value = senderId
+  if (typeof window !== 'undefined' && window.innerWidth <= 640) {
+    void router.replace({ query: { ...route.query, c: senderId } })
+  }
+}
+
+const goBackToList = () => {
+  activeSender.value = null
+  if (route.query.c) {
+    const q = { ...route.query }
+    delete q.c
+    void router.replace({ query: q })
+  }
+}
+
+watch(() => route.query.c, (newC) => {
+  if (newC && typeof newC === 'string') {
+    if (activeSender.value !== newC) {
+      activeSender.value = newC
+    }
+  } else if (!newC && typeof window !== 'undefined' && window.innerWidth <= 640) {
+    activeSender.value = null
+  }
+}, { immediate: true })
+
 const selectCode = (item: ReplyCodeItem, autoSend = false) => {
   if (autoSend) {
-    sendReply(item.code)
+    sendReply(item.code, item.replySetId)
   } else {
-    inputMessage.value = `#${item.code}`
+    inputMessage.value = item.code.startsWith('#') ? item.code : `#${item.code}`
   }
 }
 
@@ -356,6 +386,7 @@ const activeLeadStatus = computed(() => {
 })
 
 const formatPancakeTime = (ts: string | number | undefined) => {
+  if (!isMounted.value) return ''
   if (!ts) return ''
   if (ts === 'now') return l({ lo: 'ດຽວນີ້', th: 'ตอนนี้', en: 'Now' })
   const time = parseTimestamp(ts)
@@ -379,18 +410,13 @@ const formatPancakeTime = (ts: string | number | undefined) => {
   return `${day}/${month}`
 }
 
-const sendReply = async (explicitCode?: string) => {
+const sendReply = async (explicitCode?: string, explicitReplySetId?: string) => {
   const msgToSend = (explicitCode !== undefined ? explicitCode : inputMessage.value).trim()
   if (!msgToSend || !activeSender.value || sending.value) return
 
   // Find the page ID associated with this sender
   const msgs = conversations.value[activeSender.value]
-  const pageId = msgs?.find(m => m.page_id)?.page_id || leads.value[activeSender.value]?.pageId
-
-  if (!pageId) {
-    loadError.value = l({lo:'ບໍ່ພົບ Page ID ສຳລັບການສົນທະນານີ້',th:'ไม่พบ Page ID สำหรับการสนทนานี้',en:'No Page ID found for this conversation'})
-    return
-  }
+  const pageId = msgs?.find(m => m.page_id)?.page_id || leads.value[activeSender.value]?.pageId || ''
 
   sending.value = true
   loadError.value = ''
@@ -398,7 +424,12 @@ const sendReply = async (explicitCode?: string) => {
   try {
     const res = await $fetch<{ status: string; reply_set_sent?: boolean; reply_set_name?: string; items_count?: number }>('/api/proxy/api/v1/chat/send', {
       method: 'POST',
-      body: { page_id: pageId, recipient_id: activeSender.value, message: msgToSend },
+      body: {
+        page_id: pageId,
+        recipient_id: activeSender.value,
+        message: msgToSend,
+        reply_set_id: explicitReplySetId || ''
+      },
     })
     inputMessage.value = ''
     if (res.reply_set_sent) {
@@ -412,7 +443,16 @@ const sendReply = async (explicitCode?: string) => {
     await fetchHistoryAndLeads(true)
     scrollToBottom()
   } catch (error: any) {
-    loadError.value = error?.data?.message || error?.statusMessage || l({lo:'ສົ່ງຂໍ້ຄວາມບໍ່ສຳເລັດ',th:'ส่งข้อความไม่สำเร็จ',en:'Message could not be sent.'})
+    const detail = error?.data?.detail || error?.data?.message || error?.statusMessage || ''
+    if (detail.includes('not found') || detail.includes('not connected')) {
+      loadError.value = l({
+        lo: 'Page ຍັງບໍ່ໄດ້ເຊື່ອມຕໍ່ ຫຼື Token ໝົດອາຍຸ, ກະລຸນາກວດສອບທີ່ເມນູ Meta Pages',
+        th: 'เพจยังไม่ได้เชื่อมต่อ หรือ Token หมดอายุ กรุณาตรวจสอบที่เมนู Meta Pages',
+        en: 'Page not connected or token expired. Please check Meta Pages.'
+      })
+    } else {
+      loadError.value = detail || l({lo:'ສົ່ງຂໍ້ຄວາມບໍ່ສຳເລັດ',th:'ส่งข้อความไม่สำเร็จ',en:'Message could not be sent.'})
+    }
   } finally {
     sending.value = false
   }
@@ -449,10 +489,10 @@ const fetchHistoryAndLeads = async (silent = false) => {
       $fetch<{items: ChatMessage[]}>('/api/proxy/api/v1/chat/history').catch(()=>({items:[]})),
       $fetch<{items: Lead[]}>('/api/proxy/api/v1/leads').catch(()=>({items:[]}))
     ])
-    
+
     const leadsList = leadsRes.items || []
     leadsList.forEach(l => { leads.value[l.senderId] = l })
-    
+
     const history = historyRes.items || []
     mergeMessages(history)
   } catch (err) {
@@ -470,7 +510,7 @@ const connectLiveChat = () => {
   try {
     const es = new EventSource(url)
     evtSource.value = es
-    
+
     es.onopen = async () => {
       liveConnected.value = true
       await fetchHistoryAndLeads(true)
@@ -504,7 +544,11 @@ const connectLiveChat = () => {
 }
 
 onMounted(() => {
+  isMounted.value = true
   if (import.meta.server) return
+  if (route.query.c && typeof route.query.c === 'string') {
+    activeSender.value = String(route.query.c)
+  }
   connectLiveChat()
   void fetchHistoryAndLeads()
   pollTimer = setInterval(() => { void fetchHistoryAndLeads(true) }, 3000)
@@ -519,6 +563,7 @@ onUnmounted(() => {
 })
 
 const formatTime = (ts: string) => {
+  if (!isMounted.value) return ''
   if (ts === 'now') return l({lo:'ດຽວນີ້',th:'เมื่อสักครู่',en:'Just now'})
   const d = new Date(Number(ts))
   if (isNaN(d.getTime())) return ts
@@ -527,7 +572,7 @@ const formatTime = (ts: string) => {
 </script>
 
 <template>
-  <div class="chat-layout">
+  <div class="chat-layout" :class="{ 'mobile-in-chat': activeSender }">
     <div class="chat-sidebar" :class="{ 'mobile-hidden': activeSender }">
       <div class="sidebar-header">
         <div class="sidebar-header-top">
@@ -537,9 +582,9 @@ const formatTime = (ts: string) => {
         <!-- Pancake Search Box -->
         <div class="sidebar-search">
           <v-icon icon="mdi-magnify" size="18" class="search-icon" />
-          <input 
-            v-model="searchQuery" 
-            type="text" 
+          <input
+            v-model="searchQuery"
+            type="text"
             :placeholder="l({lo:'ຄົ້ນຫາຊື່, ເບີ, ຂໍ້ຄວາມ...',th:'ค้นหาชื่อ, เบอร์, ข้อความ...',en:'Search name, phone, msg...'})"
           />
           <button v-if="searchQuery" class="clear-search-btn" @click="searchQuery = ''" type="button">
@@ -548,19 +593,19 @@ const formatTime = (ts: string) => {
         </div>
         <!-- Pancake Status Filter Tabs -->
         <div class="status-filters">
-          <button 
-            type="button" 
-            class="filter-pill" 
+          <button
+            type="button"
+            class="filter-pill"
             :class="{ active: selectedStatusFilter === 'all' }"
             @click="selectedStatusFilter = 'all'"
           >
             {{ l({lo:'ທັງໝົດ',th:'ทั้งหมด',en:'All'}) }}
             <span class="filter-count">{{ statusCounts.all || 0 }}</span>
           </button>
-          <button 
-            v-for="opt in STATUS_OPTIONS" 
-            :key="opt.key" 
-            type="button" 
+          <button
+            v-for="opt in STATUS_OPTIONS"
+            :key="opt.key"
+            type="button"
             class="filter-pill"
             :class="{ active: selectedStatusFilter === opt.key }"
             :style="selectedStatusFilter === opt.key ? { backgroundColor: opt.bg, borderColor: opt.color, color: opt.color } : {}"
@@ -574,59 +619,61 @@ const formatTime = (ts: string) => {
       </div>
 
       <div class="conversation-list">
-        <div v-if="filteredConversations.length === 0" class="empty-list">
-          <v-icon icon="mdi-chat-question-outline" size="32" class="mb-2"/>
-          <p>{{locale==='lo'?'ບໍ່ພົບການສົນທະນາ':'No conversations found.'}}</p>
-        </div>
-        <div 
-          v-for="item in filteredConversations" 
-          :key="item.senderId"
-          class="conv-item"
-          :class="{ active: activeSender === item.senderId }"
-          @click="activeSender = item.senderId"
-        >
-          <div class="conv-avatar">
-            <img v-if="item.senderPic" :src="item.senderPic" alt="Profile" class="avatar-img" />
-            <v-icon v-else :icon="item.platform === 'whatsapp' ? 'mdi-whatsapp' : 'mdi-facebook-messenger'" />
-            <span class="platform-mini-badge" :class="item.platform">
-              <v-icon :icon="item.platform === 'whatsapp' ? 'mdi-whatsapp' : 'mdi-facebook-messenger'" size="9"/>
-            </span>
+        <ClientOnly>
+          <div v-if="filteredConversations.length === 0" class="empty-list">
+            <v-icon icon="mdi-chat-question-outline" size="32" class="mb-2"/>
+            <p>{{locale==='lo'?'ບໍ່ພົບການສົນທະນາ':'No conversations found.'}}</p>
           </div>
-          <div class="conv-details">
-            <div class="conv-top-row">
-              <span class="conv-name" :title="item.senderName">{{ item.senderName }}</span>
-              <span class="conv-time">{{ formatPancakeTime(item.lastTime) }}</span>
-            </div>
-            <div class="conv-mid-row">
-              <span 
-                class="status-pill-badge" 
-                :style="{
-                  color: getStatusInfo(item.status).color,
-                  backgroundColor: getStatusInfo(item.status).bg,
-                  borderColor: getStatusInfo(item.status).border
-                }"
-              >
-                <v-icon :icon="getStatusInfo(item.status).icon" size="10" class="mr-1"/>
-                {{ l(getStatusInfo(item.status).label) }}
-              </span>
-              <span class="conv-preview" :title="item.lastMessage?.message || ''">
-                {{ item.lastMessage?.message || (item.lastMessage?.type === 'image' ? (locale === 'lo' ? '📷 ຮູບພາບ' : '📷 รูปภาพ') : '...') }}
+          <div
+            v-for="item in filteredConversations"
+            :key="item.senderId"
+            class="conv-item"
+            :class="{ active: activeSender === item.senderId }"
+            @click="selectConversation(item.senderId)"
+          >
+            <div class="conv-avatar">
+              <img v-if="item.senderPic" :src="item.senderPic" alt="Profile" class="avatar-img" />
+              <v-icon v-else :icon="item.platform === 'whatsapp' ? 'mdi-whatsapp' : 'mdi-facebook-messenger'" />
+              <span class="platform-mini-badge" :class="item.platform">
+                <v-icon :icon="item.platform === 'whatsapp' ? 'mdi-whatsapp' : 'mdi-facebook-messenger'" size="9"/>
               </span>
             </div>
-            <div class="conv-meta" v-if="item.lead">
-              <span class="meta-tag page-tag" v-if="item.pageId"><v-icon icon="mdi-flag" size="10"/> {{ item.pageId }}</span>
-              <span class="meta-tag ad-tag" v-if="item.lead.sourceType === 'ad' && item.lead.sourceId"><v-icon icon="mdi-bullhorn" size="10"/> Ad: {{ item.lead.sourceId }}</span>
+            <div class="conv-details">
+              <div class="conv-top-row">
+                <span class="conv-name" :title="item.senderName">{{ item.senderName }}</span>
+                <span class="conv-time">{{ formatPancakeTime(item.lastTime) }}</span>
+              </div>
+              <div class="conv-mid-row">
+                <span
+                  class="status-pill-badge"
+                  :style="{
+                    color: getStatusInfo(item.status).color,
+                    backgroundColor: getStatusInfo(item.status).bg,
+                    borderColor: getStatusInfo(item.status).border
+                  }"
+                >
+                  <v-icon :icon="getStatusInfo(item.status).icon" size="10" class="mr-1"/>
+                  {{ l(getStatusInfo(item.status).label) }}
+                </span>
+                <span class="conv-preview" :title="item.lastMessage?.message || ''">
+                  {{ item.lastMessage?.message || (item.lastMessage?.type === 'image' ? (locale === 'lo' ? '📷 ຮູບພາບ' : '📷 รูปภาพ') : '...') }}
+                </span>
+              </div>
+              <div class="conv-meta" v-if="item.lead">
+                <span class="meta-tag page-tag" v-if="item.pageId"><v-icon icon="mdi-flag" size="10"/> {{ item.pageId }}</span>
+                <span class="meta-tag ad-tag" v-if="item.lead.sourceType === 'ad' && item.lead.sourceId"><v-icon icon="mdi-bullhorn" size="10"/> Ad: {{ item.lead.sourceId }}</span>
+              </div>
             </div>
           </div>
-        </div>
+        </ClientOnly>
       </div>
     </div>
-    
+
     <div class="chat-main" v-if="activeSender">
       <div class="chat-header">
         <div class="chat-header-info">
-          <button class="mobile-chat-back" @click="activeSender = null" :title="locale === 'lo' ? 'ກັບຄືນ' : 'Back'">
-            <v-icon icon="mdi-arrow-left" size="20"/>
+          <button class="mobile-chat-back" @click="goBackToList()" :title="locale === 'lo' ? 'ກັບຄືນ' : 'Back'">
+            <v-icon icon="mdi-arrow-left" size="22"/>
           </button>
           <div class="chat-header-user">
             <h3>{{ activeSenderSummary?.senderName || getSenderName(conversations[activeSender]) }}</h3>
@@ -644,9 +691,9 @@ const formatTime = (ts: string) => {
           <!-- Pancake Status Menu Dropdown -->
           <v-menu location="bottom end">
             <template #activator="{ props }">
-              <button 
-                type="button" 
-                v-bind="props" 
+              <button
+                type="button"
+                v-bind="props"
                 class="current-status-btn"
                 :style="{
                   color: getStatusInfo(activeLeadStatus).color,
@@ -685,9 +732,9 @@ const formatTime = (ts: string) => {
           </v-menu>
 
           <!-- 1-Click Purchase Shortcut -->
-          <button 
-            v-if="activeLeadStatus !== 'purchased'" 
-            @click="changeLeadStatus(activeSender, 'purchased')" 
+          <button
+            v-if="activeLeadStatus !== 'purchased'"
+            @click="changeLeadStatus(activeSender, 'purchased')"
             class="action-btn-purchased"
             :title="l({lo:'ປິດການຂາຍທັນທີ (ສົ່ງ Meta CAPI)',th:'ปิดการขายทันที (ส่ง Meta CAPI)',en:'Mark Purchased (Meta CAPI)'})"
           >
@@ -704,31 +751,60 @@ const formatTime = (ts: string) => {
         <v-icon icon="mdi-check-circle" size="15"/>
         <span>{{ statusNotice }}</span>
       </div>
-      
+
       <div class="chat-messages" ref="messagesContainer">
-        <div 
-          v-for="msg in activeChatMessages" 
-          :key="msg.id"
-          class="message-bubble"
-          :class="msg.platform === 'system' ? 'outgoing' : 'incoming'"
-        >
-          <div class="bubble-content">
-            <img v-if="msg.type === 'image' && msg.message" :src="msg.message" :alt="locale==='lo'?'ຮູບຈາກການສົນທະນາ':'Conversation image'" class="message-image">
-            <video v-else-if="msg.type === 'video' && msg.message" :src="msg.message" controls class="message-video"/>
-            <audio v-else-if="msg.type === 'audio' && msg.message" :src="msg.message" controls class="message-audio"/>
-            <span v-else-if="msg.type === 'image'" class="media-placeholder">{{locale==='lo'?'ຮູບພາບ':'Image'}}</span>
-            <span v-else>{{ msg.message }}</span>
+        <ClientOnly>
+          <div
+            v-for="msg in activeChatMessages"
+            :key="msg.id"
+            class="message-bubble"
+            :class="msg.platform === 'system' ? 'outgoing' : 'incoming'"
+          >
+            <div class="bubble-content">
+              <img v-if="msg.type === 'image' && msg.message" :src="msg.message" :alt="locale==='lo'?'ຮູບຈາກການສົນທະນາ':'Conversation image'" class="message-image">
+              <video v-else-if="msg.type === 'video' && msg.message" :src="msg.message" controls class="message-video"/>
+              <audio v-else-if="msg.type === 'audio' && msg.message" :src="msg.message" controls class="message-audio"/>
+              <span v-else-if="msg.type === 'image'" class="media-placeholder">{{locale==='lo'?'ຮູບພາບ':'Image'}}</span>
+              <span v-else>{{ msg.message }}</span>
+            </div>
+            <div class="bubble-time">{{ formatTime(msg.timestamp) }}</div>
           </div>
-          <div class="bubble-time">{{ formatTime(msg.timestamp) }}</div>
-        </div>
+        </ClientOnly>
       </div>
-      
+
       <div class="chat-input-wrapper">
+        <!-- Quick 1-Tap Codes Bar: Specially optimized for iPhone 11 and Mobile -->
+        <div class="quick-chips-bar" v-if="availableCodes.length">
+          <div class="quick-chips-header">
+            <span class="quick-chips-title">
+              <v-icon icon="mdi-flash" size="14" color="primary"/>
+              {{ l({lo:'ສົ່ງດ່ວນ (1-Tap):',th:'ส่งด่วน (1-Tap):',en:'Quick Codes:'}) }}
+            </span>
+            <button type="button" class="more-codes-link" @click="replySetsDialog = true">
+              {{ l({lo:'ທັງໝົດ',th:'ทั้งหมด',en:'All'}) }}
+              <v-icon icon="mdi-chevron-right" size="14"/>
+            </button>
+          </div>
+          <div class="quick-chips-scroll">
+            <button
+              v-for="item in availableCodes.slice(0, 12)"
+              :key="item.code"
+              type="button"
+              class="quick-tap-chip"
+              @click="selectCode(item, true)"
+              :title="item.details"
+            >
+              <span class="chip-badge">#{{ item.code }}</span>
+              <span class="chip-text">{{ item.name }}</span>
+            </button>
+          </div>
+        </div>
+
         <div v-if="matchingCodes.length" class="code-suggestions">
           <span class="suggestion-label"><v-icon icon="mdi-flash" size="14"/> {{ l({lo:'ໂຄ້ດທີ່ກົງກັນ:',th:'โค้ดที่ตรงกัน:',en:'Matching codes:'}) }}</span>
-          <button 
-            v-for="codeItem in matchingCodes" 
-            :key="codeItem.code" 
+          <button
+            v-for="codeItem in matchingCodes"
+            :key="codeItem.code"
             type="button"
             class="suggestion-chip"
             @click="selectCode(codeItem, false)"
@@ -746,19 +822,19 @@ const formatTime = (ts: string) => {
 
         <div class="chat-input">
           <div v-if="loadError" class="chat-error">{{loadError}}</div>
-          <button 
-            type="button" 
-            class="quick-reply-btn" 
+          <button
+            type="button"
+            class="quick-reply-btn"
             @click="replySetsDialog = true"
             :title="l({lo:'ເລືອກຊຸດຂໍ້ຄວາມ / ໂຄ້ດ',th:'เลือกชุดข้อความ / โค้ด',en:'Quick Reply Sets & Codes'})"
           >
             <v-icon icon="mdi-lightning-bolt" size="18"/>
             <span class="quick-btn-text">{{ l({lo:'ໂຄ້ດ',th:'โค้ด',en:'Code'}) }}</span>
           </button>
-          <input 
-            v-model="inputMessage" 
-            @keyup.enter="sendReply()" 
-            type="text" 
+          <input
+            v-model="inputMessage"
+            @keyup.enter="sendReply()"
+            type="text"
             :placeholder="l({
               lo: 'ພິມຂໍ້ຄວາມ ຫຼື ໂຄ້ດຊຸດຂໍ້ຄວາມ (#P01, ຊຸດ1)...',
               th: 'พิมพ์ข้อความ หรือ โค้ดชุดข้อความ (#P01, ชุด1)...',
@@ -773,7 +849,7 @@ const formatTime = (ts: string) => {
         </div>
       </div>
     </div>
-    
+
     <div class="chat-empty" v-else>
       <v-icon icon="mdi-message-text-outline" size="64" />
       <p>{{locale==='lo'?'ເລືອກການສົນທະນາເພື່ອເບິ່ງ ແລະຕອບຂໍ້ຄວາມ':'Select a conversation to view and reply.'}}</p>
@@ -794,10 +870,10 @@ const formatTime = (ts: string) => {
               en:'Type the name or code in chat (e.g. #P01 or Set1) to send the sequence, or select from the list below:'
             }) }}
           </p>
-          <v-text-field 
-            v-model="dialogSearch" 
-            density="compact" 
-            variant="outlined" 
+          <v-text-field
+            v-model="dialogSearch"
+            density="compact"
+            variant="outlined"
             prepend-inner-icon="mdi-magnify"
             :placeholder="l({lo:'ຄົ້ນຫາຊື່ ຫຼື ໂຄ້ດ...',th:'ค้นหาชื่อ หรือ โค้ด...',en:'Search name or code...'})"
             hide-details
@@ -1313,6 +1389,80 @@ const formatTime = (ts: string) => {
   background: var(--color-surface);
 }
 
+.quick-chips-bar {
+  padding: 8px 14px 6px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.quick-chips-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.quick-chips-title {
+  font-size: 11px;
+  font-weight: 750;
+  color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.more-codes-link {
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 0;
+}
+.quick-chips-scroll {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.quick-chips-scroll::-webkit-scrollbar {
+  display: none;
+}
+.quick-tap-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 18px;
+  border: 1px solid var(--color-border);
+  background: var(--color-background);
+  color: var(--color-text);
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+  touch-action: manipulation;
+}
+.quick-tap-chip:active, .quick-tap-chip:hover {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+.quick-tap-chip .chip-badge {
+  color: var(--color-primary);
+  font-weight: 800;
+  font-size: 11.5px;
+}
+.quick-tap-chip .chip-text {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
 .code-suggestions {
   display: flex;
   align-items: center;
@@ -1553,18 +1703,91 @@ const formatTime = (ts: string) => {
   .message-bubble{max-width:88%}
 }
 @media(max-width:640px){
-  .chat-layout{height:calc(100dvh - 130px);border-radius:10px}
+  .chat-layout{
+    height: calc(100dvh - 125px);
+    border-radius: 12px;
+  }
+  .chat-layout.mobile-in-chat {
+    height: 100dvh;
+    border-radius: 0;
+    border: none;
+    margin: -20px -14px calc(-102px - env(safe-area-inset-bottom)) -14px;
+    position: relative;
+    z-index: 90;
+  }
   .chat-sidebar{width:100%!important;border-right:none}
   .chat-sidebar.mobile-hidden{display:none!important}
-  .chat-main{width:100%!important}
+  .chat-main{width:100%!important;height:100%;display:flex;flex-direction:column}
   .chat-empty{display:none!important}
-  .mobile-chat-back{display:inline-grid;place-items:center;width:34px;height:34px;border:none;border-radius:8px;background:var(--color-background);color:var(--color-text);cursor:pointer;margin-right:8px;flex-shrink:0}
-  .chat-header{padding:10px 12px;flex-wrap:wrap;gap:8px}
+  .mobile-chat-back{
+    display: inline-grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border: none;
+    border-radius: 12px;
+    background: var(--color-background);
+    color: var(--color-text);
+    cursor: pointer;
+    margin-right: 8px;
+    flex-shrink: 0;
+    touch-action: manipulation;
+  }
+  .mobile-chat-back:active {
+    background: var(--color-primary-soft);
+    color: var(--color-primary);
+  }
+  .chat-header{
+    padding: max(10px, env(safe-area-inset-top)) 12px 10px;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-height: 54px;
+  }
   .chat-header-actions{gap:6px}
-  .current-status-btn{padding:5px 9px;font-size:11px}
-  .action-btn-purchased{padding:5px 10px;font-size:11px}
-  .purchased-pill{padding:4px 9px;font-size:11px}
-  .chat-messages{padding:12px 10px}
+  .current-status-btn{
+    padding: 7px 11px;
+    font-size: 11.5px;
+    min-height: 40px;
+    border-radius: 10px;
+    touch-action: manipulation;
+  }
+  .action-btn-purchased{
+    padding: 7px 11px;
+    font-size: 11.5px;
+    min-height: 40px;
+    border-radius: 10px;
+    touch-action: manipulation;
+  }
+  .purchased-pill{padding:5px 10px;font-size:11.5px}
+  .chat-messages{
+    padding: 12px 10px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .message-bubble {
+    max-width: 90%;
+  }
+  .chat-input-wrapper {
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+    background: var(--color-surface);
+  }
+  .chat-input {
+    padding: 8px 10px;
+    gap: 8px;
+  }
+  .chat-input input {
+    height: 44px;
+    font-size: 15px;
+  }
+  .chat-input button {
+    width: 44px;
+    height: 44px;
+    touch-action: manipulation;
+  }
+  .quick-reply-btn {
+    height: 44px;
+    padding: 0 10px;
+    touch-action: manipulation;
+  }
 }
 
 .status-badge {

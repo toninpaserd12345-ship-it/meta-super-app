@@ -3,6 +3,7 @@ package httpx
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"log/slog"
 	"net/mail"
 	"net/url"
@@ -115,7 +116,9 @@ func (h *Handler) App() *fiber.App {
 	auth.Get("/api/v1/meta/pages/:pageID/posts", requireAccount(h.auth, domain.ClaimPagesRead), h.metaPosts)
 	auth.Get("/api/v1/meta/ad-accounts", requireAccount(h.auth, domain.ClaimPagesRead), h.metaAdAccounts)
 	auth.Get("/api/v1/meta/ad-accounts/:adAccountID/campaigns", requireAccount(h.auth, domain.ClaimPagesRead), h.metaCampaigns)
+	auth.Get("/api/v1/meta/ad-accounts/:adAccountID/insights", requireAccount(h.auth, domain.ClaimPagesRead), h.metaAdsInsights)
 	auth.Get("/api/v1/meta/campaigns/:campaignID/ads", requireAccount(h.auth, domain.ClaimPagesRead), h.metaAds)
+	auth.Patch("/api/v1/meta/ads/:entityType/:entityID/status", requireAccount(h.auth, domain.ClaimPagesConnect), h.metaAdStatus)
 	auth.Get("/api/v1/products", requireAccount(h.auth, domain.ClaimPagesRead), h.products)
 	auth.Post("/api/v1/products", requireAccount(h.auth, domain.ClaimPagesConnect), h.saveProduct)
 	auth.Delete("/api/v1/products/:id", requireAccount(h.auth, domain.ClaimPagesConnect), h.deleteProduct)
@@ -465,4 +468,36 @@ func (h *Handler) metaAds(c fiber.Ctx) error {
 		return usecaseError(c, err)
 	}
 	return c.JSON(fiber.Map{"items": items})
+}
+func (h *Handler) metaAdsInsights(c fiber.Ctx) error {
+	ctx, cancel := requestContext(c)
+	defer cancel()
+	report, err := h.meta.AdsInsights(ctx, userID(c), c.Locals("accountID").(string), c.Params("adAccountID"), c.Query("level", "campaign"), c.Query("since"), c.Query("until"))
+	if err != nil {
+		if errors.Is(err, domain.ErrMetaReconnectRequired) {
+			return usecaseError(c, err)
+		}
+		slog.Warn("Meta Ads Insights request failed", "ad_account_id", c.Params("adAccountID"), "level", c.Query("level"), "error", err)
+		return fail(c, fiber.StatusBadGateway, "meta_insights_failed", "Meta could not load Ads Insights. Confirm ads_read access, the selected ad account, and the date range, then retry.")
+	}
+	c.Set(fiber.HeaderCacheControl, "no-store")
+	return c.JSON(report)
+}
+func (h *Handler) metaAdStatus(c fiber.Ctx) error {
+	var body struct {
+		Status string `json:"status"`
+	}
+	if err := c.Bind().JSON(&body); err != nil {
+		return fail(c, fiber.StatusBadRequest, "invalid_request", "Status selection is invalid.")
+	}
+	ctx, cancel := requestContext(c)
+	defer cancel()
+	if err := h.meta.UpdateAdEntityStatus(ctx, userID(c), c.Locals("accountID").(string), c.Params("entityType"), c.Params("entityID"), body.Status); err != nil {
+		if errors.Is(err, domain.ErrMetaReconnectRequired) {
+			return usecaseError(c, err)
+		}
+		slog.Warn("Meta ad status update failed", "entity_type", c.Params("entityType"), "entity_id", c.Params("entityID"), "error", err)
+		return fail(c, fiber.StatusBadGateway, "meta_ads_update_failed", "Meta could not change this status. Confirm that the account granted ads_management and that you can manage this ad account.")
+	}
+	return c.JSON(fiber.Map{"id": c.Params("entityID"), "status": strings.ToUpper(body.Status)})
 }

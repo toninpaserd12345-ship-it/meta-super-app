@@ -1046,7 +1046,7 @@ onUnmounted(() => {
   .leads-hero {
     flex-direction: column;
     align-items: flex-start;
-    padding: 20px;
+    padding: 18px 16px;
   }
   .hero-actions {
     width: 100%;
@@ -1054,12 +1054,55 @@ onUnmounted(() => {
   }
   .lead-card {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
+    padding: 14px 12px;
   }
   .lead-actions-col {
     width: 100%;
-    justify-content: flex-start;
+    justify-content: space-between;
     flex-wrap: wrap;
+    border-top: 1px solid var(--color-border-subtle);
+    padding-top: 10px;
+    margin-top: 6px;
+  }
+}
+@media (max-width: 640px) {
+  .leads-hero {
+    padding: 16px 14px;
+    border-radius: 16px;
+  }
+  .tab-btn {
+    padding: 8px 12px;
+    font-size: 11.5px;
+    min-height: 38px;
+    touch-action: manipulation;
+  }
+  .lead-actions-col {
+    gap: 8px;
+  }
+  .lead-status-btn, .quick-buy-btn {
+    flex: 1;
+    justify-content: center;
+    min-height: 42px;
+    padding: 8px 12px;
+    font-size: 12px;
+    touch-action: manipulation;
+  }
+  .chat-now-btn {
+    width: 42px;
+    height: 42px;
+    min-height: 42px;
+    border-radius: 12px;
+    display: inline-grid;
+    place-items: center;
+    touch-action: manipulation;
+  }
+  .lead-main {
+    gap: 10px;
+  }
+  .lead-avatar {
+    width: 40px;
+    height: 40px;
   }
 }
 </style>

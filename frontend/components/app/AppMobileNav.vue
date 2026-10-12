@@ -13,10 +13,14 @@ const items = computed(() => {
     .map(path => allItems.value.find(item => item.to === path))
     .filter((item): item is NonNullable<typeof item> => Boolean(item))
 })
+
+const isChatActiveOnMobile = computed(() => {
+  return route.path === '/live-chat' && Boolean(route.query.c)
+})
 </script>
 
 <template>
-  <nav class="mobile-nav" :aria-label="t('common.allMenus')">
+  <nav class="mobile-nav" :class="{ 'chat-active-hidden': isChatActiveOnMobile }" :aria-label="t('common.allMenus')">
     <NuxtLink 
       v-for="item in items" 
       :key="item.to" 
@@ -38,6 +42,9 @@ const items = computed(() => {
   display: none;
 }
 @media (max-width: 640px) {
+  .mobile-nav.chat-active-hidden {
+    display: none !important;
+  }
   .mobile-nav {
     height: 68px;
     display: flex;

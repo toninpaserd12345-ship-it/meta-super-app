@@ -149,6 +149,29 @@ func TestMatchesKeywords(t *testing.T) {
 	}
 }
 
+func TestSelectedInsightResultPrefersBusinessOutcome(t *testing.T) {
+	result := selectedInsightResult(
+		[]graphInsightAction{{ActionType: "link_click", Value: "20"}, {ActionType: "lead", Value: "4"}},
+		[]graphInsightAction{{ActionType: "link_click", Value: "0.50"}, {ActionType: "lead", Value: "2.50"}},
+	)
+	if result.Type != "lead" || result.Value == nil || *result.Value != 4 || result.Cost == nil || *result.Cost != 2.5 {
+		t.Fatalf("unexpected normalized result: %#v", result)
+	}
+}
+
+func TestInsightItemPreservesMissingMetrics(t *testing.T) {
+	item := insightItem("ad", graphInsightRow{AdID: "ad-1", AdName: "Creative A", Spend: "not-a-number", InlineLinkClickCTR: "2.75"})
+	if item.EntityID != "ad-1" || item.EntityName != "Creative A" {
+		t.Fatalf("unexpected identity: %#v", item)
+	}
+	if item.Spend != nil {
+		t.Fatalf("invalid spend must remain unavailable, got %v", *item.Spend)
+	}
+	if item.LinkCTR == nil || *item.LinkCTR != 2.75 {
+		t.Fatalf("link CTR was not normalized: %#v", item.LinkCTR)
+	}
+}
+
 func TestReplyStepsFiltersAndExpandsVariables(t *testing.T) {
 	binding := domain.ProductBinding{
 		ProductName: "Durian A",
@@ -372,4 +395,3 @@ func TestIsAskingPrice(t *testing.T) {
 		}
 	}
 }
-

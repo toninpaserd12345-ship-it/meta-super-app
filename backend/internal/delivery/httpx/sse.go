@@ -115,27 +115,45 @@ func (h *Handler) resolveReplySet(ctx context.Context, accountID, replySetID, me
 		}
 	}
 
-	// 3. Match by Product code / name / ID linked to an active flow
-	if h.Product != nil && h.Automation != nil && h.Reply != nil {
+	// 3. Match by Product code / name / ID
+	if h.Product != nil {
 		products, prodErr := h.Product.ListProducts(ctx, "", accountID)
 		if prodErr == nil {
-			flows, _ := h.Automation.GetFlows(ctx, accountID)
+			var flows []domain.AutomationFlow
+			if h.Automation != nil {
+				flows, _ = h.Automation.GetFlows(ctx, accountID)
+			}
 			for _, trig := range triggers {
 				trigLower := strings.ToLower(trig)
+				cleanTrig := strings.TrimSpace(strings.TrimLeft(trigLower, "/#:!# "))
 				for _, prod := range products {
-					codeMatch := prod.Code != "" && strings.EqualFold(prod.Code, trigLower)
-					nameMatch := strings.EqualFold(prod.Name, trigLower)
-					idMatch := strings.EqualFold(prod.ID, trigLower)
+					cleanProdCode := strings.TrimSpace(strings.TrimLeft(strings.ToLower(prod.Code), "/#:!# "))
+					codeMatch := (prod.Code != "" && strings.EqualFold(prod.Code, trigLower)) || (cleanTrig != "" && cleanProdCode != "" && cleanTrig == cleanProdCode)
+					nameMatch := strings.EqualFold(prod.Name, trigLower) || strings.EqualFold(prod.Name, cleanTrig)
+					idMatch := strings.EqualFold(prod.ID, trigLower) || strings.EqualFold(prod.ID, cleanTrig)
 					if codeMatch || nameMatch || idMatch {
+						// 3a. If product is linked to an active automation flow
 						for _, f := range flows {
 							if f.IsActive && f.ProductID == prod.ID && f.ReplySetID != "" {
-								set, err := h.Reply.GetSet(ctx, f.ReplySetID, accountID)
-								if err == nil && set != nil {
-									pCopy := prod
-									return set, &pCopy, nil
+								if h.Reply != nil {
+									set, err := h.Reply.GetSet(ctx, f.ReplySetID, accountID)
+									if err == nil && set != nil {
+										pCopy := prod
+										return set, &pCopy, nil
+									}
 								}
 							}
 						}
+
+						// 3b. Product matched directly without linked flow: synthesize a Reply Set on the fly
+						pCopy := prod
+						synthSet := &domain.ReplySet{
+							ID:        "synth-product:" + prod.ID,
+							AccountID: accountID,
+							Name:      prod.Name,
+							Code:      prod.Code,
+						}
+						return synthSet, &pCopy, nil
 					}
 				}
 			}
@@ -143,6 +161,27 @@ func (h *Handler) resolveReplySet(ctx context.Context, accountID, replySetID, me
 	}
 
 	return nil, nil, nil
+}
+
+func (h *Handler) resolvePageID(ctx context.Context, accountID, recipientID string) string {
+	if recipientID != "" && h.Leads != nil {
+		if lead, err := h.Leads.GetLeadBySender(ctx, accountID, recipientID); err == nil && lead != nil && lead.PageID != "" {
+			return lead.PageID
+		}
+	}
+	if h.meta != nil {
+		if pages, err := h.meta.ListPages(ctx, "", accountID); err == nil {
+			for _, p := range pages {
+				if p.Connected && p.ID != "" {
+					return p.ID
+				}
+			}
+			if len(pages) > 0 {
+				return pages[0].ID
+			}
+		}
+	}
+	return ""
 }
 
 func (h *Handler) sendChatMessage(c fiber.Ctx) error {
@@ -157,22 +196,47 @@ func (h *Handler) sendChatMessage(c fiber.Ctx) error {
 	}
 	accountID := c.Locals("accountID").(string)
 
+	if strings.TrimSpace(body.PageID) == "" {
+		body.PageID = h.resolvePageID(c.Context(), accountID, body.RecipientID)
+	}
+
 	// Check if admin entered a code matching a Reply Set or requested a specific set
 	matchedSet, matchedProd, _ := h.resolveReplySet(c.Context(), accountID, body.ReplySetID, body.Message)
-	if matchedSet != nil && h.Reply != nil {
-		items, err := h.Reply.GetReplySetItems(c.Context(), matchedSet.ID, accountID)
-		if err == nil && len(items) > 0 {
-			var activeItems []domain.ReplyItem
-			for _, item := range items {
-				if item.IsEnabled && strings.TrimSpace(item.Content) != "" {
-					activeItems = append(activeItems, item)
-				}
+	if matchedSet != nil {
+		var activeItems []domain.ReplyItem
+		if strings.HasPrefix(matchedSet.ID, "synth-product:") && matchedProd != nil {
+			// Synthesize product sequence: Image first (if available) + Product details and price
+			if matchedProd.ImageUrl != "" {
+				activeItems = append(activeItems, domain.ReplyItem{
+					ID:         "synth-img-" + matchedProd.ID,
+					ReplySetID: matchedSet.ID,
+					Type:       "image",
+					Content:    matchedProd.ImageUrl,
+					OrderIndex: 1,
+					IsEnabled:  true,
+				})
 			}
-			sort.Slice(activeItems, func(i, j int) bool {
-				return activeItems[i].OrderIndex < activeItems[j].OrderIndex
+			productText := fmt.Sprintf("%s\n\n%s\n\nລາຄາ: %s", matchedProd.Name, matchedProd.Description, matchedProd.Price)
+			activeItems = append(activeItems, domain.ReplyItem{
+				ID:         "synth-txt-" + matchedProd.ID,
+				ReplySetID: matchedSet.ID,
+				Type:       "text",
+				Content:    productText,
+				OrderIndex: 2,
+				IsEnabled:  true,
 			})
+		} else if h.Reply != nil {
+			items, err := h.Reply.GetReplySetItems(c.Context(), matchedSet.ID, accountID)
+			if err == nil && len(items) > 0 {
+				for _, item := range items {
+					if item.IsEnabled && strings.TrimSpace(item.Content) != "" {
+						activeItems = append(activeItems, item)
+					}
+				}
+				sort.Slice(activeItems, func(i, j int) bool {
+					return activeItems[i].OrderIndex < activeItems[j].OrderIndex
+				})
 
-			if len(activeItems) > 0 {
 				if matchedProd != nil {
 					for i := range activeItems {
 						if activeItems[i].Type == "text" {
@@ -182,68 +246,70 @@ func (h *Handler) sendChatMessage(c fiber.Ctx) error {
 						}
 					}
 				}
-
-				// Deliver the sequence asynchronously with realistic delays and typing indicators
-				go func(accID, pageID, recipientID string, replyItems []domain.ReplyItem, setName string) {
-					sendCtx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
-					defer cancel()
-
-					_ = h.meta.SendSenderAction(sendCtx, pageID, recipientID, "mark_seen")
-					time.Sleep(500 * time.Millisecond)
-
-					for index, step := range replyItems {
-						if step.Type == "image" {
-							time.Sleep(1000 * time.Millisecond)
-						} else if step.Type == "text" {
-							if index > 0 {
-								time.Sleep(800 * time.Millisecond)
-							}
-							_ = h.meta.SendSenderAction(sendCtx, pageID, recipientID, "typing_on")
-							runeCount := len([]rune(step.Content))
-							delayMs := 1200 + (runeCount * 15)
-							if delayMs < 1500 {
-								delayMs = 1500
-							} else if delayMs > 2800 {
-								delayMs = 2800
-							}
-							time.Sleep(time.Duration(delayMs) * time.Millisecond)
-						} else {
-							time.Sleep(1200 * time.Millisecond)
-						}
-
-						var sendErr error
-						if step.Type == "text" {
-							sendErr = h.meta.SendMessage(sendCtx, accID, pageID, recipientID, step.Content)
-						} else {
-							sendErr = h.meta.SendMedia(sendCtx, accID, pageID, recipientID, step.Type, step.Content)
-						}
-
-						if sendErr != nil {
-							slog.Error("failed to send reply set step from admin", "page_id", pageID, "recipient_id", recipientID, "step", index+1, "type", step.Type, "error", sendErr)
-							continue
-						}
-
-						if h.Stream != nil {
-							h.Stream.Broadcast(accID, usecase.ChatEvent{
-								AccountID: accID,
-								PageID:    pageID,
-								SenderID:  recipientID,
-								Message:   step.Content,
-								Type:      step.Type,
-								Timestamp: fmt.Sprintf("%d", time.Now().UnixMilli()),
-								Platform:  "system",
-							})
-						}
-					}
-				}(accountID, body.PageID, body.RecipientID, activeItems, matchedSet.Name)
-
-				return c.JSON(fiber.Map{
-					"status":         "success",
-					"reply_set_sent": true,
-					"reply_set_name": matchedSet.Name,
-					"items_count":    len(activeItems),
-				})
 			}
+		}
+
+		if len(activeItems) > 0 {
+			// Deliver the sequence asynchronously with realistic delays and typing indicators
+			go func(accID, pageID, recipientID string, replyItems []domain.ReplyItem, setName string) {
+				sendCtx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+				defer cancel()
+
+				_ = h.meta.SendSenderAction(sendCtx, pageID, recipientID, "mark_seen")
+				time.Sleep(500 * time.Millisecond)
+
+				for index, step := range replyItems {
+					if step.Type == "image" {
+						time.Sleep(1000 * time.Millisecond)
+					} else if step.Type == "text" {
+						if index > 0 {
+							time.Sleep(800 * time.Millisecond)
+						}
+						_ = h.meta.SendSenderAction(sendCtx, pageID, recipientID, "typing_on")
+						runeCount := len([]rune(step.Content))
+						delayMs := 1200 + (runeCount * 15)
+						if delayMs < 1500 {
+							delayMs = 1500
+						} else if delayMs > 2800 {
+							delayMs = 2800
+						}
+						time.Sleep(time.Duration(delayMs) * time.Millisecond)
+					} else {
+						time.Sleep(1200 * time.Millisecond)
+					}
+
+					var sendErr error
+					if step.Type == "text" {
+						sendErr = h.meta.SendMessage(sendCtx, accID, pageID, recipientID, step.Content)
+					} else {
+						sendErr = h.meta.SendMedia(sendCtx, accID, pageID, recipientID, step.Type, step.Content)
+					}
+
+					if sendErr != nil {
+						slog.Error("failed to send reply set step from admin", "page_id", pageID, "recipient_id", recipientID, "step", index+1, "type", step.Type, "error", sendErr)
+						continue
+					}
+
+					if h.Stream != nil {
+						h.Stream.Broadcast(accID, usecase.ChatEvent{
+							AccountID: accID,
+							PageID:    pageID,
+							SenderID:  recipientID,
+							Message:   step.Content,
+							Type:      step.Type,
+							Timestamp: fmt.Sprintf("%d", time.Now().UnixMilli()),
+							Platform:  "system",
+						})
+					}
+				}
+			}(accountID, body.PageID, body.RecipientID, activeItems, matchedSet.Name)
+
+			return c.JSON(fiber.Map{
+				"status":         "success",
+				"reply_set_sent": true,
+				"reply_set_name": matchedSet.Name,
+				"items_count":    len(activeItems),
+			})
 		}
 	}
 
