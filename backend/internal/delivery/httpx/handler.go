@@ -59,7 +59,14 @@ func NewHandler(auth *usecase.Auth, meta *usecase.Meta, team *usecase.Team, bill
 }
 
 func (h *Handler) App() *fiber.App {
-	app := fiber.New(fiber.Config{AppName: "Meta Super App API", ErrorHandler: errorHandler, BodyLimit: 1 << 20, ReadTimeout: 20_000_000_000, WriteTimeout: 20_000_000_000, IdleTimeout: 60_000_000_000})
+	app := fiber.New(fiber.Config{
+		AppName:      "Meta Super App API",
+		ErrorHandler: errorHandler,
+		BodyLimit:    64 << 20, // 64MB limit to comfortably handle videos and audio files
+		ReadTimeout:  120_000_000_000,
+		WriteTimeout: 120_000_000_000,
+		IdleTimeout:  120_000_000_000,
+	})
 	app.Use(logger.New(logger.Config{
 		// Never log request/response bodies or authorization headers. Login bodies,
 		// JWTs, Meta access tokens and webhook payloads may contain secrets.

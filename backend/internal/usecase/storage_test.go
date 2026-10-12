@@ -68,6 +68,11 @@ func TestStorageUseCaseAcceptsSupportedMediaTypes(t *testing.T) {
 		{name: "ogg audio", contentType: "audio/ogg", filename: "voice.ogg"},
 		{name: "webm audio", contentType: "audio/webm", filename: "voice.webm"},
 		{name: "aac audio", contentType: "audio/aac", filename: "voice.aac"},
+		{name: "webm audio with codecs", contentType: "audio/webm; codecs=opus", filename: "voice.webm"},
+		{name: "ogg audio with codecs", contentType: "audio/ogg; codecs=opus", filename: "voice.ogg"},
+		{name: "apple x-m4a audio", contentType: "audio/x-m4a", filename: "voice.m4a"},
+		{name: "audio octet-stream fallback", contentType: "application/octet-stream", filename: "recording.m4a"},
+		{name: "video 3gp", contentType: "video/3gpp", filename: "clip.3gp"},
 	}
 
 	for _, tt := range tests {

@@ -102,6 +102,58 @@ const receiptDialog = ref(false)
 const selectedOrder = ref<Order | null>(null)
 const copiedReceipt = ref(false)
 
+// Anousith Express Waybill Printing Modal
+const waybillDialog = ref(false)
+const waybillOrder = ref<Order | null>(null)
+const waybillPrintSize = ref<'thermal' | 'a4'>('thermal')
+
+function openWaybill(order: Order) {
+  waybillOrder.value = order
+  waybillDialog.value = true
+}
+
+function triggerPrint() {
+  if (typeof window !== 'undefined') {
+    window.print()
+  }
+}
+
+function extractDestination(address?: string) {
+  if (!address) return 'VTE / ປາຍທາງ'
+  const provinces = [
+    'ວຽງຈັນ', 'ນະຄອນຫຼວງ', 'ຫຼວງພະບາງ', 'ຈຳປາສັກ', 'ສະຫວັນນະເຂດ', 'ຄຳມ່ວນ',
+    'ບໍລິຄຳໄຊ', 'ຊຽງຂວາງ', 'ຫົວພັນ', 'ອຸດົມໄຊ', 'ບໍ່ແກ້ວ', 'ຫຼວງນ້ຳທາ',
+    'ຜົ້ງສາລີ', 'ໄຊຍະບູລີ', 'ສາລະວັນ', 'ເຊກອງ', 'ອັດຕະປື', 'ໄຊສົມບູນ'
+  ]
+  for (const prov of provinces) {
+    if (address.includes(prov)) return prov
+  }
+  return address.split(',')[0] || 'VTE / ປາຍທາງ'
+}
+
+function generateBarcodePattern(text: string): { width: number; x: number }[] {
+  const bars: { width: number; x: number }[] = []
+  let currentX = 10
+  bars.push({ width: 2, x: currentX }); currentX += 4
+  bars.push({ width: 1, x: currentX }); currentX += 3
+  bars.push({ width: 3, x: currentX }); currentX += 5
+
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i)
+    const w1 = (code % 3) + 1
+    const s1 = ((code >> 1) % 2) + 2
+    const w2 = ((code >> 2) % 3) + 1
+    const s2 = ((code >> 3) % 2) + 2
+    bars.push({ width: w1, x: currentX }); currentX += w1 + s1
+    bars.push({ width: w2, x: currentX }); currentX += w2 + s2
+  }
+
+  bars.push({ width: 3, x: currentX }); currentX += 5
+  bars.push({ width: 1, x: currentX }); currentX += 3
+  bars.push({ width: 2, x: currentX }); currentX += 4
+  return bars
+}
+
 // Status Update Modal
 const statusDialog = ref(false)
 const updatingStatus = ref(false)
@@ -683,6 +735,10 @@ async function saveStatusUpdate() {
               <strong>{{ formatMoney(order.totalAmount, order.currency) }}</strong>
             </div>
             <div class="action-buttons">
+              <button type="button" class="action-btn waybill-btn" @click="openWaybill(order)" :title="l({ lo: 'ພິມບິນ ອານຸສິດ (Waybill)', th: 'พิมพ์บิล อานุสิต (Waybill)', en: 'Print Anousith Bill' })">
+                <v-icon icon="mdi-printer" size="15" class="mr-1"/>
+                {{ l({ lo: 'ພິມບິນອານຸສິດ', th: 'พิมพ์บิลอานุสิต', en: 'Print Bill' }) }}
+              </button>
               <button type="button" class="action-btn receipt-btn" @click="openReceipt(order)" :title="l({ lo: 'ເບິ່ງໃບບິນ', th: 'ดูใบเสร็จ', en: 'View Receipt' })">
                 <v-icon icon="mdi-receipt-text-outline" size="15" class="mr-1"/>
                 {{ l({ lo: 'ໃບບິນ', th: 'ใบเสร็จ', en: 'Receipt' }) }}
@@ -1063,6 +1119,9 @@ async function saveStatusUpdate() {
           <v-btn variant="outlined" prepend-icon="mdi-content-copy" @click="copyReceiptText">
             {{ copiedReceipt ? l({ lo: 'ຄັດລອກແລ້ວ! ✓', th: 'คัดลอกแล้ว! ✓', en: 'Copied! ✓' }) : l({ lo: 'ຄັດລອກຂໍ້ຄວາມໃບບິນ', th: 'คัดลอกข้อความใบเสร็จ', en: 'Copy Receipt Text' }) }}
           </v-btn>
+          <v-btn color="error" variant="tonal" prepend-icon="mdi-printer" @click="openWaybill(selectedOrder)">
+            {{ l({ lo: 'ພິມບິນ ອານຸສິດ', th: 'พิมพ์บิล อานุสิต', en: 'Print Anousith Bill' }) }}
+          </v-btn>
           <v-spacer/>
           <v-btn color="primary" @click="receiptDialog = false">
             {{ l({ lo: 'ປິດ', th: 'ปิด', en: 'Close' }) }}
@@ -1158,8 +1217,243 @@ async function saveStatusUpdate() {
             {{ l({ lo: 'ຍົກເລີກ', th: 'ยกเลิก', en: 'Cancel' }) }}
           </v-btn>
           <v-spacer/>
-          <v-btn color="primary" :loading="updatingStatus" @click="saveStatusUpdate">
-            {{ l({ lo: 'ບັນທຶກສະຖານະ', th: 'บันทึกสถานะ', en: 'Save Status' }) }}
+          <v-btn
+            color="primary"
+            :loading="updatingStatus"
+            @click="saveStatusUpdate"
+          >
+            {{ l({ lo: 'ບັນທຶກ', th: 'บันทึก', en: 'Save' }) }}
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- Anousith Express Waybill Print Modal -->
+    <v-dialog v-model="waybillDialog" max-width="580" scrollable>
+      <v-card v-if="waybillOrder" class="dialog-card waybill-modal-card">
+        <v-card-title class="dialog-header no-print">
+          <div class="d-flex align-center gap-2">
+            <span class="anousith-badge-icon">AN</span>
+            <div>
+              <h3 class="mb-0 text-subtitle-1 font-weight-bold">
+                {{ l({ lo: 'ໃບປະໜ້າພັດສະດຸ ອານຸສິດ (Waybill)', th: 'ใบปะหน้าพัสดุ อานุสิต (Waybill)', en: 'Anousith Express Waybill' }) }}
+              </h3>
+              <small class="text-muted">#{{ waybillOrder.orderNumber }} · {{ waybillOrder.deliveryCourier || 'Anousith Express' }}</small>
+            </div>
+          </div>
+        </v-card-title>
+
+        <!-- Waybill Size Toolbar (no-print) -->
+        <div class="waybill-toolbar no-print">
+          <div class="size-btn-group">
+            <button
+              type="button"
+              class="size-toggle-btn"
+              :class="{ active: waybillPrintSize === 'thermal' }"
+              @click="waybillPrintSize = 'thermal'"
+            >
+              <v-icon icon="mdi-printer-pos" size="14" class="mr-1"/>
+              100x150 mm (Thermal)
+            </button>
+            <button
+              type="button"
+              class="size-toggle-btn"
+              :class="{ active: waybillPrintSize === 'a4' }"
+              @click="waybillPrintSize = 'a4'"
+            >
+              <v-icon icon="mdi-file-document-outline" size="14" class="mr-1"/>
+              A4 / A5 (Standard)
+            </button>
+          </div>
+          <v-btn
+            color="error"
+            prepend-icon="mdi-printer"
+            class="print-action-btn"
+            @click="triggerPrint"
+          >
+            {{ l({ lo: 'ສັ່ງພິມບິນດຽວນີ້ (Print)', th: 'สั่งพิมพ์บิลตอนนี้ (Print)', en: 'Print Now' }) }}
+          </v-btn>
+        </div>
+
+        <v-card-text class="waybill-dialog-body">
+          <!-- The Waybill Print Container (Styled like real Anousith Waybill) -->
+          <div
+            id="anousith-print-area"
+            class="anousith-waybill"
+            :class="{ 'size-a4': waybillPrintSize === 'a4' }"
+          >
+            <!-- 1. Header Banner -->
+            <div class="an-header">
+              <div class="an-logo-group">
+                <div class="an-logo-box">
+                  <span class="an-logo-main">ANOUSITH</span>
+                  <span class="an-logo-sub">EXPRESS</span>
+                </div>
+                <div class="an-company-info">
+                  <strong>ອານຸສິດ ເອັກສ໌ເພຣັສ (ANOUSITH EXPRESS)</strong>
+                  <small>ບໍລິສັດ ອານຸສິດ ຂົນສົ່ງດ່ວນ ຈຳກັດຜູ້ດຽວ</small>
+                  <small class="hotline">📞 Hotline: 020 5555 7777 / 021 844444</small>
+                </div>
+              </div>
+              <div class="an-route-box">
+                <div class="an-express-pill">EXPRESS ດ່ວນ</div>
+                <div class="an-route-code">
+                  <span>{{ waybillOrder.warehouse?.code || 'VTE' }}</span>
+                  <v-icon icon="mdi-arrow-right" size="14"/>
+                  <strong>{{ extractDestination(waybillOrder.customerAddress) }}</strong>
+                </div>
+              </div>
+            </div>
+
+            <!-- 2. Barcode & Tracking -->
+            <div class="an-barcode-section">
+              <div class="an-barcode-wrap">
+                <svg class="an-barcode-svg" viewBox="0 0 320 50" preserveAspectRatio="none">
+                  <rect
+                    v-for="(b, bIdx) in generateBarcodePattern(waybillOrder.deliveryTracking || waybillOrder.orderNumber)"
+                    :key="bIdx"
+                    :x="b.x"
+                    y="0"
+                    :width="b.width"
+                    height="50"
+                    fill="#000"
+                  />
+                </svg>
+                <div class="an-barcode-text">
+                  *{{ waybillOrder.deliveryTracking || waybillOrder.orderNumber }}*
+                </div>
+              </div>
+              <div class="an-track-meta">
+                <div>
+                  <small>Tracking No / ເລກພັດສະດຸ:</small>
+                  <strong>{{ waybillOrder.deliveryTracking || `AN-${waybillOrder.orderNumber}` }}</strong>
+                </div>
+                <div>
+                  <small>ວັນທີສົ່ງ / Date:</small>
+                  <span>{{ formatDate(waybillOrder.createdAt) }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 3. Sender & Receiver Section -->
+            <div class="an-address-grid">
+              <!-- Sender (From) -->
+              <div class="an-address-box an-from">
+                <div class="an-box-title">
+                  <span class="title-tag">FROM</span>
+                  <span>ຜູ້ຝາກສົ່ງ (Sender)</span>
+                </div>
+                <div class="an-address-content">
+                  <p class="an-name"><strong>{{ waybillOrder.warehouse?.name || 'Meta Super App Hub' }}</strong></p>
+                  <p class="an-phone">📞 {{ waybillOrder.warehouse?.phone || '020-5555-7777' }}</p>
+                  <p class="an-addr">{{ waybillOrder.warehouse?.address || 'ນະຄອນຫຼວງວຽງຈັນ (Vientiane)' }}</p>
+                </div>
+              </div>
+
+              <!-- Receiver (To) - BIG & PROMINENT -->
+              <div class="an-address-box an-to">
+                <div class="an-box-title to-title">
+                  <span class="title-tag to-tag">TO</span>
+                  <span>ຜູ້ຮັບພັດສະດຸ (Receiver)</span>
+                </div>
+                <div class="an-address-content">
+                  <div class="an-receiver-name">
+                    <strong>{{ waybillOrder.customerName }}</strong>
+                  </div>
+                  <div class="an-receiver-phone-frame">
+                    <span class="phone-label">TEL / ເບີໂທ:</span>
+                    <strong class="phone-number">{{ waybillOrder.customerPhone }}</strong>
+                  </div>
+                  <div class="an-receiver-addr">
+                    <small>ທີ່ຢູ່ຈັດສົ່ງ / ສາຂາປາຍທາງ:</small>
+                    <p>{{ waybillOrder.customerAddress || '—' }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 4. COD / Payment Highlight Banner -->
+            <div class="an-cod-banner" :class="waybillOrder.paymentStatus === 'paid' ? 'is-paid' : 'is-cod'">
+              <div class="an-cod-type">
+                <span v-if="waybillOrder.paymentStatus === 'paid'" class="cod-tag paid-tag">
+                  ✓ ຊຳລະເງິນແລ້ວ (PAID) · ຫ້າມເກັບເງິນປາຍທາງ
+                </span>
+                <span v-else class="cod-tag cod-alert-tag">
+                  ⚠️ ເກັບເງິນປາຍທາງ (COD)
+                </span>
+                <small class="pay-method">({{ waybillOrder.paymentMethod || 'BCEL One / Transfer' }})</small>
+              </div>
+              <div class="an-cod-amount">
+                <span class="cod-amt-label">ຍອດເກັບປາຍທາງ:</span>
+                <strong class="cod-amt-val">
+                  {{ waybillOrder.paymentStatus === 'paid' ? '0 LAK' : formatMoney(waybillOrder.totalAmount, waybillOrder.currency) }}
+                </strong>
+              </div>
+            </div>
+
+            <!-- 5. Package Items Matrix -->
+            <div class="an-items-section">
+              <div class="an-table-header">
+                <span class="col-no">#</span>
+                <span class="col-name">ລາຍການສິນຄ້າ (Item Name)</span>
+                <span class="col-var">ສີ / ເບີ</span>
+                <span class="col-qty">ຈຳນວນ</span>
+                <span class="col-price">ລາຄາ</span>
+              </div>
+              <div v-for="(item, idx) in waybillOrder.items" :key="item.id" class="an-table-row">
+                <span class="col-no">{{ idx + 1 }}</span>
+                <span class="col-name">{{ item.productName }}</span>
+                <span class="col-var">{{ [item.color ? `ສີ: ${item.color}` : '', item.size ? `ເບີ: ${item.size}` : ''].filter(Boolean).join(' ') || '-' }}</span>
+                <span class="col-qty">{{ item.quantity }}</span>
+                <span class="col-price">{{ formatMoney(item.totalPrice, waybillOrder.currency) }}</span>
+              </div>
+              <div class="an-table-footer">
+                <div class="an-footer-left">
+                  <span>ລວມຈຳນວນ: <strong>{{ (waybillOrder.items || []).reduce((s, it) => s + it.quantity, 0) }}</strong> ຊິ້ນ</span>
+                  <span> | ຄ່າຈັດສົ່ງ: <strong>{{ formatMoney(waybillOrder.shippingFee, waybillOrder.currency) }}</strong></span>
+                </div>
+                <div class="an-footer-right">
+                  <span>ຍອດລວມທັງໝົດ: <strong>{{ formatMoney(waybillOrder.totalAmount, waybillOrder.currency) }}</strong></span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 6. Remarks & Signatures -->
+            <div class="an-bottom-section">
+              <div class="an-remarks-box">
+                <small class="remark-lbl">ໝາຍເຫດ (Remarks):</small>
+                <p class="remark-text">{{ waybillOrder.notes || 'ກະລຸນາໂທຫາລູກຄ້າກ່ອນສົ່ງທຸກຄັ້ງ, ຫ້າມໂຍນພັດສະດຸ' }}</p>
+                <div class="an-courier-sign">
+                  <small>ຂົນສົ່ງ: {{ waybillOrder.deliveryCourier || 'Anousith Express' }}</small>
+                </div>
+              </div>
+              <div class="an-signatures-box">
+                <div class="sign-col">
+                  <small>ລາຍເຊັນຜູ້ຝາກສົ່ງ (Sender):</small>
+                  <div class="sign-line"></div>
+                </div>
+                <div class="sign-col">
+                  <small>ລາຍເຊັນຜູ້ຮັບ (Receiver):</small>
+                  <div class="sign-line"></div>
+                  <small class="date-lbl">ວັນທີ: ____/____/________</small>
+                </div>
+              </div>
+            </div>
+
+            <!-- 7. Footer Tagline -->
+            <div class="an-footer-tagline">
+              <small>ANOUSITH EXPRESS · ວ່ອງໄວ ປອດໄພ ທົ່ວປະເທດ · Powered by Meta Super App</small>
+            </div>
+          </div>
+        </v-card-text>
+
+        <v-card-actions class="dialog-actions no-print">
+          <v-btn variant="text" @click="waybillDialog = false">
+            {{ l({ lo: 'ປິດ', th: 'ปิด', en: 'Close' }) }}
+          </v-btn>
+          <v-spacer/>
+          <v-btn color="error" prepend-icon="mdi-printer" @click="triggerPrint">
+            {{ l({ lo: 'ສັ່ງພິມບິນດຽວນີ້ (Print)', th: 'สั่งพิมพ์บิลตอนนี้ (Print)', en: 'Print Waybill' }) }}
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -1885,5 +2179,583 @@ async function saveStatusUpdate() {
   background: #f0fdf4;
   color: #16a34a;
   border: 1px solid #dcfce7;
+}
+
+/* ===================================================
+   ANOUSITH EXPRESS WAYBILL STYLES & PRINT LAYOUT
+   =================================================== */
+
+.anousith-badge-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: #ffd200;
+  color: #d9251d;
+  font-weight: 900;
+  font-size: 14px;
+  border-radius: 8px;
+  border: 2px solid #d9251d;
+  letter-spacing: -0.5px;
+}
+
+.waybill-modal-card {
+  background: #f8fafc;
+}
+
+.waybill-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 10px 16px;
+  background: #f1f5f9;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.size-btn-group {
+  display: inline-flex;
+  background: #e2e8f0;
+  border-radius: 8px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.size-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border: none;
+  background: transparent;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.size-toggle-btn.active {
+  background: #ffffff;
+  color: #0f172a;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.waybill-dialog-body {
+  padding: 16px;
+  display: flex;
+  justify-content: center;
+  background: #e2e8f0;
+}
+
+/* Base Waybill Container (Standard 100x150 mm Thermal Sticker format) */
+.anousith-waybill {
+  width: 100%;
+  max-width: 420px;
+  min-height: 590px;
+  background: #ffffff;
+  color: #000000;
+  border: 2px solid #000000;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  font-family: 'Noto Sans Lao', system-ui, -apple-system, sans-serif;
+  font-size: 11px;
+  line-height: 1.25;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+.anousith-waybill.size-a4 {
+  max-width: 520px;
+  font-size: 12px;
+}
+
+/* 1. Header */
+.an-header {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  background: #ffd200;
+  border-bottom: 2px solid #000000;
+  padding: 8px 10px;
+  color: #000000;
+}
+
+.an-logo-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.an-logo-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #d9251d;
+  color: #ffffff;
+  padding: 4px 6px;
+  border-radius: 4px;
+  line-height: 1;
+}
+
+.an-logo-main {
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+}
+
+.an-logo-sub {
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+}
+
+.an-company-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.an-company-info strong {
+  font-size: 11px;
+  font-weight: 800;
+  color: #d9251d;
+}
+
+.an-company-info small {
+  font-size: 9px;
+  color: #333333;
+}
+
+.an-company-info .hotline {
+  font-weight: 700;
+  color: #000000;
+}
+
+.an-route-box {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+}
+
+.an-express-pill {
+  background: #d9251d;
+  color: #ffffff;
+  font-size: 9px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.an-route-code {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 900;
+  color: #000000;
+}
+
+/* 2. Barcode & Tracking */
+.an-barcode-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 2px solid #000000;
+  padding: 8px 10px;
+  background: #ffffff;
+  gap: 12px;
+}
+
+.an-barcode-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.an-barcode-svg {
+  width: 100%;
+  max-width: 240px;
+  height: 44px;
+}
+
+.an-barcode-text {
+  font-family: monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  margin-top: 2px;
+}
+
+.an-track-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: 10px;
+  text-align: right;
+  gap: 2px;
+}
+
+.an-track-meta strong {
+  font-size: 12px;
+  font-weight: 900;
+  color: #d9251d;
+}
+
+/* 3. Address Grid (Sender & Receiver) */
+.an-address-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-bottom: 2px solid #000000;
+}
+
+.an-address-box {
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.an-address-box.an-from {
+  border-right: 1px solid #000000;
+  background: #fafafa;
+}
+
+.an-address-box.an-to {
+  background: #ffffff;
+}
+
+.an-box-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 800;
+  font-size: 10px;
+  border-bottom: 1px dashed #cccccc;
+  padding-bottom: 3px;
+  margin-bottom: 2px;
+}
+
+.title-tag {
+  background: #000000;
+  color: #ffffff;
+  font-size: 8px;
+  font-weight: 900;
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+
+.an-box-title.dest-title .title-tag {
+  background: #d9251d;
+}
+
+.dest-route-pill {
+  margin-left: auto;
+  background: #ffd200;
+  color: #000000;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.an-receiver-phone-frame {
+  margin: 4px 0;
+  padding: 4px 6px;
+  background: #fef08a;
+  border: 2px solid #000000;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.phone-label {
+  font-size: 9px;
+  font-weight: 800;
+  color: #000000;
+}
+
+.phone-number {
+  font-size: 14px;
+  font-weight: 900;
+  color: #d9251d;
+  letter-spacing: 0.5px;
+}
+
+.an-receiver-addr {
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+.an-receiver-addr p {
+  margin: 2px 0 0;
+  font-weight: 700;
+  color: #000000;
+}
+
+.an-name {
+  font-size: 11px;
+  margin: 0;
+}
+
+.an-phone {
+  font-size: 10px;
+  margin: 2px 0;
+  color: #333333;
+}
+
+.an-addr {
+  font-size: 9px;
+  color: #555555;
+  margin: 0;
+}
+
+/* 4. COD Highlight Banner */
+.an-cod-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-bottom: 2px solid #000000;
+  color: #ffffff;
+}
+
+.an-cod-banner.is-cod {
+  background: #d9251d;
+}
+
+.an-cod-banner.is-paid {
+  background: #047857;
+}
+
+.an-cod-type {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cod-tag {
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.3px;
+}
+
+.pay-method {
+  font-size: 9px;
+  opacity: 0.9;
+}
+
+.an-cod-amount {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cod-amt-label {
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.cod-amt-val {
+  font-size: 15px;
+  font-weight: 900;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 2px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+
+/* 5. Package Items Matrix */
+.an-items-section {
+  border-bottom: 2px solid #000000;
+  display: flex;
+  flex-direction: column;
+}
+
+.an-table-header {
+  display: flex;
+  align-items: center;
+  background: #f1f5f9;
+  border-bottom: 1px solid #000000;
+  font-weight: 800;
+  font-size: 9px;
+  padding: 4px 8px;
+  text-transform: uppercase;
+}
+
+.an-table-row {
+  display: flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-bottom: 1px dashed #e2e8f0;
+  font-size: 10px;
+}
+
+.col-no {
+  width: 20px;
+  font-weight: 700;
+}
+
+.col-name {
+  flex: 1;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.col-var {
+  width: 70px;
+  font-size: 9px;
+  color: #475569;
+}
+
+.col-qty {
+  width: 35px;
+  text-align: center;
+  font-weight: 700;
+}
+
+.col-price {
+  width: 65px;
+  text-align: right;
+  font-weight: 700;
+}
+
+.an-table-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  background: #fafafa;
+  font-size: 9px;
+  border-top: 1px solid #000000;
+}
+
+/* 6. Remarks & Signatures */
+.an-bottom-section {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  border-bottom: 1px solid #000000;
+  flex: 1;
+}
+
+.an-remarks-box {
+  padding: 6px 8px;
+  border-right: 1px solid #000000;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.remark-lbl {
+  font-weight: 800;
+  font-size: 9px;
+  color: #475569;
+}
+
+.remark-text {
+  margin: 2px 0 6px;
+  font-size: 9px;
+  color: #000000;
+  line-height: 1.25;
+}
+
+.an-courier-sign small {
+  font-size: 8px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.an-signatures-box {
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sign-col small {
+  font-size: 8px;
+  font-weight: 700;
+  color: #475569;
+}
+
+.sign-line {
+  border-bottom: 1px dotted #94a3b8;
+  height: 14px;
+}
+
+.date-lbl {
+  font-size: 7px;
+  color: #94a3b8;
+}
+
+/* 7. Footer Tagline */
+.an-footer-tagline {
+  padding: 3px 8px;
+  background: #ffd200;
+  text-align: center;
+  font-weight: 800;
+  font-size: 8px;
+  color: #000000;
+  letter-spacing: 0.3px;
+}
+
+/* ===================================================
+   PRINT STYLES FOR WAYBILL
+   =================================================== */
+
+@media print {
+  @page {
+    size: 100mm 150mm;
+    margin: 0;
+  }
+
+  body, html {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  #anousith-print-area,
+  #anousith-print-area * {
+    visibility: visible;
+  }
+
+  #anousith-print-area {
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: 100% !important;
+    margin: 0 !important;
+    padding: 4mm !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: #ffffff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    box-sizing: border-box;
+  }
+
+  .no-print,
+  .v-overlay__scrim,
+  .v-overlay-container,
+  header,
+  nav {
+    display: none !important;
+  }
 }
 </style>

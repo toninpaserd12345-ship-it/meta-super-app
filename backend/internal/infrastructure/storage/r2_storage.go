@@ -62,21 +62,54 @@ func (s *R2StorageService) UploadFile(ctx context.Context, fileHeader *multipart
 	}
 	defer file.Close()
 
+	contentType := fileHeader.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+
 	// Generate a unique filename using UUID
 	ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
-	if ext == "" {
-		ext = ".bin"
+	if ext == "" || ext == ".bin" {
+		switch contentType {
+		case "video/mp4":
+			ext = ".mp4"
+		case "video/webm":
+			ext = ".webm"
+		case "video/quicktime":
+			ext = ".mov"
+		case "video/3gpp":
+			ext = ".3gp"
+		case "audio/mpeg", "audio/mp3":
+			ext = ".mp3"
+		case "audio/mp4", "audio/x-m4a", "audio/m4a":
+			ext = ".m4a"
+		case "audio/wav", "audio/x-wav", "audio/wave":
+			ext = ".wav"
+		case "audio/ogg", "audio/opus":
+			ext = ".ogg"
+		case "audio/webm":
+			ext = ".webm"
+		case "audio/aac", "audio/x-aac":
+			ext = ".aac"
+		case "image/jpeg":
+			ext = ".jpg"
+		case "image/png":
+			ext = ".png"
+		case "image/webp":
+			ext = ".webp"
+		case "image/gif":
+			ext = ".gif"
+		default:
+			if ext == "" {
+				ext = ".bin"
+			}
+		}
 	}
 
 	newFilename := uuid.New().String() + ext
 
 	// Construct the object key (path in bucket). We only store the filename to support easy migration.
 	objectKey := newFilename
-
-	contentType := fileHeader.Header.Get("Content-Type")
-	if contentType == "" {
-		contentType = "application/octet-stream"
-	}
 
 	_, err = s.client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:       aws.String(s.bucketName),

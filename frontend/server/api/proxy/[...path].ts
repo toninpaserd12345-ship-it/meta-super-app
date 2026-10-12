@@ -59,7 +59,7 @@ export default defineEventHandler(async (event) => {
         Accept: 'application/json',
         ...(contentType ? { 'Content-Type': contentType } : {}),
       },
-      timeout: 30_000,
+      timeout: 120_000,
       cache: 'no-store',
     })
   } catch (error) {

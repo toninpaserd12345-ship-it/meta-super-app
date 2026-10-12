@@ -75,6 +75,9 @@ function moveItem(index: number, direction: number) {
 }
 
 function acceptFor(type: ReplyItemType) {
+  if (type === 'audio') return 'audio/*, .mp3, .m4a, .wav, .ogg, .opus, .aac, .weba'
+  if (type === 'video') return 'video/*, .mp4, .mov, .webm, .3gp'
+  if (type === 'image') return 'image/*, .jpg, .jpeg, .png, .webp, .gif'
   return `${type}/*`
 }
 
@@ -88,6 +91,11 @@ async function uploadMedia(value: unknown, index: number) {
   const files = Array.isArray(value) ? value : value ? [value] : []
   const file = files[0]
   if (!(file instanceof File) || !items.value[index]) return
+  if (file.size > 25 * 1024 * 1024) {
+    noticeType.value = 'error'
+    notice.value = locale.value === 'lo' ? 'ຂະໜາດໄຟລ໌ເກີນກຳນົດ (ສູງສຸດ 25MB)' : 'File size exceeds 25MB limit.'
+    return
+  }
   uploadingIndex.value = index
   notice.value = ''
   try {

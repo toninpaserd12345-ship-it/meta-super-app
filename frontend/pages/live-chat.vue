@@ -874,6 +874,86 @@ const sendReply = async (explicitCode?: string, explicitReplySetId?: string) => 
   }
 }
 
+const mediaFileInput = ref<HTMLInputElement | null>(null)
+const uploadingMedia = ref(false)
+
+const triggerMediaPick = () => {
+  mediaFileInput.value?.click()
+}
+
+const handleMediaSelected = async (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file || !activeSender.value) return
+
+  if (file.size > 25 * 1024 * 1024) {
+    loadError.value = l({
+      lo: 'ຂະໜາດໄຟລ໌ໃຫຍ່ເກີນ 25MB (ກະລຸນາເລືອກໄຟລ໌ທີ່ນ້ອຍກວ່າ 25MB)',
+      th: 'ขนาดไฟล์ใหญ่เกิน 25MB (โปรดเลือกไฟล์ที่ขนาดไม่เกิน 25MB)',
+      en: 'File size exceeds 25MB limit. Please choose a smaller file.'
+    })
+    target.value = ''
+    return
+  }
+
+  let mediaType = 'image'
+  const fileType = file.type.toLowerCase()
+  const fileName = file.name.toLowerCase()
+  if (fileType.startsWith('video/') || fileName.endsWith('.mp4') || fileName.endsWith('.mov') || fileName.endsWith('.webm') || fileName.endsWith('.3gp')) {
+    mediaType = 'video'
+  } else if (fileType.startsWith('audio/') || fileName.endsWith('.mp3') || fileName.endsWith('.m4a') || fileName.endsWith('.wav') || fileName.endsWith('.ogg') || fileName.endsWith('.aac') || fileName.endsWith('.weba')) {
+    mediaType = 'audio'
+  }
+
+  uploadingMedia.value = true
+  loadError.value = ''
+  sendSuccessNotice.value = ''
+
+  try {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('folder', 'chat')
+
+    const uploadRes = await $fetch<{ url: string }>('/api/proxy/api/v1/storage/upload', {
+      method: 'POST',
+      body: formData,
+    })
+
+    const senderId = activeSender.value
+    const msgs = conversations.value[senderId]
+    const pageId = msgs?.find(m => m.page_id)?.page_id || leads.value[senderId]?.pageId || ''
+
+    await $fetch('/api/proxy/api/v1/chat/send', {
+      method: 'POST',
+      body: {
+        page_id: pageId,
+        recipient_id: senderId,
+        media_url: uploadRes.url,
+        media_type: mediaType,
+      },
+    })
+
+    sendSuccessNotice.value = l({
+      lo: `✓ ສົ່ງ ${mediaType === 'audio' ? 'ສຽງ' : mediaType === 'video' ? 'ວິດີໂອ' : 'ຮູບພາບ'} ຂຶ້ນ Cloudflare ສຳເລັດແລ້ວ!`,
+      th: `✓ ส่ง ${mediaType === 'audio' ? 'เสียง' : mediaType === 'video' ? 'วิดีโอ' : 'รูปภาพ'} ขึ้น Cloudflare สำเร็จแล้ว!`,
+      en: `✓ Uploaded ${mediaType} to Cloudflare and sent!`,
+    })
+    setTimeout(() => { sendSuccessNotice.value = '' }, 4000)
+
+    await fetchHistoryAndLeads(true)
+    scrollToBottom()
+  } catch (err: any) {
+    loadError.value = err?.data?.error || err?.message || l({
+      lo: 'ອັບໂຫລດໄຟລ໌ຂຶ້ນ Cloudflare ບໍ່ສຳເລັດ',
+      th: 'อัปโหลดไฟล์ขึ้น Cloudflare ไม่สำเร็จ',
+      en: 'Failed to upload media to Cloudflare.'
+    })
+  } finally {
+    uploadingMedia.value = false
+    target.value = ''
+  }
+}
+
 let reconnectTimeout: any = null
 
 const messageKey = (msg: ChatMessage) => `${msg.page_id}|${msg.sender_id}|${msg.platform}|${msg.timestamp}|${msg.type}|${msg.message}`
@@ -1307,6 +1387,24 @@ const formatTime = (ts: string) => {
           >
             <v-icon icon="mdi-chat-quote-outline" size="18"/>
             <span class="quick-btn-text">{{ l({lo:'ຕອບດ່ວນ',th:'ตอบด่วน',en:'Quick'}) }}</span>
+          </button>
+          <input
+            ref="mediaFileInput"
+            type="file"
+            accept="image/*,video/*,audio/*,.mp3,.m4a,.wav,.ogg,.opus,.aac,.mp4,.mov,.webm,.3gp"
+            style="display: none"
+            @change="handleMediaSelected"
+          />
+          <button
+            type="button"
+            class="quick-reply-btn attach-btn"
+            :disabled="uploadingMedia || sending"
+            @click="triggerMediaPick"
+            :title="l({ lo: 'ອັບໂຫລດໄຟລ໌ ສຽງ / ວິດີໂອ / ຮູບພາບ ຂຶ້ນ Cloudflare R2', th: 'อัปโหลดไฟล์ เสียง / วิดีโอ / รูปภาพ ขึ้น Cloudflare R2', en: 'Attach Audio / Video / Image to Cloudflare R2' })"
+          >
+            <v-progress-circular v-if="uploadingMedia" indeterminate size="16" width="2" color="primary"/>
+            <v-icon v-else icon="mdi-paperclip" size="18"/>
+            <span class="quick-btn-text">{{ l({ lo: 'ໄຟລ໌', th: 'ไฟล์', en: 'Attach' }) }}</span>
           </button>
           <input
             v-model="inputMessage"
@@ -2388,6 +2486,13 @@ const formatTime = (ts: string) => {
 .quick-reply-btn:hover {
   background: var(--color-primary-soft);
   border-color: var(--color-primary);
+}
+.attach-btn {
+  color: #0284c7;
+}
+.attach-btn:hover {
+  background: #f0f9ff;
+  border-color: #0284c7;
 }
 
 .reply-sets-dialog-card {

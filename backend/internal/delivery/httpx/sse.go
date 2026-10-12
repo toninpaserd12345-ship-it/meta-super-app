@@ -190,6 +190,8 @@ func (h *Handler) sendChatMessage(c fiber.Ctx) error {
 		RecipientID string `json:"recipient_id"`
 		Message     string `json:"message"`
 		ReplySetID string `json:"reply_set_id"`
+		MediaURL    string `json:"media_url"`
+		MediaType   string `json:"media_type"`
 	}
 	if err := c.Bind().JSON(&body); err != nil {
 		return fail(c, fiber.StatusBadRequest, "invalid_request", err.Error())
@@ -311,6 +313,28 @@ func (h *Handler) sendChatMessage(c fiber.Ctx) error {
 				"items_count":    len(activeItems),
 			})
 		}
+	}
+
+	if strings.TrimSpace(body.MediaURL) != "" {
+		mType := strings.ToLower(strings.TrimSpace(body.MediaType))
+		if mType == "" {
+			mType = "image"
+		}
+		if err := h.meta.SendMedia(c.Context(), accountID, body.PageID, body.RecipientID, mType, body.MediaURL); err != nil {
+			return fail(c, fiber.StatusInternalServerError, "send_failed", err.Error())
+		}
+		if h.Stream != nil {
+			h.Stream.Broadcast(accountID, usecase.ChatEvent{
+				AccountID: accountID,
+				PageID:    body.PageID,
+				SenderID:  body.RecipientID,
+				Message:   body.MediaURL,
+				Type:      mType,
+				Timestamp: fmt.Sprintf("%d", time.Now().UnixMilli()),
+				Platform:  "system",
+			})
+		}
+		return c.JSON(fiber.Map{"status": "success"})
 	}
 
 	if err := h.meta.SendMessage(c.Context(), accountID, body.PageID, body.RecipientID, body.Message); err != nil {
