@@ -288,8 +288,45 @@ async function saveChanges() {
               <template v-else>
                 <div v-if="item.content" class="media-container mb-3">
                   <v-img v-if="item.type==='image'" :src="item.content" max-height="240" contain class="media-preview rounded-lg"/>
-                  <video v-else-if="item.type==='video'" :src="item.content" controls class="media-preview rounded-lg" style="max-height: 240px; width: 100%; border: 1px solid var(--color-border); border-radius: 8px;"/>
-                  <audio v-else-if="item.type==='audio'" :src="item.content" controls class="audio-preview" style="width: 100%; border-radius: 8px;"/>
+                  <div v-else-if="item.type==='video'" class="video-preview-wrapper">
+                    <video
+                      :key="item.content"
+                      :src="item.content"
+                      controls
+                      playsinline
+                      preload="metadata"
+                      class="media-preview rounded-lg"
+                      style="max-height: 240px; width: 100%; border: 1px solid var(--color-border); border-radius: 8px; background: #000;"
+                    >
+                      <source :src="item.content" type="video/mp4">
+                      {{ locale==='lo'?'ບຣາວເຊີຂອງທ່ານບໍ່ຮອງຮັບການຫຼິ້ນວິດີໂອໂດຍກົງ':'Your browser does not support the video tag.' }}
+                    </video>
+                    <div class="d-flex align-center justify-space-between mt-1 px-1">
+                      <a :href="item.content" target="_blank" rel="noopener noreferrer" class="text-caption text-primary d-inline-flex align-center gap-1 text-decoration-none">
+                        <v-icon icon="mdi-open-in-new" size="14"/>
+                        <span>{{ locale==='lo'?'ເປີດເບິ່ງວິດີໂອ / ດາວໂຫຼດ':'Open / Download video' }}</span>
+                      </a>
+                    </div>
+                  </div>
+                  <div v-else-if="item.type==='audio'" class="audio-preview-wrapper">
+                    <audio
+                      :key="item.content"
+                      :src="item.content"
+                      controls
+                      preload="metadata"
+                      class="audio-preview"
+                      style="width: 100%; border-radius: 8px;"
+                    >
+                      <source :src="item.content">
+                      {{ locale==='lo'?'ບຣາວເຊີຂອງທ່ານບໍ່ຮອງຮັບການຫຼິ້ນສຽງໂດຍກົງ':'Your browser does not support audio.' }}
+                    </audio>
+                    <div class="d-flex align-center justify-space-between mt-1 px-1">
+                      <a :href="item.content" target="_blank" rel="noopener noreferrer" class="text-caption text-primary d-inline-flex align-center gap-1 text-decoration-none">
+                        <v-icon icon="mdi-open-in-new" size="14"/>
+                        <span>{{ locale==='lo'?'ເປີດຟັງສຽງ / ດາວໂຫຼດ':'Open / Download audio' }}</span>
+                      </a>
+                    </div>
+                  </div>
                 </div>
 
                 <!-- Voice Recording Quick Bar if Audio -->
@@ -371,6 +408,8 @@ async function saveChanges() {
                 {{ item.content || '(empty message)' }}
               </div>
               <v-img v-else-if="item.type==='image'" :src="item.content" max-height="180" class="rounded-lg bg-white" contain/>
+              <video v-else-if="item.type==='video'" :src="item.content" controls playsinline preload="metadata" class="rounded-lg bg-black" style="max-height: 180px; width: 100%; border-radius: 8px;"/>
+              <audio v-else-if="item.type==='audio'" :src="item.content" controls class="audio-preview" style="width: 100%; border-radius: 8px;"/>
               <div v-else class="pa-2 rounded bg-white text-caption text-medium-emphasis">
                 [{{ item.type }}: {{ item.content }}]
               </div>
