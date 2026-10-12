@@ -33,6 +33,8 @@ type Handler struct {
 	Product    *usecase.Product
 	Stream     *usecase.ChatStream
 	Leads      *usecase.Leads
+	Inventory  *usecase.Inventory
+	Orders     *usecase.Orders
 
 	tokens                         domain.TokenService
 	metaMode, metaFrontendRedirect string
@@ -52,8 +54,8 @@ type facebookLoginExchange struct {
 	AccountID string `json:"accountId,omitempty"`
 }
 
-func NewHandler(auth *usecase.Auth, meta *usecase.Meta, team *usecase.Team, billing *usecase.Billing, storage *usecase.StorageUseCase, reply *usecase.Reply, automation *usecase.Automation, product *usecase.Product, stream *usecase.ChatStream, leads *usecase.Leads, tokens domain.TokenService, metaMode, metaFrontendRedirect string) *Handler {
-	return &Handler{auth: auth, meta: meta, team: team, billing: billing, Storage: storage, Reply: reply, Automation: automation, Product: product, Stream: stream, Leads: leads, tokens: tokens, metaMode: metaMode, metaFrontendRedirect: metaFrontendRedirect, tickets: make(map[string]loginTicket)}
+func NewHandler(auth *usecase.Auth, meta *usecase.Meta, team *usecase.Team, billing *usecase.Billing, storage *usecase.StorageUseCase, reply *usecase.Reply, automation *usecase.Automation, product *usecase.Product, stream *usecase.ChatStream, leads *usecase.Leads, inventory *usecase.Inventory, orders *usecase.Orders, tokens domain.TokenService, metaMode, metaFrontendRedirect string) *Handler {
+	return &Handler{auth: auth, meta: meta, team: team, billing: billing, Storage: storage, Reply: reply, Automation: automation, Product: product, Stream: stream, Leads: leads, Inventory: inventory, Orders: orders, tokens: tokens, metaMode: metaMode, metaFrontendRedirect: metaFrontendRedirect, tickets: make(map[string]loginTicket)}
 }
 
 func (h *Handler) App() *fiber.App {
@@ -125,6 +127,21 @@ func (h *Handler) App() *fiber.App {
 	auth.Get("/api/v1/products", requireAccount(h.auth, domain.ClaimPagesRead), h.products)
 	auth.Post("/api/v1/products", requireAccount(h.auth, domain.ClaimPagesConnect), h.saveProduct)
 	auth.Delete("/api/v1/products/:id", requireAccount(h.auth, domain.ClaimPagesConnect), h.deleteProduct)
+	auth.Get("/api/v1/products/:id/stock", requireAccount(h.auth, domain.ClaimPagesRead), h.getProductStocks)
+	auth.Post("/api/v1/products/:id/stock", requireAccount(h.auth, domain.ClaimPagesConnect), h.setProductStock)
+
+	// Warehouses & Shops
+	auth.Get("/api/v1/warehouses", requireAccount(h.auth, domain.ClaimPagesRead), h.listWarehouses)
+	auth.Post("/api/v1/warehouses", requireAccount(h.auth, domain.ClaimPagesConnect), h.createWarehouse)
+	auth.Put("/api/v1/warehouses/:id", requireAccount(h.auth, domain.ClaimPagesConnect), h.updateWarehouse)
+	auth.Delete("/api/v1/warehouses/:id", requireAccount(h.auth, domain.ClaimPagesConnect), h.deleteWarehouse)
+
+	// Orders Management & Stock Deduction
+	auth.Get("/api/v1/orders", requireAccount(h.auth, domain.ClaimPagesRead), h.listOrders)
+	auth.Post("/api/v1/orders", requireAccount(h.auth, domain.ClaimPagesConnect), h.createOrder)
+	auth.Get("/api/v1/orders/:id", requireAccount(h.auth, domain.ClaimPagesRead), h.getOrder)
+	auth.Put("/api/v1/orders/:id/status", requireAccount(h.auth, domain.ClaimPagesConnect), h.updateOrderStatus)
+	auth.Delete("/api/v1/orders/:id", requireAccount(h.auth, domain.ClaimPagesConnect), h.deleteOrder)
 	// Team Management
 	auth.Get("/api/v1/team", requireAccount(h.auth, "users:read"), h.teamList)
 	auth.Post("/api/v1/team/invite", requireAccount(h.auth, "users:invite"), h.teamInvite)

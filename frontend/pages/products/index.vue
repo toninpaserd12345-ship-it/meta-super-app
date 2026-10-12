@@ -1,25 +1,69 @@
 <script setup lang="ts">
-import type { AutomationFlow, ItemsResponse, Product } from '~/types/automation'
+import type { AutomationFlow, ItemsResponse, Product, Warehouse, WarehouseStock } from '~/types/automation'
 
 definePageMeta({ middleware: 'auth' })
 
 const { can } = useAuth()
-const { locale, l } = useLocale()
+const { l } = useLocale()
 if (!can('pages:read')) throw createError({ statusCode: 403, statusMessage: 'You do not have permission to view Products.' })
 
 const { data, pending, error, refresh } = await useApi<ItemsResponse<Product>>('/proxy/api/v1/products')
 const { data: automationData } = await useApi<ItemsResponse<AutomationFlow>>('/proxy/api/v1/automations')
+const { data: warehouseData } = await useApi<ItemsResponse<Warehouse>>('/proxy/api/v1/warehouses')
+
 const products = computed(() => data.value?.items || [])
 const automations = computed(() => automationData.value?.items || [])
+const warehouses = computed(() => warehouseData.value?.items || [])
+
 const dialog = ref(false)
 const saving = ref(false)
 const uploading = ref(false)
 const notice = ref('')
 const noticeType = ref<'success' | 'error'>('success')
-const form = reactive<Product & { code?: string; salePrice: number | null; cost: number | null; quantity: number | null; currency: string }>({ id: '', code: '', name: '', price: '', salePrice: null, cost: null, quantity: null, currency: 'LAK', description: '', imageUrl: '' })
+
+const form = reactive<Product & { code?: string; salePrice: number | null; cost: number | null; quantity: number | null; currency: string }>({
+  id: '',
+  code: '',
+  name: '',
+  price: '',
+  salePrice: null,
+  cost: null,
+  quantity: null,
+  currency: 'LAK',
+  description: '',
+  imageUrl: '',
+  barcode: '',
+  category: '',
+  unit: 'ຊິ້ນ',
+  weight: null,
+  minStock: null,
+  status: 'active',
+  galleryUrls: '',
+})
+
 const deleteDialog = ref(false)
 const deleting = ref(false)
 const productToDelete = ref<Product | null>(null)
+
+// Stock per warehouse dialog
+const stockDialog = ref(false)
+const stockLoading = ref(false)
+const stockSaving = ref(false)
+const selectedProductForStock = ref<Product | null>(null)
+const currentProductStocks = ref<WarehouseStock[]>([])
+const stockForm = reactive<{
+  warehouseId: string
+  quantity: number
+  alertThreshold: number
+}>({
+  warehouseId: '',
+  quantity: 0,
+  alertThreshold: 5,
+})
+
+// Product detail modal
+const detailDialog = ref(false)
+const selectedProductForDetail = ref<Product | null>(null)
 
 const fileInput = ref<HTMLInputElement>()
 const searchQuery = ref('')
@@ -28,9 +72,11 @@ const copiedCodeId = ref<string | null>(null)
 const filteredProducts = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
   if (!q) return products.value
-  return products.value.filter(p => 
+  return products.value.filter((p) =>
     p.name.toLowerCase().includes(q) ||
     (p.code && p.code.toLowerCase().includes(q)) ||
+    (p.barcode && p.barcode.toLowerCase().includes(q)) ||
+    (p.category && p.category.toLowerCase().includes(q)) ||
     p.price.toLowerCase().includes(q) ||
     (p.description && p.description.toLowerCase().includes(q))
   )
@@ -45,23 +91,57 @@ function copyCode(code: string, id: string) {
     th: `คัดลอกโค้ด #${code} แล้ว! พิมพ์ในแชทได้ทันที`,
     en: `Copied #${code}! Type this in chat to reply instantly.`,
   })
-  setTimeout(() => { 
+  setTimeout(() => {
     copiedCodeId.value = null
     notice.value = ''
   }, 3000)
 }
 
 function openCreate() {
-  Object.assign(form, { id: '', code: '', name: '', price: '', salePrice: null, cost: null, quantity: null, currency: 'LAK', description: '', imageUrl: '' })
+  Object.assign(form, {
+    id: '',
+    code: '',
+    name: '',
+    price: '',
+    salePrice: null,
+    cost: null,
+    quantity: null,
+    currency: 'LAK',
+    description: '',
+    imageUrl: '',
+    barcode: '',
+    category: '',
+    unit: 'ຊິ້ນ',
+    weight: null,
+    minStock: null,
+    status: 'active',
+    galleryUrls: '',
+  })
   dialog.value = true
 }
 
 function openEdit(product: Product) {
-  Object.assign(form, { salePrice: null, cost: null, quantity: null, currency: 'LAK' }, product)
+  Object.assign(
+    form,
+    {
+      salePrice: null,
+      cost: null,
+      quantity: null,
+      currency: 'LAK',
+      barcode: '',
+      category: '',
+      unit: 'ຊິ້ນ',
+      weight: null,
+      minStock: null,
+      status: 'active',
+      galleryUrls: '',
+    },
+    product
+  )
   dialog.value = true
 }
 
-const productAutomations = (productId: string) => automations.value.filter(item => item.productId === productId)
+const productAutomations = (productId: string) => automations.value.filter((item) => item.productId === productId)
 
 function requestDelete(product: Product) {
   productToDelete.value = product
@@ -111,7 +191,7 @@ async function uploadProductImage(event: Event) {
     notice.value = errorMessage(err, l({ lo: 'ອັບໂຫຼດຮູບບໍ່ສຳເລັດ ກະລຸນາລອງໃໝ່', th: 'อัปโหลดรูปไม่สำเร็จ โปรดลองอีกครั้ง', en: 'Failed to upload image. Please try again.' }))
   } finally {
     uploading.value = false
-    input.value = '' // reset
+    input.value = ''
   }
 }
 
@@ -133,13 +213,20 @@ async function saveProduct() {
         currency: form.currency.trim().toUpperCase() || 'LAK',
         description: form.description.trim(),
         imageUrl: form.imageUrl?.trim() || undefined,
+        barcode: form.barcode?.trim() || undefined,
+        category: form.category?.trim() || undefined,
+        unit: form.unit?.trim() || undefined,
+        weight: form.weight,
+        minStock: form.minStock,
+        status: form.status || 'active',
+        galleryUrls: form.galleryUrls?.trim() || undefined,
       },
     })
     dialog.value = false
     noticeType.value = 'success'
     notice.value = form.id
       ? l({ lo: 'ອັບເດດສິນຄ້າແລ້ວ', th: 'อัปเดตสินค้าแล้ว', en: 'Product updated.' })
-      : l({ lo: 'ສ້າງສິນຄ້າແລ້ວ ແລະພ້ອມໃຊ້ກັບ Auto Reply', th: 'สร้างสินค้าแล้วและพร้อมใช้กับ Auto Reply', en: 'Product created and ready for Auto Replies.' })
+      : l({ lo: 'ສ້າງສິນຄ້າແລ້ວ ແລະ ພ້ອມໃຊ້ກັບ Auto Reply', th: 'สร้างสินค้าแล้วและพร้อมใช้กับ Auto Reply', en: 'Product created and ready for Auto Replies.' })
     await refresh()
   } catch (error) {
     noticeType.value = 'error'
@@ -149,149 +236,1019 @@ async function saveProduct() {
   }
 }
 
-const formatAmount = (value?: number | null, currency = 'LAK') => value == null
-  ? '—'
-  : new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 2 }).format(value)
+// Warehouse Stocks modal functions
+async function openWarehouseStock(product: Product) {
+  selectedProductForStock.value = product
+  stockDialog.value = true
+  stockLoading.value = true
+  try {
+    const res = await $fetch<ItemsResponse<WarehouseStock>>(`/api/proxy/api/v1/products/${product.id}/stock`)
+    currentProductStocks.value = res.items || []
+    const defaultWh = warehouses.value.find((w) => w.isDefault) || warehouses.value[0]
+    stockForm.warehouseId = defaultWh ? defaultWh.id : ''
+    const current = currentProductStocks.value.find((s) => s.warehouseId === stockForm.warehouseId)
+    stockForm.quantity = current ? current.quantity : 0
+    stockForm.alertThreshold = current ? current.alertThreshold : 5
+  } catch (err) {
+    noticeType.value = 'error'
+    notice.value = errorMessage(err, l({ lo: 'ໂຫຼດສະຕ໋ອກສິນຄ້າບໍ່ສຳເລັດ', th: 'โหลดสต็อกสินค้าไม่สำเร็จ', en: 'Failed to load product stock.' }))
+  } finally {
+    stockLoading.value = false
+  }
+}
 
-const unitProfit = (product: Product) => product.salePrice != null && product.cost != null ? product.salePrice - product.cost : undefined
+function onWarehouseSelectChanged() {
+  const current = currentProductStocks.value.find((s) => s.warehouseId === stockForm.warehouseId)
+  stockForm.quantity = current ? current.quantity : 0
+  stockForm.alertThreshold = current ? current.alertThreshold : 5
+}
+
+async function saveWarehouseStock() {
+  if (!selectedProductForStock.value || !stockForm.warehouseId) return
+  stockSaving.value = true
+  try {
+    await $fetch(`/api/proxy/api/v1/products/${selectedProductForStock.value.id}/stock`, {
+      method: 'POST',
+      body: {
+        warehouseId: stockForm.warehouseId,
+        quantity: Number(stockForm.quantity),
+        alertThreshold: Number(stockForm.alertThreshold),
+      },
+    })
+    noticeType.value = 'success'
+    notice.value = l({ lo: 'ອັບເດດສະຕ໋ອກສາງຮຽບຮ້ອຍແລ້ວ', th: 'อัปเดตสต็อกคลังเรียบร้อยแล้ว', en: 'Warehouse stock updated.' })
+    // Reload stocks
+    const res = await $fetch<ItemsResponse<WarehouseStock>>(`/api/proxy/api/v1/products/${selectedProductForStock.value.id}/stock`)
+    currentProductStocks.value = res.items || []
+    await refresh()
+  } catch (err) {
+    noticeType.value = 'error'
+    notice.value = errorMessage(err, l({ lo: 'ອັບເດດສະຕ໋ອກບໍ່ສຳເລັດ', th: 'อัปเดตสต็อกไม่สำเร็จ', en: 'Failed to update stock.' }))
+  } finally {
+    stockSaving.value = false
+  }
+}
+
+// Product Detail modal
+async function openProductDetail(product: Product) {
+  selectedProductForDetail.value = product
+  detailDialog.value = true
+  stockLoading.value = true
+  try {
+    const res = await $fetch<ItemsResponse<WarehouseStock>>(`/api/proxy/api/v1/products/${product.id}/stock`)
+    currentProductStocks.value = res.items || []
+  } catch {
+    currentProductStocks.value = []
+  } finally {
+    stockLoading.value = false
+  }
+}
+
+const formatAmount = (value?: number | null, currency = 'LAK') =>
+  value == null
+    ? '—'
+    : new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 2 }).format(value)
+
+const unitProfit = (product: Product) =>
+  product.salePrice != null && product.cost != null ? product.salePrice - product.cost : undefined
 </script>
 
 <template>
-  <section class="page-head">
-    <div><p>PRODUCT CATALOG</p><h2>{{ l({lo:'ຈັດການສິນຄ້າ',th:'จัดการสินค้า',en:'Products'}) }}</h2><span>{{ l({lo:'ເກັບຊື່, ລາຄາ, ຮູບ ແລະລາຍລະອຽດເພື່ອໃຊ້ຮ່ວມກັບຊຸດຂໍ້ຄວາມ',th:'เก็บชื่อ ราคา รูปภาพ และรายละเอียดไว้ใช้กับชุดข้อความอัตโนมัติ',en:'Keep product details in one place and reuse them in automatic replies.'}) }}</span></div>
-    <div class="head-actions"><v-btn variant="outlined" prepend-icon="mdi-robot-happy-outline" to="/auto-replies">{{ l({lo:'ຈັດການ Automation',th:'จัดการ Automation',en:'Manage Automations'}) }}</v-btn><v-btn color="primary" prepend-icon="mdi-plus" :disabled="!can('pages:connect')" @click="openCreate">{{ l({lo:'ເພີ່ມສິນຄ້າ',th:'เพิ่มสินค้า',en:'Add product'}) }}</v-btn></div>
-  </section>
-
-  <v-alert v-if="notice" :type="noticeType" variant="tonal" closable class="mb-4" @click:close="notice=''">{{ notice }}</v-alert>
-  <v-alert v-if="error" type="error" variant="tonal" class="mb-4">{{ l({lo:'ໂຫຼດສິນຄ້າບໍ່ສຳເລັດ',th:'โหลดสินค้าไม่สำเร็จ',en:'Products could not be loaded.'}) }} <button class="inline-action" @click="refresh()">{{ l({lo:'ລອງໃໝ່',th:'ลองอีกครั้ง',en:'Try again'}) }}</button></v-alert>
-
-  <!-- Product Search & Filter Toolbar -->
-  <div class="product-toolbar mb-4">
-    <div class="product-search-box">
-      <v-icon icon="mdi-magnify" size="18" class="search-icon"/>
-      <input 
-        v-model="searchQuery" 
-        type="text" 
-        :placeholder="l({lo:'ຄົ້ນຫາຊື່ສິນຄ້າ, ໂຄ້ດ (#P01), ລາຄາ...',th:'ค้นหาชื่อสินค้า, โค้ด (#P01), ราคา...',en:'Search product name, code (#P01), price...'})" 
-      />
-      <button v-if="searchQuery" class="clear-btn" @click="searchQuery = ''"><v-icon icon="mdi-close" size="14"/></button>
-    </div>
-    <div class="product-count-chip">
-      {{ filteredProducts.length }} {{ l({lo:'ລາຍການ',th:'รายการ',en:'items'}) }}
-    </div>
-  </div>
-
-  <section v-if="pending" class="product-grid"><v-skeleton-loader v-for="index in 3" :key="index" type="card"/></section>
-  <section v-else-if="filteredProducts.length" class="product-grid">
-    <article v-for="product in filteredProducts" :key="product.id" class="product-card">
-      <div class="product-icon" :style="product.imageUrl ? `background-image: url(${product.imageUrl}); background-size: cover; background-position: center;` : ''">
-        <v-icon v-if="!product.imageUrl" icon="mdi-package-variant-closed"/>
+  <div class="products-page">
+    <section class="page-head">
+      <div>
+        <p>PRODUCT CATALOG</p>
+        <h2>{{ l({ lo: 'ຈັດການສິນຄ້າ', th: 'จัดการสินค้า', en: 'Products' }) }}</h2>
+        <span>{{ l({ lo: 'ເກັບຊື່, ລາຄາ, ຮູບ, ບາໂຄ້ດ ແລະ ລາຍລະອຽດສະຕ໋ອກແຍກສາງ', th: 'เก็บชื่อ ราคา รูปภาพ บาร์โค้ด และรายละเอียดสต็อกแยกคลัง', en: 'Manage product details, barcodes, categories and warehouse stock balances.' }) }}</span>
       </div>
-      <div class="product-main-details">
-        <div class="product-title-row">
-          <h3>{{ product.name }}</h3>
-          <span class="price-tag">{{ product.salePrice != null ? formatAmount(product.salePrice, product.currency) : product.price }}</span>
-        </div>
-        <p v-if="product.description">{{ product.description }}</p>
-        <div class="product-meta-row">
-          <button 
-            v-if="product.code" 
-            type="button" 
-            class="code-copy-pill" 
-            @click="copyCode(product.code, product.id)" 
-            :title="l({lo:'ຄລິກເພື່ອຄັດລອກໂຄ້ດ',th:'คลิกเพื่อคัดลอกโค้ด',en:'Click to copy code'})"
-          >
-            <v-icon icon="mdi-lightning-bolt" size="13"/>
-            <strong>#{{ product.code }}</strong>
-            <v-icon :icon="copiedCodeId === product.id ? 'mdi-check' : 'mdi-content-copy'" size="12" class="ml-1"/>
-          </button>
-          <small v-else class="text-muted">ID · {{ product.id.slice(0, 8) }}</small>
-        </div>
-        <div class="inventory-row"><span><small>{{ l({lo:'ຕົ້ນທຶນ',th:'ต้นทุน',en:'Cost'}) }}</small><strong>{{ formatAmount(product.cost, product.currency) }}</strong></span><span><small>{{ l({lo:'ກຳໄລ/ໜ່ວຍ',th:'กำไร/หน่วย',en:'Profit/unit'}) }}</small><strong>{{ formatAmount(unitProfit(product), product.currency) }}</strong></span><span><small>{{ l({lo:'ຄົງເຫຼືອ',th:'คงเหลือ',en:'Stock'}) }}</small><strong>{{ product.quantity ?? '—' }}</strong></span></div>
+      <div class="head-actions">
+        <v-btn variant="outlined" prepend-icon="mdi-warehouse" to="/warehouses">
+          {{ l({ lo: 'ສາງ ແລະ ໜ້າຮ້ານ', th: 'คลังสินค้าและหน้าร้าน', en: 'Warehouses' }) }}
+        </v-btn>
+        <v-btn variant="outlined" prepend-icon="mdi-cart-outline" to="/orders">
+          {{ l({ lo: 'ຈັດການອໍເດີ', th: 'จัดการออเดอร์', en: 'Orders' }) }}
+        </v-btn>
+        <v-btn variant="outlined" prepend-icon="mdi-robot-happy-outline" to="/auto-replies">
+          {{ l({ lo: 'ຈັດການ Automation', th: 'จัดการ Automation', en: 'Manage Automations' }) }}
+        </v-btn>
+        <v-btn color="primary" prepend-icon="mdi-plus" :disabled="!can('pages:connect')" @click="openCreate">
+          {{ l({ lo: 'ເພີ່ມສິນຄ້າ', th: 'เพิ่มสินค้า', en: 'Add product' }) }}
+        </v-btn>
       </div>
-      <div class="product-actions">
-        <v-btn 
-          icon="mdi-robot-happy-outline" 
-          variant="text" 
-          size="small" 
-          color="primary"
-          to="/auto-replies"
-          :title="l({lo:'ໄປທີ່ Auto-Reply Flow',th:'ไปที่ Auto-Reply Flow',en:'Go to Auto-Reply Flow'})"
+    </section>
+
+    <v-alert v-if="notice" :type="noticeType" variant="tonal" closable class="mb-4" @click:close="notice = ''">
+      {{ notice }}
+    </v-alert>
+    <v-alert v-if="error" type="error" variant="tonal" class="mb-4">
+      {{ l({ lo: 'ໂຫຼດສິນຄ້າບໍ່ສຳເລັດ', th: 'โหลดสินค้าไม่สำเร็จ', en: 'Products could not be loaded.' }) }}
+      <button class="inline-action" @click="refresh()">{{ l({ lo: 'ລອງໃໝ່', th: 'ลองอีกครั้ง', en: 'Try again' }) }}</button>
+    </v-alert>
+
+    <!-- Product Search & Filter Toolbar -->
+    <div class="product-toolbar mb-4">
+      <div class="product-search-box">
+        <v-icon icon="mdi-magnify" size="18" class="search-icon"/>
+        <input
+          v-model="searchQuery"
+          type="text"
+          :placeholder="l({ lo: 'ຄົ້ນຫາຊື່ສິນຄ້າ, ໂຄ້ດ (#P01), ບາໂຄ້ດ, ໝວດໝູ່...', th: 'ค้นหาชื่อสินค้า, โค้ด (#P01), บาร์โค้ด, หมวดหมู่...', en: 'Search product name, code (#P01), barcode, category...' })"
         />
-        <v-btn icon="mdi-pencil-outline" variant="text" size="small" :disabled="!can('pages:connect')" :aria-label="`${l({lo:'ແກ້ໄຂ',th:'แก้ไข',en:'Edit'})} ${product.name}`" @click="openEdit(product)"/>
-        <v-btn icon="mdi-delete-outline" variant="text" size="small" color="error" :disabled="!can('pages:connect')" :aria-label="`${l({lo:'ລຶບ',th:'ลบ',en:'Delete'})} ${product.name}`" @click="requestDelete(product)"/>
+        <button v-if="searchQuery" class="clear-btn" @click="searchQuery = ''">
+          <v-icon icon="mdi-close" size="14"/>
+        </button>
       </div>
-    </article>
-  </section>
-  <section v-else-if="!error" class="empty-state"><div><v-icon icon="mdi-package-variant-plus" size="30"/></div><h2>{{ l({lo:'ເພີ່ມສິນຄ້າທຳອິດ',th:'เพิ่มสินค้าชิ้นแรก',en:'Add the first product'}) }}</h2><p>{{ l({lo:'ສິນຄ້າຈະເກັບຊື່, ລາຄາ, ຮູບ ແລະລາຍລະອຽດທີ່ໃຊ້ໃນຊຸດຂໍ້ຄວາມ',th:'สินค้าจะเก็บชื่อ ราคา รูปภาพ และรายละเอียดที่ใช้ในชุดข้อความ',en:'A product provides the name, price, image and details inserted into your Reply Sets.'}) }}</p><v-btn color="primary" prepend-icon="mdi-plus" :disabled="!can('pages:connect')" @click="openCreate">{{ l({lo:'ເພີ່ມສິນຄ້າ',th:'เพิ่มสินค้า',en:'Add product'}) }}</v-btn></section>
+      <div class="product-count-chip">
+        {{ filteredProducts.length }} {{ l({ lo: 'ລາຍການ', th: 'รายการ', en: 'items' }) }}
+      </div>
+    </div>
 
-  <v-dialog v-model="dialog" max-width="580">
-    <v-card class="dialog-card">
-      <v-card-title>{{ form.id ? l({lo:'ແກ້ໄຂສິນຄ້າ',th:'แก้ไขสินค้า',en:'Edit product'}) : l({lo:'ເພີ່ມສິນຄ້າ',th:'เพิ่มสินค้า',en:'Add product'}) }}</v-card-title>
-      <v-card-text class="form">
-        <div class="image-upload-wrapper mb-3">
-          <div class="image-preview" :style="form.imageUrl ? `background-image: url(${form.imageUrl})` : ''">
-            <v-icon v-if="!form.imageUrl" icon="mdi-image-outline" size="32" color="grey"/>
-            <v-progress-circular v-if="uploading" indeterminate color="primary" class="upload-loader"/>
+    <!-- Product Grid -->
+    <section v-if="pending" class="product-grid">
+      <v-skeleton-loader v-for="index in 3" :key="index" type="card"/>
+    </section>
+
+    <section v-else-if="filteredProducts.length" class="product-grid">
+      <article v-for="product in filteredProducts" :key="product.id" class="product-card">
+        <div
+          class="product-icon"
+          :style="product.imageUrl ? `background-image: url(${product.imageUrl}); background-size: cover; background-position: center;` : ''"
+          @click="openProductDetail(product)"
+        >
+          <v-icon v-if="!product.imageUrl" icon="mdi-package-variant-closed"/>
+        </div>
+        <div class="product-main-details">
+          <div class="product-title-row">
+            <h3 class="product-title-link" @click="openProductDetail(product)">{{ product.name }}</h3>
+            <span class="price-tag">{{ product.salePrice != null ? formatAmount(product.salePrice, product.currency) : product.price }}</span>
           </div>
-          <div class="upload-actions">
-            <v-btn variant="outlined" size="small" prepend-icon="mdi-upload" :loading="uploading" @click="fileInput?.click()">{{ l({lo:'ອັບໂຫຼດຮູບ',th:'อัปโหลดรูป',en:'Upload image'}) }}</v-btn>
-            <input ref="fileInput" type="file" accept="image/*" hidden @change="uploadProductImage">
-            <div class="text-caption text-grey mt-1">{{ l({lo:'ຫຼືວາງ URL ດ້ານລຸ່ມ',th:'หรือวาง URL ด้านล่าง',en:'Or paste a URL below:'}) }}</div>
+
+          <!-- Category, Barcode, Unit pills -->
+          <div class="product-tags-row">
+            <span v-if="product.category" class="tag-pill tag-category">{{ product.category }}</span>
+            <span v-if="product.barcode" class="tag-pill tag-barcode">
+              <v-icon icon="mdi-barcode" size="11" class="mr-1"/>{{ product.barcode }}
+            </span>
+            <span v-if="product.unit" class="tag-pill tag-unit">{{ product.unit }}</span>
+          </div>
+
+          <p v-if="product.description" class="product-desc">{{ product.description }}</p>
+
+          <div class="product-meta-row">
+            <button
+              v-if="product.code"
+              type="button"
+              class="code-copy-pill"
+              @click="copyCode(product.code, product.id)"
+              :title="l({ lo: 'ຄລິກເພື່ອຄັດລອກໂຄ້ດ', th: 'คลิกเพื่อคัดลอกโค้ด', en: 'Click to copy code' })"
+            >
+              <v-icon icon="mdi-lightning-bolt" size="13"/>
+              <strong>#{{ product.code }}</strong>
+              <v-icon :icon="copiedCodeId === product.id ? 'mdi-check' : 'mdi-content-copy'" size="12" class="ml-1"/>
+            </button>
+            <small v-else class="text-muted">ID · {{ product.id.slice(0, 8) }}</small>
+          </div>
+
+          <div class="inventory-row">
+            <span>
+              <small>{{ l({ lo: 'ຕົ້ນທຶນ', th: 'ต้นทุน', en: 'Cost' }) }}</small>
+              <strong>{{ formatAmount(product.cost, product.currency) }}</strong>
+            </span>
+            <span>
+              <small>{{ l({ lo: 'ກຳໄລ/ໜ່ວຍ', th: 'กำไร/หน่วย', en: 'Profit/unit' }) }}</small>
+              <strong>{{ formatAmount(unitProfit(product), product.currency) }}</strong>
+            </span>
+            <span>
+              <small>{{ l({ lo: 'ຄົງເຫຼືອທັງໝົດ', th: 'คงเหลือทั้งหมด', en: 'Total Stock' }) }}</small>
+              <strong :class="{ 'text-red': (product.quantity || 0) <= (product.minStock || 0) }">{{ product.quantity ?? '—' }}</strong>
+            </span>
           </div>
         </div>
-        <v-text-field v-model="form.imageUrl" :label="l({lo:'URL ຮູບພາບ',th:'URL รูปภาพ',en:'Image URL'})" placeholder="https://..." hide-details class="mb-2"/>
-        <v-text-field v-model="form.code" :label="l({lo:'ລະຫັດສິນຄ້າ',th:'รหัสสินค้า',en:'Product Code'})" placeholder="P01" maxlength="50" hide-details class="mb-2"/>
-        <v-text-field v-model="form.name" :label="l({lo:'ຊື່ສິນຄ້າ',th:'ชื่อสินค้า',en:'Product name'})" autofocus maxlength="120" counter/>
-        <div class="money-grid"><v-text-field v-model.number="form.salePrice" type="number" min="0" :label="l({lo:'ລາຄາຂາຍ',th:'ราคาขาย',en:'Sale price'})"/><v-text-field v-model="form.currency" :label="l({lo:'ສະກຸນເງິນ',th:'สกุลเงิน',en:'Currency'})" maxlength="8"/></div>
-        <div class="money-grid"><v-text-field v-model.number="form.cost" type="number" min="0" :label="l({lo:'ຕົ້ນທຶນຕໍ່ໜ່ວຍ',th:'ต้นทุนต่อหน่วย',en:'Cost per unit'})"/><v-text-field v-model.number="form.quantity" type="number" min="0" step="1" :label="l({lo:'ຈຳນວນຄົງເຫຼືອ',th:'จำนวนคงเหลือ',en:'Stock quantity'})"/></div>
-        <v-text-field v-model="form.price" :label="l({lo:'ລາຄາສຳລັບຂໍ້ຄວາມ (ບໍ່ບັງຄັບ)',th:'ราคาที่แสดงในข้อความ (ไม่บังคับ)',en:'Reply display price (optional)'})" :placeholder="form.salePrice == null ? '' : `${form.salePrice} ${form.currency}`" maxlength="60" counter/>
-        <v-textarea v-model="form.description" :label="l({lo:'ລາຍລະອຽດສິນຄ້າ',th:'รายละเอียดสินค้า',en:'Product details'})" rows="4" maxlength="1000" counter/>
-      </v-card-text>
-      <v-card-actions><v-btn variant="text" @click="dialog=false">{{ l({lo:'ຍົກເລີກ',th:'ยกเลิก',en:'Cancel'}) }}</v-btn><v-spacer/><v-btn color="primary" :loading="saving" :disabled="!form.name.trim() || (form.salePrice == null && !form.price.trim())" @click="saveProduct">{{ l({lo:'ບັນທຶກສິນຄ້າ',th:'บันทึกสินค้า',en:'Save product'}) }}</v-btn></v-card-actions>
-    </v-card>
-  </v-dialog>
 
-  <v-dialog v-model="deleteDialog" max-width="500">
-    <v-card class="dialog-card">
-      <v-card-title>{{ l({lo:'ລຶບສິນຄ້າ?',th:'ลบสินค้า?',en:'Delete product?'}) }}</v-card-title>
-      <v-card-text>
-        <template v-if="productToDelete && productAutomations(productToDelete.id).length">
-          <v-alert type="warning" variant="tonal" class="mb-3">{{ l({lo:'ຍັງລຶບບໍ່ໄດ້ ເພາະສິນຄ້ານີ້ຖືກໃຊ້ໃນ Automation',th:'ยังลบไม่ได้ เพราะสินค้านี้ถูกใช้ใน Automation',en:'This product cannot be deleted while an Automation uses it.'}) }}</v-alert>
-          <div class="dependency-list"><NuxtLink v-for="flow in productAutomations(productToDelete.id)" :key="flow.id" to="/auto-replies"><v-icon icon="mdi-robot-outline"/><span><strong>{{flow.name}}</strong><small>{{flow.targets.length}} {{ l({lo:'ເປົ້າໝາຍ',th:'เป้าหมาย',en:'targets'}) }}</small></span><v-icon icon="mdi-arrow-right"/></NuxtLink></div>
-        </template>
-        <p v-else>{{ l({lo:`ຢືນຢັນການລຶບ “${productToDelete?.name||''}”. ການກະທຳນີ້ຍ້ອນກັບບໍ່ໄດ້.`,th:`ยืนยันการลบ “${productToDelete?.name||''}” การดำเนินการนี้ย้อนกลับไม่ได้`,en:`Delete “${productToDelete?.name||''}”? This action cannot be undone.`}) }}</p>
-      </v-card-text>
-      <v-card-actions><v-btn variant="text" @click="deleteDialog=false">{{ l({lo:'ຍົກເລີກ',th:'ยกเลิก',en:'Cancel'}) }}</v-btn><v-spacer/><v-btn v-if="productToDelete&&!productAutomations(productToDelete.id).length" color="error" :loading="deleting" @click="deleteProduct">{{ l({lo:'ລຶບສິນຄ້າ',th:'ลบสินค้า',en:'Delete product'}) }}</v-btn><v-btn v-else color="primary" to="/auto-replies">{{ l({lo:'ໄປຈັດການ Automation',th:'ไปจัดการ Automation',en:'Manage Automations'}) }}</v-btn></v-card-actions>
-    </v-card>
-  </v-dialog>
+        <div class="product-actions">
+          <v-btn
+            icon="mdi-warehouse"
+            variant="text"
+            size="small"
+            color="indigo"
+            @click="openWarehouseStock(product)"
+            :title="l({ lo: 'ຈັດການສະຕ໋ອກແຍກສາງ', th: 'จัดการสต็อกแยกคลัง', en: 'Warehouse Stocks' })"
+          />
+          <v-btn
+            icon="mdi-information-outline"
+            variant="text"
+            size="small"
+            color="teal"
+            @click="openProductDetail(product)"
+            :title="l({ lo: 'ເບິ່ງລາຍລະອຽດສິນຄ້າ', th: 'ดูรายละเอียดสินค้า', en: 'Product Details' })"
+          />
+          <v-btn
+            icon="mdi-pencil-outline"
+            variant="text"
+            size="small"
+            :disabled="!can('pages:connect')"
+            :aria-label="`${l({ lo: 'ແກ້ໄຂ', th: 'แก้ไข', en: 'Edit' })} ${product.name}`"
+            @click="openEdit(product)"
+          />
+          <v-btn
+            icon="mdi-delete-outline"
+            variant="text"
+            size="small"
+            color="error"
+            :disabled="!can('pages:connect')"
+            :aria-label="`${l({ lo: 'ລຶບ', th: 'ลบ', en: 'Delete' })} ${product.name}`"
+            @click="requestDelete(product)"
+          />
+        </div>
+      </article>
+    </section>
+
+    <section v-else-if="!error" class="empty-state">
+      <div><v-icon icon="mdi-package-variant-plus" size="30"/></div>
+      <h2>{{ l({ lo: 'ເພີ່ມສິນຄ້າທຳອິດ', th: 'เพิ่มสินค้าชิ้นแรก', en: 'Add the first product' }) }}</h2>
+      <p>{{ l({ lo: 'ສິນຄ້າຈະເກັບຊື່, ລາຄາ, ຮູບ ແລະ ລາຍລະອຽດທີ່ໃຊ້ໃນຊຸດຂໍ້ຄວາມ ແລະ ການຂຶ້ນອໍເດີ', th: 'สินค้าจะเก็บชื่อ ราคา รูปภาพ และรายละเอียดที่ใช้ในชุดข้อความและการสร้างออเดอร์', en: 'A product provides the name, price, image and details used in replies and orders.' }) }}</p>
+      <v-btn color="primary" prepend-icon="mdi-plus" :disabled="!can('pages:connect')" @click="openCreate">
+        {{ l({ lo: 'ເພີ່ມສິນຄ້າ', th: 'เพิ่มสินค้า', en: 'Add product' }) }}
+      </v-btn>
+    </section>
+
+    <!-- Create / Edit Product Dialog -->
+    <v-dialog v-model="dialog" max-width="640" scrollable>
+      <v-card class="dialog-card">
+        <v-card-title class="dialog-title">
+          {{ form.id ? l({ lo: 'ແກ້ໄຂສິນຄ້າ', th: 'แก้ไขสินค้า', en: 'Edit product' }) : l({ lo: 'ເພີ່ມສິນຄ້າໃໝ່', th: 'เพิ่มสินค้าใหม่', en: 'Add product' }) }}
+        </v-card-title>
+        <v-card-text class="form">
+          <div class="image-upload-wrapper mb-3">
+            <div class="image-preview" :style="form.imageUrl ? `background-image: url(${form.imageUrl})` : ''">
+              <v-icon v-if="!form.imageUrl" icon="mdi-image-outline" size="32" color="grey"/>
+              <v-progress-circular v-if="uploading" indeterminate color="primary" class="upload-loader"/>
+            </div>
+            <div class="upload-actions">
+              <v-btn variant="outlined" size="small" prepend-icon="mdi-upload" :loading="uploading" @click="fileInput?.click()">
+                {{ l({ lo: 'ອັບໂຫຼດຮູບ', th: 'อัปโหลดรูป', en: 'Upload image' }) }}
+              </v-btn>
+              <input ref="fileInput" type="file" accept="image/*" hidden @change="uploadProductImage"/>
+              <div class="text-caption text-grey mt-1">{{ l({ lo: 'ຫຼືວາງ URL ດ້ານລຸ່ມ', th: 'หรือวาง URL ด้านล่าง', en: 'Or paste a URL below:' }) }}</div>
+            </div>
+          </div>
+          <v-text-field v-model="form.imageUrl" :label="l({ lo: 'URL ຮູບພາບ', th: 'URL รูปภาพ', en: 'Image URL' })" placeholder="https://..." hide-details class="mb-2"/>
+
+          <div class="fields-2col mb-2">
+            <v-text-field v-model="form.code" :label="l({ lo: 'ລະຫັດສິນຄ້າ (Code)', th: 'รหัสสินค้า (Code)', en: 'Product Code' })" placeholder="P01" maxlength="50" hide-details/>
+            <v-text-field v-model="form.barcode" :label="l({ lo: 'ບາໂຄ້ດ (Barcode)', th: 'บาร์โค้ด (Barcode)', en: 'Barcode' })" placeholder="885000000000" hide-details/>
+          </div>
+
+          <v-text-field v-model="form.name" :label="l({ lo: 'ຊື່ສິນຄ້າ *', th: 'ชื่อสินค้า *', en: 'Product name *' })" autofocus maxlength="120" counter class="mb-1"/>
+
+          <div class="fields-2col mb-2">
+            <v-text-field v-model="form.category" :label="l({ lo: 'ໝວດໝູ່ສິນຄ້າ', th: 'หมวดหมู่สินค้า', en: 'Category' })" placeholder="ເຄື່ອງສຳອາງ, ເສື້ອຜ້າ, ອາຫານເສີມ..." hide-details/>
+            <v-text-field v-model="form.unit" :label="l({ lo: 'ຫົວໜ່ວຍ', th: 'หน่วยนับ', en: 'Unit' })" placeholder="ຊິ້ນ, ກ່ອງ, ຊຸດ, ແກ້ວ..." hide-details/>
+          </div>
+
+          <div class="money-grid mb-2">
+            <v-text-field v-model.number="form.salePrice" type="number" min="0" :label="l({ lo: 'ລາຄາຂາຍ', th: 'ราคาขาย', en: 'Sale price' })" hide-details/>
+            <v-text-field v-model="form.currency" :label="l({ lo: 'ສະກຸນເງິນ', th: 'สกุลเงิน', en: 'Currency' })" maxlength="8" hide-details/>
+          </div>
+
+          <div class="money-grid mb-2">
+            <v-text-field v-model.number="form.cost" type="number" min="0" :label="l({ lo: 'ຕົ້ນທຶນຕໍ່ໜ່ວຍ', th: 'ต้นทุนต่อหน่วย', en: 'Cost per unit' })" hide-details/>
+            <v-text-field v-model.number="form.quantity" type="number" min="0" step="1" :label="l({ lo: 'ຈຳນວນຄົງເຫຼືອທັງໝົດ', th: 'จำนวนคงเหลือทั้งหมด', en: 'Total Stock' })" hide-details/>
+          </div>
+
+          <div class="fields-2col mb-2">
+            <v-text-field v-model.number="form.weight" type="number" min="0" step="0.01" :label="l({ lo: 'ນ້ຳໜັກ (kg)', th: 'น้ำหนัก (kg)', en: 'Weight (kg)' })" hide-details/>
+            <v-text-field v-model.number="form.minStock" type="number" min="0" step="1" :label="l({ lo: 'ແຈ້ງເຕືອນສະຕ໋ອກຂັ້ນຕ່ຳ', th: 'แจ้งเตือนสต็อกขั้นต่ำ', en: 'Min Stock Alert' })" hide-details/>
+          </div>
+
+          <v-text-field
+            v-model="form.price"
+            :label="l({ lo: 'ລາຄາສຳລັບຂໍ້ຄວາມ (ບໍ່ບັງຄັບ)', th: 'ราคาที่แสดงในข้อความ (ไม่บังคับ)', en: 'Reply display price (optional)' })"
+            :placeholder="form.salePrice == null ? '' : `${form.salePrice} ${form.currency}`"
+            maxlength="60"
+            counter
+            class="mb-2"
+          />
+
+          <v-textarea v-model="form.description" :label="l({ lo: 'ລາຍລະອຽດສິນຄ້າ', th: 'รายละเอียดสินค้า', en: 'Product details' })" rows="3" maxlength="1000" counter/>
+        </v-card-text>
+        <v-card-actions>
+          <v-btn variant="text" @click="dialog = false">{{ l({ lo: 'ຍົກເລີກ', th: 'ยกเลิก', en: 'Cancel' }) }}</v-btn>
+          <v-spacer/>
+          <v-btn
+            color="primary"
+            :loading="saving"
+            :disabled="!form.name.trim() || (form.salePrice == null && !form.price.trim())"
+            @click="saveProduct"
+          >
+            {{ l({ lo: 'ບັນທຶກສິນຄ້າ', th: 'บันทึกสินค้า', en: 'Save product' }) }}
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- Warehouse Stock Modal -->
+    <v-dialog v-model="stockDialog" max-width="540">
+      <v-card class="dialog-card">
+        <v-card-title class="dialog-title">
+          <v-icon icon="mdi-warehouse" class="mr-2" color="indigo"/>
+          {{ l({ lo: 'ຈັດການສະຕ໋ອກແຍກສາງ / ໜ້າຮ້ານ', th: 'จัดการสต็อกแยกคลัง / หน้าร้าน', en: 'Stock per Warehouse/Shop' }) }}
+        </v-card-title>
+        <v-card-text v-if="selectedProductForStock">
+          <div class="product-mini-bar mb-3">
+            <strong class="text-primary">{{ selectedProductForStock.name }}</strong>
+            <small v-if="selectedProductForStock.code">#{{ selectedProductForStock.code }}</small>
+          </div>
+
+          <div v-if="stockLoading" class="py-4 text-center">
+            <v-progress-circular indeterminate color="primary"/>
+          </div>
+
+          <div v-else class="warehouse-stocks-list mb-4">
+            <div v-for="w in warehouses" :key="w.id" class="stock-location-item">
+              <div class="location-info">
+                <v-icon :icon="w.type === 'shop' ? 'mdi-storefront' : 'mdi-warehouse'" size="16" class="mr-1"/>
+                <strong>{{ w.name }}</strong>
+                <span v-if="w.isDefault" class="badge-mini-def">Default</span>
+              </div>
+              <div class="location-qty">
+                <span class="stock-number">
+                  {{ (currentProductStocks.find((s) => s.warehouseId === w.id)?.quantity) ?? 0 }}
+                </span>
+                <small class="text-muted">{{ selectedProductForStock.unit || 'ຊິ້ນ' }}</small>
+              </div>
+            </div>
+          </div>
+
+          <!-- Adjust Stock Section -->
+          <div class="adjust-box">
+            <h4 class="mb-2">{{ l({ lo: 'ປັບຍອດສະຕ໋ອກໃນສາງ', th: 'ปรับยอดสต็อกในคลัง', en: 'Adjust Location Stock' }) }}</h4>
+            <v-select
+              v-model="stockForm.warehouseId"
+              :items="warehouses"
+              item-title="name"
+              item-value="id"
+              :label="l({ lo: 'ເລືອກສາງ/ໜ້າຮ້ານ', th: 'เลือกคลัง/หน้าร้าน', en: 'Select Location' })"
+              density="compact"
+              variant="outlined"
+              class="mb-2"
+              @update:model-value="onWarehouseSelectChanged"
+            />
+            <div class="fields-2col mb-2">
+              <v-text-field
+                v-model.number="stockForm.quantity"
+                type="number"
+                min="0"
+                :label="l({ lo: 'ຈຳນວນຄົງເຫຼືອ', th: 'จำนวนคงเหลือ', en: 'Stock Quantity' })"
+                density="compact"
+                variant="outlined"
+              />
+              <v-text-field
+                v-model.number="stockForm.alertThreshold"
+                type="number"
+                min="0"
+                :label="l({ lo: 'ແຈ້ງເຕືອນຂັ້ນຕ່ຳ', th: 'แจ้งเตือนขั้นต่ำ', en: 'Alert Threshold' })"
+                density="compact"
+                variant="outlined"
+              />
+            </div>
+            <v-btn
+              color="indigo"
+              block
+              :loading="stockSaving"
+              @click="saveWarehouseStock"
+            >
+              {{ l({ lo: 'ບັນທຶກສະຕ໋ອກສາງນີ້', th: 'บันทึกสต็อกคลังนี้', en: 'Update This Location Stock' }) }}
+            </v-btn>
+          </div>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer/>
+          <v-btn color="primary" @click="stockDialog = false">{{ l({ lo: 'ປິດ', th: 'ปิด', en: 'Close' }) }}</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- Product Detail Modal -->
+    <v-dialog v-model="detailDialog" max-width="560">
+      <v-card v-if="selectedProductForDetail" class="dialog-card">
+        <v-card-title class="dialog-title">
+          <v-icon icon="mdi-information-outline" class="mr-2" color="teal"/>
+          {{ l({ lo: 'ລາຍລະອຽດສິນຄ້າ', th: 'รายละเอียดสินค้า', en: 'Product Details' }) }}
+        </v-card-title>
+        <v-card-text class="detail-body">
+          <div class="detail-top-card">
+            <div
+              class="detail-img"
+              :style="selectedProductForDetail.imageUrl ? `background-image: url(${selectedProductForDetail.imageUrl})` : ''"
+            >
+              <v-icon v-if="!selectedProductForDetail.imageUrl" icon="mdi-package-variant-closed" size="36"/>
+            </div>
+            <div class="detail-headings">
+              <h3>{{ selectedProductForDetail.name }}</h3>
+              <span class="detail-price-badge">
+                {{ selectedProductForDetail.salePrice != null ? formatAmount(selectedProductForDetail.salePrice, selectedProductForDetail.currency) : selectedProductForDetail.price }}
+              </span>
+              <p v-if="selectedProductForDetail.code" class="text-caption text-muted">Code: #{{ selectedProductForDetail.code }}</p>
+            </div>
+          </div>
+
+          <div class="detail-specs-grid mb-3">
+            <div class="spec-cell">
+              <small>{{ l({ lo: 'ບາໂຄ້ດ (Barcode)', th: 'บาร์โค้ด', en: 'Barcode' }) }}</small>
+              <strong>{{ selectedProductForDetail.barcode || '—' }}</strong>
+            </div>
+            <div class="spec-cell">
+              <small>{{ l({ lo: 'ໝວດໝູ່ (Category)', th: 'หมวดหมู่', en: 'Category' }) }}</small>
+              <strong>{{ selectedProductForDetail.category || '—' }}</strong>
+            </div>
+            <div class="spec-cell">
+              <small>{{ l({ lo: 'ຫົວໜ່ວຍ (Unit)', th: 'หน่วยนับ', en: 'Unit' }) }}</small>
+              <strong>{{ selectedProductForDetail.unit || 'ຊິ້ນ' }}</strong>
+            </div>
+            <div class="spec-cell">
+              <small>{{ l({ lo: 'ນ້ຳໜັກ (Weight)', th: 'น้ำหนัก', en: 'Weight' }) }}</small>
+              <strong>{{ selectedProductForDetail.weight ? `${selectedProductForDetail.weight} kg` : '—' }}</strong>
+            </div>
+            <div class="spec-cell">
+              <small>{{ l({ lo: 'ຕົ້ນທຶນ (Cost)', th: 'ต้นทุน', en: 'Cost' }) }}</small>
+              <strong>{{ formatAmount(selectedProductForDetail.cost, selectedProductForDetail.currency) }}</strong>
+            </div>
+            <div class="spec-cell">
+              <small>{{ l({ lo: 'ກຳໄລຕໍ່ໜ່ວຍ (Profit)', th: 'กำไรต่อหน่วย', en: 'Profit' }) }}</small>
+              <strong>{{ formatAmount(unitProfit(selectedProductForDetail), selectedProductForDetail.currency) }}</strong>
+            </div>
+          </div>
+
+          <!-- Stock per warehouse list -->
+          <div class="detail-stocks-section mb-3">
+            <h4 class="mb-2">{{ l({ lo: 'ສະຕ໋ອກສິນຄ້າແຍກຕາມສາງ / ໜ້າຮ້ານ', th: 'สต็อกสินค้าแยกตามคลัง / หน้าร้าน', en: 'Stock Breakdown by Location' }) }}</h4>
+            <div class="stocks-table-mini">
+              <div v-for="w in warehouses" :key="w.id" class="stock-mini-row">
+                <span>
+                  <v-icon :icon="w.type === 'shop' ? 'mdi-storefront' : 'mdi-warehouse'" size="14" class="mr-1"/>
+                  {{ w.name }}
+                </span>
+                <strong>
+                  {{ (currentProductStocks.find((s) => s.warehouseId === w.id)?.quantity) ?? 0 }}
+                  {{ selectedProductForDetail.unit || 'ຊິ້ນ' }}
+                </strong>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="selectedProductForDetail.description" class="detail-desc-box">
+            <small class="text-muted">{{ l({ lo: 'ລາຍລະອຽດ:', th: 'รายละเอียด:', en: 'Description:' }) }}</small>
+            <p>{{ selectedProductForDetail.description }}</p>
+          </div>
+        </v-card-text>
+        <v-card-actions>
+          <v-btn variant="outlined" prepend-icon="mdi-cart-plus" to="/orders">
+            {{ l({ lo: 'ໄປຂຶ້ນອໍເດີ', th: 'ไปสร้างออเดอร์', en: 'Go to Orders' }) }}
+          </v-btn>
+          <v-spacer/>
+          <v-btn color="primary" @click="detailDialog = false">{{ l({ lo: 'ປິດ', th: 'ปิด', en: 'Close' }) }}</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- Delete Confirmation Dialog -->
+    <v-dialog v-model="deleteDialog" max-width="500">
+      <v-card class="dialog-card">
+        <v-card-title>{{ l({ lo: 'ລຶບສິນຄ້າ?', th: 'ลบสินค้า?', en: 'Delete product?' }) }}</v-card-title>
+        <v-card-text>
+          <template v-if="productToDelete && productAutomations(productToDelete.id).length">
+            <v-alert type="warning" variant="tonal" class="mb-3">
+              {{ l({ lo: 'ຍັງລຶບບໍ່ໄດ້ ເພາະສິນຄ້ານີ້ຖືກໃຊ້ໃນ Automation', th: 'ยังลบไม่ได้ เพราะสินค้านี้ถูกใช้ใน Automation', en: 'This product cannot be deleted while an Automation uses it.' }) }}
+            </v-alert>
+            <div class="dependency-list">
+              <NuxtLink v-for="flow in productAutomations(productToDelete.id)" :key="flow.id" to="/auto-replies">
+                <v-icon icon="mdi-robot-outline"/>
+                <span>
+                  <strong>{{ flow.name }}</strong>
+                  <small>{{ flow.targets.length }} {{ l({ lo: 'ເປົ້າໝາຍ', th: 'เป้าหมาย', en: 'targets' }) }}</small>
+                </span>
+                <v-icon icon="mdi-arrow-right"/>
+              </NuxtLink>
+            </div>
+          </template>
+          <p v-else>
+            {{ l({ lo: `ຢືນຢັນການລຶບ “${productToDelete?.name || ''}”. ການກະທຳນີ້ຍ້ອນກັບບໍ່ໄດ້.`, th: `ยืนยันการลบ “${productToDelete?.name || ''}” การดำเนินการนี้ย้อนกลับไม่ได้`, en: `Delete “${productToDelete?.name || ''}”? This action cannot be undone.` }) }}
+          </p>
+        </v-card-text>
+        <v-card-actions>
+          <v-btn variant="text" @click="deleteDialog = false">{{ l({ lo: 'ຍົກເລີກ', th: 'ยกเลิก', en: 'Cancel' }) }}</v-btn>
+          <v-spacer/>
+          <v-btn
+            v-if="productToDelete && !productAutomations(productToDelete.id).length"
+            color="error"
+            :loading="deleting"
+            @click="deleteProduct"
+          >
+            {{ l({ lo: 'ລຶບສິນຄ້າ', th: 'ลบสินค้า', en: 'Delete product' }) }}
+          </v-btn>
+          <v-btn v-else color="primary" to="/auto-replies">
+            {{ l({ lo: 'ໄປຈັດການ Automation', th: 'ไปจัดการ Automation', en: 'Manage Automations' }) }}
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+  </div>
 </template>
 
 <style scoped>
-.product-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-.product-search-box{position:relative;display:flex;align-items:center;max-width:420px;width:100%}
-.product-search-box input{width:100%;height:40px;border:1px solid var(--color-border);border-radius:20px;padding:0 32px 0 36px;font-size:13px;background:var(--color-surface);color:var(--color-text);outline:none;transition:border-color .15s ease}
-.product-search-box input:focus{border-color:var(--color-primary)}
-.product-search-box .search-icon{position:absolute;left:12px;color:var(--color-text-muted);pointer-events:none}
-.product-search-box .clear-btn{position:absolute;right:10px;background:none;border:none;color:var(--color-text-muted);cursor:pointer}
-.product-count-chip{padding:6px 14px;border-radius:20px;background:var(--color-surface);border:1px solid var(--color-border);font-size:12px;font-weight:750;color:var(--color-text-secondary)}
-.product-title-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.price-tag{display:inline-block;padding:2px 8px;border-radius:10px;background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;font-size:12.5px;font-weight:800}
-.code-copy-pill{display:inline-flex;align-items:center;gap:3px;padding:3px 9px;border-radius:12px;background:var(--color-primary-soft);color:var(--color-primary);border:1px solid color-mix(in srgb,var(--color-primary) 30%,transparent);font-size:11.5px;cursor:pointer;transition:all .15s ease}
-.code-copy-pill:hover{background:var(--color-primary);color:#fff}
-.inventory-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:10px}.inventory-row>span{display:grid;padding:8px;border-radius:9px;background:var(--color-background)}.inventory-row small{font-size:9px}.inventory-row strong{font-size:11px;overflow-wrap:anywhere}.money-grid{display:grid;grid-template-columns:2fr 1fr;gap:10px}
-.image-upload-wrapper{display:flex;gap:16px;align-items:center}.image-preview{width:80px;height:80px;border-radius:12px;background-color:var(--color-surface-variant);background-size:cover;background-position:center;display:grid;place-items:center;position:relative;border:1px solid var(--color-border)}.upload-loader{position:absolute}
-.page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:18px;padding:24px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}.page-head p{margin:0 0 7px;color:var(--color-primary);font-size:10px;font-weight:800;letter-spacing:.13em}.page-head h2{margin:0 0 7px;font-size:24px}.page-head span{color:var(--color-text-secondary);font-size:13px}.head-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}.product-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.product-card{display:grid;grid-template-columns:auto 1fr auto;gap:15px;align-items:start;padding:20px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}.product-icon{width:56px;height:56px;display:grid;place-items:center;color:var(--color-primary);background:var(--color-primary-soft);border-radius:14px;flex-shrink:0}.product-actions{display:flex;gap:4px}.product-card h3{margin:0;font-size:15px;font-weight:750}.product-card p{min-height:34px;margin:6px 0;color:var(--color-text-secondary);font-size:12px;line-height:1.5}.product-card small{color:var(--color-text-muted);font-size:10px}.dependency-list{display:grid;gap:8px}.dependency-list a{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:11px;color:var(--color-text);background:var(--color-background);border:1px solid var(--color-border);border-radius:10px;text-decoration:none}.dependency-list a span{display:grid}.dependency-list small{color:var(--color-text-secondary)}.empty-state{min-height:390px;display:grid;place-items:center;align-content:center;text-align:center;padding:36px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}.empty-state>div{width:58px;height:58px;display:grid;place-items:center;color:var(--color-primary);background:var(--color-primary-soft);border-radius:17px}.empty-state h2{margin:18px 0 6px}.empty-state p{max-width:480px;margin:0 0 20px;color:var(--color-text-secondary)}.dialog-card{border-radius:var(--radius-lg)!important}.form{display:grid;gap:4px;padding-top:18px!important}.inline-action{border:0;color:var(--color-primary);background:none;font-weight:800;cursor:pointer}
-@media(max-width:760px){
-  .product-grid{grid-template-columns:1fr}
+.products-page {
+  padding-bottom: 40px;
 }
-@media(max-width:640px){
-  .page-head{display:grid;padding:16px;border-radius:18px}
-  .head-actions{display:grid;grid-template-columns:1fr 1fr;width:100%;gap:8px}
-  .product-card{padding:14px 16px;border-radius:16px;gap:12px}
-  .product-icon{width:48px;height:48px;border-radius:12px}
-  .product-card p{min-height:auto;margin:4px 0 6px}
-  .image-upload-wrapper{flex-direction:column;align-items:flex-start}
-  .money-grid{grid-template-columns:1fr}
+.product-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.product-search-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  max-width: 420px;
+  width: 100%;
+}
+.product-search-box input {
+  width: 100%;
+  height: 40px;
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  padding: 0 32px 0 36px;
+  font-size: 13px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  outline: none;
+  transition: border-color .15s ease;
+}
+.product-search-box input:focus {
+  border-color: var(--color-primary);
+}
+.product-search-box .search-icon {
+  position: absolute;
+  left: 12px;
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+.product-search-box .clear-btn {
+  position: absolute;
+  right: 10px;
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.product-count-chip {
+  padding: 6px 14px;
+  border-radius: 20px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  font-size: 12px;
+  font-weight: 750;
+  color: var(--color-text-secondary);
+}
+.product-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.product-title-link {
+  cursor: pointer;
+}
+.product-title-link:hover {
+  color: var(--color-primary);
+}
+.price-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+  font-size: 12.5px;
+  font-weight: 800;
+}
+.product-tags-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 4px 0 6px;
+}
+.tag-pill {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 8px;
+}
+.tag-category {
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #dbeafe;
+}
+.tag-barcode {
+  background: #f8fafc;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+  display: inline-flex;
+  align-items: center;
+}
+.tag-unit {
+  background: #fdf4ff;
+  color: #a855f7;
+  border: 1px solid #f3e8ff;
+}
+.code-copy-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 9px;
+  border-radius: 12px;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 30%, transparent);
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.code-copy-pill:hover {
+  background: var(--color-primary);
+  color: #fff;
+}
+.inventory-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 10px;
+}
+.inventory-row > span {
+  display: grid;
+  padding: 8px;
+  border-radius: 9px;
+  background: var(--color-background);
+}
+.inventory-row small {
+  font-size: 9px;
+}
+.inventory-row strong {
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.money-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 10px;
+}
+.fields-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.image-upload-wrapper {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+.image-preview {
+  width: 80px;
+  height: 80px;
+  border-radius: 12px;
+  background-color: var(--color-surface-variant);
+  background-size: cover;
+  background-position: center;
+  display: grid;
+  place-items: center;
+  position: relative;
+  border: 1px solid var(--color-border);
+}
+.upload-loader {
+  position: absolute;
+}
+.page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 18px;
+  padding: 24px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+.page-head p {
+  margin: 0 0 7px;
+  color: var(--color-primary);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .13em;
+}
+.page-head h2 {
+  margin: 0 0 7px;
+  font-size: 24px;
+}
+.page-head span {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+.head-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.product-card {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 15px;
+  align-items: start;
+  padding: 20px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+.product-icon {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
+  border-radius: 14px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.product-actions {
+  display: flex;
+  gap: 2px;
+}
+.product-card h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 750;
+}
+.product-desc {
+  min-height: 28px;
+  margin: 4px 0 6px;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.product-card small {
+  color: var(--color-text-muted);
+  font-size: 10px;
+}
+
+.product-mini-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--color-surface-variant);
+  border-radius: 8px;
+}
+.warehouse-stocks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.stock-location-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+.location-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+.badge-mini-def {
+  font-size: 9.5px;
+  background: #fef3c7;
+  color: #b45309;
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-weight: 700;
+}
+.location-qty {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.stock-number {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--color-primary);
+}
+.adjust-box {
+  padding: 14px;
+  background: var(--color-surface-variant);
+  border-radius: 10px;
+}
+
+.detail-top-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--color-border);
+}
+.detail-img {
+  width: 72px;
+  height: 72px;
+  border-radius: 12px;
+  background-color: var(--color-surface-variant);
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border);
+}
+.detail-headings h3 {
+  margin: 0 0 6px;
+  font-size: 18px;
+  font-weight: 800;
+}
+.detail-price-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 800;
+}
+.detail-specs-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.spec-cell {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 10px;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+.spec-cell small {
+  font-size: 10px;
+  color: var(--color-text-muted);
+}
+.spec-cell strong {
+  font-size: 12.5px;
+  color: var(--color-text);
+}
+.detail-stocks-section h4 {
+  font-size: 13px;
+  font-weight: 750;
+}
+.stocks-table-mini {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.stock-mini-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: var(--color-surface-variant);
+  border-radius: 6px;
+  font-size: 12.5px;
+}
+.detail-desc-box {
+  padding: 10px;
+  background: var(--color-surface-variant);
+  border-radius: 8px;
+  font-size: 12.5px;
+}
+.detail-desc-box p {
+  margin: 4px 0 0;
+}
+
+.dependency-list {
+  display: grid;
+  gap: 8px;
+}
+.dependency-list a {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 11px;
+  color: var(--color-text);
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  text-decoration: none;
+}
+.dependency-list a span {
+  display: grid;
+}
+.dependency-list small {
+  color: var(--color-text-secondary);
+}
+.empty-state {
+  min-height: 390px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  text-align: center;
+  padding: 36px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+.empty-state > div {
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
+  border-radius: 17px;
+}
+.empty-state h2 {
+  margin: 18px 0 6px;
+}
+.empty-state p {
+  max-width: 480px;
+  margin: 0 0 20px;
+  color: var(--color-text-secondary);
+}
+.dialog-card {
+  border-radius: var(--radius-lg) !important;
+}
+.form {
+  display: grid;
+  gap: 4px;
+  padding-top: 18px !important;
+}
+.inline-action {
+  border: 0;
+  color: var(--color-primary);
+  background: none;
+  font-weight: 800;
+  cursor: pointer;
+}
+.text-red {
+  color: #ef4444 !important;
+}
+
+@media (max-width: 760px) {
+  .product-grid {
+    grid-template-columns: 1fr;
+  }
+  .detail-specs-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 640px) {
+  .page-head {
+    display: grid;
+    padding: 16px;
+    border-radius: 18px;
+  }
+  .head-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+    gap: 8px;
+  }
+  .product-card {
+    padding: 14px 16px;
+    border-radius: 16px;
+    gap: 12px;
+  }
+  .product-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+  }
+  .image-upload-wrapper {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .money-grid, .fields-2col {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

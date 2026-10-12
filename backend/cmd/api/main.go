@@ -109,7 +109,10 @@ func main() {
 		}
 	}()
 
-	app := httpx.NewHandler(auth, meta, team, billing, storageUseCase, replyUseCase, automationUseCase, productUseCase, chatStream, leads, tokens, metaMode, cfg.MetaFrontendRedirect).App()
+	inventoryUseCase := usecase.NewInventory(db)
+	ordersUseCase := usecase.NewOrders(db, leads, chatStream, inventoryUseCase)
+
+	app := httpx.NewHandler(auth, meta, team, billing, storageUseCase, replyUseCase, automationUseCase, productUseCase, chatStream, leads, inventoryUseCase, ordersUseCase, tokens, metaMode, cfg.MetaFrontendRedirect).App()
 	go func() {
 		slog.Info("Fiber API listening", "address", cfg.HTTPAddr, "environment", cfg.Environment, "storage", cfg.StorageDriver, "meta", metaMode)
 		if err := app.Listen(cfg.HTTPAddr); err != nil {

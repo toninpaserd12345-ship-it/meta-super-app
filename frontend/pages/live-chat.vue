@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
-import type { ItemsResponse, Product, ReplySet } from '~/types/automation'
+import type { ItemsResponse, Order, Product, ReplySet, Warehouse } from '~/types/automation'
 
 definePageMeta({ middleware: 'auth' })
 
@@ -51,9 +51,11 @@ const messagesContainer = ref<HTMLElement | null>(null)
 // Reply Sets and Product Codes for Quick Auto-reply by Admin
 const { data: replySetsData } = await useApi<ReplySet[]>('/proxy/api/v1/replies')
 const { data: productsData } = await useApi<ItemsResponse<Product>>('/proxy/api/v1/products')
+const { data: warehouseData } = await useApi<ItemsResponse<Warehouse>>('/proxy/api/v1/warehouses').catch(() => ({ value: { items: [] } } as any))
 const { data: teamData } = await useApi<any[]>('/proxy/api/v1/team').catch(() => ({ value: [] } as any))
 const replySets = computed(() => replySetsData.value || [])
 const products = computed(() => productsData.value?.items || [])
+const warehouses = computed(() => warehouseData.value?.items || [])
 const teamMembers = computed(() => (teamData?.value || []).map((m: any) => ({
   id: m.userId || m.id,
   name: m.user?.name || m.name || m.user?.email || m.email || 'Staff',
@@ -71,8 +73,12 @@ const selectedStaffFilter = ref<'all' | 'mine' | 'unassigned'>('all')
 const cannedPhrasesDialog = ref(false)
 const quickOrderDialog = ref(false)
 const quickOrderForm = reactive({
+  warehouseId: '',
   productId: '',
   quantity: 1,
+  shippingFee: 0,
+  deliveryCourier: 'Anousith Express',
+  deliveryTracking: '',
   notes: '',
 })
 const copiedField = ref('')
@@ -496,8 +502,10 @@ const filteredCannedPhrases = computed(() => {
 
 const selectedOrderProduct = computed(() => products.value.find(p => p.id === quickOrderForm.productId))
 const selectedOrderTotal = computed(() => {
-  const price = Number(selectedOrderProduct.value?.price || 0)
-  return (price * (quickOrderForm.quantity || 1)).toLocaleString()
+  const price = Number(selectedOrderProduct.value?.salePrice ?? parseFloat(selectedOrderProduct.value?.price || '0') ?? 0)
+  const sub = price * (quickOrderForm.quantity || 1)
+  const total = sub + Number(quickOrderForm.shippingFee || 0)
+  return total.toLocaleString()
 })
 
 watch(() => activeSender.value, (id) => {
@@ -691,12 +699,57 @@ const submitQuickOrder = async () => {
   submittingOrder.value = true
   try {
     const prod = products.value.find(p => p.id === quickOrderForm.productId)
-    const prodName = prod?.name || 'Product'
-    const prodPrice = prod?.price || '0'
+    if (!prod) return
+    const prodName = prod.name || 'Product'
+    const unitPrice = Number(prod.salePrice ?? parseFloat(prod.price || '0') ?? 0)
     const qty = quickOrderForm.quantity || 1
-    const orderMemo = `[Quick Order] ${prodName} x ${qty} (ລາຄາ: ${prodPrice}) ${quickOrderForm.notes ? `· ໝາຍເຫດ: ${quickOrderForm.notes}` : ''}`
+    const subtotal = unitPrice * qty
+    const shippingFee = Number(quickOrderForm.shippingFee || 0)
+    const totalAmount = subtotal + shippingFee
+    const currency = prod.currency || 'LAK'
 
-    const lead = leads.value[activeSender.value]
+    const senderId = activeSender.value
+    const msgs = conversations.value[senderId]
+    const pageId = msgs?.find(m => m.page_id)?.page_id || leads.value[senderId]?.pageId || ''
+    const lead = leads.value[senderId]
+
+    const defaultWh = warehouses.value.find((w: Warehouse) => w.isDefault) || warehouses.value[0]
+    const whId = quickOrderForm.warehouseId || defaultWh?.id || ''
+
+    const createdOrder = await $fetch<Order>('/api/proxy/api/v1/orders', {
+      method: 'POST',
+      body: {
+        senderId,
+        leadId: lead?.id || undefined,
+        pageId: pageId || undefined,
+        warehouseId: whId,
+        customerName: leadForm.name || lead?.name || activeSenderSummary.value?.senderName || 'Customer',
+        customerPhone: leadForm.phone || lead?.phone || '',
+        customerAddress: leadForm.address || lead?.address || '',
+        subtotal,
+        shippingFee,
+        totalAmount,
+        currency,
+        paymentStatus: 'paid',
+        paymentMethod: 'BCEL One / Transfer',
+        fulfillmentStatus: 'confirmed',
+        deliveryCourier: quickOrderForm.deliveryCourier || 'Anousith Express',
+        deliveryTracking: quickOrderForm.deliveryTracking || '',
+        notes: quickOrderForm.notes,
+        items: [
+          {
+            productId: prod.id,
+            productCode: prod.code,
+            productName: prodName,
+            productImage: prod.imageUrl,
+            quantity: qty,
+            unitPrice,
+          }
+        ]
+      }
+    })
+
+    const orderMemo = `[Order #${createdOrder.orderNumber}] ${prodName} x ${qty} (ລວມ: ${totalAmount.toLocaleString()} ${currency})`
     const updatedNotes = lead?.notes ? `${lead.notes}\n${orderMemo}` : orderMemo
 
     await updateLeadField(activeSender.value, {
@@ -706,17 +759,26 @@ const submitQuickOrder = async () => {
     })
 
     // Also send confirmation message into chat
-    await sendReply(`ຂອບໃຈຫຼາຍໆເຈົ້າ! ຢືນຢັນອໍເດີ: ${prodName} x ${qty} ຍອດລວມ: ${prodPrice} ຮຽບຮ້ອຍແລ້ວເຈົ້າ 🎉📦`)
+    await sendReply(l({
+      lo: `ຂອບໃຈຫຼາຍໆເຈົ້າ! ຢືນຢັນອໍເດີ #${createdOrder.orderNumber}: ${prodName} x ${qty} ຍອດລວມ: ${totalAmount.toLocaleString()} ${currency} ຕັດສະຕ໋ອກຮຽບຮ້ອຍແລ້ວເຈົ້າ 🎉📦`,
+      th: `ขอบพระคุณมากค่ะ! ยืนยันออเดอร์ #${createdOrder.orderNumber}: ${prodName} x ${qty} ยอดรวม: ${totalAmount.toLocaleString()} ${currency} ตัดสต็อกเรียบร้อยแล้วค่ะ 🎉📦`,
+      en: `Thank you! Order #${createdOrder.orderNumber} confirmed: ${prodName} x ${qty} (Total: ${totalAmount.toLocaleString()} ${currency}), stock deducted! 🎉📦`
+    }))
 
     quickOrderDialog.value = false
     statusNotice.value = l({
-      lo: `ສ້າງອໍເດີ “${prodName} x ${qty}” ແລະ ປິດການຂາຍສຳເລັດແລ້ວ!`,
-      th: `สร้างออเดอร์ “${prodName} x ${qty}” และ ปิดการขายสำเร็จแล้ว!`,
-      en: `Order created for “${prodName} x ${qty}” & deal closed!`,
+      lo: `ສ້າງອໍເດີ #${createdOrder.orderNumber} ສຳເລັດແລ້ວ! ຕັດສະຕ໋ອກ ແລະ ສົ່ງ Meta CAPI ຮຽບຮ້ອຍ`,
+      th: `สร้างออเดอร์ #${createdOrder.orderNumber} สำเร็จแล้ว! ตัดสต็อกและส่ง Meta CAPI เรียบร้อย`,
+      en: `Order #${createdOrder.orderNumber} created! Stock deducted and Meta CAPI sent.`
     })
     setTimeout(() => { statusNotice.value = '' }, 4000)
   } catch (err: any) {
     console.error('Quick order failed', err)
+    loadError.value = err?.data?.error || err?.message || l({
+      lo: 'ສ້າງອໍເດີບໍ່ສຳເລັດ ກະລຸນາກວດສອບສະຕ໋ອກສິນຄ້າ',
+      th: 'สร้างออเดอร์ไม่สำเร็จ โปรดตรวจสอบสต็อกสินค้า',
+      en: 'Failed to create order. Please check stock.'
+    })
   } finally {
     submittingOrder.value = false
   }
@@ -1538,18 +1600,28 @@ const formatTime = (ts: string) => {
         <v-card-text class="dialog-body">
           <p class="dialog-hint">
             {{ l({
-              lo: 'ເລືອກສິນຄ້າທີ່ລູກຄ້າສັ່ງ, ລະບົບຈະບັນທຶກອໍເດີໃສ່ CRM, ປ່ຽນສະຖານະເປັນ “ປິດການຂາຍ”, ແລະ ສົ່ງ Meta CAPI ອັດຕະໂນມັດ:',
-              th: 'เลือกสินค้าที่ลูกค้าสั่ง ระบบจะบันทึกออเดอร์ลง CRM เปลี่ยนสถานะเป็น “ปิดการขาย” และส่ง Meta CAPI อัตโนมัติ:',
-              en: 'Select ordered product. The system will record to CRM, mark Purchased, and trigger Meta CAPI:'
+              lo: 'ເລືອກສິນຄ້າ ແລະ ສາງທີ່ຕ້ອງການຕັດສະຕ໋ອກ, ລະບົບຈະສ້າງອໍເດີ, ຕັດສະຕ໋ອກ, ປ່ຽນສະຖານະເປັນ “ປິດການຂາຍ”, ແລະ ສົ່ງ Meta CAPI ອັດຕະໂນມັດ:',
+              th: 'เลือกสินค้าและคลังที่ต้องการตัดสต็อก ระบบจะสร้างออเดอร์ ตัดสต็อก เปลี่ยนสถานะเป็น “ปิดการขาย” และส่ง Meta CAPI อัตโนมัติ:',
+              en: 'Select product and warehouse to deduct stock. The system will create the order, deduct stock, mark Purchased, and trigger Meta CAPI:'
             }) }}
           </p>
+
+          <div class="order-form-group mb-2">
+            <label class="order-label">{{ l({lo:'ຕັດສະຕ໋ອກຈາກສາງ / ໜ້າຮ້ານ',th:'ตัดสต็อกสินค้าจากคลัง / หน้าร้าน',en:'Deduct from Location'}) }} *</label>
+            <select v-model="quickOrderForm.warehouseId" class="order-select">
+              <option value="">-- {{ l({lo:'ເລືອກສາງເລີ່ມຕົ້ນ...',th:'เลือกคลังเริ่มต้น...',en:'Default Location...'}) }} --</option>
+              <option v-for="w in warehouses" :key="w.id" :value="w.id">
+                {{ w.name }} ({{ w.code }}) {{ w.isDefault ? '★' : '' }}
+              </option>
+            </select>
+          </div>
 
           <div class="order-form-group">
             <label class="order-label">{{ l({lo:'ສິນຄ້າ',th:'สินค้า',en:'Product'}) }} *</label>
             <select v-model="quickOrderForm.productId" class="order-select">
               <option value="">-- {{ l({lo:'ເລືອກສິນຄ້າ...',th:'เลือกสินค้า...',en:'Select product...'}) }} --</option>
               <option v-for="p in products" :key="p.id" :value="p.id">
-                {{ p.code ? `[#${p.code}] ` : '' }}{{ p.name }} - {{ p.price }} {{ p.currency || 'LAK' }}
+                {{ p.code ? `[#${p.code}] ` : '' }}{{ p.name }} - {{ p.salePrice != null ? p.salePrice : p.price }} {{ p.currency || 'LAK' }}
               </option>
             </select>
           </div>
@@ -1565,11 +1637,39 @@ const formatTime = (ts: string) => {
             </div>
             <div class="order-form-group flex-1" v-if="selectedOrderProduct">
               <label class="order-label">{{ l({lo:'ລາຄາຕໍ່ຊຸດ',th:'ราคาต่อชิ้น',en:'Unit Price'}) }}</label>
-              <div class="readonly-price">{{ selectedOrderProduct.price }} {{ selectedOrderProduct.currency || 'LAK' }}</div>
+              <div class="readonly-price">{{ selectedOrderProduct.salePrice != null ? selectedOrderProduct.salePrice : selectedOrderProduct.price }} {{ selectedOrderProduct.currency || 'LAK' }}</div>
             </div>
           </div>
 
-          <div class="order-form-group mt-3">
+          <div class="order-form-row mt-2">
+            <div class="order-form-group flex-1">
+              <label class="order-label">{{ l({lo:'ບໍລິສັດຂົນສົ່ງ',th:'บริษัทขนส่ง',en:'Courier'}) }}</label>
+              <select v-model="quickOrderForm.deliveryCourier" class="order-select">
+                <option value="Anousith Express">Anousith Express (ອານຸສິດ)</option>
+                <option value="HAL Logistics">HAL Logistics (ຮຸ່ງອາລຸນ)</option>
+                <option value="Houngaloun">Houngaloun (ຮຸ່ງອາລຸນ)</option>
+                <option value="Flash Express">Flash Express</option>
+                <option value="Kerry Express">Kerry Express</option>
+                <option value="Store Pickup">ຮັບເອງທີ່ຮ້ານ (Store Pickup)</option>
+              </select>
+            </div>
+            <div class="order-form-group flex-1">
+              <label class="order-label">{{ l({lo:'ຄ່າຈັດສົ່ງ',th:'ค่าจัดส่ง',en:'Shipping Fee'}) }}</label>
+              <input v-model.number="quickOrderForm.shippingFee" type="number" min="0" class="order-input"/>
+            </div>
+          </div>
+
+          <div class="order-form-group mt-2">
+            <label class="order-label">{{ l({lo:'ເລກພັດສະດຸ / Tracking (ທາງເລືອກ)',th:'เลขพัสดุ / Tracking (ตัวเลือก)',en:'Tracking # (Optional)'}) }}</label>
+            <input
+              v-model="quickOrderForm.deliveryTracking"
+              type="text"
+              class="order-input"
+              placeholder="AN123456..."
+            />
+          </div>
+
+          <div class="order-form-group mt-2">
             <label class="order-label">{{ l({lo:'ໝາຍເຫດອໍເດີ (ທາງເລືອກ)',th:'หมายเหตุออเดอร์ (ตัวเลือก)',en:'Order Note (Optional)'}) }}</label>
             <input
               v-model="quickOrderForm.notes"

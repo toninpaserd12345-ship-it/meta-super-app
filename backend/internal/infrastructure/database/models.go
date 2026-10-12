@@ -81,10 +81,17 @@ type ProductModel struct {
 	Cost        *float64     `gorm:"type:decimal(18,2)"`
 	Quantity    *int64
 	Currency    string `gorm:"size:8"`
-	Description string `gorm:"size:1000"`
-	ImageUrl    string `gorm:"size:1000"`
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	Description string `gorm:"size:1000" json:"description"`
+	ImageUrl    string `gorm:"size:1000" json:"imageUrl"`
+	Barcode     string `gorm:"size:100;index" json:"barcode"`
+	Category    string `gorm:"size:100;index" json:"category"`
+	Unit        string `gorm:"size:30" json:"unit"`
+	Weight      *float64 `gorm:"type:decimal(10,2)" json:"weight"`
+	GalleryURLs string `gorm:"type:text" json:"galleryUrls"`
+	MinStock    *int64 `json:"minStock"`
+	Status      string `gorm:"size:30;default:'active'" json:"status"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
 type AutomationRuleModel struct {
@@ -226,4 +233,74 @@ type CAPIEventModel struct {
 	Status               string `gorm:"size:30;not null"`
 	Error                string `gorm:"type:text"`
 	CreatedAt, UpdatedAt time.Time
+}
+
+type WarehouseModel struct {
+	ID        string       `gorm:"type:uuid;primaryKey" json:"id"`
+	AccountID string       `gorm:"type:uuid;index;not null" json:"accountId"`
+	Account   AccountModel `gorm:"foreignKey:AccountID;constraint:OnDelete:CASCADE" json:"-"`
+	Code      string       `gorm:"size:50;index" json:"code"`
+	Name      string       `gorm:"size:160;not null" json:"name"`
+	Type      string       `gorm:"size:30;not null;default:'warehouse'" json:"type"` // "warehouse" or "shop"
+	Address   string       `gorm:"type:text" json:"address"`
+	Phone     string       `gorm:"size:50" json:"phone"`
+	IsDefault bool         `gorm:"default:false" json:"isDefault"`
+	IsActive  bool         `gorm:"default:true" json:"isActive"`
+	CreatedAt time.Time    `json:"createdAt"`
+	UpdatedAt time.Time    `json:"updatedAt"`
+}
+
+type WarehouseStockModel struct {
+	ID             string          `gorm:"type:uuid;primaryKey" json:"id"`
+	AccountID      string          `gorm:"type:uuid;index;not null" json:"accountId"`
+	ProductID      string          `gorm:"type:uuid;index;not null" json:"productId"`
+	Product        *ProductModel   `gorm:"foreignKey:ProductID;constraint:OnDelete:CASCADE" json:"product,omitempty"`
+	WarehouseID    string          `gorm:"type:uuid;index;not null" json:"warehouseId"`
+	Warehouse      *WarehouseModel `gorm:"foreignKey:WarehouseID;constraint:OnDelete:CASCADE" json:"warehouse,omitempty"`
+	Quantity       int64           `gorm:"not null;default:0" json:"quantity"`
+	AlertThreshold int64           `gorm:"default:5" json:"alertThreshold"`
+	UpdatedAt      time.Time       `json:"updatedAt"`
+}
+
+type OrderModel struct {
+	ID                string           `gorm:"type:uuid;primaryKey" json:"id"`
+	AccountID         string           `gorm:"type:uuid;index;not null" json:"accountId"`
+	Account           AccountModel     `gorm:"foreignKey:AccountID;constraint:OnDelete:CASCADE" json:"-"`
+	OrderNumber       string           `gorm:"size:60;uniqueIndex;not null" json:"orderNumber"`
+	LeadID            *string          `gorm:"type:uuid;index" json:"leadId,omitempty"`
+	SenderID          string           `gorm:"size:60;index" json:"senderId"`
+	PageID            string           `gorm:"size:60;index" json:"pageId"`
+	WarehouseID       string           `gorm:"type:uuid;index" json:"warehouseId"`
+	Warehouse         *WarehouseModel  `gorm:"foreignKey:WarehouseID;constraint:OnDelete:SET NULL" json:"warehouse,omitempty"`
+	CustomerName      string           `gorm:"size:255" json:"customerName"`
+	CustomerPhone     string           `gorm:"size:50" json:"customerPhone"`
+	CustomerAddress   string           `gorm:"type:text" json:"customerAddress"`
+	Subtotal          float64          `gorm:"type:decimal(18,2);default:0" json:"subtotal"`
+	Discount          float64          `gorm:"type:decimal(18,2);default:0" json:"discount"`
+	ShippingFee       float64          `gorm:"type:decimal(18,2);default:0" json:"shippingFee"`
+	TotalAmount       float64          `gorm:"type:decimal(18,2);default:0" json:"totalAmount"`
+	Currency          string           `gorm:"size:10;default:'LAK'" json:"currency"`
+	PaymentStatus     string           `gorm:"size:30;default:'unpaid'" json:"paymentStatus"`       // unpaid, paid, refunded
+	PaymentMethod     string           `gorm:"size:50" json:"paymentMethod"`                       // bcel_one, transfer, cod, cash
+	FulfillmentStatus string           `gorm:"size:30;default:'pending'" json:"fulfillmentStatus"` // pending, confirmed, shipping, delivered, cancelled
+	DeliveryCourier   string           `gorm:"size:100" json:"deliveryCourier"`                    // Anousith, HAL, Houngaloun, Flash, Kerry, etc.
+	DeliveryTracking  string           `gorm:"size:255" json:"deliveryTracking"`
+	Notes             string           `gorm:"type:text" json:"notes"`
+	FacebookLeadSent  bool             `gorm:"default:false" json:"facebookLeadSent"`
+	Items             []OrderItemModel `gorm:"foreignKey:OrderID;constraint:OnDelete:CASCADE" json:"items"`
+	CreatedAt         time.Time        `gorm:"index" json:"createdAt"`
+	UpdatedAt         time.Time        `json:"updatedAt"`
+}
+
+type OrderItemModel struct {
+	ID           string        `gorm:"type:uuid;primaryKey" json:"id"`
+	OrderID      string        `gorm:"type:uuid;index;not null" json:"orderId"`
+	ProductID    string        `gorm:"type:uuid;index;not null" json:"productId"`
+	Product      *ProductModel `gorm:"foreignKey:ProductID;constraint:OnDelete:SET NULL" json:"product,omitempty"`
+	ProductCode  string        `gorm:"size:50" json:"productCode"`
+	ProductName  string        `gorm:"size:255;not null" json:"productName"`
+	ProductImage string        `gorm:"size:1000" json:"productImage"`
+	Quantity     int           `gorm:"not null;default:1" json:"quantity"`
+	UnitPrice    float64       `gorm:"type:decimal(18,2);not null" json:"unitPrice"`
+	TotalPrice   float64       `gorm:"type:decimal(18,2);not null" json:"totalPrice"`
 }

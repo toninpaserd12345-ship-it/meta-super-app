@@ -14,6 +14,8 @@ export const appNavigation: NavigationItem[] = [
   { labelKey: 'nav.ads', icon: 'mdi-bullhorn-outline', to: '/ads', claim: 'pages:read' },
   { labelKey: 'nav.leads', icon: 'mdi-account-multiple-plus-outline', to: '/leads', claim: 'customers:read' },
   { labelKey: 'nav.products', icon: 'mdi-package-variant-closed', to: '/products', claim: 'pages:read' },
+  { labelKey: 'nav.orders', icon: 'mdi-clipboard-list-outline', to: '/orders', claim: 'pages:read' },
+  { labelKey: 'nav.warehouses', icon: 'mdi-warehouse', to: '/warehouses', claim: 'pages:read' },
   { labelKey: 'nav.replies', icon: 'mdi-message-text-fast-outline', to: '/replies', claim: 'pages:read' },
   { labelKey: 'nav.automation', icon: 'mdi-robot-happy-outline', to: '/auto-replies', claim: 'pages:read' },
   { labelKey: 'nav.guide', icon: 'mdi-book-open-page-variant-outline', to: '/automation-guide', claim: 'pages:read' },

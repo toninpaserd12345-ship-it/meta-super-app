@@ -13,6 +13,79 @@ export interface Product {
   currency?: string
   description: string
   imageUrl?: string
+  barcode?: string
+  category?: string
+  unit?: string
+  weight?: number | null
+  galleryUrls?: string
+  minStock?: number | null
+  status?: string
+}
+
+export interface Warehouse {
+  id: string
+  accountId: string
+  code: string
+  name: string
+  type: 'warehouse' | 'shop'
+  address?: string
+  phone?: string
+  isDefault: boolean
+  isActive: boolean
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface WarehouseStock {
+  id: string
+  accountId: string
+  productId: string
+  warehouseId: string
+  warehouse?: Warehouse
+  quantity: number
+  alertThreshold: number
+  updatedAt?: string
+}
+
+export interface OrderItem {
+  id: string
+  orderId: string
+  productId: string
+  productCode?: string
+  productName: string
+  productImage?: string
+  quantity: number
+  unitPrice: number
+  totalPrice: number
+}
+
+export interface Order {
+  id: string
+  accountId: string
+  orderNumber: string
+  leadId?: string
+  senderId?: string
+  pageId?: string
+  warehouseId: string
+  warehouse?: Warehouse
+  customerName: string
+  customerPhone: string
+  customerAddress: string
+  subtotal: number
+  discount: number
+  shippingFee: number
+  totalAmount: number
+  currency: string
+  paymentStatus: 'unpaid' | 'paid' | 'refunded'
+  paymentMethod: string
+  fulfillmentStatus: 'pending' | 'confirmed' | 'shipping' | 'delivered' | 'cancelled'
+  deliveryCourier?: string
+  deliveryTracking?: string
+  notes?: string
+  facebookLeadSent: boolean
+  items: OrderItem[]
+  createdAt: string
+  updatedAt: string
 }
 
 export type ReplyItemType = 'text' | 'image' | 'video' | 'audio'
