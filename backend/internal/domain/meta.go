@@ -105,6 +105,8 @@ type MetaInsightItem struct {
 	EntityType            string            `json:"entityType"`
 	EntityID              string            `json:"entityId"`
 	EntityName            string            `json:"entityName"`
+	Status                string            `json:"status,omitempty"`
+	EffectiveStatus       string            `json:"effectiveStatus,omitempty"`
 	CampaignID            string            `json:"campaignId,omitempty"`
 	CampaignName          string            `json:"campaignName,omitempty"`
 	AdSetID               string            `json:"adSetId,omitempty"`
@@ -145,6 +147,32 @@ type MetaInsightsReport struct {
 	Items       []MetaInsightItem  `json:"items"`
 	Trend       []MetaInsightPoint `json:"trend"`
 	Warnings    []string           `json:"warnings"`
+}
+
+type MetaAudienceTargeting struct {
+	AgeMin                  int      `json:"ageMin,omitempty"`
+	AgeMax                  int      `json:"ageMax,omitempty"`
+	Genders                 []string `json:"genders,omitempty"`
+	Countries               []string `json:"countries,omitempty"`
+	Regions                 []string `json:"regions,omitempty"`
+	Cities                  []string `json:"cities,omitempty"`
+	Interests               []string `json:"interests,omitempty"`
+	CustomAudiences         []string `json:"customAudiences,omitempty"`
+	ExcludedCustomAudiences []string `json:"excludedCustomAudiences,omitempty"`
+	PublisherPlatforms      []string `json:"publisherPlatforms,omitempty"`
+	DevicePlatforms         []string `json:"devicePlatforms,omitempty"`
+}
+
+type MetaAudienceAnalysis struct {
+	AdSetID               string                `json:"adSetId"`
+	AdSetName             string                `json:"adSetName"`
+	OptimizationGoal      string                `json:"optimizationGoal,omitempty"`
+	Targeting             MetaAudienceTargeting `json:"targeting"`
+	EstimatedDailyUsers   *float64              `json:"estimatedDailyUsers,omitempty"`
+	EstimatedMonthlyUsers *float64              `json:"estimatedMonthlyUsers,omitempty"`
+	EstimateReady         bool                  `json:"estimateReady"`
+	EstimateSource        string                `json:"estimateSource,omitempty"`
+	Warnings              []string              `json:"warnings,omitempty"`
 }
 
 type ProductBinding struct {
@@ -215,6 +243,7 @@ type MetaConnector interface {
 	ListCampaigns(context.Context, string, string, string) ([]MetaCampaign, error)
 	ListAds(context.Context, string, string, string) ([]MetaAd, error)
 	AdsInsights(context.Context, string, string, string, string, string, string) (*MetaInsightsReport, error)
+	AudienceAnalysis(context.Context, string, string, string, string) (*MetaAudienceAnalysis, error)
 	UpdateAdEntityStatus(context.Context, string, string, string, string) error
 	VerifyWebhook(string) bool
 	ReceiveWebhook(context.Context, []byte, string) error

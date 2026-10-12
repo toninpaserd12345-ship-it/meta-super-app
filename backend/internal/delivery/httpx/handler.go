@@ -117,6 +117,7 @@ func (h *Handler) App() *fiber.App {
 	auth.Get("/api/v1/meta/ad-accounts", requireAccount(h.auth, domain.ClaimPagesRead), h.metaAdAccounts)
 	auth.Get("/api/v1/meta/ad-accounts/:adAccountID/campaigns", requireAccount(h.auth, domain.ClaimPagesRead), h.metaCampaigns)
 	auth.Get("/api/v1/meta/ad-accounts/:adAccountID/insights", requireAccount(h.auth, domain.ClaimPagesRead), h.metaAdsInsights)
+	auth.Get("/api/v1/meta/ad-accounts/:adAccountID/audience/:adSetID", requireAccount(h.auth, domain.ClaimPagesRead), h.metaAudienceAnalysis)
 	auth.Get("/api/v1/meta/campaigns/:campaignID/ads", requireAccount(h.auth, domain.ClaimPagesRead), h.metaAds)
 	auth.Patch("/api/v1/meta/ads/:entityType/:entityID/status", requireAccount(h.auth, domain.ClaimPagesConnect), h.metaAdStatus)
 	auth.Get("/api/v1/products", requireAccount(h.auth, domain.ClaimPagesRead), h.products)
@@ -482,6 +483,20 @@ func (h *Handler) metaAdsInsights(c fiber.Ctx) error {
 	}
 	c.Set(fiber.HeaderCacheControl, "no-store")
 	return c.JSON(report)
+}
+func (h *Handler) metaAudienceAnalysis(c fiber.Ctx) error {
+	ctx, cancel := requestContext(c)
+	defer cancel()
+	analysis, err := h.meta.AudienceAnalysis(ctx, userID(c), c.Locals("accountID").(string), c.Params("adAccountID"), c.Params("adSetID"))
+	if err != nil {
+		if errors.Is(err, domain.ErrMetaReconnectRequired) {
+			return usecaseError(c, err)
+		}
+		slog.Warn("Meta audience analysis request failed", "ad_account_id", c.Params("adAccountID"), "adset_id", c.Params("adSetID"), "error", err)
+		return fail(c, fiber.StatusBadGateway, "meta_audience_failed", "Meta could not load this audience. Confirm ads_read access and that the Ad Set belongs to the selected account.")
+	}
+	c.Set(fiber.HeaderCacheControl, "no-store")
+	return c.JSON(analysis)
 }
 func (h *Handler) metaAdStatus(c fiber.Ctx) error {
 	var body struct {

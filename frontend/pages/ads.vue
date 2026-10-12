@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import type { MetaAdAccount, MetaCampaign, MetaInsightItem, MetaInsightsReport } from '~/types/automation'
+import type { MetaAdAccount, MetaAudienceAnalysis, MetaCampaign, MetaInsightItem, MetaInsightsReport } from '~/types/automation'
 
 definePageMeta({ middleware: 'auth' })
 const { l } = useLocale()
 
 type Level = 'campaign' | 'adset' | 'ad'
 type DecisionCode = 'keep' | 'review' | 'pause' | 'no_data'
+type StatusFilter = 'all' | 'active' | 'paused' | 'issues'
 
 const adAccounts = ref<MetaAdAccount[]>([])
 const campaigns = ref<MetaCampaign[]>([])
@@ -18,10 +19,14 @@ const updatingId = ref('')
 const notice = ref('')
 const success = ref('')
 const search = ref('')
+const statusFilter = ref<StatusFilter>('all')
 const selectedId = ref('')
 const settingsOpen = ref(false)
 const ready = ref(false)
 const campaignsAccountId = ref('')
+const audienceByAdSet = reactive<Record<string, MetaAudienceAnalysis>>({})
+const audienceLoading = reactive<Record<string, boolean>>({})
+const audienceErrors = reactive<Record<string, string>>({})
 
 const iso = (date: Date) => {
   const copy = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
@@ -43,15 +48,40 @@ const items = computed(() => {
   const list = report.value?.items || []
   return list
     .filter(item => !query || [item.entityName, item.campaignName, item.adSetName, item.adName, item.entityId].some(value => value?.toLowerCase().includes(query)))
+    .filter((item) => {
+      const status = (item.effectiveStatus || item.status || '').toUpperCase()
+      if (statusFilter.value === 'active') return status === 'ACTIVE'
+      if (statusFilter.value === 'paused') return status === 'PAUSED' || status === 'CAMPAIGN_PAUSED' || status === 'ADSET_PAUSED'
+      if (statusFilter.value === 'issues') return !!status && status !== 'ACTIVE' && status !== 'PAUSED' && status !== 'CAMPAIGN_PAUSED' && status !== 'ADSET_PAUSED'
+      return true
+    })
     .sort((a, b) => (b.spend ?? -1) - (a.spend ?? -1))
 })
 const summary = computed(() => report.value?.summary)
 const currency = computed(() => report.value?.currency || 'USD')
 const maxTrendSpend = computed(() => Math.max(1, ...(report.value?.trend || []).map(point => point.spend || 0)))
+const statusCounts = computed(() => (report.value?.items || []).reduce((counts, item) => {
+  const status = statusClass(statusFor(item))
+  counts[status] += 1
+  return counts
+}, { active: 0, paused: 0, issues: 0 } as Record<'active' | 'paused' | 'issues', number>))
 
 const fmt = (value?: number, digits = 2) => value == null ? '—' : new Intl.NumberFormat(undefined, { maximumFractionDigits: digits }).format(value)
 const money = (value?: number) => value == null ? '—' : new Intl.NumberFormat(undefined, { style: 'currency', currency: currency.value, maximumFractionDigits: 2 }).format(value)
 const percent = (value?: number) => value == null ? '—' : `${fmt(value, 2)}%`
+const adSetIDFor = (item: MetaInsightItem) => item.entityType === 'adset' ? item.entityId : item.adSetId || ''
+const audienceFor = (item: MetaInsightItem) => audienceByAdSet[adSetIDFor(item)]
+const estimatedAudienceSize = (item: MetaInsightItem) => {
+  const audience = audienceFor(item)
+  if (!audience) return undefined
+  if (audience.estimatedMonthlyUsers) return audience.estimatedMonthlyUsers
+  if (since.value === until.value) return audience.estimatedDailyUsers
+  return undefined
+}
+const audienceCoverage = (item: MetaInsightItem) => {
+  const size = estimatedAudienceSize(item)
+  return size && item.reach != null ? (item.reach / size) * 100 : undefined
+}
 const resultLabel = (type?: string) => {
   const labels: Record<string, { lo: string; th: string; en: string }> = {
     purchase: { lo: 'ການຊື້', th: 'การซื้อ', en: 'Purchases' },
@@ -76,8 +106,25 @@ function setPreset(value: string) {
 }
 
 function statusFor(item: MetaInsightItem) {
-  if (item.entityType !== 'campaign') return ''
-  return campaigns.value.find(campaign => campaign.id === item.entityId)?.effectiveStatus || ''
+  return item.effectiveStatus || item.status || campaigns.value.find(campaign => campaign.id === item.entityId)?.effectiveStatus || ''
+}
+
+const statusLabel = (status?: string) => {
+  const value = (status || '').toUpperCase()
+  if (value === 'ACTIVE') return l({ lo: 'ເປີດໃຊ້ງານ', th: 'กำลังใช้งาน', en: 'Active' })
+  if (value === 'PAUSED') return l({ lo: 'ປິດຊົ່ວຄາວ', th: 'หยุดชั่วคราว', en: 'Paused' })
+  if (value === 'CAMPAIGN_PAUSED') return l({ lo: 'Campaign ຖືກປິດ', th: 'แคมเปญถูกหยุด', en: 'Campaign paused' })
+  if (value === 'ADSET_PAUSED') return l({ lo: 'Ad Set ຖືກປິດ', th: 'ชุดโฆษณาถูกหยุด', en: 'Ad set paused' })
+  if (value === 'IN_PROCESS' || value === 'PENDING_REVIEW') return l({ lo: 'ກຳລັງກວດສອບ', th: 'กำลังตรวจสอบ', en: 'In review' })
+  if (value === 'DISAPPROVED') return l({ lo: 'ບໍ່ຜ່ານການອະນຸມັດ', th: 'ไม่ผ่านการอนุมัติ', en: 'Disapproved' })
+  return status || l({ lo: 'ບໍ່ຮູ້ສະຖານະ', th: 'ไม่ทราบสถานะ', en: 'Unknown' })
+}
+
+const statusClass = (status?: string) => {
+  const value = (status || '').toUpperCase()
+  if (value === 'ACTIVE') return 'active'
+  if (value === 'PAUSED' || value === 'CAMPAIGN_PAUSED' || value === 'ADSET_PAUSED') return 'paused'
+  return 'issues'
 }
 
 function decision(item: MetaInsightItem): { code: DecisionCode; color: string; icon: string; title: string; detail: string; signals: string[] } {
@@ -97,6 +144,12 @@ function decision(item: MetaInsightItem): { code: DecisionCode; color: string; i
   if (item.frequency != null) {
     if (item.frequency >= maxFrequency.value) bad.push(l({ lo: 'Frequency ສູງ—Audience ເລີ່ມເຫັນຊ້ຳ', th: 'Frequency สูง—กลุ่มเป้าหมายเริ่มเห็นซ้ำ', en: 'High frequency—audience is seeing repeats' }))
     else if (item.frequency < maxFrequency.value - 0.5) good.push(l({ lo: 'Frequency ຍັງປົກກະຕິ', th: 'Frequency ยังปกติ', en: 'Frequency is still healthy' }))
+  }
+  const coverage = audienceCoverage(item)
+  if (coverage != null && coverage >= 60 && item.frequency != null && item.frequency >= maxFrequency.value) {
+    bad.push(l({ lo: 'ເຂົ້າເຖິງ Audience ສ່ວນໃຫຍ່ແລ້ວ ແລະ Frequency ສູງ', th: 'เข้าถึงกลุ่มเป้าหมายส่วนใหญ่แล้วและ Frequency สูง', en: 'Most of the estimated audience is reached and frequency is high' }))
+  } else if (coverage != null && coverage < 30) {
+    good.push(l({ lo: 'Audience ຍັງມີພື້ນທີ່ໃຫ້ຂະຫຍາຍ', th: 'กลุ่มเป้าหมายยังมีพื้นที่ให้ขยาย', en: 'The audience still has room to scale' }))
   }
   const rankings = [item.qualityRanking, item.engagementRateRanking, item.conversionRateRanking].filter(Boolean)
   if (rankings.some(value => value?.includes('BELOW_AVERAGE'))) bad.push(l({ lo: 'Ranking ຕ່ຳກວ່າຄ່າສະເລ່ຍ', th: 'อันดับต่ำกว่าค่าเฉลี่ย', en: 'Ranking is below average' }))
@@ -164,6 +217,45 @@ async function loadPerformance() {
   } finally { loadingReport.value = false }
 }
 
+async function loadAudience(item: MetaInsightItem) {
+  const adSetID = adSetIDFor(item)
+  if (!adSetID || audienceByAdSet[adSetID] || audienceLoading[adSetID]) return
+  audienceLoading[adSetID] = true
+  audienceErrors[adSetID] = ''
+  try {
+    audienceByAdSet[adSetID] = await $fetch<MetaAudienceAnalysis>(`/api/proxy/api/v1/meta/ad-accounts/${encodeURIComponent(adAccountId.value)}/audience/${encodeURIComponent(adSetID)}`)
+  } catch (error: any) {
+    audienceErrors[adSetID] = error?.data?.error?.message || error?.data?.message || l({ lo: 'ບໍ່ສາມາດໂຫຼດ Audience ໄດ້.', th: 'โหลดข้อมูลกลุ่มเป้าหมายไม่สำเร็จ', en: 'Could not load audience details.' })
+  } finally {
+    audienceLoading[adSetID] = false
+  }
+}
+
+async function toggleItem(item: MetaInsightItem) {
+  selectedId.value = selectedId.value === item.entityId ? '' : item.entityId
+  if (selectedId.value && item.entityType !== 'campaign') await loadAudience(item)
+}
+
+function audienceAdvice(item: MetaInsightItem) {
+  const coverage = audienceCoverage(item)
+  if (coverage == null) return { tone: 'info', title: l({ lo: 'ຂໍ້ມູນປະມານຍັງບໍ່ພໍ', th: 'ข้อมูลประมาณการยังไม่พอ', en: 'Estimate not available' }), detail: l({ lo: 'ໃຫ້ໃຊ້ Frequency, CTR ແລະ Cost/Result ເປັນຫຼັກ.', th: 'ให้ใช้ Frequency, CTR และ Cost/Result เป็นหลัก', en: 'Use frequency, CTR, and cost per result as the primary signals.' }) }
+  if (coverage >= 60 && (item.frequency || 0) >= maxFrequency.value) return { tone: 'warning', title: l({ lo: 'Audience ອາດເລີ່ມອີ່ມຕົວ', th: 'กลุ่มเป้าหมายอาจเริ่มอิ่มตัว', en: 'Audience may be saturating' }), detail: l({ lo: 'ຖ້າ CTR ລົງ ແລະ Cost/Result ສູງຂຶ້ນ ໃຫ້ປ່ຽນ Creative, ຂະຫຍາຍ Audience ຫຼືປິດຕົວທີ່ອ່ອນ.', th: 'หาก CTR ลดและ Cost/Result สูงขึ้น ให้เปลี่ยนครีเอทีฟ ขยายกลุ่มเป้าหมาย หรือหยุดตัวที่อ่อน', en: 'If CTR is falling and cost/result is rising, refresh creative, broaden the audience, or pause the weak item.' }) }
+  return { tone: 'success', title: l({ lo: 'Audience ຍັງໄປຕໍ່ໄດ້', th: 'กลุ่มเป้าหมายยังไปต่อได้', en: 'Audience still has capacity' }), detail: l({ lo: 'ຢ່າປິດຈາກ Ratio ຢ່າງດຽວ; ໃຫ້ເບິ່ງ Cost/Result ແລະຜົນລັບຮ່ວມກັນ.', th: 'อย่าหยุดจาก Ratio เพียงอย่างเดียว ให้ดู Cost/Result และผลลัพธ์ร่วมกัน', en: 'Do not pause from coverage alone; compare it with cost per result and actual outcomes.' }) }
+}
+
+function targetingTags(audience?: MetaAudienceAnalysis) {
+  if (!audience) return []
+  const targeting = audience.targeting || {}
+  const tags: { icon: string; label: string }[] = []
+  if (targeting.ageMin || targeting.ageMax) tags.push({ icon: 'mdi-account-clock-outline', label: `${targeting.ageMin || 18}–${targeting.ageMax || '65+'}` })
+  if (targeting.genders?.length) tags.push({ icon: 'mdi-gender-male-female', label: targeting.genders.join(', ') })
+  for (const value of [...(targeting.countries || []), ...(targeting.regions || []), ...(targeting.cities || [])].slice(0, 6)) tags.push({ icon: 'mdi-map-marker-outline', label: value })
+  for (const value of (targeting.interests || []).slice(0, 6)) tags.push({ icon: 'mdi-heart-outline', label: value })
+  for (const value of (targeting.customAudiences || []).slice(0, 5)) tags.push({ icon: 'mdi-account-group-outline', label: value })
+  for (const value of (targeting.publisherPlatforms || []).slice(0, 4)) tags.push({ icon: 'mdi-cellphone-link', label: value })
+  return tags
+}
+
 async function changeStatus(item: MetaInsightItem, status: 'ACTIVE' | 'PAUSED') {
   if (status === 'PAUSED' && !confirm(l({ lo: `ປິດ “${item.entityName}”? ການສົ່ງໂຄສະນາຈະຢຸດຈົນກວ່າຈະເປີດຄືນ.`, th: `ปิด “${item.entityName}”? การส่งโฆษณาจะหยุดจนกว่าจะเปิดอีกครั้ง`, en: `Pause “${item.entityName}”? Delivery will stop until it is activated again.` }))) return
   updatingId.value = item.entityId
@@ -173,6 +265,8 @@ async function changeStatus(item: MetaInsightItem, status: 'ACTIVE' | 'PAUSED') 
     await $fetch(`/api/proxy/api/v1/meta/ads/${item.entityType}/${encodeURIComponent(item.entityId)}/status`, { method: 'PATCH', body: { status } })
     const campaign = campaigns.value.find(value => value.id === item.entityId)
     if (campaign) campaign.effectiveStatus = status
+    item.status = status
+    item.effectiveStatus = status
     success.value = status === 'ACTIVE'
       ? l({ lo: `ເປີດ “${item.entityName}” ສຳເລັດ.`, th: `เปิด “${item.entityName}” แล้ว`, en: `“${item.entityName}” is now active.` })
       : l({ lo: `ປິດ “${item.entityName}” ສຳເລັດ.`, th: `ปิด “${item.entityName}” แล้ว`, en: `“${item.entityName}” is now paused.` })
@@ -244,32 +338,73 @@ onMounted(async () => { await loadAccounts(); loadThresholds(); ready.value = tr
         <div class="card-heading"><div><p>DECISION GUIDE</p><h2>{{ l({lo:'ອ່ານສັນຍານໃຫ້ງ່າຍ',th:'อ่านสัญญาณให้ง่าย',en:'Decision signals'}) }}</h2></div><v-btn icon="mdi-tune-variant" variant="text" :aria-label="l({lo:'ຕັ້ງຄ່າເກນ',th:'ตั้งค่าเกณฑ์',en:'Configure thresholds'})" @click="settingsOpen=true" /></div>
         <div class="decision-summary"><div class="decision-count keep"><strong>{{ decisionCounts.keep }}</strong><span>{{ l({lo:'ເປີດຕໍ່',th:'เปิดต่อ',en:'Keep'}) }}</span></div><div class="decision-count review"><strong>{{ decisionCounts.review }}</strong><span>{{ l({lo:'ກວດສອບ',th:'ตรวจสอบ',en:'Review'}) }}</span></div><div class="decision-count pause"><strong>{{ decisionCounts.pause }}</strong><span>{{ l({lo:'ພິຈາລະນາປິດ',th:'พิจารณาปิด',en:'Pause candidates'}) }}</span></div></div>
         <p class="guide-note"><v-icon icon="mdi-information-outline" /> {{ l({lo:'ຄຳແນະນຳໃຊ້ຫຼາຍ metric ຮ່ວມກັນ. ຢ່າປິດເພາະມື້ດຽວ ຫຼື metric ດຽວ.',th:'คำแนะนำใช้หลาย metric ร่วมกัน อย่าปิดเพราะวันเดียวหรือค่าเดียว',en:'Recommendations combine several metrics. Never pause from one day or one metric alone.'}) }}</p>
+        <ol class="decision-steps">
+          <li><strong>{{ l({lo:'1. ເບິ່ງຜົນທາງທຸລະກິດ',th:'1. ดูผลทางธุรกิจ',en:'1. Check business outcomes'}) }}</strong><span>{{ l({lo:'Cost/Result ຕ້ອງບໍ່ເກີນຈຸດຄຸ້ມທຶນ.',th:'Cost/Result ต้องไม่เกินจุดคุ้มทุน',en:'Cost/result should stay below your break-even point.'}) }}</span></li>
+          <li><strong>{{ l({lo:'2. ເບິ່ງຄຸນນະພາບ Creative',th:'2. ดูคุณภาพครีเอทีฟ',en:'2. Check creative quality'}) }}</strong><span>{{ l({lo:'CTR ລົງພ້ອມ Cost ສູງຂຶ້ນ ໝາຍເຖິງຄວນປ່ຽນ Creative.',th:'CTR ลดพร้อมต้นทุนสูงขึ้น หมายถึงควรเปลี่ยนครีเอทีฟ',en:'Falling CTR with rising cost suggests a creative refresh.'}) }}</span></li>
+          <li><strong>{{ l({lo:'3. ເບິ່ງ Audience saturation',th:'3. ดูความอิ่มตัวของกลุ่มเป้าหมาย',en:'3. Check audience saturation'}) }}</strong><span>{{ l({lo:'Coverage ແລະ Frequency ສູງພ້ອມຜົນງານຕົກ ຈຶ່ງຄ່ອຍພິຈາລະນາປິດ.',th:'Coverage และ Frequency สูงพร้อมผลงานตก จึงค่อยพิจารณาหยุด',en:'Consider pausing only when high coverage and frequency coincide with declining results.'}) }}</span></li>
+        </ol>
       </v-card>
     </section>
 
     <section class="performance-section">
       <div class="section-head"><div><p>PERFORMANCE DETAIL</p><h2>{{ l({lo:'ເຈາະເລິກເຖິງລະດັບ Ad',th:'เจาะลึกถึงระดับโฆษณา',en:'Drill down to individual ads'}) }}</h2></div><div class="report-meta"><span>{{ l({lo:'ອັບເດດ',th:'อัปเดต',en:'Updated'}) }} {{ new Date(report.generatedAt).toLocaleString() }}</span><v-text-field v-model="search" density="compact" variant="outlined" prepend-inner-icon="mdi-magnify" :placeholder="l({lo:'ຄົ້ນຫາ...',th:'ค้นหา...',en:'Search...'})" hide-details clearable /></div></div>
-      <v-btn-toggle v-model="level" mandatory color="primary" variant="outlined" class="level-tabs">
-        <v-btn value="campaign">Campaign</v-btn><v-btn value="adset">Ad Set</v-btn><v-btn value="ad">Ad</v-btn>
-      </v-btn-toggle>
+      <div class="detail-toolbar">
+        <div class="toolbar-group">
+          <small>{{ l({lo:'ລະດັບຂໍ້ມູນ',th:'ระดับข้อมูล',en:'View level'}) }}</small>
+          <v-btn-toggle v-model="level" mandatory color="primary" variant="outlined" class="level-tabs">
+            <v-btn value="campaign"><v-icon icon="mdi-bullhorn-outline" /> <span>Campaign</span></v-btn>
+            <v-btn value="adset"><v-icon icon="mdi-account-group-outline" /> <span>Ad Set</span></v-btn>
+            <v-btn value="ad"><v-icon icon="mdi-advertisements" /> <span>Ads</span></v-btn>
+          </v-btn-toggle>
+        </div>
+        <div class="toolbar-group status-filter-group">
+          <small>{{ l({lo:'ກອງຕາມສະຖານະ',th:'กรองตามสถานะ',en:'Filter by status'}) }}</small>
+          <v-btn-toggle v-model="statusFilter" mandatory color="primary" variant="outlined" class="status-tabs">
+            <v-btn value="all">{{ l({lo:'ທັງໝົດ',th:'ทั้งหมด',en:'All'}) }}</v-btn>
+            <v-btn value="active"><span class="status-dot active" />{{ l({lo:'ເປີດຢູ່',th:'ใช้งาน',en:'Active'}) }} <b>{{ statusCounts.active }}</b></v-btn>
+            <v-btn value="paused"><span class="status-dot paused" />{{ l({lo:'ປິດຢູ່',th:'หยุด',en:'Paused'}) }} <b>{{ statusCounts.paused }}</b></v-btn>
+            <v-btn value="issues"><span class="status-dot issues" />{{ l({lo:'ມີບັນຫາ',th:'มีปัญหา',en:'Issues'}) }} <b>{{ statusCounts.issues }}</b></v-btn>
+          </v-btn-toggle>
+        </div>
+      </div>
+      <p class="filter-help"><v-icon icon="mdi-information-outline" /> {{ l({lo:'ສະຖານະນີ້ແມ່ນຄ່າຈິງຈາກ Meta. Ad ອາດຖືກຢຸດເພາະ Campaign ຫຼື Ad Set ຊັ້ນເທິງຖືກປິດ.',th:'สถานะนี้มาจาก Meta โดยตรง โฆษณาอาจหยุดเพราะแคมเปญหรือชุดโฆษณาด้านบนถูกปิด',en:'Statuses come directly from Meta. An ad may stop because its parent campaign or ad set is paused.'}) }}</p>
 
       <div v-if="loadingReport" class="table-loading"><v-progress-linear indeterminate color="primary" /></div>
-      <div v-else-if="!items.length" class="empty-state"><v-icon icon="mdi-chart-box-outline" size="44" /><h3>{{ l({lo:'ບໍ່ມີຂໍ້ມູນໃນໄລຍະນີ້',th:'ไม่มีข้อมูลในช่วงนี้',en:'No performance data for this period'}) }}</h3><p>{{ l({lo:'ປ່ຽນໄລຍະເວລາ ຫຼືກວດວ່າໂຄສະນາເຄີຍສົ່ງແລ້ວ.',th:'เปลี่ยนช่วงเวลาหรือตรวจว่าโฆษณาเคยส่งแล้ว',en:'Change the date range or confirm that ads delivered.'}) }}</p></div>
+      <div v-else-if="!items.length" class="empty-state"><v-icon icon="mdi-filter-off-outline" size="44" /><h3>{{ l({lo:'ບໍ່ພົບລາຍການຕາມ filter',th:'ไม่พบรายการตามตัวกรอง',en:'No items match these filters'}) }}</h3><p>{{ l({lo:'ລອງເລືອກສະຖານະທັງໝົດ ຫຼືລຶບຄຳຄົ້ນຫາ.',th:'ลองเลือกสถานะทั้งหมดหรือล้างคำค้นหา',en:'Choose All statuses or clear the search.'}) }}</p><v-btn variant="tonal" color="primary" @click="statusFilter='all';search=''">{{ l({lo:'ລ້າງ filter',th:'ล้างตัวกรอง',en:'Clear filters'}) }}</v-btn></div>
 
       <div v-else class="performance-list">
         <article v-for="item in items" :key="item.entityId" class="performance-row" :class="{ expanded: selectedId === item.entityId }">
-          <button class="row-main" type="button" :aria-expanded="selectedId === item.entityId" @click="selectedId = selectedId === item.entityId ? '' : item.entityId">
+          <button class="row-main" type="button" :aria-expanded="selectedId === item.entityId" @click="toggleItem(item)">
             <span class="entity-cell"><span class="entity-icon"><v-icon :icon="item.entityType==='campaign'?'mdi-bullhorn-outline':item.entityType==='adset'?'mdi-account-group-outline':'mdi-advertisements'" /></span><span><strong>{{ item.entityName || item.entityId }}</strong><small v-if="item.entityType!=='campaign'">{{ item.campaignName }}<template v-if="item.entityType==='ad'"> · {{ item.adSetName }}</template></small><code>{{ item.entityId }}</code></span></span>
-            <span class="metric"><small>{{ l({lo:'ໃຊ້ຈ່າຍ',th:'ใช้จ่าย',en:'Spend'}) }}</small><strong>{{ money(item.spend) }}</strong></span>
-            <span class="metric"><small>{{ resultLabel(item.results.type) }}</small><strong>{{ fmt(item.results.value, 0) }}</strong></span>
-            <span class="metric"><small>{{ l({lo:'ຕົ້ນທຶນ/ຜົນ',th:'ต้นทุน/ผล',en:'Cost/result'}) }}</small><strong>{{ money(item.results.cost) }}</strong></span>
-            <span class="metric"><small>CTR</small><strong>{{ percent(item.linkCtr) }}</strong></span>
-            <span class="metric"><small>Frequency</small><strong>{{ fmt(item.frequency, 2) }}</strong></span>
+            <span class="delivery-chip" :class="statusClass(statusFor(item))"><span class="status-dot" :class="statusClass(statusFor(item))" />{{ statusLabel(statusFor(item)) }}</span>
+            <span class="metric metric-spend mobile-key"><small>{{ l({lo:'ໃຊ້ຈ່າຍ',th:'ใช้จ่าย',en:'Spend'}) }}</small><strong>{{ money(item.spend) }}</strong></span>
+            <span class="metric metric-results mobile-key"><small>{{ resultLabel(item.results.type) }}</small><strong>{{ fmt(item.results.value, 0) }}</strong></span>
+            <span class="metric metric-cost mobile-key"><small>{{ l({lo:'ຕົ້ນທຶນ/ຜົນ',th:'ต้นทุน/ผล',en:'Cost/result'}) }}</small><strong>{{ money(item.results.cost) }}</strong></span>
+            <span class="metric metric-ctr mobile-key"><small>CTR</small><strong>{{ percent(item.linkCtr) }}</strong></span>
+            <span class="metric metric-frequency"><small>Frequency</small><strong>{{ fmt(item.frequency, 2) }}</strong></span>
             <span class="decision-chip" :class="decision(item).code"><v-icon :icon="decision(item).icon" /> <span><strong>{{ decision(item).title }}</strong><small>{{ decision(item).signals[0] || decision(item).detail }}</small></span></span>
             <v-icon :icon="selectedId === item.entityId ? 'mdi-chevron-up' : 'mdi-chevron-down'" />
           </button>
           <div v-if="selectedId === item.entityId" class="row-detail">
             <div class="explanation"><v-icon :icon="decision(item).icon" :color="decision(item).color" /><div><h3>{{ decision(item).title }}</h3><p>{{ decision(item).detail }}</p><ul v-if="decision(item).signals.length"><li v-for="signal in decision(item).signals" :key="signal">{{ signal }}</li></ul></div></div>
+            <section v-if="item.entityType==='campaign'" class="audience-callout"><v-icon icon="mdi-account-group-outline" /><div><strong>{{ l({lo:'Audience ກຳນົດຢູ່ລະດັບ Ad Set',th:'กลุ่มเป้าหมายกำหนดที่ระดับ Ad Set',en:'Audience is configured at Ad Set level'}) }}</strong><span>{{ l({lo:'ເລືອກແຖບ Ad Set ເພື່ອເບິ່ງ Targeting ແລະ Audience coverage ຂອງແຕ່ລະກຸ່ມ.',th:'เลือกแท็บ Ad Set เพื่อดู Targeting และ Audience coverage ของแต่ละกลุ่ม',en:'Open the Ad Set tab to inspect targeting and audience coverage for each audience.'}) }}</span></div></section>
+            <section v-else class="audience-panel">
+              <div class="audience-heading"><div><p>AUDIENCE SATURATION</p><h3>{{ l({lo:'ກຸ່ມເປົ້າໝາຍ ແລະການເຂົ້າເຖິງ',th:'กลุ่มเป้าหมายและการเข้าถึง',en:'Audience and delivery coverage'}) }}</h3></div><small>{{ l({lo:'ລະດັບ Ad Set',th:'ระดับ Ad Set',en:'Ad Set level'}) }}</small></div>
+              <v-skeleton-loader v-if="audienceLoading[adSetIDFor(item)]" type="list-item-three-line, actions" />
+              <v-alert v-else-if="audienceErrors[adSetIDFor(item)]" type="warning" variant="tonal" density="compact">{{ audienceErrors[adSetIDFor(item)] }} <v-btn size="small" variant="text" @click="loadAudience(item)">{{ l({lo:'ລອງໃໝ່',th:'ลองใหม่',en:'Retry'}) }}</v-btn></v-alert>
+              <template v-else-if="audienceFor(item)">
+                <div class="audience-metrics">
+                  <div><span>{{ l({lo:'ຂະໜາດ Audience ປະມານ',th:'ขนาดกลุ่มเป้าหมายโดยประมาณ',en:'Estimated audience'}) }}</span><strong>{{ fmt(estimatedAudienceSize(item), 0) }}</strong><small>{{ audienceFor(item)?.estimatedMonthlyUsers ? l({lo:'Monthly estimate ຈາກ Meta',th:'ค่าประมาณรายเดือนจาก Meta',en:'Meta monthly estimate'}) : l({lo:'ບໍ່ມີຄ່າທຽບສຳລັບໄລຍະນີ້',th:'ไม่มีค่าประมาณที่เทียบกับช่วงนี้',en:'No comparable estimate for this range'}) }}</small></div>
+                  <div><span>{{ l({lo:'Reach ໃນໄລຍະທີ່ເລືອກ',th:'Reach ในช่วงที่เลือก',en:'Reach in selected range'}) }}</span><strong>{{ fmt(item.reach, 0) }}</strong><small>{{ report.dateStart }} – {{ report.dateStop }}</small></div>
+                  <div class="coverage-metric"><span>{{ l({lo:'Estimated coverage',th:'Estimated coverage',en:'Estimated coverage'}) }}</span><strong>{{ percent(audienceCoverage(item)) }}</strong><small>{{ l({lo:'Reach ÷ Estimated audience; ບໍ່ແມ່ນ lifetime ratio',th:'Reach ÷ Estimated audience; ไม่ใช่ lifetime ratio',en:'Reach ÷ estimated audience; not lifetime ratio'}) }}</small></div>
+                  <div><span>Frequency</span><strong>{{ fmt(item.frequency, 2) }}</strong><small>{{ l({lo:'ຈຳນວນເທື່ອສະເລ່ຍທີ່ຄົນໜຶ່ງເຫັນ',th:'จำนวนครั้งเฉลี่ยที่หนึ่งคนเห็น',en:'Average views per reached person'}) }}</small></div>
+                </div>
+                <v-progress-linear v-if="audienceCoverage(item)!=null" :model-value="Math.min(100,audienceCoverage(item) || 0)" height="9" rounded color="primary" class="coverage-bar" />
+                <div class="audience-advice" :class="audienceAdvice(item).tone"><v-icon :icon="audienceAdvice(item).tone==='warning'?'mdi-alert-outline':audienceAdvice(item).tone==='success'?'mdi-check-circle-outline':'mdi-information-outline'" /><div><strong>{{ audienceAdvice(item).title }}</strong><span>{{ audienceAdvice(item).detail }}</span></div></div>
+                <div class="targeting-block"><strong>{{ l({lo:'Targeting ທີ່ຕັ້ງໄວ້',th:'Targeting ที่ตั้งไว้',en:'Configured targeting'}) }}</strong><div v-if="targetingTags(audienceFor(item)).length" class="targeting-tags"><span v-for="tag in targetingTags(audienceFor(item))" :key="`${tag.icon}:${tag.label}`"><v-icon :icon="tag.icon" size="15" />{{ tag.label }}</span></div><small v-else>{{ l({lo:'Meta ບໍ່ສົ່ງລາຍລະອຽດ Targeting ສຳລັບ Ad Set ນີ້.',th:'Meta ไม่ส่งรายละเอียด Targeting สำหรับ Ad Set นี้',en:'Meta did not return targeting details for this Ad Set.'}) }}</small></div>
+                <div class="native-metric-note"><v-icon icon="mdi-shield-check-outline" /><span>{{ l({lo:'First-time impression ratio, Auction overlap ແລະ Meta lifetime Audience Reached Ratio ຈະສະແດງສະເພາະເມື່ອ Meta ສົ່ງຄ່າຜ່ານ API. ລະບົບຈະບໍ່ສ້າງຄ່າປອມ.',th:'First-time impression ratio, Auction overlap และ Meta lifetime Audience Reached Ratio จะแสดงเมื่อ Meta ส่งค่าผ่าน API เท่านั้น ระบบจะไม่สร้างค่าจำลอง',en:'First-time impression ratio, auction overlap, and Meta lifetime audience reached ratio appear only when Meta exposes them through the API; this system does not fabricate them.'}) }}</span></div>
+              </template>
+            </section>
             <div class="metric-detail-grid">
               <div><span>{{ l({lo:'ການສະແດງ',th:'การแสดงผล',en:'Impressions'}) }}</span><strong>{{ fmt(item.impressions, 0) }}</strong><small>{{ l({lo:'ຈຳນວນຄັ້ງທີ່ໂຄສະນາສະແດງ',th:'จำนวนครั้งที่โฆษณาแสดง',en:'Total ad displays'}) }}</small></div>
               <div><span>{{ l({lo:'ການເຂົ້າເຖິງ',th:'การเข้าถึง',en:'Reach'}) }}</span><strong>{{ fmt(item.reach, 0) }}</strong><small>{{ l({lo:'ຈຳນວນຄົນທີ່ເຫັນ',th:'จำนวนคนที่เห็น',en:'People who saw it'}) }}</small></div>
@@ -278,7 +413,7 @@ onMounted(async () => { await loadAccounts(); loadThresholds(); ready.value = tr
               <div><span>CPM</span><strong>{{ money(item.cpm) }}</strong><small>{{ l({lo:'ຕົ້ນທຶນຕໍ່ 1,000 ການສະແດງ',th:'ต้นทุนต่อ 1,000 การแสดงผล',en:'Cost per 1,000 impressions'}) }}</small></div>
               <div v-if="item.entityType==='ad'"><span>Quality ranking</span><strong>{{ item.qualityRanking || '—' }}</strong><small>{{ item.engagementRateRanking || '—' }} · {{ item.conversionRateRanking || '—' }}</small></div>
             </div>
-            <div class="status-actions"><div><strong>{{ l({lo:'ສະຖານະການສົ່ງ',th:'สถานะการส่ง',en:'Delivery status'}) }}</strong><span>{{ statusFor(item) || l({lo:'ເລືອກຄຳສັ່ງທີ່ຕ້ອງການ',th:'เลือกคำสั่งที่ต้องการ',en:'Choose the desired status'}) }}</span></div><v-btn color="success" variant="tonal" prepend-icon="mdi-play" :loading="updatingId===item.entityId" :disabled="statusFor(item)==='ACTIVE'" @click="changeStatus(item,'ACTIVE')">{{ l({lo:'ເປີດໃຊ້ງານ',th:'เปิดใช้งาน',en:'Activate'}) }}</v-btn><v-btn color="error" variant="outlined" prepend-icon="mdi-pause" :loading="updatingId===item.entityId" :disabled="statusFor(item)==='PAUSED'" @click="changeStatus(item,'PAUSED')">{{ l({lo:'ປິດຊົ່ວຄາວ',th:'หยุดชั่วคราว',en:'Pause'}) }}</v-btn></div>
+            <div class="status-actions"><div><strong>{{ l({lo:'ສະຖານະການສົ່ງ',th:'สถานะการส่ง',en:'Delivery status'}) }}</strong><span>{{ statusLabel(statusFor(item)) }}</span></div><v-btn color="success" variant="tonal" prepend-icon="mdi-play" :loading="updatingId===item.entityId" :disabled="statusFor(item)==='ACTIVE'" @click="changeStatus(item,'ACTIVE')">{{ l({lo:'ເປີດໃຊ້ງານ',th:'เปิดใช้งาน',en:'Activate'}) }}</v-btn><v-btn color="error" variant="outlined" prepend-icon="mdi-pause" :loading="updatingId===item.entityId" :disabled="statusFor(item)==='PAUSED'" @click="changeStatus(item,'PAUSED')">{{ l({lo:'ປິດຊົ່ວຄາວ',th:'หยุดชั่วคราว',en:'Pause'}) }}</v-btn></div>
           </div>
         </article>
       </div>
@@ -299,11 +434,11 @@ onMounted(async () => { await loadAccounts(); loadThresholds(); ready.value = tr
 .loading-grid,.summary-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:16px}.summary-card{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:18px;display:grid;gap:5px}.summary-card>span{color:var(--color-text-secondary);font-size:13px}.summary-card strong{font-size:clamp(22px,3vw,30px);line-height:1.1}.summary-card small{color:var(--color-text-muted);font-size:11px}
 .analysis-grid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(320px,.8fr);gap:16px;margin-bottom:16px}.trend-card,.decision-card{padding:20px;border-radius:var(--radius-lg)}.card-heading,.section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.card-heading h2,.section-head h2{margin:0;font-size:20px}.card-heading>small{color:var(--color-text-muted)}
 .trend-chart{height:220px;display:flex;align-items:flex-end;gap:clamp(4px,1vw,12px);padding:28px 4px 24px;margin-top:12px;border-bottom:1px solid var(--color-border);position:relative}.trend-column{height:100%;flex:1;min-width:8px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:7px;position:relative;outline:none}.trend-bar{width:min(34px,80%);min-height:4px;background:linear-gradient(180deg,var(--color-primary),#7c6cf1);border-radius:7px 7px 3px 3px;transition:transform .15s}.trend-column:is(:hover,:focus) .trend-bar{transform:scaleX(1.08)}.trend-column small{font-size:9px;color:var(--color-text-muted);white-space:nowrap}.trend-tooltip{display:none;position:absolute;bottom:calc(100% + 6px);z-index:2;background:#211d3f;color:#fff;padding:8px 10px;border-radius:8px;font-size:11px;white-space:nowrap;text-align:center}.trend-column:is(:hover,:focus) .trend-tooltip{display:block}
-.decision-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:18px 0}.decision-count{padding:14px 8px;border-radius:12px;display:grid;text-align:center}.decision-count strong{font-size:25px}.decision-count span{font-size:11px}.decision-count.keep{background:rgba(39,174,96,.1);color:var(--color-success)}.decision-count.review{background:rgba(245,158,11,.12);color:#a86700}.decision-count.pause{background:rgba(239,68,68,.1);color:var(--color-error)}.guide-note{display:flex;gap:8px;align-items:flex-start;color:var(--color-text-secondary);font-size:13px;line-height:1.55;margin:0}
-.performance-section{padding:20px}.section-head{margin-bottom:14px}.report-meta{display:flex;align-items:center;gap:12px}.report-meta>span{font-size:11px;color:var(--color-text-muted)}.report-meta .v-text-field{width:250px}.level-tabs{margin-bottom:16px}.table-loading{margin:-1px 0 16px}.performance-list{display:grid;border:1px solid var(--color-border);border-radius:14px;overflow:hidden}.performance-row+.performance-row{border-top:1px solid var(--color-border)}.performance-row.expanded{background:var(--color-surface-soft)}.row-main{width:100%;display:grid;grid-template-columns:minmax(250px,1.5fr) repeat(5,minmax(88px,.55fr)) minmax(190px,1fr) 28px;align-items:center;gap:12px;padding:14px 16px;text-align:left;color:inherit;background:transparent;border:0;cursor:pointer}.row-main:hover{background:var(--color-background)}.entity-cell{display:flex;align-items:center;gap:11px;min-width:0}.entity-cell>span:last-child{display:grid;min-width:0}.entity-cell strong,.entity-cell small,.entity-cell code{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.entity-cell small{color:var(--color-text-secondary);font-size:11px}.entity-cell code{color:var(--color-text-muted);font-size:9px}.entity-icon{width:42px;height:42px;display:grid;place-items:center;border-radius:11px;background:var(--color-primary-soft);color:var(--color-primary);flex:0 0 42px}.metric{display:grid;gap:3px}.metric small{font-size:10px;color:var(--color-text-muted)}.metric strong{font-size:14px}.decision-chip{display:flex;align-items:center;gap:8px;border-radius:11px;padding:9px 10px;min-width:0}.decision-chip>span{display:grid;min-width:0}.decision-chip strong{font-size:12px}.decision-chip small{font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.decision-chip.keep{background:rgba(39,174,96,.1);color:var(--color-success)}.decision-chip.review{background:rgba(245,158,11,.12);color:#a86700}.decision-chip.pause{background:rgba(239,68,68,.1);color:var(--color-error)}.decision-chip.no_data{background:var(--color-surface-soft);color:var(--color-text-secondary)}
-.row-detail{padding:20px;border-top:1px solid var(--color-border);display:grid;gap:18px}.explanation{display:flex;gap:12px;align-items:flex-start;max-width:850px}.explanation h3{margin:0 0 4px;font-size:17px}.explanation p{margin:0;color:var(--color-text-secondary)}.explanation ul{margin:8px 0 0;padding-left:20px;color:var(--color-text-secondary)}.metric-detail-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}.metric-detail-grid>div{padding:12px;border:1px solid var(--color-border);border-radius:11px;display:grid;gap:3px}.metric-detail-grid span,.metric-detail-grid small{font-size:10px;color:var(--color-text-muted)}.metric-detail-grid strong{font-size:15px;overflow-wrap:anywhere}.status-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding-top:14px;border-top:1px solid var(--color-border)}.status-actions>div{display:grid;margin-right:auto}.status-actions>div span{font-size:12px;color:var(--color-text-secondary)}
+.decision-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:18px 0}.decision-count{padding:14px 8px;border-radius:12px;display:grid;text-align:center}.decision-count strong{font-size:25px}.decision-count span{font-size:11px}.decision-count.keep{background:rgba(39,174,96,.1);color:var(--color-success)}.decision-count.review{background:rgba(245,158,11,.12);color:#a86700}.decision-count.pause{background:rgba(239,68,68,.1);color:var(--color-error)}.guide-note{display:flex;gap:8px;align-items:flex-start;color:var(--color-text-secondary);font-size:13px;line-height:1.55;margin:0}.decision-steps{display:grid;gap:9px;margin:15px 0 0;padding:0;list-style:none}.decision-steps li{display:grid;padding:10px 12px;border:1px solid var(--color-border);border-radius:10px}.decision-steps strong{font-size:11px}.decision-steps span{color:var(--color-text-secondary);font-size:10px;line-height:1.45}
+.performance-section{padding:20px}.section-head{margin-bottom:14px}.report-meta{display:flex;align-items:center;gap:12px}.report-meta>span{font-size:11px;color:var(--color-text-muted)}.report-meta .v-text-field{width:250px}.detail-toolbar{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;padding:14px;margin-bottom:8px;border:1px solid var(--color-border);border-radius:14px;background:var(--color-surface-soft)}.toolbar-group{display:grid;gap:6px;min-width:0}.toolbar-group>small{font-size:10px;font-weight:750;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:.08em}.level-tabs,.status-tabs{max-width:100%}.level-tabs .v-btn,.status-tabs .v-btn{min-height:40px}.level-tabs .v-icon{margin-right:5px}.status-tabs .v-btn{gap:6px}.status-tabs b{min-width:20px;padding:1px 6px;border-radius:999px;background:color-mix(in srgb,currentColor 12%,transparent);font-size:10px}.status-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:0 0 8px}.status-dot.active{background:#20a464}.status-dot.paused{background:#8991a5}.status-dot.issues{background:#e58a18}.filter-help{display:flex;align-items:flex-start;gap:7px;margin:0 2px 16px;color:var(--color-text-muted);font-size:11px;line-height:1.45}.table-loading{margin:-1px 0 16px}.performance-list{display:grid;border:1px solid var(--color-border);border-radius:14px;overflow:hidden}.performance-row+.performance-row{border-top:1px solid var(--color-border)}.performance-row.expanded{background:var(--color-surface-soft)}.row-main{width:100%;display:grid;grid-template-columns:minmax(230px,1.5fr) minmax(110px,.6fr) repeat(5,minmax(78px,.5fr)) minmax(175px,1fr) 28px;align-items:center;gap:10px;padding:14px 16px;text-align:left;color:inherit;background:transparent;border:0;cursor:pointer}.row-main:hover{background:var(--color-background)}.entity-cell{display:flex;align-items:center;gap:11px;min-width:0}.entity-cell>span:last-child{display:grid;min-width:0}.entity-cell strong,.entity-cell small,.entity-cell code{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.entity-cell small{color:var(--color-text-secondary);font-size:11px}.entity-cell code{color:var(--color-text-muted);font-size:9px}.entity-icon{width:42px;height:42px;display:grid;place-items:center;border-radius:11px;background:var(--color-primary-soft);color:var(--color-primary);flex:0 0 42px}.delivery-chip{display:inline-flex;align-items:center;gap:6px;width:max-content;max-width:100%;padding:6px 8px;border-radius:999px;font-size:10px;font-weight:750;white-space:nowrap}.delivery-chip.active{color:#167a4b;background:rgba(32,164,100,.1)}.delivery-chip.paused{color:#697184;background:rgba(137,145,165,.13)}.delivery-chip.issues{color:#a96000;background:rgba(229,138,24,.12)}.metric{display:grid;gap:3px}.metric small{font-size:10px;color:var(--color-text-muted)}.metric strong{font-size:14px}.decision-chip{display:flex;align-items:center;gap:8px;border-radius:11px;padding:9px 10px;min-width:0}.decision-chip>span{display:grid;min-width:0}.decision-chip strong{font-size:12px}.decision-chip small{font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.decision-chip.keep{background:rgba(39,174,96,.1);color:var(--color-success)}.decision-chip.review{background:rgba(245,158,11,.12);color:#a86700}.decision-chip.pause{background:rgba(239,68,68,.1);color:var(--color-error)}.decision-chip.no_data{background:var(--color-surface-soft);color:var(--color-text-secondary)}
+.row-detail{padding:20px;border-top:1px solid var(--color-border);display:grid;gap:18px}.explanation{display:flex;gap:12px;align-items:flex-start;max-width:850px}.explanation h3{margin:0 0 4px;font-size:17px}.explanation p{margin:0;color:var(--color-text-secondary)}.explanation ul{margin:8px 0 0;padding-left:20px;color:var(--color-text-secondary)}.audience-callout{display:flex;align-items:flex-start;gap:11px;padding:14px;color:var(--color-primary);background:var(--color-primary-soft);border-radius:12px}.audience-callout div{display:grid}.audience-callout strong{font-size:13px}.audience-callout span{color:var(--color-text-secondary);font-size:11px}.audience-panel{display:grid;gap:14px;padding:18px;border:1px solid color-mix(in srgb,var(--color-primary) 22%,var(--color-border));border-radius:14px;background:var(--color-surface)}.audience-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.audience-heading p{margin:0 0 3px;color:var(--color-primary);font-size:9px;font-weight:800;letter-spacing:.12em}.audience-heading h3{margin:0;font-size:17px}.audience-heading>small{padding:5px 8px;color:var(--color-primary);background:var(--color-primary-soft);border-radius:999px;font-size:9px}.audience-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}.audience-metrics>div{display:grid;gap:3px;padding:12px;background:var(--color-background);border-radius:11px}.audience-metrics span,.audience-metrics small{color:var(--color-text-muted);font-size:9px}.audience-metrics strong{font-size:19px}.coverage-metric strong{color:var(--color-primary)}.coverage-bar{margin-top:-5px}.audience-advice{display:flex;align-items:flex-start;gap:10px;padding:12px;border-radius:11px}.audience-advice>div{display:grid}.audience-advice strong{font-size:12px}.audience-advice span{font-size:10px;line-height:1.5}.audience-advice.success{color:#167a4b;background:rgba(32,164,100,.1)}.audience-advice.warning{color:#995c00;background:rgba(229,138,24,.12)}.audience-advice.info{color:var(--color-primary);background:var(--color-primary-soft)}.targeting-block{display:grid;gap:8px}.targeting-block>strong{font-size:12px}.targeting-block>small{color:var(--color-text-muted)}.targeting-tags{display:flex;flex-wrap:wrap;gap:6px}.targeting-tags span{display:inline-flex;align-items:center;gap:5px;padding:6px 8px;border:1px solid var(--color-border);border-radius:999px;color:var(--color-text-secondary);font-size:10px}.native-metric-note{display:flex;align-items:flex-start;gap:8px;padding-top:11px;border-top:1px solid var(--color-border);color:var(--color-text-muted);font-size:9px;line-height:1.5}.metric-detail-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}.metric-detail-grid>div{padding:12px;border:1px solid var(--color-border);border-radius:11px;display:grid;gap:3px}.metric-detail-grid span,.metric-detail-grid small{font-size:10px;color:var(--color-text-muted)}.metric-detail-grid strong{font-size:15px;overflow-wrap:anywhere}.status-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding-top:14px;border-top:1px solid var(--color-border)}.status-actions>div{display:grid;margin-right:auto}.status-actions>div span{font-size:12px;color:var(--color-text-secondary)}
 .empty-state,.empty-inline{text-align:center;padding:48px 20px;color:var(--color-text-secondary)}.empty-state h2,.empty-state h3{color:var(--color-text);margin:12px 0 6px}.empty-state p{margin:0 0 16px}.dialog-title{display:flex;justify-content:space-between;align-items:flex-start;padding:22px}.dialog-title small{color:var(--color-primary);font-size:10px;letter-spacing:.12em}.dialog-title h2{margin:3px 0 0;font-size:22px}.settings-body{padding:0 22px 12px}.settings-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px}.dialog-actions{padding:12px 22px 22px}
-@media(max-width:1200px){.filter-bar{grid-template-columns:repeat(2,minmax(0,1fr))}.analysis-grid{grid-template-columns:1fr}.row-main{grid-template-columns:minmax(240px,1.4fr) repeat(3,minmax(85px,.55fr)) minmax(170px,1fr) 28px}.row-main>.metric:nth-of-type(4),.row-main>.metric:nth-of-type(5){display:none}.metric-detail-grid{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:720px){.page-head{padding:18px;display:grid}.head-actions,.head-actions .v-btn{width:100%}.filter-bar{grid-template-columns:1fr}.loading-grid,.summary-grid{grid-template-columns:repeat(2,1fr)}.performance-section{padding:14px}.section-head,.report-meta{display:grid}.report-meta .v-text-field{width:100%}.level-tabs{width:100%;display:grid;grid-template-columns:repeat(3,1fr)}.level-tabs .v-btn{min-width:0}.row-main{grid-template-columns:1fr auto;padding:14px}.row-main>.metric{display:none}.decision-chip{grid-column:1/2}.row-main>i{grid-column:2;grid-row:1/3}.metric-detail-grid{grid-template-columns:repeat(2,1fr)}.status-actions{display:grid;grid-template-columns:1fr 1fr}.status-actions>div{grid-column:1/-1}.settings-grid{grid-template-columns:1fr}.trend-card,.decision-card{padding:16px}}
-@media(max-width:420px){.summary-grid{grid-template-columns:1fr}.metric-detail-grid{grid-template-columns:1fr}.status-actions{grid-template-columns:1fr}.status-actions>div{grid-column:auto}}
+@media(max-width:1280px){.filter-bar{grid-template-columns:repeat(2,minmax(0,1fr))}.analysis-grid{grid-template-columns:1fr}.detail-toolbar{align-items:stretch;flex-direction:column}.row-main{grid-template-columns:minmax(220px,1.4fr) minmax(105px,.65fr) repeat(3,minmax(78px,.55fr)) minmax(170px,1fr) 28px}.metric-cost,.metric-frequency{display:none}.audience-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.metric-detail-grid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:720px){.page-head{padding:18px;display:grid}.head-actions,.head-actions .v-btn{width:100%}.filter-bar{grid-template-columns:1fr;padding:12px}.loading-grid,.summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.summary-card{padding:14px;min-width:0}.summary-card strong{font-size:21px;overflow-wrap:anywhere}.performance-section{padding:12px}.section-head,.report-meta{display:grid}.report-meta .v-text-field{width:100%}.detail-toolbar{position:sticky;top:0;z-index:4;margin-inline:-12px;border-left:0;border-right:0;border-radius:0;padding:10px 12px;background:color-mix(in srgb,var(--color-surface) 94%,transparent);backdrop-filter:blur(10px)}.level-tabs{width:100%;display:grid;grid-template-columns:repeat(3,1fr)}.level-tabs .v-btn{min-width:0;padding-inline:8px}.status-filter-group{overflow:hidden}.status-tabs{display:flex;width:100%;overflow-x:auto;padding-bottom:3px;scrollbar-width:none}.status-tabs::-webkit-scrollbar{display:none}.status-tabs .v-btn{flex:0 0 auto;padding-inline:12px}.filter-help{margin-top:10px}.performance-list{border:0;gap:10px;overflow:visible;background:transparent}.performance-row,.performance-row+.performance-row{border:1px solid var(--color-border);border-radius:14px;overflow:hidden;background:var(--color-surface)}.row-main{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:14px}.entity-cell{grid-column:1/2}.delivery-chip{grid-column:1/2;grid-row:2}.row-main>.metric{display:none}.row-main>.mobile-key{display:grid;min-width:0;padding:9px;border-radius:10px;background:var(--color-background)}.metric-spend{grid-column:1;grid-row:3}.metric-results{grid-column:2;grid-row:3}.metric-cost{grid-column:1;grid-row:4}.metric-ctr{grid-column:2;grid-row:4}.decision-chip{grid-column:1/3;grid-row:5}.row-main>i{grid-column:2;grid-row:1/3;justify-self:end;align-self:start}.row-detail{padding:14px}.metric-detail-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.status-actions{display:grid;grid-template-columns:1fr 1fr;position:sticky;bottom:0;padding:12px;background:var(--color-surface);z-index:2}.status-actions>div{grid-column:1/-1}.status-actions .v-btn{width:100%}.settings-grid{grid-template-columns:1fr}.trend-card,.decision-card{padding:16px}.trend-chart{overflow-x:auto;justify-content:flex-start}.trend-column{flex:0 0 28px}.card-heading{display:grid}}
+@media(max-width:420px){.summary-grid{grid-template-columns:1fr}.level-tabs .v-btn{font-size:11px}.level-tabs .v-icon{display:none}.audience-panel{padding:13px}.audience-heading{display:grid}.audience-metrics{grid-template-columns:1fr}.metric-detail-grid{grid-template-columns:1fr}.status-actions{grid-template-columns:1fr}.status-actions>div{grid-column:auto}.row-main>.mobile-key{padding:8px}.dialog-actions{display:grid;grid-template-columns:1fr}.dialog-actions .v-spacer{display:none}.dialog-actions .v-btn{width:100%;margin:0}}
 </style>

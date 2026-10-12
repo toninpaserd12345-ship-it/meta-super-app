@@ -103,6 +103,12 @@ func (u *Meta) AdsInsights(ctx context.Context, userID, accountID, adAccountID, 
 	}
 	return u.connector.AdsInsights(ctx, userID, accountID, adAccountID, level, since, until)
 }
+func (u *Meta) AudienceAnalysis(ctx context.Context, userID, accountID, adAccountID, adSetID string) (*domain.MetaAudienceAnalysis, error) {
+	if strings.TrimSpace(adAccountID) == "" || strings.TrimSpace(adSetID) == "" {
+		return nil, errors.New("ad account and ad set are required")
+	}
+	return u.connector.AudienceAnalysis(ctx, userID, accountID, adAccountID, adSetID)
+}
 func (u *Meta) UpdateAdEntityStatus(ctx context.Context, userID, accountID, entityType, entityID, status string) error {
 	entityType = strings.ToLower(strings.TrimSpace(entityType))
 	status = strings.ToUpper(strings.TrimSpace(status))

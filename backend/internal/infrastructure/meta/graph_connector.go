@@ -2163,6 +2163,39 @@ func (g *GraphConnector) fetchInsightRows(ctx context.Context, token, adAccountI
 	return rows, nil
 }
 
+type graphAdEntityStatus struct {
+	ID              string `json:"id"`
+	Status          string `json:"status"`
+	EffectiveStatus string `json:"effective_status"`
+}
+
+func (g *GraphConnector) fetchAdEntityStatuses(ctx context.Context, token, adAccountID, level string) (map[string]graphAdEntityStatus, error) {
+	edges := map[string]string{"campaign": "campaigns", "adset": "adsets", "ad": "ads"}
+	edge, ok := edges[level]
+	if !ok {
+		return map[string]graphAdEntityStatus{}, nil
+	}
+	query := url.Values{"fields": {"id,status,effective_status"}, "limit": {"500"}, "access_token": {token}}
+	endpoint := "https://graph.facebook.com/" + g.cfg.Version + "/" + url.PathEscape(adAccountID) + "/" + edge + "?" + query.Encode()
+	statuses := make(map[string]graphAdEntityStatus)
+	for endpoint != "" {
+		var response struct {
+			Data   []graphAdEntityStatus `json:"data"`
+			Paging struct {
+				Next string `json:"next"`
+			} `json:"paging"`
+		}
+		if err := g.getJSON(ctx, endpoint, &response); err != nil {
+			return nil, err
+		}
+		for _, item := range response.Data {
+			statuses[item.ID] = item
+		}
+		endpoint = response.Paging.Next
+	}
+	return statuses, nil
+}
+
 func (g *GraphConnector) AdsInsights(ctx context.Context, _ string, accountID, adAccountID, level, since, until string) (*domain.MetaInsightsReport, error) {
 	token, err := g.userToken(ctx, accountID)
 	if err != nil {
@@ -2183,6 +2216,10 @@ func (g *GraphConnector) AdsInsights(ctx context.Context, _ string, accountID, a
 	if err != nil {
 		return nil, err
 	}
+	statuses, err := g.fetchAdEntityStatuses(ctx, token, adAccountID, level)
+	if err != nil {
+		return nil, err
+	}
 	accountRows, err := g.fetchInsightRows(ctx, token, adAccountID, "account", since, until, "")
 	if err != nil {
 		return nil, err
@@ -2193,7 +2230,12 @@ func (g *GraphConnector) AdsInsights(ctx context.Context, _ string, accountID, a
 	}
 	items := make([]domain.MetaInsightItem, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, insightItem(level, row))
+		item := insightItem(level, row)
+		if status, ok := statuses[item.EntityID]; ok {
+			item.Status = status.Status
+			item.EffectiveStatus = status.EffectiveStatus
+		}
+		items = append(items, item)
 	}
 	trend := make([]domain.MetaInsightPoint, 0, len(daily))
 	for _, row := range daily {
@@ -2207,6 +2249,131 @@ func (g *GraphConnector) AdsInsights(ctx context.Context, _ string, accountID, a
 		summary = &value
 	}
 	return &domain.MetaInsightsReport{Currency: account.Currency, Timezone: account.Timezone, Level: level, DateStart: since, DateStop: until, GeneratedAt: time.Now().UTC().Format(time.RFC3339), Summary: summary, Items: items, Trend: trend, Warnings: warnings}, nil
+}
+
+type graphTargetingNamedItem struct {
+	ID   string `json:"id"`
+	Key  string `json:"key"`
+	Name string `json:"name"`
+}
+
+type graphAdSetTargeting struct {
+	AgeMin                  int                       `json:"age_min"`
+	AgeMax                  int                       `json:"age_max"`
+	Genders                 []int                     `json:"genders"`
+	Interests               []graphTargetingNamedItem `json:"interests"`
+	CustomAudiences         []graphTargetingNamedItem `json:"custom_audiences"`
+	ExcludedCustomAudiences []graphTargetingNamedItem `json:"excluded_custom_audiences"`
+	PublisherPlatforms      []string                  `json:"publisher_platforms"`
+	DevicePlatforms         []string                  `json:"device_platforms"`
+	GeoLocations            struct {
+		Countries []string                  `json:"countries"`
+		Regions   []graphTargetingNamedItem `json:"regions"`
+		Cities    []graphTargetingNamedItem `json:"cities"`
+	} `json:"geo_locations"`
+}
+
+func targetingNames(items []graphTargetingNamedItem) []string {
+	values := make([]string, 0, len(items))
+	for _, item := range items {
+		value := strings.TrimSpace(item.Name)
+		if value == "" {
+			value = strings.TrimSpace(item.Key)
+		}
+		if value == "" {
+			value = strings.TrimSpace(item.ID)
+		}
+		if value != "" {
+			values = append(values, value)
+		}
+	}
+	return values
+}
+
+func audienceNumber(raw json.RawMessage) *float64 {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil
+	}
+	var number float64
+	if err := json.Unmarshal(raw, &number); err == nil {
+		return &number
+	}
+	var text string
+	if err := json.Unmarshal(raw, &text); err == nil {
+		return numberPointer(text)
+	}
+	return nil
+}
+
+func (g *GraphConnector) AudienceAnalysis(ctx context.Context, _ string, accountID, adAccountID, adSetID string) (*domain.MetaAudienceAnalysis, error) {
+	token, err := g.userToken(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+	normalizedAccountID := strings.TrimPrefix(adAccountID, "act_")
+	var adSet struct {
+		ID               string          `json:"id"`
+		Name             string          `json:"name"`
+		AccountID        string          `json:"account_id"`
+		OptimizationGoal string          `json:"optimization_goal"`
+		Targeting        json.RawMessage `json:"targeting"`
+	}
+	query := url.Values{"fields": {"id,name,account_id,optimization_goal,targeting"}, "access_token": {token}}
+	if err = g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/"+url.PathEscape(adSetID)+"?"+query.Encode(), &adSet); err != nil {
+		return nil, err
+	}
+	if adSet.AccountID != "" && strings.TrimPrefix(adSet.AccountID, "act_") != normalizedAccountID {
+		return nil, errors.New("ad set does not belong to selected ad account")
+	}
+	var rawTargeting graphAdSetTargeting
+	if err = json.Unmarshal(adSet.Targeting, &rawTargeting); err != nil {
+		return nil, fmt.Errorf("decode Meta Ad Set targeting: %w", err)
+	}
+	genders := make([]string, 0, len(rawTargeting.Genders))
+	for _, gender := range rawTargeting.Genders {
+		switch gender {
+		case 1:
+			genders = append(genders, "male")
+		case 2:
+			genders = append(genders, "female")
+		default:
+			genders = append(genders, strconv.Itoa(gender))
+		}
+	}
+	analysis := &domain.MetaAudienceAnalysis{
+		AdSetID: adSet.ID, AdSetName: adSet.Name, OptimizationGoal: adSet.OptimizationGoal,
+		Targeting: domain.MetaAudienceTargeting{
+			AgeMin: rawTargeting.AgeMin, AgeMax: rawTargeting.AgeMax, Genders: genders,
+			Countries: rawTargeting.GeoLocations.Countries, Regions: targetingNames(rawTargeting.GeoLocations.Regions), Cities: targetingNames(rawTargeting.GeoLocations.Cities),
+			Interests: targetingNames(rawTargeting.Interests), CustomAudiences: targetingNames(rawTargeting.CustomAudiences), ExcludedCustomAudiences: targetingNames(rawTargeting.ExcludedCustomAudiences),
+			PublisherPlatforms: rawTargeting.PublisherPlatforms, DevicePlatforms: rawTargeting.DevicePlatforms,
+		},
+		Warnings: []string{"Audience size is an estimate and can change as Meta availability and targeting change."},
+	}
+	accountNodeID := "act_" + normalizedAccountID
+	estimateQuery := url.Values{
+		"targeting_spec":    {string(adSet.Targeting)},
+		"optimization_goal": {adSet.OptimizationGoal},
+		"access_token":      {token},
+	}
+	var estimate struct {
+		Data []struct {
+			EstimateDAU   json.RawMessage `json:"estimate_dau"`
+			EstimateMAU   json.RawMessage `json:"estimate_mau"`
+			EstimateReady bool            `json:"estimate_ready"`
+		} `json:"data"`
+	}
+	if estimateErr := g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/"+url.PathEscape(accountNodeID)+"/delivery_estimate?"+estimateQuery.Encode(), &estimate); estimateErr != nil {
+		analysis.Warnings = append(analysis.Warnings, "Meta did not return an audience-size estimate for this Ad Set.")
+		return analysis, nil
+	}
+	if len(estimate.Data) > 0 {
+		analysis.EstimatedDailyUsers = audienceNumber(estimate.Data[0].EstimateDAU)
+		analysis.EstimatedMonthlyUsers = audienceNumber(estimate.Data[0].EstimateMAU)
+		analysis.EstimateReady = estimate.Data[0].EstimateReady
+		analysis.EstimateSource = "meta_delivery_estimate"
+	}
+	return analysis, nil
 }
 
 func (g *GraphConnector) UpdateAdEntityStatus(ctx context.Context, _ string, accountID, entityID, status string) error {

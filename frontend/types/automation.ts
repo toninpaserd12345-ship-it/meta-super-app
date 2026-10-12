@@ -129,6 +129,8 @@ export interface MetaInsightItem {
   entityType: 'account' | 'campaign' | 'adset' | 'ad'
   entityId: string
   entityName: string
+  status?: string
+  effectiveStatus?: string
   campaignId?: string
   campaignName?: string
   adSetId?: string
@@ -169,4 +171,30 @@ export interface MetaInsightsReport {
   items: MetaInsightItem[]
   trend: MetaInsightPoint[]
   warnings: string[]
+}
+
+export interface MetaAudienceTargeting {
+  ageMin?: number
+  ageMax?: number
+  genders?: string[]
+  countries?: string[]
+  regions?: string[]
+  cities?: string[]
+  interests?: string[]
+  customAudiences?: string[]
+  excludedCustomAudiences?: string[]
+  publisherPlatforms?: string[]
+  devicePlatforms?: string[]
+}
+
+export interface MetaAudienceAnalysis {
+  adSetId: string
+  adSetName: string
+  optimizationGoal?: string
+  targeting: MetaAudienceTargeting
+  estimatedDailyUsers?: number
+  estimatedMonthlyUsers?: number
+  estimateReady: boolean
+  estimateSource?: string
+  warnings?: string[]
 }
