@@ -224,12 +224,22 @@ func (u *Reply) UpdateItems(ctx context.Context, setID string, accountID string,
 		return err
 	}
 
-	// Validate items
-	for i, item := range items {
-		if item.Type != "text" && item.Type != "image" && item.Type != "video" && item.Type != "audio" {
-			return fmt.Errorf("invalid item type at index %d", i)
+	// Validate and normalize items
+	for i := range items {
+		t := strings.ToLower(strings.TrimSpace(items[i].Type))
+		switch t {
+		case "voice", "void", "audio":
+			items[i].Type = "audio"
+		case "video", "vedio":
+			items[i].Type = "video"
+		case "image", "photo", "picture":
+			items[i].Type = "image"
+		case "text":
+			items[i].Type = "text"
+		default:
+			return fmt.Errorf("invalid item type %q at index %d", items[i].Type, i)
 		}
-		if item.IsEnabled && strings.TrimSpace(item.Content) == "" {
+		if items[i].IsEnabled && strings.TrimSpace(items[i].Content) == "" {
 			return fmt.Errorf("empty content at index %d", i)
 		}
 	}

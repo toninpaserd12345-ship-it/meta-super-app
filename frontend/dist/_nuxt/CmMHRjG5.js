@@ -1,0 +1,1 @@
+import{t as e}from"./C_KmdKSy.js";var t=e(`v-spacer`,`div`,`VSpacer`);export{t};

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/meta-super-app/backend/internal/domain"
 	"github.com/meta-super-app/backend/internal/infrastructure/repository"
 	"github.com/meta-super-app/backend/internal/usecase"
 )
@@ -67,5 +68,36 @@ func TestReplySetFindsTriggerWithPrefix(t *testing.T) {
 		if err != nil || found == nil || found.ID != created.ID {
 			t.Errorf("FindSetByTrigger(%q) = %#v, %v; want %q", trig, found, err, created.ID)
 		}
+	}
+}
+
+func TestReplySetUpdateItemsNormalizesVoiceAndVideo(t *testing.T) {
+	service := usecase.NewReply(repository.NewMemory(""))
+	ctx := context.Background()
+	created, err := service.CreateSet(ctx, "account-1", "MEDIA01", "Media Test")
+	if err != nil {
+		t.Fatalf("CreateSet() error = %v", err)
+	}
+
+	items := []domain.ReplyItem{
+		{Type: "void", Content: "https://r2.example.com/voice.m4a", IsEnabled: true},
+		{Type: "vedio", Content: "https://r2.example.com/video.mp4", IsEnabled: true},
+		{Type: "voice", Content: "https://r2.example.com/voice2.ogg", IsEnabled: true},
+		{Type: "text", Content: "Hello world", IsEnabled: true},
+	}
+
+	if err := service.UpdateItems(ctx, created.ID, "account-1", items); err != nil {
+		t.Fatalf("UpdateItems() error = %v", err)
+	}
+
+	fetched, err := service.GetReplySetItems(ctx, created.ID, "account-1")
+	if err != nil {
+		t.Fatalf("GetReplySetItems() error = %v", err)
+	}
+	if len(fetched) != 4 {
+		t.Fatalf("got %d items, want 4", len(fetched))
+	}
+	if fetched[0].Type != "audio" || fetched[1].Type != "video" || fetched[2].Type != "audio" {
+		t.Fatalf("types not normalized properly: %v, %v, %v", fetched[0].Type, fetched[1].Type, fetched[2].Type)
 	}
 }

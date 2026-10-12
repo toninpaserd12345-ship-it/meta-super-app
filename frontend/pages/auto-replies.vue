@@ -15,7 +15,11 @@ const pages = computed(() => pageData.value?.items.filter(item => item.connected
 const products = computed(() => productData.value?.items || [])
 const replySets = computed(() => setData.value || [])
 const flows = computed(() => flowData.value?.items || [])
-const usableSets = computed(() => replySets.value.filter(set => set.items?.some(item => item.isEnabled && item.content.trim())))
+const usableSets = computed(() => {
+  if (replySets.value.length === 0) return []
+  const withItems = replySets.value.filter(set => set.items?.some(item => item.isEnabled && item.content.trim()))
+  return withItems.length > 0 ? withItems : replySets.value
+})
 
 const view = ref<'dashboard' | 'wizard'>('dashboard')
 const step = ref(1)
@@ -108,6 +112,15 @@ function productImage(id: string) { return products.value.find(item => item.id =
 function setLabel(set?: ReplySet) { return set?.name || 'Missing Reply Set' }
 function setName(id: string) { return setLabel(replySets.value.find(item => item.id === id)) }
 function pageName(id: string) { return pages.value.find(item => item.id === id)?.name || id }
+function getFlowMediaTypes(flow: AutomationFlow): string[] {
+  const set = replySets.value.find(s => s.id === flow.replySetId)
+  if (!set || !set.items) return []
+  const types = new Set<string>()
+  for (const it of set.items) {
+    if (it.isEnabled && it.content?.trim()) types.add(it.type)
+  }
+  return Array.from(types)
+}
 function apiError(error: unknown, fallback: string) {
   const value = error as { data?: { error?: string | { message?: string }; message?: string }; statusMessage?: string }
   const dataError = value.data?.error
@@ -218,6 +231,16 @@ watch(adAccountId, loadCampaigns)
               <div class="chips">
                 <v-chip v-for="target in flow.targets.slice(0,3)" :key="target.id || `${target.type}:${target.value}`" size="x-small" variant="tonal">{{ target.type }} · {{ target.name || target.value }}</v-chip>
                 <v-chip v-if="flow.targets.length>3" size="x-small">+{{ flow.targets.length-3 }}</v-chip>
+                <v-chip
+                  v-for="mType in getFlowMediaTypes(flow)"
+                  :key="mType"
+                  size="x-small"
+                  :color="mType === 'audio' ? 'error' : mType === 'video' ? 'purple' : mType === 'image' ? 'info' : 'default'"
+                  variant="flat"
+                >
+                  <v-icon :icon="mType === 'audio' ? 'mdi-microphone' : mType === 'video' ? 'mdi-video' : mType === 'image' ? 'mdi-image' : 'mdi-text'" size="11" class="mr-1"/>
+                  {{ mType === 'audio' ? 'ສຽງ (Voice)' : mType === 'video' ? 'ວິດີໂອ (Video)' : mType === 'image' ? 'ຮູບພາບ' : 'ຂໍ້ຄວາມ' }}
+                </v-chip>
               </div>
             </div>
             <v-switch :model-value="flow.isActive" color="success" hide-details density="compact" :aria-label="t('common.active')" :disabled="!can('pages:connect')" @update:model-value="setStatus(flow,Boolean($event))"/>
@@ -288,7 +311,62 @@ watch(adAccountId, loadCampaigns)
           </div>
         </template>
       </template>
-      <template v-else-if="step===3"><div class="section-title"><small>STEP 3</small><h3>{{ t('auto.responseTitle') }}</h3><p>{{ t('auto.responseHelp') }}</p></div><div class="form-grid"><v-select v-model="productId" :items="products" item-title="name" item-value="id" :label="t('auto.product')" variant="outlined"/><v-select v-model="replySetId" :items="usableSets" :item-title="setLabel" item-value="id" :label="t('auto.replySet')" variant="outlined"/></div><div v-if="selectedProduct || selectedSet" class="response-preview"><img v-if="selectedProduct?.imageUrl" :src="selectedProduct.imageUrl" :alt="selectedProduct.name" loading="lazy"><div><strong>{{ selectedProduct?.name }}</strong><span>{{ setLabel(selectedSet) }}</span><small>{{ selectedSet?.items.filter(item=>item.isEnabled).length || 0 }} {{ t('auto.enabledMessages') }} · {{ t('auto.sendOrder') }}</small></div></div></template>
+      <template v-else-if="step===3">
+        <div class="section-title">
+          <small>STEP 3</small>
+          <h3>{{ t('auto.responseTitle') }}</h3>
+          <p>{{ t('auto.responseHelp') }}</p>
+        </div>
+        <div class="form-grid">
+          <v-select v-model="productId" :items="products" item-title="name" item-value="id" :label="t('auto.product')" variant="outlined"/>
+          <div>
+            <v-select v-model="replySetId" :items="usableSets" :item-title="setLabel" item-value="id" :label="t('auto.replySet')" variant="outlined"/>
+            <div class="d-flex align-center gap-2 mt-2 flex-wrap">
+              <v-btn
+                v-if="replySetId"
+                color="primary"
+                variant="tonal"
+                size="small"
+                prepend-icon="mdi-pencil-outline"
+                :to="`/replies/${replySetId}`"
+                target="_blank"
+              >
+                {{ locale==='lo' ? 'ແກ້ໄຂຊຸດຂໍ້ຄວາມ (ເພີ່ມສຽງ 🎙️, ວິດີໂອ 🎬, ຮູບ 🖼️)' : 'Edit Reply Set (Add Voice, Video, Image)' }}
+              </v-btn>
+              <v-btn
+                color="success"
+                variant="tonal"
+                size="small"
+                prepend-icon="mdi-plus"
+                to="/replies"
+                target="_blank"
+              >
+                {{ locale==='lo' ? '+ ສ້າງຊຸດຂໍ້ຄວາມໃໝ່ (ສຽງ/ວິດີໂອ)' : '+ Create New Reply Set' }}
+              </v-btn>
+            </div>
+          </div>
+        </div>
+        <div v-if="selectedProduct || selectedSet" class="response-preview mt-3">
+          <img v-if="selectedProduct?.imageUrl" :src="selectedProduct.imageUrl" :alt="selectedProduct.name" loading="lazy">
+          <div>
+            <strong>{{ selectedProduct?.name }}</strong>
+            <span>{{ setLabel(selectedSet) }}</span>
+            <small class="mb-1">{{ selectedSet?.items?.filter(item=>item.isEnabled).length || 0 }} {{ t('auto.enabledMessages') }} · {{ t('auto.sendOrder') }}</small>
+            <div v-if="selectedSet?.items?.length" class="d-flex align-center gap-1 flex-wrap mt-1">
+              <v-chip
+                v-for="(it, i) in selectedSet.items.filter(item => item.isEnabled)"
+                :key="i"
+                size="x-small"
+                :color="it.type === 'audio' ? 'error' : it.type === 'video' ? 'purple' : it.type === 'image' ? 'info' : 'default'"
+                variant="tonal"
+              >
+                <v-icon :icon="it.type === 'audio' ? 'mdi-microphone' : it.type === 'video' ? 'mdi-video' : it.type === 'image' ? 'mdi-image' : 'mdi-text'" size="11" class="mr-1"/>
+                {{ it.type === 'audio' ? 'ສຽງ (Voice)' : it.type === 'video' ? 'ວິດີໂອ (Video)' : it.type === 'image' ? 'ຮູບພາບ' : 'ຂໍ້ຄວາມ' }}
+              </v-chip>
+            </div>
+          </div>
+        </div>
+      </template>
       <template v-else-if="step===4"><div class="section-title"><small>STEP 4</small><h3>{{ t('auto.behaviorTitle') }}</h3><p>{{ t('auto.behaviorHelp') }}</p></div><v-switch v-model="firstMessageOnly" color="primary" :label="t('auto.firstLabel')" inset/><v-text-field v-model.number="cooldownSeconds" type="number" min="0" max="86400" :label="t('auto.cooldown')" :hint="t('auto.cooldownHelp')" persistent-hint variant="outlined"/></template>
       <template v-else><div class="section-title"><small>STEP 5</small><h3>{{ t('auto.reviewTitle') }}</h3><p>{{ t('auto.reviewHelp') }}</p></div><div class="review"><article><span>{{ t('auto.automation') }}</span><strong>{{ name }}</strong><small>{{ selectedPage?.name }}</small></article><article><span>{{ t('auto.response') }}</span><strong>{{ selectedProduct?.name }}</strong><small>{{ setLabel(selectedSet) }}</small></article><article><span>{{ t('common.targets') }}</span><strong>{{ targets.length }} {{ targetType }}</strong><small>{{ firstMessageOnly?t('auto.firstOnly'):t('auto.everyMatch') }}</small></article></div><div class="chips"><v-chip v-for="target in targets" :key="`${target.type}:${target.value}`" color="primary" variant="tonal">{{ target.name || target.value }}</v-chip></div></template>
     </section>

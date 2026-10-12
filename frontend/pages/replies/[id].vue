@@ -87,10 +87,83 @@ function errorMessage(error: unknown, fallback: string) {
   return (typeof upstream === 'string' ? upstream : upstream?.message) || value.data?.message || value.statusMessage || fallback
 }
 
+function extractFiles(value: unknown): File[] {
+  if (!value) return []
+  if (value instanceof File) return [value]
+  if (Array.isArray(value)) return value.filter((f): f is File => f instanceof File)
+  if (typeof FileList !== 'undefined' && value instanceof FileList) {
+    return Array.from(value)
+  }
+  if (typeof Event !== 'undefined' && value instanceof Event) {
+    const target = (value as Event).target as HTMLInputElement
+    if (target?.files) return Array.from(target.files)
+  }
+  if (typeof value === 'object' && value !== null && 'target' in value) {
+    const target = (value as any).target
+    if (target?.files) return Array.from(target.files)
+  }
+  return []
+}
+
+const recordingIndex = ref(-1)
+const mediaRecorder = ref<MediaRecorder | null>(null)
+const audioChunks = ref<Blob[]>([])
+const recordingTime = ref(0)
+let recordingTimer: any = null
+
+async function startRecording(index: number) {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    const recorder = new MediaRecorder(stream)
+    mediaRecorder.value = recorder
+    audioChunks.value = []
+    recordingIndex.value = index
+    recordingTime.value = 0
+
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) audioChunks.value.push(e.data)
+    }
+
+    recorder.onstop = async () => {
+      stream.getTracks().forEach(track => track.stop())
+      if (audioChunks.value.length === 0) return
+      const mimeType = recorder.mimeType || 'audio/webm'
+      const audioBlob = new Blob(audioChunks.value, { type: mimeType })
+      const ext = mimeType.includes('mp4') || mimeType.includes('m4a') ? '.m4a' : mimeType.includes('ogg') ? '.ogg' : '.webm'
+      const file = new File([audioBlob], `voice_recording_${Date.now()}${ext}`, { type: mimeType })
+      await uploadMedia(file, index)
+    }
+
+    recorder.start(200)
+    recordingTimer = setInterval(() => {
+      recordingTime.value++
+    }, 1000)
+  } catch (err: any) {
+    noticeType.value = 'error'
+    notice.value = locale.value === 'lo' ? 'ບໍ່ສາມາດເຂົ້າເຖິງໄມໂຄຣໂຟນໄດ້ ກະລຸນາອະນຸຍາດການໃຊ້ໄມ' : 'Could not access microphone.'
+  }
+}
+
+function stopRecording() {
+  if (mediaRecorder.value && mediaRecorder.value.state !== 'inactive') {
+    mediaRecorder.value.stop()
+  }
+  if (recordingTimer) {
+    clearInterval(recordingTimer)
+    recordingTimer = null
+  }
+  recordingIndex.value = -1
+}
+
+function triggerNativeUpload(index: number) {
+  const el = document.getElementById(`native-file-${index}`) as HTMLInputElement
+  el?.click()
+}
+
 async function uploadMedia(value: unknown, index: number) {
-  const files = Array.isArray(value) ? value : value ? [value] : []
+  const files = extractFiles(value)
   const file = files[0]
-  if (!(file instanceof File) || !items.value[index]) return
+  if (!file || !items.value[index]) return
   if (file.size > 25 * 1024 * 1024) {
     noticeType.value = 'error'
     notice.value = locale.value === 'lo' ? 'ຂະໜາດໄຟລ໌ເກີນກຳນົດ (ສູງສຸດ 25MB)' : 'File size exceeds 25MB limit.'
@@ -104,6 +177,8 @@ async function uploadMedia(value: unknown, index: number) {
     formData.append('folder', 'replies')
     const result = await $fetch<{ url: string }>('/api/proxy/api/v1/storage/upload', { method: 'POST', body: formData })
     items.value[index].content = result.url
+    noticeType.value = 'success'
+    notice.value = locale.value === 'lo' ? 'ອັບໂຫລດໄຟລ໌ຂຶ້ນ Cloudflare R2 ສຳເລັດແລ້ວ!' : 'File uploaded to Cloudflare R2 successfully!'
   } catch (error) {
     noticeType.value = 'error'
     notice.value = errorMessage(error, 'Media upload failed. You can paste a public HTTPS URL instead.')
@@ -211,11 +286,55 @@ async function saveChanges() {
 
               <v-textarea v-if="item.type==='text'" v-model="item.content" :label="locale==='lo'?'ເນື້ອໃນຂໍ້ຄວາມ':'Message text'" variant="outlined" rows="4" auto-grow maxlength="2000" counter hide-details/>
               <template v-else>
-                <v-img v-if="item.type==='image' && item.content" :src="item.content" max-height="240" contain class="media-preview"/>
-                <video v-else-if="item.type==='video' && item.content" :src="item.content" controls class="media-preview"/>
-                <audio v-else-if="item.type==='audio' && item.content" :src="item.content" controls class="audio-preview"/>
-                <v-text-field v-model="item.content" :label="`${item.type} public HTTPS URL`" variant="outlined" prepend-inner-icon="mdi-link" hide-details/>
-                <div class="upload-row"><span>or upload a file</span><v-file-input :accept="acceptFor(item.type)" label="Choose file" variant="outlined" density="compact" prepend-icon="mdi-cloud-upload-outline" hide-details :loading="uploadingIndex===index" @update:model-value="uploadMedia($event,index)"/></div>
+                <div v-if="item.content" class="media-container mb-3">
+                  <v-img v-if="item.type==='image'" :src="item.content" max-height="240" contain class="media-preview rounded-lg"/>
+                  <video v-else-if="item.type==='video'" :src="item.content" controls class="media-preview rounded-lg" style="max-height: 240px; width: 100%; border: 1px solid var(--color-border); border-radius: 8px;"/>
+                  <audio v-else-if="item.type==='audio'" :src="item.content" controls class="audio-preview" style="width: 100%; border-radius: 8px;"/>
+                </div>
+
+                <!-- Voice Recording Quick Bar if Audio -->
+                <div v-if="item.type==='audio'" class="voice-recorder-bar mb-3">
+                  <v-btn
+                    v-if="recordingIndex !== index"
+                    color="error"
+                    variant="tonal"
+                    prepend-icon="mdi-microphone"
+                    size="small"
+                    @click="startRecording(index)"
+                  >
+                    {{ locale==='lo'?'🎙️ ກົດອັດສຽງດຽວນີ້ (Record Voice)':'🎙️ Record Voice' }}
+                  </v-btn>
+                  <div v-else class="recording-active-bar d-flex align-center gap-2">
+                    <span class="recording-dot"></span>
+                    <strong class="text-error font-weight-bold">Recording: {{ recordingTime }}s</strong>
+                    <v-btn color="error" size="small" prepend-icon="mdi-stop" @click="stopRecording">
+                      {{ locale==='lo'?'ຢຸດ ແລະ ອັບໂຫລດ (Stop & Save)':'Stop & Upload' }}
+                    </v-btn>
+                  </div>
+                </div>
+
+                <v-text-field v-model="item.content" :label="`${item.type} public HTTPS URL`" variant="outlined" prepend-inner-icon="mdi-link" hide-details class="mb-2"/>
+
+                <div class="upload-row">
+                  <input
+                    :id="`native-file-${index}`"
+                    type="file"
+                    :accept="acceptFor(item.type)"
+                    style="display: none"
+                    @change="uploadMedia($event, index)"
+                  />
+                  <v-btn
+                    color="primary"
+                    variant="outlined"
+                    prepend-icon="mdi-cloud-upload-outline"
+                    size="small"
+                    :loading="uploadingIndex === index"
+                    @click="triggerNativeUpload(index)"
+                  >
+                    {{ locale==='lo' ? `📁 ເລືອກໄຟລ໌ ${item.type === 'audio' ? 'ສຽງ (Voice)' : item.type === 'video' ? 'ວິດີໂອ (Video)' : 'ຮູບພາບ'} ຂຶ້ນ Cloudflare` : `📁 Choose ${item.type} file` }}
+                  </v-btn>
+                  <span class="text-caption text-medium-emphasis">({{ item.type === 'audio' ? 'MP3, M4A, WAV, OGG, AAC' : item.type === 'video' ? 'MP4, MOV, WebM, 3GP' : 'JPG, PNG, WebP' }} · Max 25MB)</span>
+                </div>
               </template>
             </div>
           </article>
@@ -268,6 +387,7 @@ async function saveChanges() {
 
 <style scoped>
 .back-row{margin-bottom:10px}.page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:16px;padding:24px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}.page-head p,.sequence-head small,.toolbox>small{margin:0 0 6px;color:var(--color-primary);font-size:10px;font-weight:800;letter-spacing:.13em}.page-head h2{margin:0 0 6px;font-size:24px}.page-head span,.sequence-head span{display:block;color:var(--color-text-secondary);font-size:12px}.name-panel{display:grid;grid-template-columns:minmax(260px,.7fr) minmax(320px,1.3fr);gap:14px;align-items:center;margin-bottom:16px;padding:16px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}.builder-layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start}.sequence,.toolbox{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}.sequence{overflow:hidden}.sequence-head{display:flex;justify-content:space-between;align-items:center;gap:18px;padding:18px 20px;border-bottom:1px solid var(--color-border)}.sequence-head>div{display:grid}.sequence-empty{min-height:280px;display:grid;place-items:center;align-content:center;text-align:center;color:var(--color-text-muted)}.sequence-empty h3{margin:13px 0 4px;color:var(--color-text)}.sequence-empty p{margin:0}.message-card{display:grid;grid-template-columns:46px 1fr;gap:10px;padding:18px;border-bottom:1px solid var(--color-border-subtle);transition:var(--transition-fast)}.message-card.disabled{background:var(--color-surface-soft);opacity:.62}.message-card:last-child{border-bottom:0}.order-controls{display:flex;flex-direction:column;align-items:center}.order-controls strong{width:28px;height:28px;display:grid;place-items:center;color:white;background:var(--color-primary);border-radius:50%;font-size:12px}.message-editor{display:grid;gap:12px;min-width:0}.message-title{display:flex;align-items:center;justify-content:space-between}.message-title>span{display:flex;align-items:center;gap:7px;text-transform:capitalize;font-weight:800}.message-actions{display:flex;align-items:center;gap:4px}.media-preview{width:100%;max-height:240px;border-radius:12px;background:var(--color-background)}video.media-preview{display:block;object-fit:contain}.audio-preview{width:100%}.upload-row{display:grid;grid-template-columns:auto minmax(240px,1fr);align-items:center;gap:12px}.upload-row>span{color:var(--color-text-muted);font-size:11px}.toolbox{position:sticky;top:20px;padding:20px}.toolbox h3{margin:0 0 14px}.toolbox button{width:100%;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:11px;padding:12px;border:0;border-bottom:1px solid var(--color-border-subtle);color:var(--color-text);background:none;text-align:left;cursor:pointer}.toolbox button:hover{background:var(--color-primary-soft)}.toolbox button>span{width:37px;height:37px;display:grid;place-items:center;color:var(--color-primary);background:var(--color-primary-soft);border-radius:10px}.toolbox button>div{display:grid}.toolbox button small{color:var(--color-text-muted);font-size:10px}.loading{min-height:400px;display:grid;place-items:center}.inline-action{border:0;color:var(--color-primary);background:none;font-weight:800;cursor:pointer}
+.voice-recorder-bar{display:flex;align-items:center;gap:10px}.recording-active-bar{background:#fee2e2;padding:6px 12px;border-radius:20px;border:1px solid #fca5a5}.recording-dot{width:10px;height:10px;background:#dc2626;border-radius:50%;animation:pulse-red 1s infinite}@keyframes pulse-red{0%{transform:scale(0.95);box-shadow:0 0 0 0 rgba(220,38,38,0.7)}70%{transform:scale(1.1);box-shadow:0 0 0 6px rgba(220,38,38,0)}100%{transform:scale(0.95);box-shadow:0 0 0 0 rgba(220,38,38,0)}}
 @media(max-width:950px){.builder-layout{grid-template-columns:1fr}.toolbox{position:static;order:-1}.name-panel{grid-template-columns:1fr}}
 @media(max-width:640px){.page-head{display:grid;padding:20px}.page-head :deep(.v-btn){width:100%}.message-card{grid-template-columns:35px 1fr;padding:14px 10px}.upload-row{grid-template-columns:1fr}.sequence-head{align-items:flex-start}.sequence-head>span{max-width:130px;text-align:right}}
 </style>

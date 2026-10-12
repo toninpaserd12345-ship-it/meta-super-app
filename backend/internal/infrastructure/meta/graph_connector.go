@@ -518,15 +518,14 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 
 			texts := []string{}
 			for _, step := range items {
-				if step.IsEnabled && step.Type == "text" {
+				if step.IsEnabled && step.Type == "text" && strings.TrimSpace(step.Content) != "" {
 					texts = append(texts, step.Content)
 				}
 			}
-			if len(texts) == 0 {
-				g.releaseReply(replyKey)
-				continue
-			}
 			text := strings.Join(texts, "\n\n")
+			if strings.TrimSpace(text) == "" {
+				text = "ສະບາຍດີ! ພວກເຮົາໄດ້ສົ່ງລາຍລະອຽດໃຫ້ທາງຂໍ້ຄວາມແລ້ວ"
+			}
 
 			// Reply to comment publicly
 			if err := g.replyToComment(ctx, page, change.Value.CommentID, text); err != nil {
@@ -2699,9 +2698,9 @@ func (g *GraphConnector) SendMedia(ctx context.Context, accountID, pageID, recip
 
 	mType := strings.ToLower(strings.TrimSpace(mediaType))
 	switch mType {
-	case "voice", "audio":
+	case "voice", "audio", "void":
 		mType = "audio"
-	case "video":
+	case "video", "vedio":
 		mType = "video"
 	case "image":
 		mType = "image"

@@ -317,7 +317,11 @@ func (h *Handler) sendChatMessage(c fiber.Ctx) error {
 
 	if strings.TrimSpace(body.MediaURL) != "" {
 		mType := strings.ToLower(strings.TrimSpace(body.MediaType))
-		if mType == "" {
+		if mType == "voice" || mType == "void" {
+			mType = "audio"
+		} else if mType == "vedio" {
+			mType = "video"
+		} else if mType == "" {
 			mType = "image"
 		}
 		if err := h.meta.SendMedia(c.Context(), accountID, body.PageID, body.RecipientID, mType, body.MediaURL); err != nil {

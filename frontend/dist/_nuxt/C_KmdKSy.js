@@ -1,0 +1,1 @@
+import{c as e,g as t}from"./CCfGFC22.js";import{B as n,Mn as r,jn as i}from"./Car86Ubo.js";function a(a,o=`div`,s){return e()({name:s??r(i(a.replace(/__/g,`-`))),props:{tag:{type:String,default:o},...t()},setup(e,{slots:t}){return()=>n(e.tag,{class:[a,e.class],style:e.style},t.default?.())}})}export{a as t};
