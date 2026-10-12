@@ -3,7 +3,7 @@ import type { ItemsResponse, Order, OrderItem, Product, Warehouse } from '~/type
 
 definePageMeta({ middleware: 'auth' })
 
-const { can } = useAuth()
+const { can, activeAccount } = useAuth()
 const { l } = useLocale()
 
 if (!can('orders:read') && !can('pages:read')) {
@@ -102,6 +102,58 @@ const receiptDialog = ref(false)
 const selectedOrder = ref<Order | null>(null)
 const copiedReceipt = ref(false)
 
+// Shop / Sender Information for Waybill & Receipt Printing
+const senderShopName = ref('')
+const senderShopPhone = ref('')
+const senderShopAddress = ref('')
+const senderSavedNotice = ref(false)
+
+function initSenderInfo(order?: Order | null) {
+  const savedName = typeof localStorage !== 'undefined' ? localStorage.getItem('meta_shop_name') : ''
+  const savedPhone = typeof localStorage !== 'undefined' ? localStorage.getItem('meta_shop_phone') : ''
+  const savedAddress = typeof localStorage !== 'undefined' ? localStorage.getItem('meta_shop_address') : ''
+
+  // 1. If order explicitly belongs to a Shop
+  if (order?.warehouse?.type === 'shop' && order.warehouse.name) {
+    senderShopName.value = order.warehouse.name
+    senderShopPhone.value = order.warehouse.phone || savedPhone || '020 5555 7777'
+    senderShopAddress.value = order.warehouse.address || savedAddress || 'ນະຄອນຫຼວງວຽງຈັນ (Vientiane)'
+    return
+  }
+
+  // 2. If saved in localStorage previously
+  if (savedName) {
+    senderShopName.value = savedName
+    senderShopPhone.value = savedPhone || '020 5555 7777'
+    senderShopAddress.value = savedAddress || 'ນະຄອນຫຼວງວຽງຈັນ (Vientiane)'
+    return
+  }
+
+  // 3. Fallback to first shop in warehouses list, or activeAccount, or warehouse
+  const firstShop = warehouses.value.find((w) => w.type === 'shop')
+  senderShopName.value = firstShop?.name || activeAccount.value?.name || order?.warehouse?.name || 'ຮ້ານຄ້າ (My Shop)'
+  senderShopPhone.value = firstShop?.phone || order?.warehouse?.phone || '020 5555 7777'
+  senderShopAddress.value = firstShop?.address || order?.warehouse?.address || 'ນະຄອນຫຼວງວຽງຈັນ (Vientiane)'
+}
+
+function saveSenderAsDefault() {
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem('meta_shop_name', senderShopName.value.trim())
+    localStorage.setItem('meta_shop_phone', senderShopPhone.value.trim())
+    localStorage.setItem('meta_shop_address', senderShopAddress.value.trim())
+  }
+  senderSavedNotice.value = true
+  setTimeout(() => {
+    senderSavedNotice.value = false
+  }, 2500)
+}
+
+function applyWarehouseToSender(w: Warehouse) {
+  senderShopName.value = w.name
+  if (w.phone) senderShopPhone.value = w.phone
+  if (w.address) senderShopAddress.value = w.address
+}
+
 // Anousith Express Waybill Printing Modal
 const waybillDialog = ref(false)
 const waybillOrder = ref<Order | null>(null)
@@ -109,6 +161,7 @@ const waybillPrintSize = ref<'thermal' | 'a4'>('thermal')
 
 function openWaybill(order: Order) {
   waybillOrder.value = order
+  initSenderInfo(order)
   waybillDialog.value = true
 }
 
@@ -398,6 +451,7 @@ async function submitCreateOrder() {
 
 function openReceipt(order: Order) {
   selectedOrder.value = order
+  initSenderInfo(order)
   receiptDialog.value = true
   copiedReceipt.value = false
 }
@@ -405,6 +459,7 @@ function openReceipt(order: Order) {
 function copyReceiptText() {
   if (!selectedOrder.value) return
   const o = selectedOrder.value
+  initSenderInfo(o)
   const itemsText = o.items
     ?.map((i) => {
       const variantStr = [i.color ? `ສີ: ${i.color}` : '', i.size ? `ເບີ: ${i.size}` : ''].filter(Boolean).join(', ')
@@ -415,6 +470,9 @@ function copyReceiptText() {
   const text = `
 ==============================
 🧾 ໃບບິນຄຳສັ່ງຊື້ / ORDER RECEIPT
+🏪 ຮ້ານ: ${senderShopName.value}
+📞 ເບີໂທຮ້ານ: ${senderShopPhone.value}
+${senderShopAddress.value ? `📍 ທີ່ຢູ່ຮ້ານ: ${senderShopAddress.value}\n` : ''}------------------------------
 ເລກທີ: ${o.orderNumber}
 ວັນທີ: ${formatDate(o.createdAt)}
 ------------------------------
@@ -1049,7 +1107,10 @@ async function saveStatusUpdate() {
         <v-card-title class="receipt-header">
           <div class="receipt-title-box">
             <v-icon icon="mdi-receipt" color="primary" class="mr-2"/>
-            <h3>{{ l({ lo: 'ໃບບິນຄຳສັ່ງຊື້', th: 'ใบเสร็จรับเงิน', en: 'Order Receipt' }) }}</h3>
+            <div>
+              <h3 class="mb-0">{{ l({ lo: 'ໃບບິນຄຳສັ່ງຊື້', th: 'ใบเสร็จรับเงิน', en: 'Order Receipt' }) }}</h3>
+              <div class="text-caption font-weight-bold text-primary">🏪 {{ senderShopName }} · 📞 {{ senderShopPhone }}</div>
+            </div>
           </div>
           <span class="receipt-order-no">#{{ selectedOrder.orderNumber }}</span>
         </v-card-title>
@@ -1057,12 +1118,16 @@ async function saveStatusUpdate() {
         <v-card-text class="receipt-body">
           <div class="receipt-meta">
             <div>
-              <small>{{ l({ lo: 'ວັນທີ:', th: 'วันที่:', en: 'Date:' }) }}</small>
-              <span>{{ formatDate(selectedOrder.createdAt) }}</span>
+              <small>{{ l({ lo: 'ຮ້ານຄ້າ / Shop:', th: 'ร้านค้า / Shop:', en: 'Shop:' }) }}</small>
+              <strong class="text-primary">{{ senderShopName }}</strong>
             </div>
             <div>
-              <small>{{ l({ lo: 'ສາງ/ໜ້າຮ້ານ:', th: 'คลัง/หน้าร้าน:', en: 'Location:' }) }}</small>
-              <span>{{ selectedOrder.warehouse?.name || '—' }}</span>
+              <small>{{ l({ lo: 'ເບີໂທຮ້ານ / Tel:', th: 'เบอร์โทรร้าน / Tel:', en: 'Shop Tel:' }) }}</small>
+              <span>{{ senderShopPhone }}</span>
+            </div>
+            <div>
+              <small>{{ l({ lo: 'ວັນທີ:', th: 'วันที่:', en: 'Date:' }) }}</small>
+              <span>{{ formatDate(selectedOrder.createdAt) }}</span>
             </div>
           </div>
 
@@ -1275,6 +1340,67 @@ async function saveStatusUpdate() {
           </v-btn>
         </div>
 
+        <!-- Sender Shop Customizer Toolbar (no-print) -->
+        <div class="sender-customizer-toolbar no-print">
+          <div class="d-flex align-center justify-space-between mb-2">
+            <span class="d-inline-flex align-center gap-1 text-caption font-weight-bold text-grey-darken-3">
+              <v-icon icon="mdi-storefront" size="16" color="primary"/>
+              {{ l({ lo: 'ຂໍ້ມູນຮ້ານຄ້າຜູ້ສົ່ງ (ປັບປ່ຽນໄດ້ທັນທີກ່ອນພິມ):', th: 'ข้อมูลร้านค้าผู้ส่ง (ปรับเปลี่ยนได้ทันทีก่อนพิมพ์):', en: 'Sender Shop Information (Editable):' }) }}
+            </span>
+            <div class="d-flex align-center gap-1">
+              <v-chip v-if="senderSavedNotice" size="x-small" color="success" variant="flat" prepend-icon="mdi-check">
+                {{ l({ lo: 'ບັນທຶກແລ້ວ', th: 'บันทึกแล้ว', en: 'Saved' }) }}
+              </v-chip>
+              <v-btn size="x-small" variant="tonal" color="primary" prepend-icon="mdi-content-save-outline" @click="saveSenderAsDefault">
+                {{ l({ lo: 'ຈື່ເປັນຄ່າເລີ່ມຕົ້ນ', th: 'จำค่านี้ไว้', en: 'Save as Default' }) }}
+              </v-btn>
+            </div>
+          </div>
+          <div class="sender-customizer-inputs">
+            <v-text-field
+              v-model="senderShopName"
+              :label="l({ lo: 'ຊື່ຮ້ານຄ້າ (Shop Name) *', th: 'ชื่อร้านค้า (Shop Name) *', en: 'Shop Name *' })"
+              density="compact"
+              variant="outlined"
+              hide-details
+              prepend-inner-icon="mdi-store"
+              class="sender-input"
+            />
+            <v-text-field
+              v-model="senderShopPhone"
+              :label="l({ lo: 'ເບີໂທຮ້ານ (Shop Tel) *', th: 'เบอร์โทรร้าน (Shop Tel) *', en: 'Shop Phone *' })"
+              density="compact"
+              variant="outlined"
+              hide-details
+              prepend-inner-icon="mdi-phone"
+              class="sender-input"
+            />
+            <v-text-field
+              v-model="senderShopAddress"
+              :label="l({ lo: 'ທີ່ຢູ່ຮ້ານ (Address)', th: 'ที่อยู่ร้าน (Address)', en: 'Shop Address' })"
+              density="compact"
+              variant="outlined"
+              hide-details
+              prepend-inner-icon="mdi-map-marker"
+              class="sender-input"
+            />
+          </div>
+          <div v-if="warehouses.length > 0" class="sender-quick-picks mt-2 d-flex align-center gap-1 flex-wrap">
+            <span class="text-caption text-medium-emphasis mr-1">{{ l({ lo: 'ເລືອກຈາກສາງ/ຮ້ານ:', th: 'เลือกจากคลัง/ร้าน:', en: 'Pick from:' }) }}</span>
+            <v-chip
+              v-for="w in warehouses"
+              :key="w.id"
+              size="x-small"
+              variant="outlined"
+              :color="w.type === 'shop' ? 'purple' : 'default'"
+              @click="applyWarehouseToSender(w)"
+            >
+              <v-icon :icon="w.type === 'shop' ? 'mdi-storefront' : 'mdi-warehouse'" size="12" class="mr-1"/>
+              {{ w.name }}
+            </v-chip>
+          </div>
+        </div>
+
         <v-card-text class="waybill-dialog-body">
           <!-- The Waybill Print Container (Styled like real Anousith Waybill) -->
           <div
@@ -1292,7 +1418,7 @@ async function saveStatusUpdate() {
                 <div class="an-company-info">
                   <strong>ອານຸສິດ ເອັກສ໌ເພຣັສ (ANOUSITH EXPRESS)</strong>
                   <small>ບໍລິສັດ ອານຸສິດ ຂົນສົ່ງດ່ວນ ຈຳກັດຜູ້ດຽວ</small>
-                  <small class="hotline">📞 Hotline: 020 5555 7777 / 021 844444</small>
+                  <small class="hotline">🏪 ຮ້ານ: <strong>{{ senderShopName }}</strong> (📞 {{ senderShopPhone }})</small>
                 </div>
               </div>
               <div class="an-route-box">
@@ -1341,12 +1467,12 @@ async function saveStatusUpdate() {
               <div class="an-address-box an-from">
                 <div class="an-box-title">
                   <span class="title-tag">FROM</span>
-                  <span>ຜູ້ຝາກສົ່ງ (Sender)</span>
+                  <span>ຜູ້ຝາກສົ່ງ (Sender) · ຮ້ານຄ້າ</span>
                 </div>
                 <div class="an-address-content">
-                  <p class="an-name"><strong>{{ waybillOrder.warehouse?.name || 'Meta Super App Hub' }}</strong></p>
-                  <p class="an-phone">📞 {{ waybillOrder.warehouse?.phone || '020-5555-7777' }}</p>
-                  <p class="an-addr">{{ waybillOrder.warehouse?.address || 'ນະຄອນຫຼວງວຽງຈັນ (Vientiane)' }}</p>
+                  <p class="an-name"><strong class="shop-title-text">{{ senderShopName }}</strong></p>
+                  <p class="an-phone">📞 <strong>ເບີໂທ: {{ senderShopPhone }}</strong></p>
+                  <p class="an-addr">{{ senderShopAddress }}</p>
                 </div>
               </div>
 
@@ -2241,6 +2367,31 @@ async function saveStatusUpdate() {
   background: #ffffff;
   color: #0f172a;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.sender-customizer-toolbar {
+  padding: 12px 16px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.sender-customizer-inputs {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.2fr;
+  gap: 8px;
+}
+
+@media (max-width: 600px) {
+  .sender-customizer-inputs {
+    grid-template-columns: 1fr;
+  }
+}
+
+.shop-title-text {
+  font-size: 13px;
+  font-weight: 900;
+  color: #000000;
+  letter-spacing: 0.3px;
 }
 
 .waybill-dialog-body {
