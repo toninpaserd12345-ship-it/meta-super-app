@@ -26,6 +26,16 @@ func (r *MemoryRepository) ListProducts(ctx context.Context, accountID string) (
 				Currency:    p.Currency,
 				Description: p.Description,
 				ImageUrl:    p.ImageUrl,
+				Barcode:     p.Barcode,
+				Category:    p.Category,
+				Unit:        p.Unit,
+				Weight:      p.Weight,
+				GalleryURLs: p.GalleryURLs,
+				MinStock:    p.MinStock,
+				Status:      p.Status,
+				Colors:      p.Colors,
+				Sizes:       p.Sizes,
+				Variants:    p.Variants,
 			})
 		}
 	}
@@ -58,6 +68,16 @@ func (r *MemoryRepository) SaveProduct(ctx context.Context, accountID string, pr
 		Currency:    product.Currency,
 		Description: product.Description,
 		ImageUrl:    product.ImageUrl,
+		Barcode:     product.Barcode,
+		Category:    product.Category,
+		Unit:        product.Unit,
+		Weight:      product.Weight,
+		GalleryURLs: product.GalleryURLs,
+		MinStock:    product.MinStock,
+		Status:      product.Status,
+		Colors:      product.Colors,
+		Sizes:       product.Sizes,
+		Variants:    product.Variants,
 	}
 	return &product, nil
 }
@@ -80,6 +100,16 @@ func (r *MemoryRepository) GetProduct(ctx context.Context, accountID, productID 
 		Currency:    p.Currency,
 		Description: p.Description,
 		ImageUrl:    p.ImageUrl,
+		Barcode:     p.Barcode,
+		Category:    p.Category,
+		Unit:        p.Unit,
+		Weight:      p.Weight,
+		GalleryURLs: p.GalleryURLs,
+		MinStock:    p.MinStock,
+		Status:      p.Status,
+		Colors:      p.Colors,
+		Sizes:       p.Sizes,
+		Variants:    p.Variants,
 	}, nil
 }
 

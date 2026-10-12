@@ -30,6 +30,8 @@ func NewOrders(db *gorm.DB, leads *Leads, stream *ChatStream, inventory *Invento
 
 type CreateOrderItemInput struct {
 	ProductID string  `json:"productId"`
+	Color     string  `json:"color"`
+	Size      string  `json:"size"`
 	Quantity  int     `json:"quantity"`
 	UnitPrice float64 `json:"unitPrice"`
 }
@@ -161,6 +163,8 @@ func (u *Orders) CreateOrder(ctx context.Context, accountID string, in CreateOrd
 				ProductCode:  prod.Code,
 				ProductName:  prod.Name,
 				ProductImage: prod.ImageUrl,
+				Color:        itemIn.Color,
+				Size:         itemIn.Size,
 				Quantity:     itemIn.Quantity,
 				UnitPrice:    unitPrice,
 				TotalPrice:   itemTotal,

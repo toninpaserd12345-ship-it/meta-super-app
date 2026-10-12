@@ -75,6 +75,8 @@ const quickOrderDialog = ref(false)
 const quickOrderForm = reactive({
   warehouseId: '',
   productId: '',
+  color: '',
+  size: '',
   quantity: 1,
   shippingFee: 0,
   deliveryCourier: 'Anousith Express',
@@ -508,6 +510,29 @@ const selectedOrderTotal = computed(() => {
   return total.toLocaleString()
 })
 
+const availableColorsForQuickOrder = computed(() => {
+  if (!selectedOrderProduct.value?.colors) return []
+  return selectedOrderProduct.value.colors.split(',').map((s) => s.trim()).filter(Boolean)
+})
+
+const availableSizesForQuickOrder = computed(() => {
+  if (!selectedOrderProduct.value?.sizes) return []
+  return selectedOrderProduct.value.sizes.split(',').map((s) => s.trim()).filter(Boolean)
+})
+
+watch(() => quickOrderForm.productId, (pId) => {
+  const p = products.value.find((prod) => prod.id === pId)
+  if (p) {
+    const cList = (p.colors || '').split(',').map((s) => s.trim()).filter(Boolean)
+    const sList = (p.sizes || '').split(',').map((s) => s.trim()).filter(Boolean)
+    quickOrderForm.color = cList[0] || ''
+    quickOrderForm.size = sList[0] || ''
+  } else {
+    quickOrderForm.color = ''
+    quickOrderForm.size = ''
+  }
+})
+
 watch(() => activeSender.value, (id) => {
   if (id) {
     const l = leads.value[id]
@@ -716,6 +741,12 @@ const submitQuickOrder = async () => {
     const defaultWh = warehouses.value.find((w: Warehouse) => w.isDefault) || warehouses.value[0]
     const whId = quickOrderForm.warehouseId || defaultWh?.id || ''
 
+    const variantDetails = [
+      quickOrderForm.color ? `ສີ: ${quickOrderForm.color}` : '',
+      quickOrderForm.size ? `ເບີ: ${quickOrderForm.size}` : '',
+    ].filter(Boolean).join(', ')
+    const variantTag = variantDetails ? ` (${variantDetails})` : ''
+
     const createdOrder = await $fetch<Order>('/api/proxy/api/v1/orders', {
       method: 'POST',
       body: {
@@ -742,6 +773,8 @@ const submitQuickOrder = async () => {
             productCode: prod.code,
             productName: prodName,
             productImage: prod.imageUrl,
+            color: quickOrderForm.color || '',
+            size: quickOrderForm.size || '',
             quantity: qty,
             unitPrice,
           }
@@ -749,7 +782,7 @@ const submitQuickOrder = async () => {
       }
     })
 
-    const orderMemo = `[Order #${createdOrder.orderNumber}] ${prodName} x ${qty} (ລວມ: ${totalAmount.toLocaleString()} ${currency})`
+    const orderMemo = `[Order #${createdOrder.orderNumber}] ${prodName}${variantTag} x ${qty} (ລວມ: ${totalAmount.toLocaleString()} ${currency})`
     const updatedNotes = lead?.notes ? `${lead.notes}\n${orderMemo}` : orderMemo
 
     await updateLeadField(activeSender.value, {
@@ -760,9 +793,9 @@ const submitQuickOrder = async () => {
 
     // Also send confirmation message into chat
     await sendReply(l({
-      lo: `ຂອບໃຈຫຼາຍໆເຈົ້າ! ຢືນຢັນອໍເດີ #${createdOrder.orderNumber}: ${prodName} x ${qty} ຍອດລວມ: ${totalAmount.toLocaleString()} ${currency} ຕັດສະຕ໋ອກຮຽບຮ້ອຍແລ້ວເຈົ້າ 🎉📦`,
-      th: `ขอบพระคุณมากค่ะ! ยืนยันออเดอร์ #${createdOrder.orderNumber}: ${prodName} x ${qty} ยอดรวม: ${totalAmount.toLocaleString()} ${currency} ตัดสต็อกเรียบร้อยแล้วค่ะ 🎉📦`,
-      en: `Thank you! Order #${createdOrder.orderNumber} confirmed: ${prodName} x ${qty} (Total: ${totalAmount.toLocaleString()} ${currency}), stock deducted! 🎉📦`
+      lo: `ຂອບໃຈຫຼາຍໆເຈົ້າ! ຢືນຢັນອໍເດີ #${createdOrder.orderNumber}: ${prodName}${variantTag} x ${qty} ຍອດລວມ: ${totalAmount.toLocaleString()} ${currency} ຕັດສະຕ໋ອກຮຽບຮ້ອຍແລ້ວເຈົ້າ 🎉📦`,
+      th: `ขอบพระคุณมากค่ะ! ยืนยันออเดอร์ #${createdOrder.orderNumber}: ${prodName}${variantTag} x ${qty} ยอดรวม: ${totalAmount.toLocaleString()} ${currency} ตัดสต็อกเรียบร้อยแล้วค่ะ 🎉📦`,
+      en: `Thank you! Order #${createdOrder.orderNumber} confirmed: ${prodName}${variantTag} x ${qty} (Total: ${totalAmount.toLocaleString()} ${currency}), stock deducted! 🎉📦`
     }))
 
     quickOrderDialog.value = false
@@ -1624,6 +1657,22 @@ const formatTime = (ts: string) => {
                 {{ p.code ? `[#${p.code}] ` : '' }}{{ p.name }} - {{ p.salePrice != null ? p.salePrice : p.price }} {{ p.currency || 'LAK' }}
               </option>
             </select>
+          </div>
+
+          <!-- Color and Size Selection for Quick Order -->
+          <div v-if="selectedOrderProduct && (availableColorsForQuickOrder.length || availableSizesForQuickOrder.length)" class="order-form-row mb-2">
+            <div v-if="availableColorsForQuickOrder.length" class="order-form-group flex-1">
+              <label class="order-label">{{ l({lo:'ສີ (Color)',th:'สี (Color)',en:'Color'}) }}</label>
+              <select v-model="quickOrderForm.color" class="order-select">
+                <option v-for="c in availableColorsForQuickOrder" :key="c" :value="c">{{ c }}</option>
+              </select>
+            </div>
+            <div v-if="availableSizesForQuickOrder.length" class="order-form-group flex-1">
+              <label class="order-label">{{ l({lo:'ເບີ / ໄຊສ໌ (Size)',th:'เบอร์/ไซส์ (Size)',en:'Size'}) }}</label>
+              <select v-model="quickOrderForm.size" class="order-select">
+                <option v-for="s in availableSizesForQuickOrder" :key="s" :value="s">{{ s }}</option>
+              </select>
+            </div>
           </div>
 
           <div class="order-form-row">

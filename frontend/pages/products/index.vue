@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AutomationFlow, ItemsResponse, Product, Warehouse, WarehouseStock } from '~/types/automation'
+import type { AutomationFlow, ItemsResponse, Product, ProductVariant, Warehouse, WarehouseStock } from '~/types/automation'
 
 definePageMeta({ middleware: 'auth' })
 
@@ -39,7 +39,12 @@ const form = reactive<Product & { code?: string; salePrice: number | null; cost:
   minStock: null,
   status: 'active',
   galleryUrls: '',
+  colors: '',
+  sizes: '',
+  variants: '',
 })
+
+const variantsList = ref<ProductVariant[]>([])
 
 const deleteDialog = ref(false)
 const deleting = ref(false)
@@ -116,7 +121,11 @@ function openCreate() {
     minStock: null,
     status: 'active',
     galleryUrls: '',
+    colors: '',
+    sizes: '',
+    variants: '',
   })
+  variantsList.value = []
   dialog.value = true
 }
 
@@ -135,10 +144,108 @@ function openEdit(product: Product) {
       minStock: null,
       status: 'active',
       galleryUrls: '',
+      colors: '',
+      sizes: '',
+      variants: '',
     },
     product
   )
+  try {
+    variantsList.value = product.variants ? JSON.parse(product.variants) : []
+  } catch {
+    variantsList.value = []
+  }
   dialog.value = true
+}
+
+function generateVariants() {
+  const colors = (form.colors || '').split(',').map((s) => s.trim()).filter(Boolean)
+  const sizes = (form.sizes || '').split(',').map((s) => s.trim()).filter(Boolean)
+
+  if (colors.length === 0 && sizes.length === 0) return
+
+  const existingMap = new Map<string, ProductVariant>()
+  for (const v of variantsList.value) {
+    existingMap.set(`${v.color}___${v.size}`, v)
+  }
+
+  const nextList: ProductVariant[] = []
+  if (colors.length > 0 && sizes.length > 0) {
+    for (const c of colors) {
+      for (const s of sizes) {
+        const key = `${c}___${s}`
+        const old = existingMap.get(key)
+        nextList.push({
+          id: old?.id,
+          color: c,
+          size: s,
+          quantity: old ? old.quantity : 0,
+          sku: old?.sku || (form.code ? `${form.code}-${c}-${s}` : ''),
+          price: old?.price ?? (form.salePrice || undefined),
+        })
+      }
+    }
+  } else if (colors.length > 0) {
+    for (const c of colors) {
+      const key = `${c}___`
+      const old = existingMap.get(key)
+      nextList.push({
+        id: old?.id,
+        color: c,
+        size: '-',
+        quantity: old ? old.quantity : 0,
+        sku: old?.sku || (form.code ? `${form.code}-${c}` : ''),
+        price: old?.price ?? (form.salePrice || undefined),
+      })
+    }
+  } else if (sizes.length > 0) {
+    for (const s of sizes) {
+      const key = `___${s}`
+      const old = existingMap.get(key)
+      nextList.push({
+        id: old?.id,
+        color: '-',
+        size: s,
+        quantity: old ? old.quantity : 0,
+        sku: old?.sku || (form.code ? `${form.code}-${s}` : ''),
+        price: old?.price ?? (form.salePrice || undefined),
+      })
+    }
+  }
+  variantsList.value = nextList
+  syncVariants()
+}
+
+function addCustomVariant() {
+  variantsList.value.push({
+    color: '',
+    size: '',
+    quantity: 0,
+    sku: '',
+    price: form.salePrice || undefined,
+  })
+  syncVariants()
+}
+
+function removeVariant(index: number) {
+  variantsList.value.splice(index, 1)
+  syncVariants()
+}
+
+function syncVariants() {
+  form.variants = variantsList.value.length ? JSON.stringify(variantsList.value) : ''
+  if (variantsList.value.length > 0) {
+    form.quantity = variantsList.value.reduce((sum, v) => sum + (Number(v.quantity) || 0), 0)
+  }
+}
+
+function parseProductVariants(jsonStr?: string): ProductVariant[] {
+  if (!jsonStr) return []
+  try {
+    return JSON.parse(jsonStr)
+  } catch {
+    return []
+  }
 }
 
 const productAutomations = (productId: string) => automations.value.filter((item) => item.productId === productId)
@@ -220,6 +327,9 @@ async function saveProduct() {
         minStock: form.minStock,
         status: form.status || 'active',
         galleryUrls: form.galleryUrls?.trim() || undefined,
+        colors: form.colors?.trim() || undefined,
+        sizes: form.sizes?.trim() || undefined,
+        variants: variantsList.value.length ? JSON.stringify(variantsList.value) : undefined,
       },
     })
     dialog.value = false
@@ -383,13 +493,22 @@ const unitProfit = (product: Product) =>
             <span class="price-tag">{{ product.salePrice != null ? formatAmount(product.salePrice, product.currency) : product.price }}</span>
           </div>
 
-          <!-- Category, Barcode, Unit pills -->
+          <!-- Category, Barcode, Unit, Colors, Sizes pills -->
           <div class="product-tags-row">
             <span v-if="product.category" class="tag-pill tag-category">{{ product.category }}</span>
             <span v-if="product.barcode" class="tag-pill tag-barcode">
               <v-icon icon="mdi-barcode" size="11" class="mr-1"/>{{ product.barcode }}
             </span>
             <span v-if="product.unit" class="tag-pill tag-unit">{{ product.unit }}</span>
+            <span v-if="product.colors" class="tag-pill tag-color" :title="product.colors">
+              <v-icon icon="mdi-palette" size="11" class="mr-1"/>{{ l({ lo: 'ສີ', th: 'สี', en: 'Colors' }) }}: {{ product.colors }}
+            </span>
+            <span v-if="product.sizes" class="tag-pill tag-size" :title="product.sizes">
+              <v-icon icon="mdi-ruler" size="11" class="mr-1"/>{{ l({ lo: 'ເບີ', th: 'เบอร์', en: 'Sizes' }) }}: {{ product.sizes }}
+            </span>
+            <span v-if="parseProductVariants(product.variants).length" class="tag-pill tag-variants">
+              <v-icon icon="mdi-layers-outline" size="11" class="mr-1"/>{{ parseProductVariants(product.variants).length }} {{ l({ lo: 'ຮູບແບບ', th: 'แบบ', en: 'variants' }) }}
+            </span>
           </div>
 
           <p v-if="product.description" class="product-desc">{{ product.description }}</p>
@@ -529,6 +648,79 @@ const unitProfit = (product: Product) =>
             counter
             class="mb-2"
           />
+
+          <!-- Variants Section (Colors & Sizes & Quantities) -->
+          <div class="variant-builder-box mb-3">
+            <div class="variant-builder-header mb-2">
+              <strong><v-icon icon="mdi-palette-swatch-outline" size="16" class="mr-1 text-primary"/>{{ l({ lo: 'ຮູບແບບສິນຄ້າ: ສີ (Colors) & ເບີ (Sizes)', th: 'รูปแบบสินค้า: สี & เบอร์/ไซส์', en: 'Product Variants (Color & Size)' }) }}</strong>
+              <p class="text-caption text-grey mb-0">{{ l({ lo: 'ໃສ່ຊື່ສີ ແລະ ເບີ ຂັ້ນດ້ວຍຈຸດ (ເຊັ່ນ: ດຳ, ຂາວ, ແດງ ແລະ 38, 39, 40)', th: 'ใส่ชื่อสีและเบอร์ คั่นด้วยจุลภาค (เช่น ดำ, ขาว, แดง และ 38, 39, 40)', en: 'Enter colors and sizes separated by commas (e.g. Black, White and 38, 39, 40)' }) }}</p>
+            </div>
+
+            <div class="fields-2col mb-2">
+              <v-text-field
+                v-model="form.colors"
+                :label="l({ lo: 'ລາຍການສີ (Colors)', th: 'รายการสี', en: 'Colors list' })"
+                placeholder="ດຳ, ຂາວ, ແດງ, ຟ້າ..."
+                density="compact"
+                hide-details
+              />
+              <v-text-field
+                v-model="form.sizes"
+                :label="l({ lo: 'ລາຍການເບີ / ໄຊສ໌ (Sizes)', th: 'รายการเบอร์ / ไซส์', en: 'Sizes list' })"
+                placeholder="38, 39, 40, 41 ຫຼື S, M, L, XL..."
+                density="compact"
+                hide-details
+              />
+            </div>
+
+            <div class="variant-actions-bar mb-2">
+              <v-btn
+                size="small"
+                variant="tonal"
+                color="primary"
+                prepend-icon="mdi-auto-fix"
+                :disabled="!form.colors && !form.sizes"
+                @click="generateVariants"
+              >
+                {{ l({ lo: 'ສ້າງຕາຕະລາງ ສີ x ເບີ ອັດຕະໂນມັດ', th: 'สร้างตาราง สี x เบอร์ อัตโนมัติ', en: 'Generate Color x Size Table' }) }}
+              </v-btn>
+              <v-btn
+                size="small"
+                variant="outlined"
+                prepend-icon="mdi-plus"
+                @click="addCustomVariant"
+              >
+                {{ l({ lo: '+ ເພີ່ມແຖວເອງ', th: '+ เพิ่มแถวเอง', en: '+ Add Row' }) }}
+              </v-btn>
+            </div>
+
+            <!-- Variant Matrix Table -->
+            <div v-if="variantsList.length" class="variant-matrix-table">
+              <div class="variant-table-header">
+                <span>{{ l({ lo: 'ສີ', th: 'สี', en: 'Color' }) }}</span>
+                <span>{{ l({ lo: 'ເບີ/ໄຊສ໌', th: 'เบอร์/ไซส์', en: 'Size' }) }}</span>
+                <span>{{ l({ lo: 'ຈຳນວນ', th: 'จำนวน', en: 'Qty' }) }} *</span>
+                <span>SKU</span>
+                <span></span>
+              </div>
+              <div v-for="(v, idx) in variantsList" :key="idx" class="variant-table-row">
+                <input v-model="v.color" type="text" class="variant-input" :placeholder="l({ lo: 'ສີ', th: 'สี', en: 'Color' })" @input="syncVariants"/>
+                <input v-model="v.size" type="text" class="variant-input" :placeholder="l({ lo: 'ເບີ', th: 'เบอร์', en: 'Size' })" @input="syncVariants"/>
+                <input v-model.number="v.quantity" type="number" min="0" class="variant-input qty-box" @input="syncVariants"/>
+                <input v-model="v.sku" type="text" class="variant-input" placeholder="SKU" @input="syncVariants"/>
+                <button type="button" class="btn-del-variant" @click="removeVariant(idx)" :title="l({ lo: 'ລຶບແຖວ', th: 'ลบแถว', en: 'Remove' })">
+                  <v-icon icon="mdi-trash-can-outline" size="14"/>
+                </button>
+              </div>
+              <div class="variant-table-footer">
+                <small class="text-grey">
+                  {{ l({ lo: 'ລວມສະຕ໋ອກທັງໝົດ:', th: 'รวมสต็อกทั้งหมด:', en: 'Total variant stock:' }) }}
+                  <strong>{{ variantsList.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0) }}</strong>
+                  ({{ l({ lo: 'ອັບເດດລົງຊ່ອງຈຳນວນລວມແລ້ວ', th: 'อัปเดตลงช่องจำนวนรวมแล้ว', en: 'synced with Total Stock' }) }})
+                </small>
+              </div>
+            </div>
+          </div>
 
           <v-textarea v-model="form.description" :label="l({ lo: 'ລາຍລະອຽດສິນຄ້າ', th: 'รายละเอียดสินค้า', en: 'Product details' })" rows="3" maxlength="1000" counter/>
         </v-card-text>
@@ -677,6 +869,45 @@ const unitProfit = (product: Product) =>
             <div class="spec-cell">
               <small>{{ l({ lo: 'ກຳໄລຕໍ່ໜ່ວຍ (Profit)', th: 'กำไรต่อหน่วย', en: 'Profit' }) }}</small>
               <strong>{{ formatAmount(unitProfit(selectedProductForDetail), selectedProductForDetail.currency) }}</strong>
+            </div>
+            <div v-if="selectedProductForDetail.colors" class="spec-cell">
+              <small>{{ l({ lo: 'ສີທີ່ມີ (Colors)', th: 'สีที่มี', en: 'Colors' }) }}</small>
+              <strong class="text-primary">{{ selectedProductForDetail.colors }}</strong>
+            </div>
+            <div v-if="selectedProductForDetail.sizes" class="spec-cell">
+              <small>{{ l({ lo: 'ເບີ/ໄຊສ໌ (Sizes)', th: 'เบอร์/ไซส์', en: 'Sizes' }) }}</small>
+              <strong class="text-primary">{{ selectedProductForDetail.sizes }}</strong>
+            </div>
+          </div>
+
+          <!-- Variants matrix breakdown table -->
+          <div v-if="parseProductVariants(selectedProductForDetail.variants).length" class="detail-variants-section mb-3">
+            <h4 class="mb-2">
+              <v-icon icon="mdi-layers-outline" size="16" class="mr-1 text-primary"/>
+              {{ l({ lo: 'ລາຍລະອຽດສະຕ໋ອກຕາມ ສີ & ເບີ (Variants Stock)', th: 'รายละเอียดสต็อกตาม สี & เบอร์', en: 'Stock by Color & Size (Variants)' }) }}
+            </h4>
+            <div class="detail-variants-table">
+              <div class="dvt-header">
+                <span>{{ l({ lo: 'ສີ', th: 'สี', en: 'Color' }) }}</span>
+                <span>{{ l({ lo: 'ເບີ/ໄຊສ໌', th: 'เบอร์/ไซส์', en: 'Size' }) }}</span>
+                <span>{{ l({ lo: 'ຈຳນວນສະຕ໋ອກ', th: 'จำนวนสต็อก', en: 'Stock' }) }}</span>
+                <span>SKU</span>
+              </div>
+              <div v-for="(v, vIdx) in parseProductVariants(selectedProductForDetail.variants)" :key="vIdx" class="dvt-row">
+                <span class="dvt-color">
+                  <span class="dot-swatch"></span>
+                  {{ v.color || '—' }}
+                </span>
+                <span class="dvt-size">
+                  <strong class="size-pill">{{ v.size || '—' }}</strong>
+                </span>
+                <span class="dvt-qty">
+                  <span class="qty-badge" :class="{ 'zero-stock': (v.quantity || 0) <= 0 }">
+                    {{ v.quantity || 0 }} {{ selectedProductForDetail.unit || 'ຊິ້ນ' }}
+                  </span>
+                </span>
+                <span class="dvt-sku text-muted text-caption">{{ v.sku || '—' }}</span>
+              </div>
             </div>
           </div>
 
@@ -1250,5 +1481,172 @@ const unitProfit = (product: Product) =>
   .money-grid, .fields-2col {
     grid-template-columns: 1fr;
   }
+}
+
+/* Variant Builder & Table Styles */
+.tag-color {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fee2e2;
+  display: inline-flex;
+  align-items: center;
+}
+.tag-size {
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #dcfce7;
+  display: inline-flex;
+  align-items: center;
+}
+.tag-variants {
+  background: #faf5ff;
+  color: #7e22ce;
+  border: 1px solid #f3e8ff;
+  display: inline-flex;
+  align-items: center;
+}
+.variant-builder-box {
+  background: var(--color-background);
+  border: 1px dashed var(--color-border);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.variant-actions-bar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.variant-matrix-table {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--color-surface);
+  margin-top: 8px;
+}
+.variant-table-header {
+  display: grid;
+  grid-template-columns: 1.2fr 1.2fr 1fr 1.2fr 36px;
+  gap: 6px;
+  padding: 8px 10px;
+  background: var(--color-background);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+  border-bottom: 1px solid var(--color-border);
+}
+.variant-table-row {
+  display: grid;
+  grid-template-columns: 1.2fr 1.2fr 1fr 1.2fr 36px;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--color-border);
+}
+.variant-table-row:last-child {
+  border-bottom: none;
+}
+.variant-input {
+  width: 100%;
+  padding: 5px 8px;
+  font-size: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-background);
+  color: var(--color-text);
+  outline: none;
+}
+.variant-input:focus {
+  border-color: var(--color-primary);
+}
+.qty-box {
+  font-weight: 700;
+  color: var(--color-primary);
+}
+.btn-del-variant {
+  border: none;
+  background: none;
+  color: #ef4444;
+  cursor: pointer;
+  padding: 4px;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+}
+.btn-del-variant:hover {
+  background: #fee2e2;
+}
+.variant-table-footer {
+  padding: 8px 10px;
+  background: var(--color-background);
+  border-top: 1px dashed var(--color-border);
+  text-align: right;
+}
+
+/* Detail Modal Variants Table */
+.detail-variants-section {
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 12px;
+}
+.detail-variants-table {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--color-surface);
+}
+.dvt-header {
+  display: grid;
+  grid-template-columns: 1.2fr 1.2fr 1.2fr 1fr;
+  padding: 8px 12px;
+  background: var(--color-background);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+  border-bottom: 1px solid var(--color-border);
+}
+.dvt-row {
+  display: grid;
+  grid-template-columns: 1.2fr 1.2fr 1.2fr 1fr;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 12px;
+}
+.dvt-row:last-child {
+  border-bottom: none;
+}
+.dvt-color {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+.dot-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-primary);
+}
+.size-pill {
+  display: inline-block;
+  padding: 2px 7px;
+  background: #f0fdf4;
+  color: #16a34a;
+  border-radius: 6px;
+  font-size: 11px;
+}
+.qty-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #eff6ff;
+  color: #2563eb;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 11px;
+}
+.qty-badge.zero-stock {
+  background: #fee2e2;
+  color: #ef4444;
 }
 </style>

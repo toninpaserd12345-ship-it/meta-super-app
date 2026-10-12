@@ -34,6 +34,8 @@ interface OrderFormItem {
   productCode: string
   productName: string
   productImage: string
+  color?: string
+  size?: string
   quantity: number
   unitPrice: number
 }
@@ -70,6 +72,30 @@ const orderForm = reactive<{
 
 // Selected Product for adding to line items
 const selectedProductToAdd = ref<Product | null>(null)
+const selectedColorToAdd = ref<string>('')
+const selectedSizeToAdd = ref<string>('')
+
+const availableColorsForSelected = computed(() => {
+  if (!selectedProductToAdd.value?.colors) return []
+  return selectedProductToAdd.value.colors.split(',').map((s) => s.trim()).filter(Boolean)
+})
+
+const availableSizesForSelected = computed(() => {
+  if (!selectedProductToAdd.value?.sizes) return []
+  return selectedProductToAdd.value.sizes.split(',').map((s) => s.trim()).filter(Boolean)
+})
+
+watch(selectedProductToAdd, (p) => {
+  if (p) {
+    const cList = (p.colors || '').split(',').map((s) => s.trim()).filter(Boolean)
+    const sList = (p.sizes || '').split(',').map((s) => s.trim()).filter(Boolean)
+    selectedColorToAdd.value = cList[0] || ''
+    selectedSizeToAdd.value = sList[0] || ''
+  } else {
+    selectedColorToAdd.value = ''
+    selectedSizeToAdd.value = ''
+  }
+})
 
 // Order Detail / Receipt Modal
 const receiptDialog = ref(false)
@@ -205,7 +231,11 @@ function openCreateOrder() {
 function addProductToForm() {
   if (!selectedProductToAdd.value) return
   const p = selectedProductToAdd.value
-  const existing = orderForm.items.find((i) => i.productId === p.id)
+  const c = selectedColorToAdd.value.trim()
+  const s = selectedSizeToAdd.value.trim()
+  const existing = orderForm.items.find(
+    (i) => i.productId === p.id && (i.color || '') === (c || '') && (i.size || '') === (s || '')
+  )
   if (existing) {
     existing.quantity++
   } else {
@@ -214,11 +244,15 @@ function addProductToForm() {
       productCode: p.code || '',
       productName: p.name,
       productImage: p.imageUrl || '',
+      color: c || undefined,
+      size: s || undefined,
       quantity: 1,
       unitPrice: p.salePrice ?? (parseFloat(p.price) || 0),
     })
   }
   selectedProductToAdd.value = null
+  selectedColorToAdd.value = ''
+  selectedSizeToAdd.value = ''
 }
 
 function removeFormItem(index: number) {
@@ -278,6 +312,8 @@ async function submitCreateOrder() {
         productCode: it.productCode,
         productName: it.productName,
         productImage: it.productImage,
+        color: it.color || '',
+        size: it.size || '',
         quantity: it.quantity,
         unitPrice: it.unitPrice,
       })),
@@ -318,7 +354,10 @@ function copyReceiptText() {
   if (!selectedOrder.value) return
   const o = selectedOrder.value
   const itemsText = o.items
-    ?.map((i) => `• ${i.productName} x${i.quantity} = ${formatMoney(i.totalPrice, o.currency)}`)
+    ?.map((i) => {
+      const variantStr = [i.color ? `ສີ: ${i.color}` : '', i.size ? `ເບີ: ${i.size}` : ''].filter(Boolean).join(', ')
+      return `• ${i.productName}${variantStr ? ` (${variantStr})` : ''} x${i.quantity} = ${formatMoney(i.totalPrice, o.currency)}`
+    })
     .join('\n')
 
   const text = `
@@ -611,7 +650,12 @@ async function saveStatusUpdate() {
             <div class="items-summary-list">
               <div v-for="item in (order.items || []).slice(0, 3)" :key="item.id" class="item-summary-line">
                 <span class="item-qty">{{ item.quantity }}x</span>
-                <span class="item-name">{{ item.productName }}</span>
+                <span class="item-name">
+                  {{ item.productName }}
+                  <small v-if="item.color || item.size" class="text-primary font-weight-bold">
+                    ({{ [item.color ? `ສີ:${item.color}` : '', item.size ? `ເບີ:${item.size}` : ''].filter(Boolean).join(' ') }})
+                  </small>
+                </span>
                 <span class="item-price">{{ formatMoney(item.totalPrice, order.currency) }}</span>
               </div>
               <small v-if="(order.items || []).length > 3" class="text-muted">
@@ -728,7 +772,7 @@ async function saveStatusUpdate() {
             {{ l({ lo: '2. ເລືອກສິນຄ້າທີ່ສັ່ງຊື້', th: '2. เลือกสินค้าที่สั่งซื้อ', en: '2. Order Line Items' }) }}
           </div>
 
-          <div class="product-picker-row mb-3">
+          <div class="product-picker-row mb-2">
             <v-select
               v-model="selectedProductToAdd"
               :items="products"
@@ -744,29 +788,62 @@ async function saveStatusUpdate() {
               <template #item="{ props, item }">
                 <v-list-item
                   v-bind="props"
-                  :subtitle="`ລາຄາ: ${formatMoney((item as any).salePrice ?? parseFloat((item as any).price), (item as any).currency || 'LAK')} · ສະຕ໋ອກ: ${(item as any).quantity ?? '—'}`"
+                  :subtitle="`ລາຄາ: ${formatMoney((item as any).salePrice ?? parseFloat((item as any).price), (item as any).currency || 'LAK')} · ${(item as any).colors ? `ສີ: ${(item as any).colors} · ` : ''}${(item as any).sizes ? `ເບີ: ${(item as any).sizes} · ` : ''}ສະຕ໋ອກ: ${(item as any).quantity ?? '—'}`"
                 />
               </template>
             </v-select>
+          </div>
+
+          <!-- Color and Size Picker for Selected Product -->
+          <div v-if="selectedProductToAdd && (availableColorsForSelected.length || availableSizesForSelected.length)" class="fields-row-2 mb-2 p-2 variant-select-box">
+            <v-select
+              v-if="availableColorsForSelected.length"
+              v-model="selectedColorToAdd"
+              :items="availableColorsForSelected"
+              :label="l({ lo: 'ເລືອກສີ (Color)', th: 'เลือกสี (Color)', en: 'Select Color' })"
+              density="compact"
+              variant="outlined"
+              hide-details
+            />
+            <v-select
+              v-if="availableSizesForSelected.length"
+              v-model="selectedSizeToAdd"
+              :items="availableSizesForSelected"
+              :label="l({ lo: 'ເລືອກເບີ / ໄຊສ໌ (Size)', th: 'เลือกเบอร์/ไซส์ (Size)', en: 'Select Size' })"
+              density="compact"
+              variant="outlined"
+              hide-details
+            />
+          </div>
+
+          <div class="d-flex justify-end mb-3">
             <v-btn
               color="primary"
               variant="tonal"
               :disabled="!selectedProductToAdd"
               @click="addProductToForm"
             >
-              + {{ l({ lo: 'ເພີ່ມ', th: 'เพิ่ม', en: 'Add' }) }}
+              + {{ l({ lo: 'ເພີ່ມເຂົ້າອໍເດີ', th: 'เพิ่มเข้าออเดอร์', en: 'Add to Order' }) }}
             </v-btn>
           </div>
 
           <!-- Items Table -->
           <div v-if="orderForm.items.length" class="order-items-table mb-3">
-            <div v-for="(it, idx) in orderForm.items" :key="it.productId" class="order-item-row">
+            <div v-for="(it, idx) in orderForm.items" :key="`${it.productId}-${it.color || ''}-${it.size || ''}-${idx}`" class="order-item-row">
               <div class="item-pic" :style="it.productImage ? `background-image: url(${it.productImage})` : ''">
                 <v-icon v-if="!it.productImage" icon="mdi-package-variant-closed" size="16"/>
               </div>
               <div class="item-info">
                 <strong>{{ it.productName }}</strong>
-                <small v-if="it.productCode" class="text-muted">#{{ it.productCode }}</small>
+                <div class="d-flex gap-1 flex-wrap align-center mt-1">
+                  <small v-if="it.productCode" class="text-muted">#{{ it.productCode }}</small>
+                  <span v-if="it.color" class="variant-tag-pill tag-color">
+                    {{ l({ lo: 'ສີ', th: 'สี', en: 'Color' }) }}: {{ it.color }}
+                  </span>
+                  <span v-if="it.size" class="variant-tag-pill tag-size">
+                    {{ l({ lo: 'ເບີ', th: 'เบอร์', en: 'Size' }) }}: {{ it.size }}
+                  </span>
+                </div>
               </div>
               <div class="item-qty-input">
                 <button type="button" class="qty-btn" @click="it.quantity > 1 ? it.quantity-- : removeFormItem(idx)">-</button>
@@ -941,7 +1018,13 @@ async function saveStatusUpdate() {
 
           <div class="receipt-items-list">
             <div v-for="item in selectedOrder.items" :key="item.id" class="receipt-item-row">
-              <span class="ri-name">{{ item.productName }} <small class="text-muted">x{{ item.quantity }}</small></span>
+              <span class="ri-name">
+                {{ item.productName }}
+                <small v-if="item.color || item.size" class="text-primary font-weight-bold">
+                  ({{ [item.color ? `ສີ: ${item.color}` : '', item.size ? `ເບີ: ${item.size}` : ''].filter(Boolean).join(', ') }})
+                </small>
+                <small class="text-muted">x{{ item.quantity }}</small>
+              </span>
               <span class="ri-price">{{ formatMoney(item.totalPrice, selectedOrder.currency) }}</span>
             </div>
           </div>
@@ -1777,5 +1860,30 @@ async function saveStatusUpdate() {
   .fields-row-2, .fields-row-3 {
     grid-template-columns: 1fr;
   }
+}
+
+.variant-select-box {
+  background: var(--color-background);
+  border: 1px dashed var(--color-border);
+  border-radius: 8px;
+  padding: 8px;
+}
+.variant-tag-pill {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+}
+.tag-color {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fee2e2;
+}
+.tag-size {
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #dcfce7;
 }
 </style>

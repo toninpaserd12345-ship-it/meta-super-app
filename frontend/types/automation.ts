@@ -2,6 +2,15 @@ export interface ItemsResponse<T> {
   items: T[]
 }
 
+export interface ProductVariant {
+  id?: string
+  color: string
+  size: string
+  quantity: number
+  sku?: string
+  price?: number
+}
+
 export interface Product {
   id: string
   code?: string
@@ -20,6 +29,9 @@ export interface Product {
   galleryUrls?: string
   minStock?: number | null
   status?: string
+  colors?: string
+  sizes?: string
+  variants?: string
 }
 
 export interface Warehouse {
@@ -54,6 +66,8 @@ export interface OrderItem {
   productCode?: string
   productName: string
   productImage?: string
+  color?: string
+  size?: string
   quantity: number
   unitPrice: number
   totalPrice: number

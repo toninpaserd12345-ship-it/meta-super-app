@@ -28,6 +28,16 @@ func (r *GormRepository) ListProducts(ctx context.Context, accountID string) ([]
 			Currency:    m.Currency,
 			Description: m.Description,
 			ImageUrl:    m.ImageUrl,
+			Barcode:     m.Barcode,
+			Category:    m.Category,
+			Unit:        m.Unit,
+			Weight:      m.Weight,
+			GalleryURLs: m.GalleryURLs,
+			MinStock:    m.MinStock,
+			Status:      m.Status,
+			Colors:      m.Colors,
+			Sizes:       m.Sizes,
+			Variants:    m.Variants,
 		}
 	}
 	return result, nil
@@ -52,6 +62,16 @@ func (r *GormRepository) SaveProduct(ctx context.Context, accountID string, prod
 		Currency:    product.Currency,
 		Description: product.Description,
 		ImageUrl:    product.ImageUrl,
+		Barcode:     product.Barcode,
+		Category:    product.Category,
+		Unit:        product.Unit,
+		Weight:      product.Weight,
+		GalleryURLs: product.GalleryURLs,
+		MinStock:    product.MinStock,
+		Status:      product.Status,
+		Colors:      product.Colors,
+		Sizes:       product.Sizes,
+		Variants:    product.Variants,
 	}
 
 	if isCreate {
@@ -91,6 +111,16 @@ func (r *GormRepository) GetProduct(ctx context.Context, accountID, productID st
 		Currency:    m.Currency,
 		Description: m.Description,
 		ImageUrl:    m.ImageUrl,
+		Barcode:     m.Barcode,
+		Category:    m.Category,
+		Unit:        m.Unit,
+		Weight:      m.Weight,
+		GalleryURLs: m.GalleryURLs,
+		MinStock:    m.MinStock,
+		Status:      m.Status,
+		Colors:      m.Colors,
+		Sizes:       m.Sizes,
+		Variants:    m.Variants,
 	}, nil
 }
 

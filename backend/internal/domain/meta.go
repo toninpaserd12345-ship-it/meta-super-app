@@ -203,6 +203,16 @@ type Product struct {
 	Currency    string   `json:"currency,omitempty"`
 	Description string   `json:"description"`
 	ImageUrl    string   `json:"imageUrl"`
+	Barcode     string   `json:"barcode,omitempty"`
+	Category    string   `json:"category,omitempty"`
+	Unit        string   `json:"unit,omitempty"`
+	Weight      *float64 `json:"weight,omitempty"`
+	GalleryURLs string   `json:"galleryUrls,omitempty"`
+	MinStock    *int64   `json:"minStock,omitempty"`
+	Status      string   `json:"status,omitempty"`
+	Colors      string   `json:"colors,omitempty"`
+	Sizes       string   `json:"sizes,omitempty"`
+	Variants    string   `json:"variants,omitempty"`
 }
 
 type ReplyFlow struct {

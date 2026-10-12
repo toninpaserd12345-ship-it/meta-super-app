@@ -90,6 +90,9 @@ type ProductModel struct {
 	GalleryURLs string `gorm:"type:text" json:"galleryUrls"`
 	MinStock    *int64 `json:"minStock"`
 	Status      string `gorm:"size:30;default:'active'" json:"status"`
+	Colors      string `gorm:"size:255" json:"colors"`
+	Sizes       string `gorm:"size:255" json:"sizes"`
+	Variants    string `gorm:"type:text" json:"variants"`
 	CreatedAt   time.Time `json:"createdAt"`
 	UpdatedAt   time.Time `json:"updatedAt"`
 }
@@ -300,6 +303,8 @@ type OrderItemModel struct {
 	ProductCode  string        `gorm:"size:50" json:"productCode"`
 	ProductName  string        `gorm:"size:255;not null" json:"productName"`
 	ProductImage string        `gorm:"size:1000" json:"productImage"`
+	Color        string        `gorm:"size:60" json:"color"`
+	Size         string        `gorm:"size:60" json:"size"`
 	Quantity     int           `gorm:"not null;default:1" json:"quantity"`
 	UnitPrice    float64       `gorm:"type:decimal(18,2);not null" json:"unitPrice"`
 	TotalPrice   float64       `gorm:"type:decimal(18,2);not null" json:"totalPrice"`
