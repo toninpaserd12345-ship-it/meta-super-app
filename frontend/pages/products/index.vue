@@ -16,7 +16,7 @@ const saving = ref(false)
 const uploading = ref(false)
 const notice = ref('')
 const noticeType = ref<'success' | 'error'>('success')
-const form = reactive<Product & { code?: string }>({ id: '', code: '', name: '', price: '', description: '', imageUrl: '' })
+const form = reactive<Product & { code?: string; salePrice: number | null; cost: number | null; quantity: number | null; currency: string }>({ id: '', code: '', name: '', price: '', salePrice: null, cost: null, quantity: null, currency: 'LAK', description: '', imageUrl: '' })
 const deleteDialog = ref(false)
 const deleting = ref(false)
 const productToDelete = ref<Product | null>(null)
@@ -52,12 +52,12 @@ function copyCode(code: string, id: string) {
 }
 
 function openCreate() {
-  Object.assign(form, { id: '', code: '', name: '', price: '', description: '', imageUrl: '' })
+  Object.assign(form, { id: '', code: '', name: '', price: '', salePrice: null, cost: null, quantity: null, currency: 'LAK', description: '', imageUrl: '' })
   dialog.value = true
 }
 
 function openEdit(product: Product) {
-  Object.assign(form, product)
+  Object.assign(form, { salePrice: null, cost: null, quantity: null, currency: 'LAK' }, product)
   dialog.value = true
 }
 
@@ -116,7 +116,7 @@ async function uploadProductImage(event: Event) {
 }
 
 async function saveProduct() {
-  if (!form.name.trim() || !form.price.trim()) return
+  if (!form.name.trim() || (form.salePrice == null && !form.price.trim())) return
   saving.value = true
   notice.value = ''
   try {
@@ -126,7 +126,11 @@ async function saveProduct() {
         id: form.id || undefined,
         code: form.code?.trim() || undefined,
         name: form.name.trim(),
-        price: form.price.trim(),
+        price: form.price.trim() || `${form.salePrice} ${form.currency}`,
+        salePrice: form.salePrice,
+        cost: form.cost,
+        quantity: form.quantity,
+        currency: form.currency.trim().toUpperCase() || 'LAK',
         description: form.description.trim(),
         imageUrl: form.imageUrl?.trim() || undefined,
       },
@@ -144,6 +148,12 @@ async function saveProduct() {
     saving.value = false
   }
 }
+
+const formatAmount = (value?: number | null, currency = 'LAK') => value == null
+  ? '—'
+  : new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 2 }).format(value)
+
+const unitProfit = (product: Product) => product.salePrice != null && product.cost != null ? product.salePrice - product.cost : undefined
 </script>
 
 <template>
@@ -180,7 +190,7 @@ async function saveProduct() {
       <div class="product-main-details">
         <div class="product-title-row">
           <h3>{{ product.name }}</h3>
-          <span class="price-tag">{{ product.price }}</span>
+          <span class="price-tag">{{ product.salePrice != null ? formatAmount(product.salePrice, product.currency) : product.price }}</span>
         </div>
         <p v-if="product.description">{{ product.description }}</p>
         <div class="product-meta-row">
@@ -197,6 +207,7 @@ async function saveProduct() {
           </button>
           <small v-else class="text-muted">ID · {{ product.id.slice(0, 8) }}</small>
         </div>
+        <div class="inventory-row"><span><small>{{ l({lo:'ຕົ້ນທຶນ',th:'ต้นทุน',en:'Cost'}) }}</small><strong>{{ formatAmount(product.cost, product.currency) }}</strong></span><span><small>{{ l({lo:'ກຳໄລ/ໜ່ວຍ',th:'กำไร/หน่วย',en:'Profit/unit'}) }}</small><strong>{{ formatAmount(unitProfit(product), product.currency) }}</strong></span><span><small>{{ l({lo:'ຄົງເຫຼືອ',th:'คงเหลือ',en:'Stock'}) }}</small><strong>{{ product.quantity ?? '—' }}</strong></span></div>
       </div>
       <div class="product-actions">
         <v-btn 
@@ -232,10 +243,12 @@ async function saveProduct() {
         <v-text-field v-model="form.imageUrl" :label="l({lo:'URL ຮູບພາບ',th:'URL รูปภาพ',en:'Image URL'})" placeholder="https://..." hide-details class="mb-2"/>
         <v-text-field v-model="form.code" :label="l({lo:'ລະຫັດສິນຄ້າ',th:'รหัสสินค้า',en:'Product Code'})" placeholder="P01" maxlength="50" hide-details class="mb-2"/>
         <v-text-field v-model="form.name" :label="l({lo:'ຊື່ສິນຄ້າ',th:'ชื่อสินค้า',en:'Product name'})" autofocus maxlength="120" counter/>
-        <v-text-field v-model="form.price" :label="l({lo:'ລາຄາ',th:'ราคา',en:'Price'})" :placeholder="l({lo:'ລາຄາ ແລະສະກຸນເງິນ',th:'ราคาและสกุลเงิน',en:'Price and currency'})" maxlength="60" counter/>
+        <div class="money-grid"><v-text-field v-model.number="form.salePrice" type="number" min="0" :label="l({lo:'ລາຄາຂາຍ',th:'ราคาขาย',en:'Sale price'})"/><v-text-field v-model="form.currency" :label="l({lo:'ສະກຸນເງິນ',th:'สกุลเงิน',en:'Currency'})" maxlength="8"/></div>
+        <div class="money-grid"><v-text-field v-model.number="form.cost" type="number" min="0" :label="l({lo:'ຕົ້ນທຶນຕໍ່ໜ່ວຍ',th:'ต้นทุนต่อหน่วย',en:'Cost per unit'})"/><v-text-field v-model.number="form.quantity" type="number" min="0" step="1" :label="l({lo:'ຈຳນວນຄົງເຫຼືອ',th:'จำนวนคงเหลือ',en:'Stock quantity'})"/></div>
+        <v-text-field v-model="form.price" :label="l({lo:'ລາຄາສຳລັບຂໍ້ຄວາມ (ບໍ່ບັງຄັບ)',th:'ราคาที่แสดงในข้อความ (ไม่บังคับ)',en:'Reply display price (optional)'})" :placeholder="form.salePrice == null ? '' : `${form.salePrice} ${form.currency}`" maxlength="60" counter/>
         <v-textarea v-model="form.description" :label="l({lo:'ລາຍລະອຽດສິນຄ້າ',th:'รายละเอียดสินค้า',en:'Product details'})" rows="4" maxlength="1000" counter/>
       </v-card-text>
-      <v-card-actions><v-btn variant="text" @click="dialog=false">{{ l({lo:'ຍົກເລີກ',th:'ยกเลิก',en:'Cancel'}) }}</v-btn><v-spacer/><v-btn color="primary" :loading="saving" :disabled="!form.name.trim() || !form.price.trim()" @click="saveProduct">{{ l({lo:'ບັນທຶກສິນຄ້າ',th:'บันทึกสินค้า',en:'Save product'}) }}</v-btn></v-card-actions>
+      <v-card-actions><v-btn variant="text" @click="dialog=false">{{ l({lo:'ຍົກເລີກ',th:'ยกเลิก',en:'Cancel'}) }}</v-btn><v-spacer/><v-btn color="primary" :loading="saving" :disabled="!form.name.trim() || (form.salePrice == null && !form.price.trim())" @click="saveProduct">{{ l({lo:'ບັນທຶກສິນຄ້າ',th:'บันทึกสินค้า',en:'Save product'}) }}</v-btn></v-card-actions>
     </v-card>
   </v-dialog>
 
@@ -266,6 +279,7 @@ async function saveProduct() {
 .price-tag{display:inline-block;padding:2px 8px;border-radius:10px;background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;font-size:12.5px;font-weight:800}
 .code-copy-pill{display:inline-flex;align-items:center;gap:3px;padding:3px 9px;border-radius:12px;background:var(--color-primary-soft);color:var(--color-primary);border:1px solid color-mix(in srgb,var(--color-primary) 30%,transparent);font-size:11.5px;cursor:pointer;transition:all .15s ease}
 .code-copy-pill:hover{background:var(--color-primary);color:#fff}
+.inventory-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:10px}.inventory-row>span{display:grid;padding:8px;border-radius:9px;background:var(--color-background)}.inventory-row small{font-size:9px}.inventory-row strong{font-size:11px;overflow-wrap:anywhere}.money-grid{display:grid;grid-template-columns:2fr 1fr;gap:10px}
 .image-upload-wrapper{display:flex;gap:16px;align-items:center}.image-preview{width:80px;height:80px;border-radius:12px;background-color:var(--color-surface-variant);background-size:cover;background-position:center;display:grid;place-items:center;position:relative;border:1px solid var(--color-border)}.upload-loader{position:absolute}
 .page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:18px;padding:24px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}.page-head p{margin:0 0 7px;color:var(--color-primary);font-size:10px;font-weight:800;letter-spacing:.13em}.page-head h2{margin:0 0 7px;font-size:24px}.page-head span{color:var(--color-text-secondary);font-size:13px}.head-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}.product-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.product-card{display:grid;grid-template-columns:auto 1fr auto;gap:15px;align-items:start;padding:20px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}.product-icon{width:56px;height:56px;display:grid;place-items:center;color:var(--color-primary);background:var(--color-primary-soft);border-radius:14px;flex-shrink:0}.product-actions{display:flex;gap:4px}.product-card h3{margin:0;font-size:15px;font-weight:750}.product-card p{min-height:34px;margin:6px 0;color:var(--color-text-secondary);font-size:12px;line-height:1.5}.product-card small{color:var(--color-text-muted);font-size:10px}.dependency-list{display:grid;gap:8px}.dependency-list a{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:11px;color:var(--color-text);background:var(--color-background);border:1px solid var(--color-border);border-radius:10px;text-decoration:none}.dependency-list a span{display:grid}.dependency-list small{color:var(--color-text-secondary)}.empty-state{min-height:390px;display:grid;place-items:center;align-content:center;text-align:center;padding:36px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}.empty-state>div{width:58px;height:58px;display:grid;place-items:center;color:var(--color-primary);background:var(--color-primary-soft);border-radius:17px}.empty-state h2{margin:18px 0 6px}.empty-state p{max-width:480px;margin:0 0 20px;color:var(--color-text-secondary)}.dialog-card{border-radius:var(--radius-lg)!important}.form{display:grid;gap:4px;padding-top:18px!important}.inline-action{border:0;color:var(--color-primary);background:none;font-weight:800;cursor:pointer}
 @media(max-width:760px){
@@ -278,5 +292,6 @@ async function saveProduct() {
   .product-icon{width:48px;height:48px;border-radius:12px}
   .product-card p{min-height:auto;margin:4px 0 6px}
   .image-upload-wrapper{flex-direction:column;align-items:flex-start}
+  .money-grid{grid-template-columns:1fr}
 }
 </style>

@@ -22,6 +22,10 @@ func (r *GormRepository) ListProducts(ctx context.Context, accountID string) ([]
 			Code:        m.Code,
 			Name:        m.Name,
 			Price:       m.Price,
+			SalePrice:   m.SalePrice,
+			Cost:        m.Cost,
+			Quantity:    m.Quantity,
+			Currency:    m.Currency,
 			Description: m.Description,
 			ImageUrl:    m.ImageUrl,
 		}
@@ -42,6 +46,10 @@ func (r *GormRepository) SaveProduct(ctx context.Context, accountID string, prod
 		Code:        product.Code,
 		Name:        product.Name,
 		Price:       product.Price,
+		SalePrice:   product.SalePrice,
+		Cost:        product.Cost,
+		Quantity:    product.Quantity,
+		Currency:    product.Currency,
 		Description: product.Description,
 		ImageUrl:    product.ImageUrl,
 	}
@@ -77,6 +85,10 @@ func (r *GormRepository) GetProduct(ctx context.Context, accountID, productID st
 		Code:        m.Code,
 		Name:        m.Name,
 		Price:       m.Price,
+		SalePrice:   m.SalePrice,
+		Cost:        m.Cost,
+		Quantity:    m.Quantity,
+		Currency:    m.Currency,
 		Description: m.Description,
 		ImageUrl:    m.ImageUrl,
 	}, nil

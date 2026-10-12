@@ -500,7 +500,11 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 			_, page, pageFound := g.findPage(entry.ID)
 			if pageFound && g.leadSink != nil {
 				accountID, _, _ := g.findPage(entry.ID)
-				_ = g.leadSink.CaptureLead(ctx, domain.LeadCapture{AccountID: accountID, PageID: entry.ID, SenderID: change.Value.From.ID, SourceType: "post", SourceID: change.Value.PostID})
+				productID := ""
+				if rule != nil {
+					productID = rule.ProductID
+				}
+				_ = g.leadSink.CaptureLead(ctx, domain.LeadCapture{AccountID: accountID, PageID: entry.ID, SenderID: change.Value.From.ID, SourceType: "post", SourceID: change.Value.PostID, ProductID: productID})
 			}
 			if !found || isSpamming || busy || !pageFound {
 				continue
@@ -510,7 +514,7 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 			if g.automation != nil {
 				items, _ = g.automation.GetReplySetItems(ctx, rule.ReplySetID, rule.AccountID)
 			}
-			items = g.resolveReplyItems(rule, items)
+			items = g.resolveReplyItemsContext(ctx, rule, items)
 
 			texts := []string{}
 			for _, step := range items {
@@ -781,6 +785,9 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 			}
 
 			found := rule != nil
+			if found && g.leadSink != nil && !isSystem {
+				_ = g.leadSink.CaptureLead(ctx, domain.LeadCapture{AccountID: accountID, PageID: entry.ID, SenderID: customerID, SourceType: sourceType, SourceID: sourceID, ProductID: rule.ProductID})
+			}
 			if !found && resolvedKey == "" {
 				continue
 			}
@@ -830,7 +837,7 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 			if g.automation != nil {
 				items, _ = g.automation.GetReplySetItems(ctx, rule.ReplySetID, rule.AccountID)
 			}
-			items = g.resolveReplyItems(rule, items)
+			items = g.resolveReplyItemsContext(ctx, rule, items)
 
 			go func(rule *domain.AutomationRule, items []domain.ReplyItem, seenKey, resolvedKey, replyKey, pageID, senderID, sourceType, sourceID, messageText string, hasImage bool) {
 				sendCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -982,12 +989,25 @@ func (g *GraphConnector) releaseReply(seenKey string) {
 }
 
 func (g *GraphConnector) resolveReplyItems(rule *domain.AutomationRule, items []domain.ReplyItem) []domain.ReplyItem {
+	return g.resolveReplyItemsContext(context.Background(), rule, items)
+}
+
+func (g *GraphConnector) resolveReplyItemsContext(ctx context.Context, rule *domain.AutomationRule, items []domain.ReplyItem) []domain.ReplyItem {
 	if rule == nil || rule.ProductID == "" {
 		return append([]domain.ReplyItem(nil), items...)
 	}
-	g.mu.RLock()
-	product, found := g.products[rule.AccountID][rule.ProductID]
-	g.mu.RUnlock()
+	var product domain.Product
+	found := false
+	if g.productRepo != nil {
+		if stored, err := g.productRepo.GetProduct(ctx, rule.AccountID, rule.ProductID); err == nil && stored != nil {
+			product, found = *stored, true
+		}
+	}
+	if !found {
+		g.mu.RLock()
+		product, found = g.products[rule.AccountID][rule.ProductID]
+		g.mu.RUnlock()
+	}
 	resolved := make([]domain.ReplyItem, len(items))
 	copy(resolved, items)
 	if !found {
@@ -996,9 +1016,27 @@ func (g *GraphConnector) resolveReplyItems(rule *domain.AutomationRule, items []
 	for index := range resolved {
 		resolved[index].Content = strings.ReplaceAll(resolved[index].Content, "{{product.name}}", product.Name)
 		resolved[index].Content = strings.ReplaceAll(resolved[index].Content, "{{product.price}}", product.Price)
+		resolved[index].Content = strings.ReplaceAll(resolved[index].Content, "{{product.sale_price}}", formatProductNumber(product.SalePrice))
+		resolved[index].Content = strings.ReplaceAll(resolved[index].Content, "{{product.cost}}", formatProductNumber(product.Cost))
+		resolved[index].Content = strings.ReplaceAll(resolved[index].Content, "{{product.quantity}}", formatProductInteger(product.Quantity))
+		resolved[index].Content = strings.ReplaceAll(resolved[index].Content, "{{product.currency}}", product.Currency)
 		resolved[index].Content = strings.ReplaceAll(resolved[index].Content, "{{product.description}}", product.Description)
 	}
 	return resolved
+}
+
+func formatProductNumber(value *float64) string {
+	if value == nil {
+		return ""
+	}
+	return strconv.FormatFloat(*value, 'f', -1, 64)
+}
+
+func formatProductInteger(value *int64) string {
+	if value == nil {
+		return ""
+	}
+	return strconv.FormatInt(*value, 10)
 }
 
 func productReply(binding domain.ProductBinding) string {
@@ -2059,6 +2097,9 @@ type graphInsightRow struct {
 	ConversionRanking      string               `json:"conversion_rate_ranking"`
 	Actions                []graphInsightAction `json:"actions"`
 	CostPerActionType      []graphInsightAction `json:"cost_per_action_type"`
+	ActionValues           []graphInsightAction `json:"action_values"`
+	PurchaseROAS           []graphInsightAction `json:"purchase_roas"`
+	WebsitePurchaseROAS    []graphInsightAction `json:"website_purchase_roas"`
 }
 
 func numberPointer(value string) *float64 {
@@ -2106,14 +2147,41 @@ func selectedInsightResult(actions, costs []graphInsightAction) domain.MetaInsig
 	return domain.MetaInsightResult{}
 }
 
+func selectedConversionValue(resultType string, values []graphInsightAction) *float64 {
+	for _, item := range values {
+		matches := resultType == "purchase" && (item.ActionType == "purchase" || strings.HasSuffix(item.ActionType, "_purchase") || strings.Contains(item.ActionType, ".purchase"))
+		if matches {
+			return numberPointer(item.Value)
+		}
+	}
+	return nil
+}
+
+func firstROAS(groups ...[]graphInsightAction) *float64 {
+	for _, group := range groups {
+		for _, item := range group {
+			if value := numberPointer(item.Value); value != nil {
+				return value
+			}
+		}
+	}
+	return nil
+}
+
 func insightItem(level string, row graphInsightRow) domain.MetaInsightItem {
+	result := selectedInsightResult(row.Actions, row.CostPerActionType)
 	item := domain.MetaInsightItem{
 		EntityType: level, CampaignID: row.CampaignID, CampaignName: row.CampaignName,
 		AdSetID: row.AdSetID, AdSetName: row.AdSetName, AdID: row.AdID, AdName: row.AdName,
 		Spend: numberPointer(row.Spend), Impressions: numberPointer(row.Impressions), Reach: numberPointer(row.Reach),
 		Frequency: numberPointer(row.Frequency), LinkClicks: numberPointer(row.InlineLinkClicks), LinkCTR: numberPointer(row.InlineLinkClickCTR),
-		LinkCPC: numberPointer(row.CostPerInlineLinkClick), CPM: numberPointer(row.CPM), Results: selectedInsightResult(row.Actions, row.CostPerActionType),
+		LinkCPC: numberPointer(row.CostPerInlineLinkClick), CPM: numberPointer(row.CPM), Results: result,
+		ConversionValue: selectedConversionValue(result.Type, row.ActionValues), ROAS: firstROAS(row.PurchaseROAS, row.WebsitePurchaseROAS),
 		QualityRanking: row.QualityRanking, EngagementRateRanking: row.EngagementRanking, ConversionRateRanking: row.ConversionRanking,
+	}
+	if item.ROAS == nil && item.ConversionValue != nil && item.Spend != nil && *item.Spend > 0 {
+		value := *item.ConversionValue / *item.Spend
+		item.ROAS = &value
 	}
 	switch level {
 	case "account":
@@ -2129,7 +2197,7 @@ func insightItem(level string, row graphInsightRow) domain.MetaInsightItem {
 }
 
 func (g *GraphConnector) fetchInsightRows(ctx context.Context, token, adAccountID, level, since, until, increment string) ([]graphInsightRow, error) {
-	fields := "date_start,date_stop,spend,impressions,reach,frequency,inline_link_clicks,inline_link_click_ctr,cost_per_inline_link_click,cpm,actions,cost_per_action_type"
+	fields := "date_start,date_stop,spend,impressions,reach,frequency,inline_link_clicks,inline_link_click_ctr,cost_per_inline_link_click,cpm,actions,cost_per_action_type,action_values,purchase_roas,website_purchase_roas"
 	switch level {
 	case "campaign":
 		fields = "campaign_id,campaign_name," + fields

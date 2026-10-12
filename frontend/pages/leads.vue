@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, reactive, watchEffect, onMounted, onUnmounted } from 'vue'
+import type { ItemsResponse, Product } from '~/types/automation'
 
 definePageMeta({ middleware: 'auth' })
 const { can } = useAuth()
@@ -15,6 +16,7 @@ interface Lead {
   senderId: string
   sourceType: string
   sourceId: string
+  productId?: string
   name?: string
   status: string
   assignedUserId: string
@@ -26,6 +28,18 @@ interface Step {
   delayMinutes: number
   message: string
   isEnabled: boolean
+}
+interface CAPIHealth {
+  state: 'disabled' | 'setup_required' | 'healthy' | 'warning' | 'failing' | 'no_events'
+  enabled: boolean
+  configured: boolean
+  sent: number
+  failed: number
+  pending: number
+  notConfigured: number
+  successRate?: number
+  lastEventAt?: string
+  lastError?: string
 }
 
 interface StatusOption {
@@ -101,9 +115,12 @@ const getStatusInfo = (status?: string): StatusOption => {
 }
 
 const { data, pending, error, refresh } = await useApi<{ items: Lead[] }>('/proxy/api/v1/leads')
+const { data: productData } = await useApi<ItemsResponse<Product>>('/proxy/api/v1/products')
 const { data: config, refresh: refreshConfig } = await useApi<any>('/proxy/api/v1/leads/settings')
+const { data: capiHealth, refresh: refreshCAPIHealth } = await useApi<CAPIHealth>('/proxy/api/v1/leads/capi/health')
 
 const leads = computed(() => data.value?.items || [])
+const productById = computed(() => new Map((productData.value?.items || []).map(product => [product.id, product])))
 
 const settings = reactive({
   assignmentMode: 'round_robin',
@@ -188,6 +205,7 @@ async function saveSettings() {
     notice.value = l({ lo: 'ບັນທຶກການຕັ້ງຄ່າຮຽບຮ້ອຍແລ້ວ', th: 'บันทึกการตั้งค่าเรียบร้อยแล้ว', en: 'Settings saved.' })
     settingsDialog.value = false
     await refreshConfig()
+    await refreshCAPIHealth()
     setTimeout(() => { notice.value = '' }, 4000)
   } finally {
     saving.value = false
@@ -276,6 +294,13 @@ onUnmounted(() => {
     <v-alert v-if="notice" type="success" variant="tonal" closable class="mb-4" @click:close="notice = ''">
       {{ notice }}
     </v-alert>
+
+    <section v-if="capiHealth" class="capi-health" :class="capiHealth.state">
+      <div class="capi-health-icon"><v-icon :icon="capiHealth.state==='healthy'?'mdi-check-decagram-outline':capiHealth.state==='failing'?'mdi-alert-octagon-outline':'mdi-access-point-network'" /></div>
+      <div class="capi-health-copy"><small>META CONVERSIONS API · 7 DAYS</small><strong>{{ l(capiHealth.state==='healthy'?{lo:'CAPI ເຮັດວຽກປົກກະຕິ',th:'CAPI ทำงานปกติ',en:'CAPI is healthy'}:capiHealth.state==='disabled'?{lo:'CAPI ຍັງບໍ່ເປີດ',th:'CAPI ยังไม่เปิด',en:'CAPI is disabled'}:capiHealth.state==='setup_required'?{lo:'CAPI ຕ້ອງຕັ້ງຄ່າ',th:'ต้องตั้งค่า CAPI',en:'CAPI setup required'}:capiHealth.state==='no_events'?{lo:'ຕັ້ງຄ່າແລ້ວ—ຍັງບໍ່ມີ Event',th:'ตั้งค่าแล้ว—ยังไม่มี Event',en:'Configured—no events yet'}:{lo:'CAPI ຕ້ອງກວດສອບ',th:'CAPI ต้องตรวจสอบ',en:'CAPI needs attention'}) }}</strong><span v-if="capiHealth.lastError">{{ capiHealth.lastError }}</span><span v-else>{{ l({lo:'ຕິດຕາມ Lead/Purchase event ທີ່ສົ່ງໃຫ້ Meta.',th:'ติดตาม Lead/Purchase event ที่ส่งให้ Meta',en:'Monitor Lead and Purchase events sent to Meta.'}) }}</span></div>
+      <div class="capi-health-metrics"><div><small>{{ l({lo:'ສົ່ງສຳເລັດ',th:'ส่งสำเร็จ',en:'Sent'}) }}</small><strong>{{ capiHealth.sent }}</strong></div><div><small>{{ l({lo:'ບໍ່ສຳເລັດ',th:'ล้มเหลว',en:'Failed'}) }}</small><strong>{{ capiHealth.failed }}</strong></div><div><small>Success</small><strong>{{ capiHealth.successRate==null?'—':`${capiHealth.successRate.toFixed(1)}%` }}</strong></div></div>
+      <v-btn size="small" variant="outlined" @click="settingsDialog=true">{{ l({lo:'ຕັ້ງຄ່າ',th:'ตั้งค่า',en:'Configure'}) }}</v-btn>
+    </section>
 
     <!-- KPI Metric Cards Grid -->
     <section class="kpi-grid">
@@ -401,6 +426,7 @@ onUnmounted(() => {
               <div class="lead-tags-row">
                 <span class="meta-pill page"><v-icon icon="mdi-flag" size="12"/> {{ lead.pageId }}</span>
                 <span v-if="lead.sourceId" class="meta-pill ad"><v-icon icon="mdi-bullhorn" size="12"/> Ad: {{ lead.sourceId }}</span>
+                <span v-if="lead.productId && productById.get(lead.productId)" class="meta-pill product"><v-icon icon="mdi-package-variant-closed" size="12"/> {{ productById.get(lead.productId)?.name }} · {{ productById.get(lead.productId)?.price }}</span>
                 <span class="meta-pill time"><v-icon icon="mdi-calendar-clock" size="12"/> {{ new Date(lead.createdAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) }}</span>
               </div>
             </div>
@@ -643,6 +669,11 @@ onUnmounted(() => {
 }
 
 /* KPI Cards Grid */
+.capi-health{display:grid;grid-template-columns:auto 1fr auto auto;align-items:center;gap:14px;margin-bottom:16px;padding:14px 16px;border:1px solid var(--color-border);border-radius:16px;background:var(--color-surface)}
+.capi-health-icon{width:42px;height:42px;display:grid;place-items:center;border-radius:12px;color:var(--color-primary);background:var(--color-primary-soft)}
+.capi-health-copy{display:grid;min-width:0}.capi-health-copy small{color:var(--color-text-muted);font-size:9px;font-weight:800;letter-spacing:.09em}.capi-health-copy strong{font-size:14px}.capi-health-copy span{overflow:hidden;color:var(--color-text-secondary);font-size:10px;text-overflow:ellipsis;white-space:nowrap}
+.capi-health-metrics{display:flex;gap:8px}.capi-health-metrics>div{display:grid;min-width:70px;padding:8px 10px;border-radius:10px;background:var(--color-background)}.capi-health-metrics small{color:var(--color-text-muted);font-size:9px}.capi-health-metrics strong{font-size:15px}
+.capi-health.healthy{border-color:rgba(22,163,74,.3)}.capi-health.healthy .capi-health-icon{color:#167a4b;background:rgba(22,163,74,.1)}.capi-health.failing{border-color:rgba(239,68,68,.35)}.capi-health.failing .capi-health-icon{color:var(--color-error);background:rgba(239,68,68,.1)}
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -1043,6 +1074,9 @@ onUnmounted(() => {
 }
 
 @media (max-width: 760px) {
+  .capi-health { grid-template-columns: auto 1fr; align-items: start; }
+  .capi-health-metrics { grid-column: 1/-1; display: grid; grid-template-columns: repeat(3, 1fr); }
+  .capi-health > .v-btn { grid-column: 1/-1; width: 100%; }
   .leads-hero {
     flex-direction: column;
     align-items: flex-start;

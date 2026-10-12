@@ -77,8 +77,12 @@ type ProductModel struct {
 	Code        string       `gorm:"size:50;index"`
 	Name        string       `gorm:"size:120;not null"`
 	Price       string       `gorm:"size:60;not null"`
-	Description string       `gorm:"size:1000"`
-	ImageUrl    string       `gorm:"size:1000"`
+	SalePrice   *float64     `gorm:"type:decimal(18,2)"`
+	Cost        *float64     `gorm:"type:decimal(18,2)"`
+	Quantity    *int64
+	Currency    string `gorm:"size:8"`
+	Description string `gorm:"size:1000"`
+	ImageUrl    string `gorm:"size:1000"`
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
@@ -179,7 +183,12 @@ type LeadModel struct {
 	SenderID        string     `gorm:"size:50;index;not null" json:"senderId"`
 	SourceType      string     `gorm:"size:20" json:"sourceType"`
 	SourceID        string     `gorm:"size:100" json:"sourceId"`
+	ProductID       string     `gorm:"type:uuid;index" json:"productId,omitempty"`
 	Name            string     `gorm:"size:255" json:"name"`
+	Phone           string     `gorm:"size:50" json:"phone"`
+	Address         string     `gorm:"type:text" json:"address"`
+	Notes           string     `gorm:"type:text" json:"notes"`
+	Tags            string     `gorm:"size:255" json:"tags"`
 	Status          string     `gorm:"size:50;index" json:"status"`
 	AssignedUserID  string     `gorm:"type:uuid;index" json:"assignedUserId"`
 	AlertRead       bool       `gorm:"index" json:"alertRead"`
@@ -202,7 +211,12 @@ type LeadSettingsModel struct {
 }
 
 type LeadFollowUpStepModel struct {
-	ID string `gorm:"type:uuid;primaryKey" json:"id"`; AccountID string `gorm:"type:uuid;not null;index" json:"accountId"`; StepIndex int `json:"stepIndex"`; DelayMinutes int `json:"delayMinutes"`; Message string `gorm:"type:text;not null" json:"message"`; IsEnabled bool `gorm:"not null;default:true" json:"isEnabled"`
+	ID           string `gorm:"type:uuid;primaryKey" json:"id"`
+	AccountID    string `gorm:"type:uuid;not null;index" json:"accountId"`
+	StepIndex    int    `json:"stepIndex"`
+	DelayMinutes int    `json:"delayMinutes"`
+	Message      string `gorm:"type:text;not null" json:"message"`
+	IsEnabled    bool   `gorm:"not null;default:true" json:"isEnabled"`
 }
 
 type CAPIEventModel struct {

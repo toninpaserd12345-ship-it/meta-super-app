@@ -228,7 +228,7 @@ func (g *GraphConnector) sendWhatsAppReplySet(ctx context.Context, accountID, ph
 		return false, err
 	}
 	sent := false
-	for _, item := range g.resolveReplyItems(rule, items) {
+	for _, item := range g.resolveReplyItemsContext(ctx, rule, items) {
 		if !item.IsEnabled {
 			continue
 		}

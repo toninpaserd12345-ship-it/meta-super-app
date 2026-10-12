@@ -121,6 +121,8 @@ type MetaInsightItem struct {
 	LinkCTR               *float64          `json:"linkCtr,omitempty"`
 	LinkCPC               *float64          `json:"linkCpc,omitempty"`
 	CPM                   *float64          `json:"cpm,omitempty"`
+	ConversionValue       *float64          `json:"conversionValue,omitempty"`
+	ROAS                  *float64          `json:"roas,omitempty"`
 	Results               MetaInsightResult `json:"results"`
 	QualityRanking        string            `json:"qualityRanking,omitempty"`
 	EngagementRateRanking string            `json:"engagementRateRanking,omitempty"`
@@ -191,12 +193,16 @@ type ProductBinding struct {
 }
 
 type Product struct {
-	ID          string `json:"id"`
-	Code        string `json:"code"`
-	Name        string `json:"name"`
-	Price       string `json:"price"`
-	Description string `json:"description"`
-	ImageUrl    string `json:"imageUrl"`
+	ID          string   `json:"id"`
+	Code        string   `json:"code"`
+	Name        string   `json:"name"`
+	Price       string   `json:"price"`
+	SalePrice   *float64 `json:"salePrice,omitempty"`
+	Cost        *float64 `json:"cost,omitempty"`
+	Quantity    *int64   `json:"quantity,omitempty"`
+	Currency    string   `json:"currency,omitempty"`
+	Description string   `json:"description"`
+	ImageUrl    string   `json:"imageUrl"`
 }
 
 type ReplyFlow struct {
@@ -220,7 +226,7 @@ type AutomationProvider interface {
 	GetReplySetItems(ctx context.Context, replySetID string, accountID string) ([]ReplyItem, error)
 }
 
-type LeadCapture struct{ AccountID, PageID, SenderID, SourceType, SourceID, Name string }
+type LeadCapture struct{ AccountID, PageID, SenderID, SourceType, SourceID, ProductID, Name string }
 type LeadSink interface {
 	CaptureLead(context.Context, LeadCapture) error
 }

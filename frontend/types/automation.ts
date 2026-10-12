@@ -7,6 +7,10 @@ export interface Product {
   code?: string
   name: string
   price: string
+  salePrice?: number | null
+  cost?: number | null
+  quantity?: number | null
+  currency?: string
   description: string
   imageUrl?: string
 }
@@ -145,6 +149,8 @@ export interface MetaInsightItem {
   linkCtr?: number
   linkCpc?: number
   cpm?: number
+  conversionValue?: number
+  roas?: number
   results: MetaInsightResult
   qualityRanking?: string
   engagementRateRanking?: string

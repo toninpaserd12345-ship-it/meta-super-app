@@ -23,6 +23,16 @@ func (h *Handler) leadSettings(c fiber.Ctx) error {
 	}
 	return c.JSON(fiber.Map{"settings": settings, "steps": steps, "capiConfigured": settings.CAPIToken != ""})
 }
+func (h *Handler) capiHealth(c fiber.Ctx) error {
+	ctx, cancel := requestContext(c)
+	defer cancel()
+	health, err := h.Leads.CAPIHealth(ctx, c.Locals("accountID").(string))
+	if err != nil {
+		return usecaseError(c, err)
+	}
+	c.Set(fiber.HeaderCacheControl, "no-store")
+	return c.JSON(health)
+}
 func (h *Handler) saveLeadSettings(c fiber.Ctx) error {
 	var body struct {
 		Settings usecase.LeadSettingsInput   `json:"settings"`
@@ -61,4 +71,18 @@ func (h *Handler) updateLeadStatus(c fiber.Ctx) error {
 		return usecaseError(c, err)
 	}
 	return c.JSON(fiber.Map{"status": "success"})
+}
+
+func (h *Handler) updateLeadDetails(c fiber.Ctx) error {
+	var body usecase.LeadDetailsInput
+	if err := c.Bind().JSON(&body); err != nil {
+		return fail(c, fiber.StatusBadRequest, "invalid_request", err.Error())
+	}
+	ctx, cancel := requestContext(c)
+	defer cancel()
+	lead, err := h.Leads.UpdateLeadDetails(ctx, c.Locals("accountID").(string), c.Params("id"), body)
+	if err != nil {
+		return usecaseError(c, err)
+	}
+	return c.JSON(fiber.Map{"status": "success", "lead": lead})
 }

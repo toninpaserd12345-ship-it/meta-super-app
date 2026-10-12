@@ -1,0 +1,2 @@
+import{d as r,e as s,n as e}from"../virtual/entry.mjs";import{u as t}from"./useAuth-QACxMPaP.mjs";import"../nitro/nitro.mjs";import"../routes/renderer.mjs";import"../_/shared.esm-bundler.mjs";import"./ssr-p8e3zX38.mjs";var a=r(async()=>{let r,a;const{user:m,fetchUser:o}=t();if(m.value||([r,a]=s(()=>o()),r=await r,a()),!m.value)return e("/login")});export{a as default};
+//# sourceMappingURL=auth-kt2FUcE5.mjs.map

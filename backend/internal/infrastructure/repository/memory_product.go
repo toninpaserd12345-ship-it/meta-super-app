@@ -17,8 +17,13 @@ func (r *MemoryRepository) ListProducts(ctx context.Context, accountID string) (
 		if p.AccountID == accountID {
 			result = append(result, domain.Product{
 				ID:          p.ID,
+				Code:        p.Code,
 				Name:        p.Name,
 				Price:       p.Price,
+				SalePrice:   p.SalePrice,
+				Cost:        p.Cost,
+				Quantity:    p.Quantity,
+				Currency:    p.Currency,
 				Description: p.Description,
 				ImageUrl:    p.ImageUrl,
 			})
@@ -44,8 +49,13 @@ func (r *MemoryRepository) SaveProduct(ctx context.Context, accountID string, pr
 	r.products[product.ID] = database.ProductModel{
 		ID:          product.ID,
 		AccountID:   accountID,
+		Code:        product.Code,
 		Name:        product.Name,
 		Price:       product.Price,
+		SalePrice:   product.SalePrice,
+		Cost:        product.Cost,
+		Quantity:    product.Quantity,
+		Currency:    product.Currency,
 		Description: product.Description,
 		ImageUrl:    product.ImageUrl,
 	}
@@ -61,8 +71,13 @@ func (r *MemoryRepository) GetProduct(ctx context.Context, accountID, productID 
 	}
 	return &domain.Product{
 		ID:          p.ID,
+		Code:        p.Code,
 		Name:        p.Name,
 		Price:       p.Price,
+		SalePrice:   p.SalePrice,
+		Cost:        p.Cost,
+		Quantity:    p.Quantity,
+		Currency:    p.Currency,
 		Description: p.Description,
 		ImageUrl:    p.ImageUrl,
 	}, nil

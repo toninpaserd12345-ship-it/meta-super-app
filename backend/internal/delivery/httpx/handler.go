@@ -80,9 +80,11 @@ func (h *Handler) App() *fiber.App {
 	auth.Get("/api/v1/chat/stream", requireAccount(h.auth, domain.ClaimPagesRead), h.chatStream)
 	auth.Get("/api/v1/leads", requireAccount(h.auth, "customers:read"), h.listLeads)
 	auth.Get("/api/v1/leads/settings", requireAccount(h.auth, "settings:read"), h.leadSettings)
+	auth.Get("/api/v1/leads/capi/health", requireAccount(h.auth, "settings:read"), h.capiHealth)
 	auth.Put("/api/v1/leads/settings", requireAccount(h.auth, "settings:update"), h.saveLeadSettings)
 	auth.Patch("/api/v1/leads/:id/read", requireAccount(h.auth, "customers:update"), h.markLeadRead)
 	auth.Put("/api/v1/leads/:id/status", requireAccount(h.auth, "customers:update"), h.updateLeadStatus)
+	auth.Put("/api/v1/leads/:id/details", requireAccount(h.auth, "customers:update"), h.updateLeadDetails)
 
 	// Storage
 	auth.Post("/api/v1/storage/upload", requireAccount(h.auth, domain.ClaimPagesConnect), h.UploadFile)

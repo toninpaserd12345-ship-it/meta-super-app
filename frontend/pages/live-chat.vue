@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import type { ItemsResponse, Product, ReplySet } from '~/types/automation'
 
 definePageMeta({ middleware: 'auth' })
@@ -11,8 +11,17 @@ interface Lead {
   senderId: string
   sourceType: string
   sourceId: string
-  name: string
+  productId?: string
+  name?: string
+  phone?: string
+  address?: string
+  notes?: string
+  tags?: string
   status: string
+  assignedUserId?: string
+  alertRead?: boolean
+  createdAt?: string
+  updatedAt?: string
 }
 interface ChatMessage {
   id: string
@@ -34,6 +43,7 @@ const evtSource = ref<EventSource | null>(null)
 const sending = ref(false)
 const loadError = ref('')
 const { locale, l } = useLocale()
+const { user } = useAuth()
 const liveConnected = ref(false)
 let pollTimer: ReturnType<typeof setInterval> | null = null
 const messagesContainer = ref<HTMLElement | null>(null)
@@ -41,12 +51,106 @@ const messagesContainer = ref<HTMLElement | null>(null)
 // Reply Sets and Product Codes for Quick Auto-reply by Admin
 const { data: replySetsData } = await useApi<ReplySet[]>('/proxy/api/v1/replies')
 const { data: productsData } = await useApi<ItemsResponse<Product>>('/proxy/api/v1/products')
+const { data: teamData } = await useApi<any[]>('/proxy/api/v1/team').catch(() => ({ value: [] } as any))
 const replySets = computed(() => replySetsData.value || [])
 const products = computed(() => productsData.value?.items || [])
+const teamMembers = computed(() => (teamData?.value || []).map((m: any) => ({
+  id: m.userId || m.id,
+  name: m.user?.name || m.name || m.user?.email || m.email || 'Staff',
+  email: m.user?.email || m.email || '',
+  role: m.role || 'member'
+})))
 
 const replySetsDialog = ref(false)
 const dialogSearch = ref('')
 const sendSuccessNotice = ref('')
+
+// Pancake CRM States
+const pancakeDrawerOpen = ref(false)
+const selectedStaffFilter = ref<'all' | 'mine' | 'unassigned'>('all')
+const cannedPhrasesDialog = ref(false)
+const quickOrderDialog = ref(false)
+const quickOrderForm = reactive({
+  productId: '',
+  quantity: 1,
+  notes: '',
+})
+const copiedField = ref('')
+
+interface CannedPhrase {
+  id: string
+  title: { lo: string; th: string; en: string }
+  text: { lo: string; th: string; en: string }
+  category: 'greeting' | 'product' | 'payment' | 'shipping' | 'closing'
+  icon: string
+}
+
+const CANNED_PHRASES: CannedPhrase[] = [
+  {
+    id: 'greet_1',
+    title: { lo: 'ທັກທາຍສຸພາບ', th: 'ทักทายสุภาพ', en: 'Polite Greeting' },
+    text: {
+      lo: 'ສະບາຍດີເຈົ້າ 🙏 ຍິນດີຕ້ອນຮັບສູ່ຮ້ານເຮົາເຈົ້າ! ສົນໃຈສິນຄ້າຕົວໃດສາມາດສອບຖາມໄດ້ເລີຍເດີເຈົ້າ 😊',
+      th: 'สวัสดีค่ะ/ครับ 🙏 ยินดีต้อนรับนะคะ สนใจสินค้าตัวไหนสอบถามได้เลยนะคะ 😊',
+      en: 'Hello! Welcome to our store. How may I assist you today?'
+    },
+    category: 'greeting',
+    icon: 'mdi-hand-wave',
+  },
+  {
+    id: 'stock_1',
+    title: { lo: 'ແຈ້ງສິນຄ້າພ້ອມສົ່ງ', th: 'แจ้งสินค้าพร้อมส่ง', en: 'In Stock Notice' },
+    text: {
+      lo: 'ສິນຄ້າມີພ້ອມສົ່ງເລີຍເຈົ້າ ລູກຄ້າຮັບຈັກຊຸດດີເຈົ້າ? ສັ່ງມື້ນີ້ຈັດສົ່ງໃຫ້ທັນທີເລີຍເຈົ້າ ✨',
+      th: 'สินค้ามีพร้อมส่งเลยค่ะ/ครับ ลูกค้ารับกี่ชิ้นดีคะ สั่งวันนี้จัดส่งให้ทันทีเลยค่ะ ✨',
+      en: 'The item is currently in stock and ready to ship! How many would you like?'
+    },
+    category: 'product',
+    icon: 'mdi-package-variant-closed-check',
+  },
+  {
+    id: 'pay_1',
+    title: { lo: 'ແຈ້ງເລກບັນຊີ (BCEL)', th: 'แจ้งเลขบัญชีโอนเงิน', en: 'Payment Details' },
+    text: {
+      lo: 'ເລກບັນຊີຊຳລະເງິນເຈົ້າ:\n🏦 ທະນາຄານການຄ້າ (BCEL One)\nເລກບັນຊີ: 160-xx-xxxxxx\nຊື່ບັນຊີ: META STORE\nໂອນແລ້ວສົ່ງສະລິບຢືນຢັນໄດ້ເລີຍເດີເຈົ້າ 💳',
+      th: 'ช่องทางการชำระเงินนะคะ:\n🏦 ธนาคารกสิกรไทย / พร้อมเพย์\nเลขบัญชี: xxx-x-xxxxx-x\nโอนแล้วแจ้งสลิปได้เลยนะคะ 💳',
+      en: 'Payment Account:\nBank: BCEL One / Mobile Banking\nAccount No: 160-xx-xxxxxx\nPlease share your payment slip once transferred. Thank you!'
+    },
+    category: 'payment',
+    icon: 'mdi-credit-card-outline',
+  },
+  {
+    id: 'ship_1',
+    title: { lo: 'ຂໍທີ່ຢູ່ຈັດສົ່ງ', th: 'ขอที่อยู่จัดส่ง', en: 'Request Address' },
+    text: {
+      lo: 'ລົບກວນລູກຄ້າແຈ້ງ: ຊື່, ເບີໂທລະສັບຕິດຕໍ່ ແລະ ທີ່ຢູ່ຈັດສົ່ງທີ່ສະດວກໃຫ້ທາງເຮົານຳເດີເຈົ້າ 📦🚚',
+      th: 'รบกวนลูกค้าแจ้งชื่อ, เบอร์โทร และที่อยู่จัดส่งให้ทางเราด้วยนะคะ 📦🚚',
+      en: 'Please provide your full name, phone number, and delivery address. 📦'
+    },
+    category: 'shipping',
+    icon: 'mdi-map-marker-outline',
+  },
+  {
+    id: 'close_1',
+    title: { lo: 'ຂອບໃຈ & ປິດການຂາຍ', th: 'ขอบคุณปิดการขาย', en: 'Thank you & Close' },
+    text: {
+      lo: 'ທາງຮ້ານໄດ້ຮັບອໍເດີ ແລະ ດຳເນີນການຈັດກຽມເຄື່ອງຮຽບຮ້ອຍແລ້ວເຈົ້າ ຂອບໃຈຫຼາຍໆທີ່ໄວ້ວາງໃຈອຸດໜູນຮ້ານເຮົາເດີເຈົ້າ ❤️',
+      th: 'ทางร้านได้รับยอดและเตรียมจัดส่งสินค้าเรียบร้อยแล้วนะคะ ขอบพระคุณมากค่ะ ❤️',
+      en: 'Your order is confirmed and being prepared for shipment. Thank you so much for choosing us! ❤️'
+    },
+    category: 'closing',
+    icon: 'mdi-heart-outline',
+  },
+]
+
+const PRESET_TAGS = [
+  { key: 'VIP', label: 'VIP', color: '#b45309', bg: '#fef3c7', border: '#fde68a' },
+  { key: 'ລູກຄ້າເກົ່າ', label: 'ລູກຄ້າເກົ່າ', color: '#1d4ed8', bg: '#dbeafe', border: '#bfdbfe' },
+  { key: 'ລໍຖ້າຈັດສົ່ງ', label: 'ລໍຖ້າຈັດສົ່ງ', color: '#c2410c', bg: '#ffedd5', border: '#fed7aa' },
+  { key: 'ໂອນແລ້ວ', label: 'ໂອນແລ້ວ', color: '#15803d', bg: '#dcfce7', border: '#bbf7d0' },
+  { key: 'ສອບຖາມລາຄາ', label: 'ສອບຖາມລາຄາ', color: '#6d28d9', bg: '#ede9fe', border: '#ddd6fe' },
+  { key: 'ສົ່ງດ່ວນ', label: 'ສົ່ງດ່ວນ', color: '#b91c1c', bg: '#fee2e2', border: '#fecaca' },
+]
 
 interface ReplyCodeItem {
   code: string
@@ -264,10 +368,12 @@ const changeLeadStatus = async (senderId: string, newStatus: string) => {
         sourceType: 'message',
         sourceId: '',
         name: getSenderName(msgs),
-        status: newStatus
+        status: newStatus,
+        updatedAt: new Date().toISOString()
       }
     } else {
       leads.value[senderId].status = newStatus
+      leads.value[senderId].updatedAt = new Date().toISOString()
     }
     const info = getStatusInfo(newStatus)
     statusNotice.value = l({
@@ -283,7 +389,143 @@ const changeLeadStatus = async (senderId: string, newStatus: string) => {
   }
 }
 
+const updateLeadField = async (senderId: string, fields: Partial<Lead>) => {
+  if (!senderId) return
+  try {
+    const res = await $fetch<{ status: string; lead: Lead }>(`/api/proxy/api/v1/leads/${senderId}/details`, {
+      method: 'PUT',
+      body: fields
+    })
+    if (res.lead) {
+      leads.value[senderId] = { ...leads.value[senderId], ...res.lead, updatedAt: new Date().toISOString() }
+    } else if (leads.value[senderId]) {
+      leads.value[senderId] = { ...leads.value[senderId], ...fields, updatedAt: new Date().toISOString() }
+    }
+    statusNotice.value = l({ lo: 'ບັນທຶກຂໍ້ມູນສຳເລັດ', th: 'บันทึกข้อมูลเรียบร้อย', en: 'Saved successfully' })
+    setTimeout(() => { statusNotice.value = '' }, 3000)
+  } catch (err: any) {
+    loadError.value = l({ lo: 'ບັນທຶກຂໍ້ມູນບໍ່ສຳເລັດ', th: 'บันทึกข้อมูลไม่สำเร็จ', en: 'Failed to save details' })
+  }
+}
+
+const toggleCustomerTag = async (senderId: string, tagKey: string) => {
+  const lead = leads.value[senderId]
+  const currentTags = (lead?.tags || '').split(',').map(t => t.trim()).filter(Boolean)
+  let nextTags: string[]
+  if (currentTags.includes(tagKey)) {
+    nextTags = currentTags.filter(t => t !== tagKey)
+  } else {
+    nextTags = [...currentTags, tagKey]
+  }
+  const tagStr = nextTags.join(',')
+  if (leads.value[senderId]) {
+    leads.value[senderId].tags = tagStr
+  }
+  await updateLeadField(senderId, { tags: tagStr })
+}
+
+const insertPhrase = (phrase: CannedPhrase, autoSend = false) => {
+  const text = l(phrase.text)
+  if (autoSend) {
+    inputMessage.value = text
+    sendReply()
+  } else {
+    inputMessage.value = inputMessage.value ? `${inputMessage.value}\n${text}` : text
+  }
+  cannedPhrasesDialog.value = false
+}
+
+const copyToClipboard = async (text: string, label: string) => {
+  if (!text) return
+  try {
+    await navigator.clipboard.writeText(text)
+    copiedField.value = label
+    setTimeout(() => { copiedField.value = '' }, 2500)
+  } catch {}
+}
+
 const markAsPurchased = (senderId: string) => changeLeadStatus(senderId, 'purchased')
+
+const leadForm = reactive({
+  name: '',
+  phone: '',
+  address: '',
+  notes: '',
+  assignedUserId: '',
+})
+
+const saveLeadInfo = async () => {
+  if (!activeSender.value) return
+  await updateLeadField(activeSender.value, {
+    name: leadForm.name,
+    phone: leadForm.phone,
+    address: leadForm.address,
+    notes: leadForm.notes,
+    assignedUserId: leadForm.assignedUserId,
+  })
+}
+
+const onAssignStaff = async (userId: string) => {
+  leadForm.assignedUserId = userId
+  if (activeSender.value) {
+    await updateLeadField(activeSender.value, { assignedUserId: userId })
+  }
+}
+
+const currentCustomerTags = computed(() => {
+  if (!activeSender.value) return []
+  return (leads.value[activeSender.value]?.tags || '').split(',').map(t => t.trim()).filter(Boolean)
+})
+
+const hasTag = (tagKey: string) => currentCustomerTags.value.includes(tagKey)
+
+const CANNED_CATEGORIES = [
+  { key: 'all', label: { lo: 'ທັງໝົດ', th: 'ทั้งหมด', en: 'All' }, icon: 'mdi-apps' },
+  { key: 'greeting', label: { lo: 'ທັກທາຍ', th: 'ทักทาย', en: 'Greetings' }, icon: 'mdi-hand-wave' },
+  { key: 'product', label: { lo: 'ສິນຄ້າ', th: 'สินค้า', en: 'Products' }, icon: 'mdi-package-variant-closed' },
+  { key: 'payment', label: { lo: 'ການຊຳລະ', th: 'การชำระเงิน', en: 'Payment' }, icon: 'mdi-credit-card-outline' },
+  { key: 'shipping', label: { lo: 'ຈັດສົ່ງ', th: 'จัดส่ง', en: 'Shipping' }, icon: 'mdi-truck-fast-outline' },
+  { key: 'closing', label: { lo: 'ປິດການຂາຍ', th: 'ปิดการขาย', en: 'Closing' }, icon: 'mdi-check-decagram-outline' },
+]
+
+const selectedCannedCategory = ref<string>('all')
+const filteredCannedPhrases = computed(() => {
+  if (selectedCannedCategory.value === 'all') return CANNED_PHRASES
+  return CANNED_PHRASES.filter(p => p.category === selectedCannedCategory.value)
+})
+
+const selectedOrderProduct = computed(() => products.value.find(p => p.id === quickOrderForm.productId))
+const selectedOrderTotal = computed(() => {
+  const price = Number(selectedOrderProduct.value?.price || 0)
+  return (price * (quickOrderForm.quantity || 1)).toLocaleString()
+})
+
+watch(() => activeSender.value, (id) => {
+  if (id) {
+    const l = leads.value[id]
+    leadForm.name = l?.name || activeSenderSummary.value?.senderName || ''
+    leadForm.phone = l?.phone || ''
+    leadForm.address = l?.address || ''
+    leadForm.notes = l?.notes || ''
+    leadForm.assignedUserId = l?.assignedUserId || ''
+  } else {
+    leadForm.name = ''
+    leadForm.phone = ''
+    leadForm.address = ''
+    leadForm.notes = ''
+    leadForm.assignedUserId = ''
+  }
+}, { immediate: true })
+
+watch(() => leads.value[activeSender.value || ''], (l) => {
+  if (l) {
+    leadForm.phone = l.phone || ''
+    leadForm.address = l.address || ''
+    leadForm.notes = l.notes || ''
+    leadForm.assignedUserId = l.assignedUserId || ''
+    if (l.name) leadForm.name = l.name
+  }
+}, { deep: true })
 
 const searchQuery = ref('')
 const selectedStatusFilter = ref<string>('all')
@@ -311,22 +553,25 @@ interface ConversationSummary {
 }
 
 const allConversationsList = computed<ConversationSummary[]>(() => {
-  const list: ConversationSummary[] = []
-  for (const [senderId, msgs] of Object.entries(conversations.value)) {
-    if (!msgs || msgs.length === 0) continue
-    const lastMsg = msgs[msgs.length - 1] || null
-    const lastTime = parseTimestamp(lastMsg?.timestamp)
-    const lead = leads.value[senderId]
-    const status = (lead?.status || 'new').toLowerCase()
-    const senderName = getSenderName(msgs)
-    const senderPic = getSenderPic(msgs)
-    const platform = msgs[0]?.platform || 'facebook'
-    const pageId = msgs.find(m => m.page_id)?.page_id || lead?.pageId || ''
+  const map = new Map<string, ConversationSummary>()
 
-    list.push({
+  for (const [senderId, msgs] of Object.entries(conversations.value)) {
+    const lastMsg = (msgs && msgs.length > 0) ? msgs[msgs.length - 1] : null
+    const lead = leads.value[senderId]
+    const lastMsgTime = parseTimestamp(lastMsg?.timestamp)
+    const leadUpdatedTime = parseTimestamp(lead?.updatedAt)
+    const leadCreatedTime = parseTimestamp(lead?.createdAt)
+    const lastTime = Math.max(lastMsgTime, leadUpdatedTime, leadCreatedTime, 0)
+    const status = (lead?.status || 'new').toLowerCase()
+    const senderName = getSenderName(msgs) || lead?.name || `${l({lo:'ລູກຄ້າ',th:'ลูกค้า',en:'Customer'})} · ${senderId.slice(-4)}`
+    const senderPic = getSenderPic(msgs)
+    const platform = msgs?.[0]?.platform || (lead?.sourceType === 'whatsapp' ? 'whatsapp' : 'facebook')
+    const pageId = msgs?.find(m => m.page_id)?.page_id || lead?.pageId || ''
+
+    map.set(senderId, {
       senderId,
-      messages: msgs,
-      lastMessage: lastMsg,
+      messages: msgs || [],
+      lastMessage: lastMsg || null,
       lastTime,
       lead,
       status,
@@ -337,6 +582,28 @@ const allConversationsList = computed<ConversationSummary[]>(() => {
     })
   }
 
+  for (const [senderId, lead] of Object.entries(leads.value)) {
+    if (!map.has(senderId)) {
+      const lastTime = Math.max(parseTimestamp(lead.updatedAt), parseTimestamp(lead.createdAt), 0)
+      const senderName = lead.name || `${l({lo:'ລູກຄ້າ',th:'ลูกค้า',en:'Customer'})} · ${senderId.slice(-4)}`
+      const platform = lead.sourceType === 'whatsapp' ? 'whatsapp' : 'facebook'
+
+      map.set(senderId, {
+        senderId,
+        messages: [],
+        lastMessage: null,
+        lastTime,
+        lead,
+        status: (lead.status || 'new').toLowerCase(),
+        senderName,
+        senderPic: undefined,
+        platform,
+        pageId: lead.pageId || '',
+      })
+    }
+  }
+
+  const list = Array.from(map.values())
   // Sort descending: Recent activity at the very top!
   list.sort((a, b) => b.lastTime - a.lastTime)
   return list
@@ -349,6 +616,12 @@ const filteredConversations = computed<ConversationSummary[]>(() => {
     list = list.filter(c => c.status === selectedStatusFilter.value)
   }
 
+  if (selectedStaffFilter.value === 'mine' && user.value?.id) {
+    list = list.filter(c => c.lead?.assignedUserId === user.value?.id)
+  } else if (selectedStaffFilter.value === 'unassigned') {
+    list = list.filter(c => !c.lead?.assignedUserId)
+  }
+
   const q = searchQuery.value.trim().toLowerCase()
   if (q) {
     list = list.filter(c => {
@@ -356,8 +629,10 @@ const filteredConversations = computed<ConversationSummary[]>(() => {
       const matchId = c.senderId.toLowerCase().includes(q)
       const matchPage = c.pageId.toLowerCase().includes(q)
       const matchAd = (c.lead?.sourceId || '').toLowerCase().includes(q)
+      const matchPhone = (c.lead?.phone || '').toLowerCase().includes(q)
       const matchText = (c.lastMessage?.message || '').toLowerCase().includes(q)
-      return matchName || matchId || matchPage || matchAd || matchText
+      const matchTag = (c.lead?.tags || '').toLowerCase().includes(q)
+      return matchName || matchId || matchPage || matchAd || matchPhone || matchText || matchTag
     })
   }
 
@@ -410,13 +685,59 @@ const formatPancakeTime = (ts: string | number | undefined) => {
   return `${day}/${month}`
 }
 
+const submittingOrder = ref(false)
+const submitQuickOrder = async () => {
+  if (!activeSender.value || !quickOrderForm.productId || submittingOrder.value) return
+  submittingOrder.value = true
+  try {
+    const prod = products.value.find(p => p.id === quickOrderForm.productId)
+    const prodName = prod?.name || 'Product'
+    const prodPrice = prod?.price || '0'
+    const qty = quickOrderForm.quantity || 1
+    const orderMemo = `[Quick Order] ${prodName} x ${qty} (ລາຄາ: ${prodPrice}) ${quickOrderForm.notes ? `· ໝາຍເຫດ: ${quickOrderForm.notes}` : ''}`
+
+    const lead = leads.value[activeSender.value]
+    const updatedNotes = lead?.notes ? `${lead.notes}\n${orderMemo}` : orderMemo
+
+    await updateLeadField(activeSender.value, {
+      status: 'purchased',
+      notes: updatedNotes,
+      tags: lead?.tags ? (lead.tags.includes('ໂອນແລ້ວ') ? lead.tags : `${lead.tags},ໂອນແລ້ວ`) : 'ໂອນແລ້ວ',
+    })
+
+    // Also send confirmation message into chat
+    await sendReply(`ຂອບໃຈຫຼາຍໆເຈົ້າ! ຢືນຢັນອໍເດີ: ${prodName} x ${qty} ຍອດລວມ: ${prodPrice} ຮຽບຮ້ອຍແລ້ວເຈົ້າ 🎉📦`)
+
+    quickOrderDialog.value = false
+    statusNotice.value = l({
+      lo: `ສ້າງອໍເດີ “${prodName} x ${qty}” ແລະ ປິດການຂາຍສຳເລັດແລ້ວ!`,
+      th: `สร้างออเดอร์ “${prodName} x ${qty}” และ ปิดการขายสำเร็จแล้ว!`,
+      en: `Order created for “${prodName} x ${qty}” & deal closed!`,
+    })
+    setTimeout(() => { statusNotice.value = '' }, 4000)
+  } catch (err: any) {
+    console.error('Quick order failed', err)
+  } finally {
+    submittingOrder.value = false
+  }
+}
+
 const sendReply = async (explicitCode?: string, explicitReplySetId?: string) => {
   const msgToSend = (explicitCode !== undefined ? explicitCode : inputMessage.value).trim()
   if (!msgToSend || !activeSender.value || sending.value) return
 
-  // Find the page ID associated with this sender
-  const msgs = conversations.value[activeSender.value]
-  const pageId = msgs?.find(m => m.page_id)?.page_id || leads.value[activeSender.value]?.pageId || ''
+  const senderId = activeSender.value
+  const msgs = conversations.value[senderId]
+  const pageId = msgs?.find(m => m.page_id)?.page_id || leads.value[senderId]?.pageId || ''
+
+  // Optimistically bump timestamp for instant top ranking!
+  if (conversations.value[senderId]?.length) {
+    const lastMsg = conversations.value[senderId][conversations.value[senderId].length - 1]
+    if (lastMsg) lastMsg.timestamp = String(Date.now())
+  }
+  if (leads.value[senderId]) {
+    leads.value[senderId].updatedAt = new Date().toISOString()
+  }
 
   sending.value = true
   loadError.value = ''
@@ -616,6 +937,35 @@ const formatTime = (ts: string) => {
             <span class="filter-count" v-if="statusCounts[opt.key]">{{ statusCounts[opt.key] }}</span>
           </button>
         </div>
+
+        <!-- Pancake Staff Filter -->
+        <div class="staff-filter-row" v-if="teamMembers.length > 0">
+          <button
+            type="button"
+            class="staff-filter-btn"
+            :class="{ active: selectedStaffFilter === 'all' }"
+            @click="selectedStaffFilter = 'all'"
+          >
+            {{ l({lo:'ທຸກແອດມິນ',th:'ทุกแอดมิน',en:'All Staff'}) }}
+          </button>
+          <button
+            type="button"
+            class="staff-filter-btn"
+            :class="{ active: selectedStaffFilter === 'mine' }"
+            @click="selectedStaffFilter = 'mine'"
+          >
+            <v-icon icon="mdi-account" size="13" class="mr-1"/>
+            {{ l({lo:'ຂອງຂ້ອຍ',th:'ของฉัน',en:'My Chats'}) }}
+          </button>
+          <button
+            type="button"
+            class="staff-filter-btn"
+            :class="{ active: selectedStaffFilter === 'unassigned' }"
+            @click="selectedStaffFilter = 'unassigned'"
+          >
+            {{ l({lo:'ຍັງບໍ່ມອບໝາຍ',th:'ยังไม่มอบหมาย',en:'Unassigned'}) }}
+          </button>
+        </div>
       </div>
 
       <div class="conversation-list">
@@ -731,6 +1081,17 @@ const formatTime = (ts: string) => {
             </v-list>
           </v-menu>
 
+          <!-- Quick Order Button -->
+          <button
+            type="button"
+            class="action-btn-order"
+            @click="quickOrderDialog = true"
+            :title="l({lo:'ສ້າງອໍເດີດ່ວນ (Pancake Order)',th:'สร้างออเดอร์ด่วน (Pancake Order)',en:'Quick Order'})"
+          >
+            <v-icon icon="mdi-cart-plus" size="14" class="mr-1"/>
+            <span>{{ l({lo:'ສ້າງອໍເດີ',th:'สร้างออเดอร์',en:'Order'}) }}</span>
+          </button>
+
           <!-- 1-Click Purchase Shortcut -->
           <button
             v-if="activeLeadStatus !== 'purchased'"
@@ -745,6 +1106,18 @@ const formatTime = (ts: string) => {
             <v-icon icon="mdi-check-circle" size="14" class="mr-1"/>
             {{ locale === 'lo' ? 'ປິດການຂາຍແລ້ວ' : (locale === 'th' ? 'ซื้อแล้ว' : 'Purchased') }}
           </span>
+
+          <!-- Pancake CRM Details Toggle -->
+          <button
+            type="button"
+            class="action-btn-crm"
+            :class="{ active: pancakeDrawerOpen }"
+            @click="pancakeDrawerOpen = !pancakeDrawerOpen"
+            :title="l({lo:'ຂໍ້ມູນລູກຄ້າ & CRM Pancake',th:'ข้อมูลลูกค้า & CRM Pancake',en:'Customer CRM Details'})"
+          >
+            <v-icon icon="mdi-account-details-outline" size="16" class="mr-1"/>
+            <span>CRM</span>
+          </button>
         </div>
       </div>
       <div v-if="statusNotice" class="status-notice-bar">
@@ -831,6 +1204,15 @@ const formatTime = (ts: string) => {
             <v-icon icon="mdi-lightning-bolt" size="18"/>
             <span class="quick-btn-text">{{ l({lo:'ໂຄ້ດ',th:'โค้ด',en:'Code'}) }}</span>
           </button>
+          <button
+            type="button"
+            class="quick-reply-btn canned-btn"
+            @click="cannedPhrasesDialog = true"
+            :title="l({lo:'ຄຳຕອບມາດຕະຖານ / ຕອບດ່ວນ (Pancake)',th:'คำตอบมาตรฐาน / ตอบด่วน (Pancake)',en:'Canned Quick Replies'})"
+          >
+            <v-icon icon="mdi-chat-quote-outline" size="18"/>
+            <span class="quick-btn-text">{{ l({lo:'ຕອບດ່ວນ',th:'ตอบด่วน',en:'Quick'}) }}</span>
+          </button>
           <input
             v-model="inputMessage"
             @keyup.enter="sendReply()"
@@ -854,6 +1236,194 @@ const formatTime = (ts: string) => {
       <v-icon icon="mdi-message-text-outline" size="64" />
       <p>{{locale==='lo'?'ເລືອກການສົນທະນາເພື່ອເບິ່ງ ແລະຕອບຂໍ້ຄວາມ':'Select a conversation to view and reply.'}}</p>
     </div>
+
+    <!-- Pancake CRM Details Sidebar / Drawer -->
+    <aside
+      class="pancake-drawer"
+      :class="{ open: pancakeDrawerOpen }"
+      v-if="activeSender"
+    >
+      <div class="pancake-drawer-header">
+        <div class="drawer-title-group">
+          <v-icon icon="mdi-badge-account-horizontal-outline" color="primary" size="20"/>
+          <h3>{{ l({lo:'ຂໍ້ມູນລູກຄ້າ CRM',th:'ข้อมูลลูกค้า CRM',en:'Customer CRM'}) }}</h3>
+        </div>
+        <button type="button" class="close-drawer-btn" @click="pancakeDrawerOpen = false" :title="l({lo:'ປິດ',th:'ปิด',en:'Close'})">
+          <v-icon icon="mdi-close" size="18"/>
+        </button>
+      </div>
+
+      <div class="pancake-drawer-content" v-if="activeSenderSummary">
+        <!-- Customer Profile Card -->
+        <div class="pancake-card profile-card">
+          <div class="customer-avatar-lg">
+            <img v-if="activeSenderSummary.senderPic" :src="activeSenderSummary.senderPic" alt="Avatar"/>
+            <v-icon v-else :icon="activeSenderSummary.platform === 'whatsapp' ? 'mdi-whatsapp' : 'mdi-facebook-messenger'" size="28"/>
+          </div>
+          <div class="customer-profile-info">
+            <div class="customer-name-edit">
+              <input
+                v-model="leadForm.name"
+                class="name-input"
+                :placeholder="l({lo:'ຊື່ລູກຄ້າ...',th:'ชื่อลูกค้า...',en:'Customer name...'})"
+                @blur="saveLeadInfo"
+              />
+            </div>
+            <div class="customer-id-row">
+              <span class="platform-chip" :class="activeSenderSummary.platform">
+                {{ activeSenderSummary.platform }}
+              </span>
+              <span class="customer-id-text" :title="activeSender">ID: {{ activeSender.slice(-8) }}</span>
+              <button type="button" class="icon-btn-mini" @click="copyToClipboard(activeSender, 'ID')" :title="l({lo:'ກັອບປີ້ ID',th:'คัดลอก ID',en:'Copy ID'})">
+                <v-icon :icon="copiedField === 'ID' ? 'mdi-check' : 'mdi-content-copy'" size="13"/>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 1-Click Status Quick Changer -->
+        <div class="pancake-card">
+          <div class="pancake-section-label">
+            <v-icon icon="mdi-flag-outline" size="15"/>
+            <span>{{ l({lo:'ສະຖານະປັດຈຸບັນ',th:'สถานะปัจจุบัน',en:'Current Status'}) }}</span>
+          </div>
+          <div class="pancake-status-selector">
+            <button
+              v-for="opt in STATUS_OPTIONS"
+              :key="opt.key"
+              type="button"
+              class="crm-status-btn"
+              :class="{ active: activeLeadStatus === opt.key }"
+              :style="activeLeadStatus === opt.key ? { backgroundColor: opt.bg, borderColor: opt.color, color: opt.color } : {}"
+              @click="changeLeadStatus(activeSender, opt.key)"
+            >
+              <span class="status-dot-sm" :style="{ backgroundColor: opt.color }"></span>
+              {{ l(opt.label) }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Staff Assignment (Pancake Feature) -->
+        <div class="pancake-card">
+          <div class="pancake-section-label">
+            <v-icon icon="mdi-account-tie" size="15"/>
+            <span>{{ l({lo:'ແອດມິນຜູ້ຮັບຜິດຊອບ',th:'แอดมินผู้รับผิดชอบ',en:'Assigned Staff'}) }}</span>
+          </div>
+          <div class="staff-select-wrapper">
+            <select
+              :value="leadForm.assignedUserId"
+              @change="onAssignStaff(($event.target as HTMLSelectElement).value)"
+              class="staff-select"
+            >
+              <option value="">-- {{ l({lo:'ຍັງບໍ່ໄດ້ມອບໝາຍ',th:'ยังไม่ได้มอบหมาย',en:'Unassigned'}) }} --</option>
+              <option v-for="staff in teamMembers" :key="staff.id" :value="staff.id">
+                {{ staff.name }} ({{ staff.role }})
+              </option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Contact: Phone & Address -->
+        <div class="pancake-card">
+          <div class="pancake-section-label">
+            <v-icon icon="mdi-phone-outline" size="15"/>
+            <span>{{ l({lo:'ເບີໂທລະສັບ',th:'เบอร์โทรศัพท์',en:'Phone Number'}) }}</span>
+            <div class="label-actions" v-if="leadForm.phone">
+              <a :href="'tel:' + leadForm.phone" class="icon-link-mini" :title="l({lo:'ໂທອອກ',th:'โทรออก',en:'Call'})">
+                <v-icon icon="mdi-phone" size="14"/>
+              </a>
+              <button type="button" class="icon-btn-mini" @click="copyToClipboard(leadForm.phone, 'phone')" :title="l({lo:'ກັອບປີ້ເບີໂທ',th:'คัดลอกเบอร์',en:'Copy Phone'})">
+                <v-icon :icon="copiedField === 'phone' ? 'mdi-check' : 'mdi-content-copy'" size="13"/>
+              </button>
+            </div>
+          </div>
+          <div class="input-with-action">
+            <input
+              v-model="leadForm.phone"
+              type="tel"
+              class="crm-input"
+              :placeholder="l({lo:'ປ້ອນເບີໂທ (ເຊັ່ນ 020...)',th:'เบอร์โทรศัพท์ (เช่น 08...)',en:'Phone number...'})"
+              @blur="saveLeadInfo"
+            />
+          </div>
+
+          <div class="pancake-section-label mt-3">
+            <v-icon icon="mdi-map-marker-outline" size="15"/>
+            <span>{{ l({lo:'ທີ່ຢູ່ຈັດສົ່ງ',th:'ที่อยู่จัดส่ง',en:'Delivery Address'}) }}</span>
+            <div class="label-actions" v-if="leadForm.address">
+              <button type="button" class="icon-btn-mini" @click="copyToClipboard(leadForm.address, 'address')" :title="l({lo:'ກັອບປີ້ທີ່ຢູ່',th:'คัดลอกที่อยู่',en:'Copy Address'})">
+                <v-icon :icon="copiedField === 'address' ? 'mdi-check' : 'mdi-content-copy'" size="13"/>
+              </button>
+            </div>
+          </div>
+          <textarea
+            v-model="leadForm.address"
+            rows="2"
+            class="crm-textarea"
+            :placeholder="l({lo:'ບ້ານ, ເມືອງ, ແຂວງ, ຈຸດສັງເກດ...',th:'ที่อยู่จัดส่ง, ตำบล/อำเภอ/จังหวัด...',en:'Delivery address details...'})"
+            @blur="saveLeadInfo"
+          ></textarea>
+        </div>
+
+        <!-- Customer Tags (Pancake Feature) -->
+        <div class="pancake-card">
+          <div class="pancake-section-label">
+            <v-icon icon="mdi-tag-multiple-outline" size="15"/>
+            <span>{{ l({lo:'ປ້າຍກຳກັບລູກຄ້າ (Tags)',th:'แท็กลูกค้า (Tags)',en:'Customer Tags'}) }}</span>
+          </div>
+          <div class="tags-cloud">
+            <button
+              v-for="t in PRESET_TAGS"
+              :key="t.key"
+              type="button"
+              class="crm-tag-chip"
+              :class="{ selected: hasTag(t.key) }"
+              :style="hasTag(t.key) ? { backgroundColor: t.bg, borderColor: t.border, color: t.color } : {}"
+              @click="toggleCustomerTag(activeSender, t.key)"
+            >
+              <v-icon :icon="hasTag(t.key) ? 'mdi-check-circle' : 'mdi-plus-circle-outline'" size="13" class="mr-1"/>
+              {{ t.label }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Staff Internal Notes / Memo -->
+        <div class="pancake-card">
+          <div class="pancake-section-label">
+            <v-icon icon="mdi-note-text-outline" size="15"/>
+            <span>{{ l({lo:'ໝາຍເຫດພາຍໃນ (Staff Memo)',th:'บันทึกภายใน (Staff Memo)',en:'Internal Notes'}) }}</span>
+          </div>
+          <textarea
+            v-model="leadForm.notes"
+            rows="3"
+            class="crm-textarea"
+            :placeholder="l({lo:'ບັນທຶກຂໍ້ມູນພິເສດ, ປະຫວັດການສັ່ງ...',th:'บันทึกรายละเอียดเพิ่มเติม, ความต้องการ...',en:'Staff notes, order history memo...'})"
+            @blur="saveLeadInfo"
+          ></textarea>
+          <div class="notes-footer">
+            <button type="button" class="btn-save-note" @click="saveLeadInfo">
+              <v-icon icon="mdi-content-save-outline" size="14" class="mr-1"/>
+              {{ l({lo:'ບັນທຶກ',th:'บันทึก',en:'Save'}) }}
+            </button>
+          </div>
+        </div>
+
+        <!-- 1-Click Quick Order CTA -->
+        <div class="pancake-card order-cta-card">
+          <button type="button" class="btn-quick-order-full" @click="quickOrderDialog = true">
+            <v-icon icon="mdi-cart-plus" size="18" class="mr-1"/>
+            <span>{{ l({lo:'ສ້າງອໍເດີດ່ວນ (1-Click Order)',th:'สร้างออเดอร์ด่วน (1-Click Order)',en:'Quick Order (1-Click)'}) }}</span>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Mobile Pancake Backdrop -->
+    <div
+      v-if="activeSender && pancakeDrawerOpen"
+      class="pancake-backdrop"
+      @click="pancakeDrawerOpen = false"
+    ></div>
 
     <!-- Quick Reply Sets / Codes Dialog -->
     <v-dialog v-model="replySetsDialog" max-width="520">
@@ -903,6 +1473,132 @@ const formatTime = (ts: string) => {
         <v-card-actions>
           <v-spacer/>
           <v-btn variant="text" @click="replySetsDialog = false">{{ l({lo:'ປິດ',th:'ปิด',en:'Close'}) }}</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- Canned Phrases Modal (Pancake Style) -->
+    <v-dialog v-model="cannedPhrasesDialog" max-width="540">
+      <v-card class="canned-dialog-card">
+        <v-card-title class="dialog-title">
+          <v-icon icon="mdi-chat-quote" color="primary" class="mr-2"/>
+          <span>{{ l({lo:'ຂໍ້ຄວາມຕອບດ່ວນ / ຄຳຕອບມາດຕະຖານ',th:'ข้อความตอบด่วน / คำตอบมาตรฐาน',en:'Canned Quick Responses'}) }}</span>
+        </v-card-title>
+        <v-card-text class="dialog-body">
+          <div class="canned-tabs">
+            <button
+              v-for="cat in CANNED_CATEGORIES"
+              :key="cat.key"
+              type="button"
+              class="canned-cat-btn"
+              :class="{ active: selectedCannedCategory === cat.key }"
+              @click="selectedCannedCategory = cat.key"
+            >
+              <v-icon :icon="cat.icon" size="14" class="mr-1"/>
+              {{ l(cat.label) }}
+            </button>
+          </div>
+
+          <div class="canned-list">
+            <div v-for="phrase in filteredCannedPhrases" :key="phrase.id" class="canned-item-card">
+              <div class="canned-header">
+                <div class="canned-title">
+                  <v-icon :icon="phrase.icon" size="16" color="primary" class="mr-1"/>
+                  <strong>{{ l(phrase.title) }}</strong>
+                </div>
+                <div class="canned-actions">
+                  <button type="button" class="btn-insert" @click="insertPhrase(phrase, false)">
+                    <v-icon icon="mdi-pencil-outline" size="13" class="mr-1"/>
+                    {{ l({lo:'ໃສ່ໃນແຊັດ',th:'ใส่ในแชท',en:'Insert'}) }}
+                  </button>
+                  <button type="button" class="btn-send-now" @click="insertPhrase(phrase, true)">
+                    <v-icon icon="mdi-send" size="13" class="mr-1"/>
+                    {{ l({lo:'ສົ່ງເລີຍ',th:'ส่งทันที',en:'Send'}) }}
+                  </button>
+                </div>
+              </div>
+              <p class="canned-text-preview">{{ l(phrase.text) }}</p>
+            </div>
+          </div>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer/>
+          <v-btn variant="text" @click="cannedPhrasesDialog = false">{{ l({lo:'ປິດ',th:'ปิด',en:'Close'}) }}</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- 1-Click Quick Order Modal (Pancake Style) -->
+    <v-dialog v-model="quickOrderDialog" max-width="500">
+      <v-card class="quick-order-card">
+        <v-card-title class="dialog-title">
+          <v-icon icon="mdi-cart-check" color="success" class="mr-2"/>
+          <span>{{ l({lo:'ສ້າງອໍເດີດ່ວນ & ປິດການຂາຍ',th:'สร้างออเดอร์ด่วน & ปิดการขาย',en:'Quick Order & Close Deal'}) }}</span>
+        </v-card-title>
+        <v-card-text class="dialog-body">
+          <p class="dialog-hint">
+            {{ l({
+              lo: 'ເລືອກສິນຄ້າທີ່ລູກຄ້າສັ່ງ, ລະບົບຈະບັນທຶກອໍເດີໃສ່ CRM, ປ່ຽນສະຖານະເປັນ “ປິດການຂາຍ”, ແລະ ສົ່ງ Meta CAPI ອັດຕະໂນມັດ:',
+              th: 'เลือกสินค้าที่ลูกค้าสั่ง ระบบจะบันทึกออเดอร์ลง CRM เปลี่ยนสถานะเป็น “ปิดการขาย” และส่ง Meta CAPI อัตโนมัติ:',
+              en: 'Select ordered product. The system will record to CRM, mark Purchased, and trigger Meta CAPI:'
+            }) }}
+          </p>
+
+          <div class="order-form-group">
+            <label class="order-label">{{ l({lo:'ສິນຄ້າ',th:'สินค้า',en:'Product'}) }} *</label>
+            <select v-model="quickOrderForm.productId" class="order-select">
+              <option value="">-- {{ l({lo:'ເລືອກສິນຄ້າ...',th:'เลือกสินค้า...',en:'Select product...'}) }} --</option>
+              <option v-for="p in products" :key="p.id" :value="p.id">
+                {{ p.code ? `[#${p.code}] ` : '' }}{{ p.name }} - {{ p.price }} {{ p.currency || 'LAK' }}
+              </option>
+            </select>
+          </div>
+
+          <div class="order-form-row">
+            <div class="order-form-group flex-1">
+              <label class="order-label">{{ l({lo:'ຈຳນວນ',th:'จำนวน',en:'Quantity'}) }}</label>
+              <div class="qty-stepper">
+                <button type="button" @click="quickOrderForm.quantity = Math.max(1, quickOrderForm.quantity - 1)">-</button>
+                <input v-model.number="quickOrderForm.quantity" type="number" min="1" class="qty-input"/>
+                <button type="button" @click="quickOrderForm.quantity = quickOrderForm.quantity + 1">+</button>
+              </div>
+            </div>
+            <div class="order-form-group flex-1" v-if="selectedOrderProduct">
+              <label class="order-label">{{ l({lo:'ລາຄາຕໍ່ຊຸດ',th:'ราคาต่อชิ้น',en:'Unit Price'}) }}</label>
+              <div class="readonly-price">{{ selectedOrderProduct.price }} {{ selectedOrderProduct.currency || 'LAK' }}</div>
+            </div>
+          </div>
+
+          <div class="order-form-group mt-3">
+            <label class="order-label">{{ l({lo:'ໝາຍເຫດອໍເດີ (ທາງເລືອກ)',th:'หมายเหตุออเดอร์ (ตัวเลือก)',en:'Order Note (Optional)'}) }}</label>
+            <input
+              v-model="quickOrderForm.notes"
+              type="text"
+              class="order-input"
+              :placeholder="l({lo:'ເຊັ່ນ: ໄຊສ໌ M, ສີຂາວ, ສົ່ງດ່ວນ...',th:'เช่น ไซส์ M, สีขาว, ส่งด่วน...',en:'e.g. Size M, Color White...'})"
+            />
+          </div>
+
+          <!-- Total Calculation Box -->
+          <div class="order-summary-box" v-if="selectedOrderProduct">
+            <div class="summary-row">
+              <span>{{ l({lo:'ຍອດລວມທັງໝົດ:',th:'ยอดรวมทั้งหมด:',en:'Total Amount:'}) }}</span>
+              <strong class="total-price">{{ selectedOrderTotal }} {{ selectedOrderProduct.currency || 'LAK' }}</strong>
+            </div>
+          </div>
+        </v-card-text>
+        <v-card-actions class="dialog-actions-padding">
+          <v-btn variant="text" @click="quickOrderDialog = false">{{ l({lo:'ຍົກເລີກ',th:'ยกเลิก',en:'Cancel'}) }}</v-btn>
+          <v-btn
+            color="success"
+            variant="flat"
+            :loading="submittingOrder"
+            :disabled="!quickOrderForm.productId || submittingOrder"
+            @click="submitQuickOrder"
+          >
+            <v-icon icon="mdi-check-circle" class="mr-1"/>
+            {{ l({lo:'ຢືນຢັນອໍເດີ & ປິດການຂາຍ',th:'ยืนยันออเดอร์ & ปิดการขาย',en:'Confirm & Close Deal'}) }}
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -1823,4 +2519,612 @@ const formatTime = (ts: string) => {
 .ad-tag { background: #FFF3E0; color: #E65100; }
 .page-tag { background: #F3E5F5; color: #7B1FA2; }
 
+/* Header Action Buttons */
+.action-btn-order {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  padding: 6px 13px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 750;
+  transition: all 0.15s ease;
+  touch-action: manipulation;
+}
+.action-btn-order:hover {
+  background: var(--color-primary-dark);
+}
+
+.action-btn-crm {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--color-surface-soft);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  padding: 6px 12px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 750;
+  transition: all 0.15s ease;
+  touch-action: manipulation;
+}
+.action-btn-crm:hover, .action-btn-crm.active {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+/* Sidebar Staff Filter */
+.staff-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: none;
+  padding-top: 2px;
+}
+.staff-filter-row::-webkit-scrollbar {
+  display: none;
+}
+.staff-filter-btn {
+  padding: 3px 9px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 650;
+  border: 1px solid var(--color-border);
+  background: var(--color-background);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+.staff-filter-btn.active {
+  background: var(--color-surface-soft);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  font-weight: 750;
+}
+
+/* Canned Button in Chat Input */
+.canned-btn {
+  color: #7c3aed;
+  background: #f5f3ff;
+  border-color: #ddd6fe;
+}
+.canned-btn:hover {
+  background: #ede9fe;
+  border-color: #7c3aed;
+}
+
+/* Pancake CRM Drawer (Desktop) */
+.pancake-drawer {
+  width: 320px;
+  border-left: 1px solid var(--color-border);
+  background: var(--color-surface);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow: hidden;
+  transition: width 0.2s ease, opacity 0.2s ease;
+}
+.pancake-drawer-header {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--color-surface);
+}
+.drawer-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.drawer-title-group h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 750;
+  color: var(--color-text);
+}
+.close-drawer-btn {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+}
+.close-drawer-btn:hover {
+  background: var(--color-background);
+  color: var(--color-text);
+}
+
+.pancake-drawer-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pancake-card {
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-background);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.profile-card {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+}
+.customer-avatar-lg {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--color-surface-soft);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.customer-avatar-lg img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.customer-profile-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.name-input {
+  width: 100%;
+  font-size: 14px;
+  font-weight: 750;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-text);
+  padding: 2px 4px;
+  border-radius: 6px;
+  outline: none;
+}
+.name-input:focus {
+  border-color: var(--color-primary);
+  background: var(--color-surface);
+}
+.customer-id-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+.platform-chip {
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.platform-chip.facebook { background: #E7F3FF; color: #1877F2; }
+.platform-chip.whatsapp { background: #E7FCE3; color: #25D366; }
+.customer-id-text {
+  color: var(--color-text-muted);
+}
+.icon-btn-mini {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 2px;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+}
+.icon-btn-mini:hover {
+  color: var(--color-primary);
+  background: var(--color-surface-soft);
+}
+.icon-link-mini {
+  color: #16a34a;
+  text-decoration: none;
+  display: grid;
+  place-items: center;
+  padding: 2px;
+  border-radius: 4px;
+}
+.icon-link-mini:hover {
+  background: #dcfce7;
+}
+
+.pancake-section-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 750;
+  color: var(--color-text-secondary);
+  gap: 4px;
+}
+.pancake-section-label span {
+  flex: 1;
+}
+.label-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pancake-status-selector {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+.crm-status-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.status-dot-sm {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.staff-select-wrapper {
+  position: relative;
+}
+.staff-select {
+  width: 100%;
+  height: 36px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0 10px;
+  font-size: 12px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  outline: none;
+  cursor: pointer;
+}
+.staff-select:focus {
+  border-color: var(--color-primary);
+}
+
+.crm-input {
+  width: 100%;
+  height: 36px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0 10px;
+  font-size: 12.5px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  outline: none;
+}
+.crm-input:focus {
+  border-color: var(--color-primary);
+}
+.crm-textarea {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  outline: none;
+  resize: vertical;
+}
+.crm-textarea:focus {
+  border-color: var(--color-primary);
+}
+
+.tags-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.crm-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.crm-tag-chip:hover {
+  border-color: var(--color-primary);
+}
+
+.notes-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+.btn-save-note {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  border-radius: 6px;
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btn-save-note:hover {
+  background: var(--color-primary-dark);
+}
+
+.order-cta-card {
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  border-color: #bbf7d0;
+}
+.btn-quick-order-full {
+  width: 100%;
+  height: 42px;
+  border: none;
+  border-radius: 10px;
+  background: #16a34a;
+  color: white;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(22,163,74,0.25);
+  transition: all 0.15s ease;
+  touch-action: manipulation;
+}
+.btn-quick-order-full:hover {
+  background: #15803d;
+  box-shadow: 0 4px 12px rgba(22,163,74,0.35);
+}
+
+.pancake-backdrop {
+  display: none;
+}
+
+/* Canned Phrases Dialog */
+.canned-dialog-card {
+  border-radius: 18px !important;
+}
+.canned-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  white-space: nowrap;
+  padding-bottom: 8px;
+  margin-bottom: 12px;
+  scrollbar-width: none;
+}
+.canned-tabs::-webkit-scrollbar {
+  display: none;
+}
+.canned-cat-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 11px;
+  border-radius: 14px;
+  font-size: 11.5px;
+  font-weight: 700;
+  border: 1px solid var(--color-border);
+  background: var(--color-background);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+.canned-cat-btn.active {
+  background: #7c3aed;
+  border-color: #7c3aed;
+  color: white;
+}
+.canned-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 380px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.canned-item-card {
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-background);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.canned-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.canned-title {
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 750;
+  color: var(--color-text);
+}
+.canned-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.canned-text-preview {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  line-height: 1.45;
+  white-space: pre-line;
+}
+
+/* Quick Order Dialog */
+.quick-order-card {
+  border-radius: 18px !important;
+}
+.order-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.order-label {
+  font-size: 11.5px;
+  font-weight: 750;
+  color: var(--color-text-secondary);
+}
+.order-select, .order-input {
+  width: 100%;
+  height: 40px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 0 12px;
+  font-size: 13px;
+  background: var(--color-background);
+  color: var(--color-text);
+  outline: none;
+}
+.order-select:focus, .order-input:focus {
+  border-color: var(--color-primary);
+}
+.order-form-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+}
+.qty-stepper {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  overflow: hidden;
+  height: 40px;
+  background: var(--color-background);
+}
+.qty-stepper button {
+  width: 38px;
+  height: 100%;
+  border: none;
+  background: var(--color-surface-soft);
+  color: var(--color-text);
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+.qty-input {
+  flex: 1;
+  width: 44px;
+  text-align: center;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 750;
+  outline: none;
+}
+.readonly-price {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  background: var(--color-surface-soft);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 750;
+  color: var(--color-text);
+}
+.order-summary-box {
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+}
+.summary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #166534;
+}
+.total-price {
+  font-size: 16px;
+  font-weight: 850;
+  color: #15803d;
+}
+.dialog-actions-padding {
+  padding: 12px 24px 16px !important;
+}
+
+/* Mobile & Tablet Responsive Rules for Pancake CRM Drawer */
+@media(max-width:1024px) {
+  .pancake-drawer {
+    position: fixed;
+    top: 0;
+    right: -360px;
+    bottom: 0;
+    width: min(340px, 86vw);
+    z-index: 1000;
+    box-shadow: -4px 0 24px rgba(0,0,0,0.2);
+    transition: right 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .pancake-drawer.open {
+    right: 0;
+  }
+  .pancake-backdrop {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 999;
+    backdrop-filter: blur(2px);
+  }
+}
 </style>
