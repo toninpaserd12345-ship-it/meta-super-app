@@ -103,17 +103,23 @@ func NewGraphConnector(cfg GraphConfig, db *gorm.DB) *GraphConnector {
 }
 
 func (g *GraphConnector) cleanupRoutine() {
-	ticker := time.NewTicker(1 * time.Hour)
+	ticker := time.NewTicker(10 * time.Minute)
 	defer ticker.Stop()
 	for range ticker.C {
+		now := time.Now()
 		g.mu.Lock()
+		for id, expires := range g.recentEvents {
+			if now.After(expires) {
+				delete(g.recentEvents, id)
+			}
+		}
 		// firstReplies tracks anti-spam 24h
 		for k, t := range g.firstReplies {
 			if time.Since(t) > 24*time.Hour {
 				delete(g.firstReplies, k)
 			}
 		}
-		// conversations and deliverySteps are transient states for automations, safe to clear fully every hour
+		// conversations and deliverySteps are transient states for automations, safe to clear fully
 		g.conversations = make(map[string]string)
 		g.deliverySteps = make(map[string]bool)
 		g.mu.Unlock()
@@ -459,12 +465,7 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 	key := hex.EncodeToString(digest[:])
 	g.mu.Lock()
 	now := time.Now()
-	for id, expires := range g.recentEvents {
-		if now.After(expires) {
-			delete(g.recentEvents, id)
-		}
-	}
-	if _, duplicate := g.recentEvents[key]; duplicate {
+	if expires, duplicate := g.recentEvents[key]; duplicate && now.Before(expires) {
 		g.mu.Unlock()
 		return nil
 	}
