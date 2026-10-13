@@ -7,6 +7,7 @@ export default defineNuxtConfig({
     head: {
       title: 'Meta Super App',
       meta: [
+        { name: 'viewport', content: 'width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover' },
         { name: 'description', content: 'A secure workspace for your business.' },
         { name: 'theme-color', content: '#F6F7FB' },
       ],

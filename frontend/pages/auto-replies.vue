@@ -167,7 +167,7 @@ async function loadCampaigns() {
   campaigns.value = []
   if (!adAccountId.value) return
   loading.value = true
-  try { campaigns.value = (await cachedFetch<ItemsResponse<MetaCampaign>>(`/api/proxy/api/v1/meta/ad-accounts/${adAccountId.value}/campaigns`, 120_000)).items }
+  try { campaigns.value = (await $fetch<ItemsResponse<MetaCampaign>>(`/api/proxy/api/v1/meta/ad-accounts/${adAccountId.value}/campaigns`)).items }
   catch (error) { noticeType.value = 'error'; notice.value = apiError(error, 'Could not load campaigns.') }
   finally { loading.value = false }
 }

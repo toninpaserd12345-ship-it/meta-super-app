@@ -485,12 +485,21 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 			if rule != nil && rule.FlowID != "" {
 				replyKey += ":" + rule.FlowID
 			}
+			// Guard against duplicate processing of the exact same Facebook Comment ID
+			commentKey := "comment:" + change.Value.CommentID
 			g.mu.Lock()
-			lastReplyTime, alreadyReplied := g.firstReplies[replyKey]
-			isSpamming := false
-			if alreadyReplied {
-				isSpamming = time.Since(lastReplyTime) < 24*time.Hour
+			if _, alreadyProcessed := g.recentEvents[commentKey]; alreadyProcessed {
+				g.mu.Unlock()
+				continue
 			}
+			g.recentEvents[commentKey] = now.Add(24 * time.Hour)
+
+			lastReplyTime, alreadyReplied := g.firstReplies[replyKey]
+			commentCooldown := 10 * time.Second
+			if rule != nil && rule.CooldownSeconds > 0 {
+				commentCooldown = time.Duration(rule.CooldownSeconds) * time.Second
+			}
+			isSpamming := alreadyReplied && time.Since(lastReplyTime) < commentCooldown
 
 			busy := g.inFlight[replyKey]
 			if found && !isSpamming && !busy {
@@ -579,6 +588,8 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 					sourceType, sourceID = "post", ref.Ref
 					if ref.AdID != "" {
 						sourceType, sourceID = "ad", ref.AdID
+					} else if ref.AdsContextData.PostID != "" {
+						sourceType, sourceID = "post", ref.AdsContextData.PostID
 					}
 				}
 				_ = g.leadSink.CaptureLead(ctx, domain.LeadCapture{AccountID: accountID, PageID: entry.ID, SenderID: customerID, SourceType: sourceType, SourceID: sourceID})
@@ -611,11 +622,15 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 								cleanMsg := strings.TrimSpace(strings.TrimLeft(msgLower, "/#:!# "))
 								for _, p := range products {
 									cleanCode := strings.TrimSpace(strings.TrimLeft(strings.ToLower(p.Code), "/#:!# "))
+									prodCodeLower := strings.ToLower(strings.TrimSpace(p.Code))
+									prodNameLower := strings.ToLower(strings.TrimSpace(p.Name))
 									match := (cleanMsg != "" && cleanCode != "" && cleanMsg == cleanCode) ||
 										(p.Code != "" && strings.EqualFold(msgLower, p.Code)) ||
 										strings.EqualFold(msgLower, p.Name) ||
 										strings.EqualFold(cleanMsg, p.Name) ||
-										strings.EqualFold(msgLower, p.ID)
+										strings.EqualFold(msgLower, p.ID) ||
+										(prodCodeLower != "" && len(prodCodeLower) >= 2 && strings.Contains(msgLower, prodCodeLower)) ||
+										(prodNameLower != "" && len([]rune(prodNameLower)) >= 3 && strings.Contains(msgLower, prodNameLower))
 									if match {
 										product := p
 										go func(pageID, recipientID string, prod domain.Product) {
@@ -674,6 +689,12 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 					sourceType, sourceID = "ad", ref.AdID
 				} else if ref.Source == "ADS" && ref.Ref != "" {
 					sourceType, sourceID = "ad", ref.Ref
+				} else if ref.AdsContextData.PostID != "" {
+					sourceType, sourceID = "post", ref.AdsContextData.PostID
+				} else if ref.CampaignID != "" {
+					sourceType, sourceID = "campaign", ref.CampaignID
+				} else if ref.AdGroupID != "" {
+					sourceType, sourceID = "adset", ref.AdGroupID
 				}
 				if sourceID != "" {
 					resolvedKey = bindingKey(entry.ID, sourceType, sourceID)
@@ -713,6 +734,17 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 				}
 			}
 
+			// Check whether customer has already received an automated reply in this conversation
+			hasRepliedCustomer := false
+			g.mu.RLock()
+			for k := range g.firstReplies {
+				if strings.HasPrefix(k, seenKey) {
+					hasRepliedCustomer = true
+					break
+				}
+			}
+			g.mu.RUnlock()
+
 			var rule *domain.AutomationRule
 			if g.automation != nil {
 				if directSet != nil {
@@ -729,7 +761,7 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 						CooldownSeconds: 2,
 						IsActive:        true,
 					}
-				} else if ref != nil || (sourceID != "" && (isAskingPrice(messageText) || hasImage)) {
+				} else if ref != nil || (sourceID != "" && (!hasRepliedCustomer || isAskingPrice(messageText) || hasImage)) {
 					// 1. Direct campaign match if referral includes campaign_id
 					if ref != nil && ref.CampaignID != "" {
 						rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, "campaign", ref.CampaignID)
@@ -750,37 +782,97 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 						}
 						rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, altType, sourceID)
 					}
-					// 5. Hierarchy resolution (ad -> campaign / adset)
+					// 5. Hierarchy resolution (ad -> campaign / adset / post)
 					if rule == nil && (sourceType == "ad" || (ref != nil && (ref.Source == "ADS" || ref.AdID != ""))) {
 						targetAdID := sourceID
 						if ref != nil && ref.AdID != "" {
 							targetAdID = ref.AdID
 						}
-						campaignID, adSetID := g.resolveAdHierarchy(ctx, entry.ID, targetAdID)
+						campaignID, adSetID, postID := g.resolveAdHierarchy(ctx, entry.ID, targetAdID)
 						if adSetID != "" {
 							rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, "adset", adSetID)
 						}
 						if rule == nil && campaignID != "" {
 							rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, "campaign", campaignID)
 						}
+						if rule == nil && postID != "" {
+							rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, "post", postID)
+						}
 					}
-					// 6. Direct campaign / custom match from ref.Ref if rule is still not found
+					// 6. Referral ads_context_data post_id match
+					if rule == nil && ref != nil && ref.AdsContextData.PostID != "" {
+						rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, "post", ref.AdsContextData.PostID)
+					}
+					// 7. Direct campaign / custom match from ref.Ref if rule is still not found
 					if rule == nil && ref != nil && ref.Ref != "" {
 						rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, "campaign", ref.Ref)
 					}
-				} else {
-					// Check for keyword trigger
+				}
+
+				// 8. Keyword match
+				if rule == nil {
 					msgText := strings.TrimSpace(message.Message.Text)
 					if msgText != "" {
 						keywordRules, _ := g.automation.GetKeywordRules(ctx, entry.ID)
 						for _, kr := range keywordRules {
 							if matchesKeywords(msgText, []string{kr.TriggerValue}) {
-								rule = &kr
+								r := kr
+								rule = &r
 								break
 							}
 						}
 					}
 				}
+
+				// 9. Natural language product inquiry, price question, image, or first contact fallback
+				if rule == nil && g.db != nil {
+					var activeRules []database.AutomationRuleModel
+					if err := g.db.WithContext(ctx).Where("page_id = ? AND is_active = ?", entry.ID, true).Find(&activeRules).Error; err == nil && len(activeRules) > 0 {
+						msgLower := strings.ToLower(messageText)
+						// Check if message text matches a product associated with any active rule
+						if msgLower != "" && g.productRepo != nil {
+							for _, ar := range activeRules {
+								if ar.ProductID != nil && *ar.ProductID != "" {
+									prod, pErr := g.productRepo.GetProduct(ctx, accountID, *ar.ProductID)
+									if pErr == nil && prod != nil {
+										cLower := strings.ToLower(strings.TrimSpace(prod.Code))
+										nLower := strings.ToLower(strings.TrimSpace(prod.Name))
+										if (cLower != "" && len(cLower) >= 2 && strings.Contains(msgLower, cLower)) ||
+											(nLower != "" && len([]rune(nLower)) >= 3 && strings.Contains(msgLower, nLower)) {
+											r := ruleModelToDomain(ar)
+											rule = &r
+											sourceType = ar.TriggerType
+											sourceID = ar.TriggerValue
+											resolvedKey = bindingKey(entry.ID, sourceType, sourceID)
+											break
+										}
+									}
+								}
+							}
+						}
+
+						// If still nil, and customer is asking price, sent an image, or is a first contact:
+						// Fallback to active rule for this page (e.g. if single active flow or ad rule)
+						if rule == nil && (!hasRepliedCustomer || isAskingPrice(messageText) || hasImage) {
+							targetRule := activeRules[0]
+							for _, ar := range activeRules {
+								if ar.TriggerType == "campaign" || ar.TriggerType == "ad" || ar.TriggerType == "post" {
+									targetRule = ar
+									break
+								}
+							}
+							r := ruleModelToDomain(targetRule)
+							rule = &r
+							sourceType = targetRule.TriggerType
+							sourceID = targetRule.TriggerValue
+							resolvedKey = bindingKey(entry.ID, sourceType, sourceID)
+						}
+					}
+				}
+			}
+
+			if rule != nil && resolvedKey == "" {
+				resolvedKey = bindingKey(entry.ID, rule.TriggerType, rule.TriggerValue)
 			}
 
 			found := rule != nil
@@ -811,7 +903,7 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 					isSpamming = time.Since(lastReplyTime) < 1*time.Minute
 				} else if rule != nil && rule.FlowID != "" {
 					if rule.FirstMessageOnly {
-						isSpamming = true
+						isSpamming = time.Since(lastReplyTime) < 12*time.Hour
 					} else if rule.CooldownSeconds > 0 {
 						isSpamming = time.Since(lastReplyTime) < time.Duration(rule.CooldownSeconds)*time.Second
 					}
@@ -915,29 +1007,30 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 type adHierarchyInfo struct {
 	campaignID string
 	adSetID    string
+	postID     string
 	expiresAt  time.Time
 }
 
-func (g *GraphConnector) resolveAdHierarchy(ctx context.Context, pageID, adID string) (string, string) {
+func (g *GraphConnector) resolveAdHierarchy(ctx context.Context, pageID, adID string) (string, string, string) {
 	if adID == "" {
-		return "", ""
+		return "", "", ""
 	}
 	g.mu.RLock()
 	if cached, ok := g.adHierarchyCache[adID]; ok && time.Now().Before(cached.expiresAt) {
 		g.mu.RUnlock()
-		return cached.campaignID, cached.adSetID
+		return cached.campaignID, cached.adSetID, cached.postID
 	}
 	g.mu.RUnlock()
 
 	accountID, _, ok := g.findPage(pageID)
 	if !ok {
-		return "", ""
+		return "", "", ""
 	}
 	token, err := g.userToken(ctx, accountID)
 	if err != nil {
-		return "", ""
+		return "", "", ""
 	}
-	query := url.Values{"fields": {"campaign{id},adset{id}"}, "access_token": {token}}
+	query := url.Values{"fields": {"campaign{id},adset{id},creative{effective_object_story_id}"}, "access_token": {token}}
 	var response struct {
 		Campaign struct {
 			ID string `json:"id"`
@@ -945,15 +1038,19 @@ func (g *GraphConnector) resolveAdHierarchy(ctx context.Context, pageID, adID st
 		AdSet struct {
 			ID string `json:"id"`
 		} `json:"adset"`
+		Creative struct {
+			EffectiveObjectStoryID string `json:"effective_object_story_id"`
+		} `json:"creative"`
 	}
 	endpoint := "https://graph.facebook.com/" + g.cfg.Version + "/" + url.PathEscape(adID) + "?" + query.Encode()
 	if err := g.getJSON(ctx, endpoint, &response); err != nil {
 		slog.Warn("could not resolve Meta Ad hierarchy", "page_id", pageID, "ad_id", adID, "error", err)
-		return "", ""
+		return "", "", ""
 	}
 	campaignID := response.Campaign.ID
 	adSetID := response.AdSet.ID
-	if campaignID != "" || adSetID != "" {
+	postID := response.Creative.EffectiveObjectStoryID
+	if campaignID != "" || adSetID != "" || postID != "" {
 		g.mu.Lock()
 		if g.adHierarchyCache == nil {
 			g.adHierarchyCache = make(map[string]adHierarchyInfo)
@@ -961,20 +1058,52 @@ func (g *GraphConnector) resolveAdHierarchy(ctx context.Context, pageID, adID st
 		g.adHierarchyCache[adID] = adHierarchyInfo{
 			campaignID: campaignID,
 			adSetID:    adSetID,
+			postID:     postID,
 			expiresAt:  time.Now().Add(24 * time.Hour),
 		}
 		g.mu.Unlock()
 	}
-	return campaignID, adSetID
+	return campaignID, adSetID, postID
 }
 
 type webhookReferral struct {
-	Ref        string `json:"ref"`
-	Source     string `json:"source"`
-	Type       string `json:"type"`
-	AdID       string `json:"ad_id"`
-	AdGroupID  string `json:"adgroup_id"`
-	CampaignID string `json:"campaign_id"`
+	Ref            string `json:"ref"`
+	Source         string `json:"source"`
+	Type           string `json:"type"`
+	AdID           string `json:"ad_id"`
+	AdGroupID      string `json:"adgroup_id"`
+	CampaignID     string `json:"campaign_id"`
+	AdsContextData struct {
+		AdTitle   string `json:"ad_title"`
+		PhotoURL  string `json:"photo_url"`
+		VideoURL  string `json:"video_url"`
+		PostID    string `json:"post_id"`
+		ProductID string `json:"product_id"`
+	} `json:"ads_context_data"`
+}
+
+func ruleModelToDomain(m database.AutomationRuleModel) domain.AutomationRule {
+	prodID := ""
+	if m.ProductID != nil {
+		prodID = *m.ProductID
+	}
+	return domain.AutomationRule{
+		ID:               m.ID,
+		AccountID:        m.AccountID,
+		PageID:           m.PageID,
+		TriggerType:      m.TriggerType,
+		TriggerName:      m.TriggerName,
+		TriggerValue:     m.TriggerValue,
+		ProductID:        prodID,
+		ReplySetID:       m.ReplySetID,
+		FlowID:           m.FlowID,
+		FlowName:         m.FlowName,
+		FirstMessageOnly: m.FirstMessageOnly,
+		CooldownSeconds:  m.CooldownSeconds,
+		IsActive:         m.IsActive,
+		CreatedAt:        m.CreatedAt,
+		UpdatedAt:        m.UpdatedAt,
+	}
 }
 
 func bindingKey(pageID, sourceType, sourceID string) string {
@@ -1330,6 +1459,16 @@ func (g *GraphConnector) CompleteAuthorization(ctx context.Context, state, code 
 						IsConnected: true,
 					}).Error
 				}
+				// Auto-subscribe page to webhook events on Meta immediately upon completing OAuth
+				go func(pID, tok string) {
+					subCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+					defer cancel()
+					if subErr := g.SubscribePageOnMeta(subCtx, pID, tok); subErr != nil {
+						slog.Warn("auto-subscription on oauth completion failed", "page_id", pID, "error", subErr)
+					} else {
+						slog.Info("auto-subscribed page on Meta during oauth completion", "page_id", pID)
+					}
+				}(id, page.AccessToken)
 			}
 		}
 	}
@@ -1412,6 +1551,18 @@ func (g *GraphConnector) ListPages(ctx context.Context, _ string, accountID stri
 		connected, subscriptionErr := g.isPageSubscribed(ctx, page)
 		if subscriptionErr != nil {
 			return nil, subscriptionErr
+		}
+		// Auto-heal: If page was supposed to be connected in DB but Meta dropped/lacked subscription, re-subscribe immediately!
+		if !connected && page.AccessToken != "" && page.Category != "WhatsApp" {
+			var existing database.MetaPageTokenModel
+			if g.db != nil && g.db.Where("page_id = ? AND is_connected = ?", id, true).First(&existing).Error == nil {
+				if subErr := g.SubscribePageOnMeta(ctx, id, page.AccessToken); subErr == nil {
+					connected = true
+					slog.Info("auto-healed page webhook subscription on Meta in ListPages", "page_id", id)
+				} else {
+					slog.Warn("auto-heal page webhook subscription failed in ListPages", "page_id", id, "error", subErr)
+				}
+			}
 		}
 		page.Connected = connected
 		if connected {
@@ -1619,6 +1770,45 @@ func (g *GraphConnector) isPageSubscribed(ctx context.Context, page graphPage) (
 	return false, nil
 }
 
+func (g *GraphConnector) SubscribePageOnMeta(ctx context.Context, pageID, accessToken string) error {
+	if pageID == "" || accessToken == "" {
+		return errors.New("pageID and accessToken are required")
+	}
+	form := url.Values{"access_token": {accessToken}}
+	fields := strings.TrimSpace(g.cfg.WebhookFields)
+	if fields == "" {
+		fields = "feed,messages,messaging_postbacks,message_deliveries,message_reads,messaging_referrals"
+	}
+	if !strings.Contains(fields, "messaging_referrals") {
+		fields += ",messaging_referrals"
+	}
+	form.Set("subscribed_fields", fields)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://graph.facebook.com/"+g.cfg.Version+"/"+url.PathEscape(pageID)+"/subscribed_apps", strings.NewReader(form.Encode()))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err := g.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return err
+	}
+	var envelope struct {
+		Success bool        `json:"success"`
+		Error   *graphError `json:"error"`
+	}
+	_ = json.Unmarshal(body, &envelope)
+	if resp.StatusCode >= 400 || envelope.Error != nil {
+		return graphResponseError(resp.StatusCode, envelope.Error)
+	}
+	return nil
+}
+
 func (g *GraphConnector) ConnectPage(ctx context.Context, _ string, accountID, pageID string) (*domain.MetaPage, error) {
 	g.mu.RLock()
 	session := g.sessions[accountID]
@@ -1633,31 +1823,8 @@ func (g *GraphConnector) ConnectPage(ctx context.Context, _ string, accountID, p
 	}
 
 	if page.Category != "WhatsApp" {
-		form := url.Values{"access_token": {page.AccessToken}}
-		if fields := strings.TrimSpace(g.cfg.WebhookFields); fields != "" {
-			form.Set("subscribed_fields", fields)
-		}
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://graph.facebook.com/"+g.cfg.Version+"/"+url.PathEscape(pageID)+"/subscribed_apps", strings.NewReader(form.Encode()))
-		if err != nil {
+		if err := g.SubscribePageOnMeta(ctx, pageID, page.AccessToken); err != nil {
 			return nil, err
-		}
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		resp, err := g.client.Do(req)
-		if err != nil {
-			return nil, err
-		}
-		defer resp.Body.Close()
-		body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-		if err != nil {
-			return nil, err
-		}
-		var envelope struct {
-			Success bool        `json:"success"`
-			Error   *graphError `json:"error"`
-		}
-		_ = json.Unmarshal(body, &envelope)
-		if resp.StatusCode >= 400 || envelope.Error != nil {
-			return nil, graphResponseError(resp.StatusCode, envelope.Error)
 		}
 	}
 	encryptedPageToken := g.encryptToken(page.AccessToken)
@@ -2011,32 +2178,44 @@ func (g *GraphConnector) ListCampaigns(ctx context.Context, _ string, accountID,
 	if !strings.HasPrefix(adAccountID, "act_") {
 		adAccountID = "act_" + adAccountID
 	}
-	query := url.Values{"fields": {"id,name,status,effective_status,objective,adsets.summary(1).limit(1),ads.summary(1).limit(1)"}, "limit": {"100"}, "access_token": {token}}
-	var response struct {
-		Data []struct {
-			ID              string `json:"id"`
-			Name            string `json:"name"`
-			Status          string `json:"status"`
-			EffectiveStatus string `json:"effective_status"`
-			Objective       string `json:"objective"`
-			AdSets          struct {
-				Summary struct {
-					TotalCount int `json:"total_count"`
-				} `json:"summary"`
-			} `json:"adsets"`
-			Ads struct {
-				Summary struct {
-					TotalCount int `json:"total_count"`
-				} `json:"summary"`
-			} `json:"ads"`
-		} `json:"data"`
-	}
-	if err = g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/"+url.PathEscape(adAccountID)+"/campaigns?"+query.Encode(), &response); err != nil {
-		return nil, err
-	}
-	items := make([]domain.MetaCampaign, 0, len(response.Data))
-	for _, item := range response.Data {
-		items = append(items, domain.MetaCampaign{ID: item.ID, Name: item.Name, Status: item.Status, EffectiveStatus: item.EffectiveStatus, Objective: item.Objective, AdSetCount: item.AdSets.Summary.TotalCount, AdCount: item.Ads.Summary.TotalCount})
+	query := url.Values{"fields": {"id,name,status,effective_status,objective,adsets.summary(1).limit(1),ads.summary(1).limit(1)"}, "limit": {"250"}, "access_token": {token}}
+	endpoint := "https://graph.facebook.com/" + g.cfg.Version + "/" + url.PathEscape(adAccountID) + "/campaigns?" + query.Encode()
+	items := make([]domain.MetaCampaign, 0)
+	pageCount := 0
+	for endpoint != "" && pageCount < 10 {
+		pageCount++
+		var response struct {
+			Data []struct {
+				ID              string `json:"id"`
+				Name            string `json:"name"`
+				Status          string `json:"status"`
+				EffectiveStatus string `json:"effective_status"`
+				Objective       string `json:"objective"`
+				AdSets          struct {
+					Summary struct {
+						TotalCount int `json:"total_count"`
+					} `json:"summary"`
+				} `json:"adsets"`
+				Ads struct {
+					Summary struct {
+						TotalCount int `json:"total_count"`
+					} `json:"summary"`
+				} `json:"ads"`
+			} `json:"data"`
+			Paging struct {
+				Next string `json:"next"`
+			} `json:"paging"`
+		}
+		if err = g.getJSON(ctx, endpoint, &response); err != nil {
+			return nil, err
+		}
+		for _, item := range response.Data {
+			if item.EffectiveStatus == "DELETED" || item.Status == "DELETED" {
+				continue
+			}
+			items = append(items, domain.MetaCampaign{ID: item.ID, Name: item.Name, Status: item.Status, EffectiveStatus: item.EffectiveStatus, Objective: item.Objective, AdSetCount: item.AdSets.Summary.TotalCount, AdCount: item.Ads.Summary.TotalCount})
+		}
+		endpoint = response.Paging.Next
 	}
 	return items, nil
 }
@@ -2230,24 +2409,46 @@ func (g *GraphConnector) fetchInsightRows(ctx context.Context, token, adAccountI
 	return rows, nil
 }
 
-type graphAdEntityStatus struct {
+type graphAdEntityDetails struct {
 	ID              string `json:"id"`
+	Name            string `json:"name"`
 	Status          string `json:"status"`
 	EffectiveStatus string `json:"effective_status"`
+	CampaignID      string `json:"campaign_id"`
+	Campaign        struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	} `json:"campaign"`
+	AdSetID string `json:"adset_id"`
+	AdSet   struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	} `json:"adset"`
+	CreatedTime string `json:"created_time"`
+	UpdatedTime string `json:"updated_time"`
 }
 
-func (g *GraphConnector) fetchAdEntityStatuses(ctx context.Context, token, adAccountID, level string) (map[string]graphAdEntityStatus, error) {
+func (g *GraphConnector) fetchAdEntities(ctx context.Context, token, adAccountID, level string) (map[string]graphAdEntityDetails, error) {
 	edges := map[string]string{"campaign": "campaigns", "adset": "adsets", "ad": "ads"}
 	edge, ok := edges[level]
 	if !ok {
-		return map[string]graphAdEntityStatus{}, nil
+		return map[string]graphAdEntityDetails{}, nil
 	}
-	query := url.Values{"fields": {"id,status,effective_status"}, "limit": {"500"}, "access_token": {token}}
+	fields := "id,name,status,effective_status,created_time,updated_time"
+	switch level {
+	case "adset":
+		fields = "id,name,status,effective_status,campaign_id,campaign{id,name},created_time,updated_time"
+	case "ad":
+		fields = "id,name,status,effective_status,campaign_id,campaign{id,name},adset_id,adset{id,name},created_time,updated_time"
+	}
+	query := url.Values{"fields": {fields}, "limit": {"250"}, "access_token": {token}}
 	endpoint := "https://graph.facebook.com/" + g.cfg.Version + "/" + url.PathEscape(adAccountID) + "/" + edge + "?" + query.Encode()
-	statuses := make(map[string]graphAdEntityStatus)
-	for endpoint != "" {
+	entities := make(map[string]graphAdEntityDetails)
+	pageCount := 0
+	for endpoint != "" && pageCount < 10 {
+		pageCount++
 		var response struct {
-			Data   []graphAdEntityStatus `json:"data"`
+			Data   []graphAdEntityDetails `json:"data"`
 			Paging struct {
 				Next string `json:"next"`
 			} `json:"paging"`
@@ -2256,11 +2457,11 @@ func (g *GraphConnector) fetchAdEntityStatuses(ctx context.Context, token, adAcc
 			return nil, err
 		}
 		for _, item := range response.Data {
-			statuses[item.ID] = item
+			entities[item.ID] = item
 		}
 		endpoint = response.Paging.Next
 	}
-	return statuses, nil
+	return entities, nil
 }
 
 func (g *GraphConnector) AdsInsights(ctx context.Context, _ string, accountID, adAccountID, level, since, until string) (*domain.MetaInsightsReport, error) {
@@ -2283,7 +2484,7 @@ func (g *GraphConnector) AdsInsights(ctx context.Context, _ string, accountID, a
 	if err != nil {
 		return nil, err
 	}
-	statuses, err := g.fetchAdEntityStatuses(ctx, token, adAccountID, level)
+	entities, err := g.fetchAdEntities(ctx, token, adAccountID, level)
 	if err != nil {
 		return nil, err
 	}
@@ -2295,15 +2496,69 @@ func (g *GraphConnector) AdsInsights(ctx context.Context, _ string, accountID, a
 	if err != nil {
 		return nil, err
 	}
-	items := make([]domain.MetaInsightItem, 0, len(rows))
+	seenEntities := make(map[string]bool)
+	items := make([]domain.MetaInsightItem, 0, len(rows)+len(entities))
 	for _, row := range rows {
 		item := insightItem(level, row)
-		if status, ok := statuses[item.EntityID]; ok {
-			item.Status = status.Status
-			item.EffectiveStatus = status.EffectiveStatus
+		if entity, ok := entities[item.EntityID]; ok {
+			item.Status = entity.Status
+			item.EffectiveStatus = entity.EffectiveStatus
+			if item.EntityName == "" {
+				item.EntityName = entity.Name
+			}
+			if item.CampaignName == "" && entity.Campaign.Name != "" {
+				item.CampaignName = entity.Campaign.Name
+			}
+			if item.AdSetName == "" && entity.AdSet.Name != "" {
+				item.AdSetName = entity.AdSet.Name
+			}
+			item.CreatedTime = entity.CreatedTime
+			item.UpdatedTime = entity.UpdatedTime
+		}
+		seenEntities[item.EntityID] = true
+		items = append(items, item)
+	}
+
+	// Include entities from Meta that had 0 impressions/spend in this date range
+	// (e.g. newly created campaigns, adsets, ads, in-review, or paused entities)
+	for entityID, entity := range entities {
+		if seenEntities[entityID] {
+			continue
+		}
+		if entity.EffectiveStatus == "DELETED" || entity.Status == "DELETED" || entity.EffectiveStatus == "ARCHIVED" || entity.Status == "ARCHIVED" {
+			continue
+		}
+		campID := entity.CampaignID
+		campName := entity.Campaign.Name
+		adSetID := entity.AdSetID
+		adSetName := entity.AdSet.Name
+		if level == "campaign" {
+			campID = entity.ID
+			campName = entity.Name
+		} else if level == "adset" {
+			adSetID = entity.ID
+			adSetName = entity.Name
+		}
+		item := domain.MetaInsightItem{
+			EntityType:      level,
+			EntityID:        entity.ID,
+			EntityName:      entity.Name,
+			Status:          entity.Status,
+			EffectiveStatus: entity.EffectiveStatus,
+			CampaignID:      campID,
+			CampaignName:    campName,
+			AdSetID:         adSetID,
+			AdSetName:       adSetName,
+			CreatedTime:     entity.CreatedTime,
+			UpdatedTime:     entity.UpdatedTime,
+		}
+		if level == "ad" {
+			item.AdID = entity.ID
+			item.AdName = entity.Name
 		}
 		items = append(items, item)
 	}
+
 	trend := make([]domain.MetaInsightPoint, 0, len(daily))
 	for _, row := range daily {
 		result := selectedInsightResult(row.Actions, row.CostPerActionType)
@@ -2314,6 +2569,15 @@ func (g *GraphConnector) AdsInsights(ctx context.Context, _ string, accountID, a
 	if len(accountRows) > 0 {
 		value := insightItem("account", accountRows[0])
 		summary = &value
+	} else {
+		zero := 0.0
+		summary = &domain.MetaInsightItem{
+			EntityType:  "account",
+			EntityName:  "Account",
+			Spend:       &zero,
+			Impressions: &zero,
+			Reach:       &zero,
+		}
 	}
 	return &domain.MetaInsightsReport{Currency: account.Currency, Timezone: account.Timezone, Level: level, DateStart: since, DateStop: until, GeneratedAt: time.Now().UTC().Format(time.RFC3339), Summary: summary, Items: items, Trend: trend, Warnings: warnings}, nil
 }

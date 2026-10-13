@@ -31,33 +31,45 @@ h1, h2, h3, p { overflow-wrap: anywhere; }
 .text-secondary { color: var(--color-text-secondary); }
 .text-muted { color: var(--color-text-muted); }
 
-/* Global Mobile Overhaul */
+/* Global Mobile Overhaul (iPhone 12+ / 390px+ Optimized) */
 @media (max-width: 640px) {
   :root {
-    --tap-target: 2.75rem;
+    --tap-target: 44px;
   }
   body {
     font-size: 14px;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  /* Prevent iOS Safari auto-zoom on input focus (requires >= 16px font-size) */
+  input, select, textarea, .v-field__input { 
+    font-size: 16px !important; 
   }
   .v-btn:not(.v-btn--icon) { 
     min-height: 44px; 
-    font-size: 13px !important;
+    font-size: 13.5px !important;
   }
   .responsive-actions { 
     display: grid; 
     grid-template-columns: 1fr; 
+    gap: 8px;
   }
   .responsive-actions > * { 
     width: 100%; 
   }
   /* Mobile dialogs: prevent horizontal cutoff & fit beautifully on phone screen */
   .v-dialog > .v-overlay__content {
-    width: calc(100% - 24px) !important;
+    width: calc(100% - 20px) !important;
     max-width: 100% !important;
-    margin: 12px !important;
+    margin: 10px !important;
     border-radius: 18px !important;
+    max-height: calc(100dvh - 24px) !important;
   }
   .v-card {
     border-radius: 18px !important;
+  }
+  /* iOS momentum smooth scrolling for tables and horizontal lists */
+  .v-table__wrapper, .overflow-x-auto, .scrollable-container {
+    -webkit-overflow-scrolling: touch;
   }
 }

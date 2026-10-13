@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ItemsResponse, Order, OrderItem, Product, Warehouse } from '~/types/automation'
+import type { ItemsResponse, MetaPage, Order, OrderItem, Product, Warehouse } from '~/types/automation'
 
 definePageMeta({ middleware: 'auth' })
 
@@ -13,10 +13,17 @@ if (!can('orders:read') && !can('pages:read')) {
 const { data: ordersData, pending, error, refresh } = await useApi<ItemsResponse<Order>>('/proxy/api/v1/orders')
 const { data: warehousesData } = await useApi<ItemsResponse<Warehouse>>('/proxy/api/v1/warehouses')
 const { data: productsData } = await useApi<ItemsResponse<Product>>('/proxy/api/v1/products')
+const { data: pagesData } = await useApi<ItemsResponse<MetaPage>>('/proxy/api/v1/meta/pages')
 
 const orders = computed(() => ordersData.value?.items || [])
 const warehouses = computed(() => warehousesData.value?.items || [])
 const products = computed(() => productsData.value?.items || [])
+const pages = computed(() => pagesData.value?.items || [])
+
+function getPageName(pageId?: string) {
+  if (!pageId) return ''
+  return pages.value.find((p) => p.id === pageId)?.name || ''
+}
 
 const activeTab = ref<'all' | 'unpaid' | 'paid' | 'shipping' | 'delivered' | 'cancelled'>('all')
 const searchQuery = ref('')
@@ -41,6 +48,7 @@ interface OrderFormItem {
 }
 
 const orderForm = reactive<{
+  pageId: string
   warehouseId: string
   customerName: string
   customerPhone: string
@@ -55,6 +63,7 @@ const orderForm = reactive<{
   notes: string
   items: OrderFormItem[]
 }>({
+  pageId: '',
   warehouseId: '',
   customerName: '',
   customerPhone: '',
@@ -109,11 +118,22 @@ const senderShopAddress = ref('')
 const senderSavedNotice = ref(false)
 
 function initSenderInfo(order?: Order | null) {
-  const savedName = typeof localStorage !== 'undefined' ? localStorage.getItem('meta_shop_name') : ''
   const savedPhone = typeof localStorage !== 'undefined' ? localStorage.getItem('meta_shop_phone') : ''
   const savedAddress = typeof localStorage !== 'undefined' ? localStorage.getItem('meta_shop_address') : ''
+  const savedName = typeof localStorage !== 'undefined' ? localStorage.getItem('meta_shop_name') : ''
 
-  // 1. If order explicitly belongs to a Shop
+  // 1. "ຊື່ page ໃດ ອອກຊື່ນັ້ນ" (If order originated from a Facebook Page, prioritize that Page's exact Name!)
+  if (order?.pageId) {
+    const page = pages.value.find((p) => p.id === order.pageId)
+    if (page?.name) {
+      senderShopName.value = page.name
+      senderShopPhone.value = order.warehouse?.phone || savedPhone || '020 5555 7777'
+      senderShopAddress.value = order.warehouse?.address || savedAddress || 'ນະຄອນຫຼວງວຽງຈັນ (Vientiane)'
+      return
+    }
+  }
+
+  // 2. If order explicitly belongs to a Shop warehouse
   if (order?.warehouse?.type === 'shop' && order.warehouse.name) {
     senderShopName.value = order.warehouse.name
     senderShopPhone.value = order.warehouse.phone || savedPhone || '020 5555 7777'
@@ -121,7 +141,16 @@ function initSenderInfo(order?: Order | null) {
     return
   }
 
-  // 2. If saved in localStorage previously
+  // 3. If connected to Facebook Pages, default to the first connected Page's name!
+  if (pages.value.length > 0 && pages.value[0]?.name && !savedName) {
+    senderShopName.value = pages.value[0].name
+    const firstShop = warehouses.value.find((w) => w.type === 'shop')
+    senderShopPhone.value = firstShop?.phone || order?.warehouse?.phone || savedPhone || '020 5555 7777'
+    senderShopAddress.value = firstShop?.address || order?.warehouse?.address || savedAddress || 'ນະຄອນຫຼວງວຽງຈັນ (Vientiane)'
+    return
+  }
+
+  // 4. If saved in localStorage previously
   if (savedName) {
     senderShopName.value = savedName
     senderShopPhone.value = savedPhone || '020 5555 7777'
@@ -129,7 +158,7 @@ function initSenderInfo(order?: Order | null) {
     return
   }
 
-  // 3. Fallback to first shop in warehouses list, or activeAccount, or warehouse
+  // 5. Fallback to first shop in warehouses list, or activeAccount, or warehouse
   const firstShop = warehouses.value.find((w) => w.type === 'shop')
   senderShopName.value = firstShop?.name || activeAccount.value?.name || order?.warehouse?.name || 'ຮ້ານຄ້າ (My Shop)'
   senderShopPhone.value = firstShop?.phone || order?.warehouse?.phone || '020 5555 7777'
@@ -146,6 +175,10 @@ function saveSenderAsDefault() {
   setTimeout(() => {
     senderSavedNotice.value = false
   }, 2500)
+}
+
+function applyPageToSender(p: MetaPage) {
+  senderShopName.value = p.name
 }
 
 function applyWarehouseToSender(w: Warehouse) {
@@ -317,6 +350,7 @@ function formatDate(iso?: string) {
 function openCreateOrder() {
   const defaultWh = warehouses.value.find((w) => w.isDefault) || warehouses.value[0]
   orderForm.warehouseId = defaultWh ? defaultWh.id : ''
+  orderForm.pageId = pages.value[0]?.id || ''
   orderForm.customerName = ''
   orderForm.customerPhone = ''
   orderForm.customerAddress = ''
@@ -398,6 +432,7 @@ async function submitCreateOrder() {
   try {
     const payload = {
       warehouseId: orderForm.warehouseId,
+      pageId: orderForm.pageId || undefined,
       customerName: orderForm.customerName.trim(),
       customerPhone: orderForm.customerPhone.trim(),
       customerAddress: orderForm.customerAddress.trim(),
@@ -698,6 +733,10 @@ async function saveStatusUpdate() {
               <v-icon icon="mdi-facebook" size="13" color="#1877f2" class="mr-1"/>
               Meta CAPI
             </span>
+            <span v-if="order.pageId && getPageName(order.pageId)" class="badge-page-tag" :title="`Page: ${getPageName(order.pageId)}`">
+              <v-icon icon="mdi-facebook" size="13" color="#1877f2" class="mr-1"/>
+              {{ getPageName(order.pageId) }}
+            </span>
             <span v-if="order.warehouse" class="badge-wh-tag">
               <v-icon :icon="order.warehouse.type === 'shop' ? 'mdi-storefront' : 'mdi-warehouse'" size="12" class="mr-1"/>
               {{ order.warehouse.name }}
@@ -848,6 +887,23 @@ async function saveStatusUpdate() {
           >
             <template #item="{ props, item }">
               <v-list-item v-bind="props" :subtitle="`Code: ${(item as any).code || (item as any).raw?.code} · ${((item as any).type || (item as any).raw?.type) === 'shop' ? 'Shop' : 'Warehouse'}`"/>
+            </template>
+          </v-select>
+
+          <v-select
+            v-if="pages.length > 0"
+            v-model="orderForm.pageId"
+            :items="pages"
+            item-title="name"
+            item-value="id"
+            :label="l({ lo: '📘 Facebook Page ທີ່ຮັບອໍເດີ (ຊື່ຮ້ານໃນບິນ)', th: '📘 Facebook Page ที่รับออเดอร์ (ชื่อร้านในบิล)', en: '📘 Order Facebook Page (Shop on Bill)' })"
+            density="compact"
+            variant="outlined"
+            clearable
+            class="mb-3"
+          >
+            <template #prepend-inner>
+              <v-icon icon="mdi-facebook" color="#1877f2" size="20"/>
             </template>
           </v-select>
 
@@ -1385,6 +1441,23 @@ async function saveStatusUpdate() {
               class="sender-input"
             />
           </div>
+          <!-- Facebook Page 1-Click Quick Picks ("ຊື່ page ໃດອອກຊື່ນັ້ນ") -->
+          <div v-if="pages.length > 0" class="sender-quick-picks mt-2 d-flex align-center gap-1 flex-wrap">
+            <span class="text-caption text-medium-emphasis mr-1 font-weight-bold text-primary">📘 {{ l({ lo: 'ຊື່ຕາມ Page:', th: 'ชื่อตาม Page:', en: 'Facebook Page:' }) }}</span>
+            <v-chip
+              v-for="p in pages"
+              :key="p.id"
+              size="x-small"
+              :variant="senderShopName === p.name ? 'flat' : 'outlined'"
+              color="primary"
+              class="font-weight-medium"
+              @click="applyPageToSender(p)"
+            >
+              <v-icon icon="mdi-facebook" size="12" class="mr-1"/>
+              {{ p.name }}
+            </v-chip>
+          </div>
+
           <div v-if="warehouses.length > 0" class="sender-quick-picks mt-2 d-flex align-center gap-1 flex-wrap">
             <span class="text-caption text-medium-emphasis mr-1">{{ l({ lo: 'ເລືອກຈາກສາງ/ຮ້ານ:', th: 'เลือกจากคลัง/ร้าน:', en: 'Pick from:' }) }}</span>
             <v-chip
@@ -1807,6 +1880,17 @@ async function saveStatusUpdate() {
   border-radius: 10px;
   font-size: 11px;
   font-weight: 750;
+}
+.badge-page-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
 }
 .badge-wh-tag {
   display: inline-flex;
@@ -2265,6 +2349,23 @@ async function saveStatusUpdate() {
     width: 100%;
     display: grid;
     grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .action-buttons .waybill-btn {
+    grid-column: 1 / -1;
+    min-height: 44px;
+    font-size: 13.5px;
+    font-weight: 750;
+    justify-content: center;
+    background: #fef2f2;
+    color: #d9251d;
+    border-color: #fecaca;
+  }
+  .action-buttons .receipt-btn,
+  .action-buttons .status-btn {
+    min-height: 40px;
+    font-size: 12.5px;
+    justify-content: center;
   }
   .orders-toolbar {
     flex-direction: column;

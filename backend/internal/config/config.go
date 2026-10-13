@@ -47,7 +47,7 @@ func Load() (Config, error) {
 		MetaRedirectURI:        value("META_REDIRECT_URI", "http://localhost:8080/api/v1/meta/oauth/callback"),
 		MetaFrontendRedirect:   value("META_FRONTEND_REDIRECT", "http://127.0.0.1:3001/api/auth/facebook/callback"),
 		MetaGraphVersion:       value("META_GRAPH_VERSION", "v23.0"),
-		MetaWebhookFields:      value("META_WEBHOOK_FIELDS", "messages,messaging_postbacks,messaging_optins,message_deliveries,message_reads,message_echoes,feed"),
+		MetaWebhookFields:      value("META_WEBHOOK_FIELDS", "messages,messaging_postbacks,messaging_optins,message_deliveries,message_reads,message_echoes,feed,messaging_referrals"),
 		MetaWebhookVerifyToken: os.Getenv("META_WEBHOOK_VERIFY_TOKEN"),
 		MetaStateFile:          value("META_STATE_FILE", ".data/meta-state.json"),
 		MetaWhatsAppConfigID:   value("META_WHATSAPP_CONFIG_ID", "991544757321935"),

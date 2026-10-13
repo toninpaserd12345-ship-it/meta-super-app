@@ -131,11 +131,30 @@ func (u *Automation) FindActiveRuleForTrigger(ctx context.Context, pageID, trigg
 		return nil, err
 	}
 
-	if len(rules) == 0 {
-		return nil, nil // No rule found
+	if len(rules) > 0 {
+		return &rules[0], nil
 	}
 
-	return &rules[0], nil
+	// For post triggers, check alternate post ID formats (with or without pageID prefix)
+	// Meta can send either "pageId_postId" OR raw "postId".
+	if triggerType == "post" {
+		var altValues []string
+		if strings.Contains(triggerValue, "_") {
+			parts := strings.Split(triggerValue, "_")
+			altValues = append(altValues, parts[len(parts)-1])
+		}
+		if pageID != "" && !strings.HasPrefix(triggerValue, pageID+"_") {
+			altValues = append(altValues, pageID+"_"+triggerValue)
+		}
+		for _, alt := range altValues {
+			altRules, altErr := u.repo.GetRulesByPageAndTrigger(ctx, pageID, triggerType, alt)
+			if altErr == nil && len(altRules) > 0 {
+				return &altRules[0], nil
+			}
+		}
+	}
+
+	return nil, nil
 }
 
 func (u *Automation) GetKeywordRules(ctx context.Context, pageID string) ([]domain.AutomationRule, error) {
@@ -213,6 +232,17 @@ func (u *Automation) prepareFlow(ctx context.Context, flow *domain.AutomationFlo
 
 func (u *Automation) GetFlows(ctx context.Context, accountID string) ([]domain.AutomationFlow, error) {
 	return u.repo.GetFlowsByAccountID(ctx, accountID)
+}
+
+func (u *Automation) GetFlow(ctx context.Context, id, accountID string) (*domain.AutomationFlow, error) {
+	flow, err := u.repo.GetFlowByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if flow.AccountID != accountID {
+		return nil, fmt.Errorf("unauthorized to access this automation")
+	}
+	return flow, nil
 }
 
 func (u *Automation) UpdateFlow(ctx context.Context, flow *domain.AutomationFlow) error {

@@ -163,9 +163,19 @@ func (p *appAutomationProvider) FindReplySetByTrigger(ctx context.Context, accou
 			triggerLower := strings.ToLower(strings.TrimSpace(trigger))
 			strippedLower := strings.ToLower(strings.TrimSpace(strings.TrimLeft(trigger, "/#:!# ")))
 			for _, prod := range products {
-				match := triggerLower == strings.ToLower(prod.ID) || triggerLower == strings.ToLower(prod.Name) || (prod.Code != "" && triggerLower == strings.ToLower(prod.Code))
+				prodCodeLower := strings.ToLower(strings.TrimSpace(prod.Code))
+				prodNameLower := strings.ToLower(strings.TrimSpace(prod.Name))
+				match := triggerLower == strings.ToLower(prod.ID) || triggerLower == prodNameLower || (prodCodeLower != "" && triggerLower == prodCodeLower)
 				if !match && strippedLower != "" {
-					match = strippedLower == strings.ToLower(prod.ID) || strippedLower == strings.ToLower(prod.Name) || (prod.Code != "" && strippedLower == strings.ToLower(prod.Code))
+					match = strippedLower == strings.ToLower(prod.ID) || strippedLower == prodNameLower || (prodCodeLower != "" && strippedLower == prodCodeLower)
+				}
+				// Also match if message contains the product code (e.g. "AG29") or product name (e.g. "kito AG29")
+				if !match {
+					if prodCodeLower != "" && len(prodCodeLower) >= 2 && strings.Contains(triggerLower, prodCodeLower) {
+						match = true
+					} else if prodNameLower != "" && len([]rune(prodNameLower)) >= 3 && strings.Contains(triggerLower, prodNameLower) {
+						match = true
+					}
 				}
 				if match {
 					flows, flowErr := p.automation.GetFlows(ctx, accountID)

@@ -6,7 +6,7 @@ const { can } = useAuth()
 const { t } = useLocale()
 const { toggle: toggleDrawer, isOpen } = useNavDrawer()
 
-const primaryRoutes = ['/', '/live-chat', '/leads', '/auto-replies']
+const primaryRoutes = ['/', '/live-chat', '/orders', '/auto-replies']
 const allItems = computed(() => appNavigation.filter(item => !item.claim || can(item.claim)))
 const items = computed(() => {
   return primaryRoutes

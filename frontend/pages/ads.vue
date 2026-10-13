@@ -48,6 +48,7 @@ const maxFrequency = ref(3)
 const grossMargin = ref<number | null>(null)
 const minimumPlanImpressions = ref(1000)
 const minimumPlanSpend = ref<number | null>(null)
+const sortBy = ref<'spend' | 'newest' | 'name'>('spend')
 
 const selectedAccount = computed(() => adAccounts.value.find(item => item.id === adAccountId.value))
 const items = computed(() => {
@@ -57,19 +58,39 @@ const items = computed(() => {
     .filter(item => !query || [item.entityName, item.campaignName, item.adSetName, item.adName, item.entityId].some(value => value?.toLowerCase().includes(query)))
     .filter((item) => {
       const status = (item.effectiveStatus || item.status || '').toUpperCase()
-      if (statusFilter.value === 'active') return status === 'ACTIVE'
+      if (statusFilter.value === 'active') return status === 'ACTIVE' || status === 'IN_PROCESS' || status === 'PENDING_REVIEW'
       if (statusFilter.value === 'paused') return status === 'PAUSED' || status === 'CAMPAIGN_PAUSED' || status === 'ADSET_PAUSED'
-      if (statusFilter.value === 'issues') return !!status && status !== 'ACTIVE' && status !== 'PAUSED' && status !== 'CAMPAIGN_PAUSED' && status !== 'ADSET_PAUSED'
+      if (statusFilter.value === 'issues') return !!status && status !== 'ACTIVE' && status !== 'IN_PROCESS' && status !== 'PENDING_REVIEW' && status !== 'PAUSED' && status !== 'CAMPAIGN_PAUSED' && status !== 'ADSET_PAUSED'
       return true
     })
-    .sort((a, b) => (b.spend ?? -1) - (a.spend ?? -1))
+    .sort((a, b) => {
+      if (sortBy.value === 'newest') {
+        const timeA = a.createdTime || ''
+        const timeB = b.createdTime || ''
+        if (timeA || timeB) return timeB.localeCompare(timeA)
+        return (b.spend ?? -1) - (a.spend ?? -1)
+      }
+      if (sortBy.value === 'name') {
+        return (a.entityName || '').localeCompare(b.entityName || '')
+      }
+      // Default: Highest spend first; if spends are equal (like newly created items), sort newest first
+      const spendA = a.spend ?? -1
+      const spendB = b.spend ?? -1
+      if (spendA !== spendB) return spendB - spendA
+      const timeA = a.createdTime || ''
+      const timeB = b.createdTime || ''
+      if (timeA || timeB) return timeB.localeCompare(timeA)
+      return (a.entityName || '').localeCompare(b.entityName || '')
+    })
 })
 const summary = computed(() => report.value?.summary)
 const currency = computed(() => report.value?.currency || 'USD')
 const maxTrendSpend = computed(() => Math.max(1, ...(report.value?.trend || []).map(point => point.spend || 0)))
 const statusCounts = computed(() => (report.value?.items || []).reduce((counts, item) => {
-  const status = statusClass(statusFor(item))
-  counts[status] += 1
+  const status = (item.effectiveStatus || item.status || '').toUpperCase()
+  if (status === 'ACTIVE' || status === 'IN_PROCESS' || status === 'PENDING_REVIEW') counts.active += 1
+  else if (status === 'PAUSED' || status === 'CAMPAIGN_PAUSED' || status === 'ADSET_PAUSED') counts.paused += 1
+  else counts.issues += 1
   return counts
 }, { active: 0, paused: 0, issues: 0 } as Record<'active' | 'paused' | 'issues', number>))
 
@@ -133,14 +154,14 @@ const statusLabel = (status?: string) => {
 
 const statusClass = (status?: string) => {
   const value = (status || '').toUpperCase()
-  if (value === 'ACTIVE') return 'active'
+  if (value === 'ACTIVE' || value === 'IN_PROCESS' || value === 'PENDING_REVIEW') return 'active'
   if (value === 'PAUSED' || value === 'CAMPAIGN_PAUSED' || value === 'ADSET_PAUSED') return 'paused'
   return 'issues'
 }
 
 function decision(item: MetaInsightItem): { code: DecisionCode; color: string; icon: string; title: string; detail: string; signals: string[] } {
   if (!item.impressions && !item.spend) {
-    return { code: 'no_data', color: 'default', icon: 'mdi-minus-circle-outline', title: l({ lo: 'ຂໍ້ມູນຍັງບໍ່ພໍ', th: 'ข้อมูลยังไม่พอ', en: 'Not enough data' }), detail: l({ lo: 'ລໍຖ້າໃຫ້ໂຄສະນາມີການສະແດງ ແລະຄ່າໃຊ້ຈ່າຍກ່ອນ.', th: 'รอให้โฆษณามีการแสดงผลและค่าใช้จ่ายก่อน', en: 'Wait for delivery and spend before deciding.' }), signals: [] }
+    return { code: 'no_data', color: 'default', icon: 'mdi-minus-circle-outline', title: l({ lo: 'ສ້າງໃໝ່ / ຍັງບໍ່ມີຂໍ້ມູນ', th: 'เพิ่งสร้าง / ยังไม่มีข้อมูล', en: 'New / No delivery data' }), detail: l({ lo: 'ໂຄສະນາຫາກໍ່ສ້າງໃໝ່ ຫຼື ຍັງບໍ່ທັນມີຄ່າໃຊ້ຈ່າຍ ແລະການສະແດງຜົນໃນຊ່ວງເວລານີ້.', th: 'โฆษณาเพิ่งสร้างหรือยังไม่มีค่าใช้จ่ายและการแสดงผลในช่วงเวลานี้', en: 'Newly created ad or no delivery/spend in selected date range.' }), signals: [] }
   }
   const bad: string[] = []
   const good: string[] = []
@@ -225,11 +246,8 @@ async function loadPerformance() {
   success.value = ''
   try {
     const query = new URLSearchParams({ level: level.value, since: since.value, until: until.value })
-    const campaignRequest = campaignsAccountId.value === adAccountId.value
-      ? Promise.resolve({ items: campaigns.value })
-      : $fetch<{ items: MetaCampaign[] }>(`/api/proxy/api/v1/meta/ad-accounts/${encodeURIComponent(adAccountId.value)}/campaigns`)
     const [campaignResult, insightResult] = await Promise.all([
-      campaignRequest,
+      $fetch<{ items: MetaCampaign[] }>(`/api/proxy/api/v1/meta/ad-accounts/${encodeURIComponent(adAccountId.value)}/campaigns`),
       $fetch<MetaInsightsReport>(`/api/proxy/api/v1/meta/ad-accounts/${encodeURIComponent(adAccountId.value)}/insights?${query.toString()}`),
     ])
     campaigns.value = campaignResult.items || []
@@ -398,7 +416,31 @@ onMounted(async () => { await loadAccounts(); loadThresholds(); ready.value = tr
     </section>
 
     <section class="performance-section">
-      <div class="section-head"><div><p>PERFORMANCE DETAIL</p><h2>{{ l({lo:'ເຈາະເລິກເຖິງລະດັບ Ad',th:'เจาะลึกถึงระดับโฆษณา',en:'Drill down to individual ads'}) }}</h2></div><div class="report-meta"><span>{{ l({lo:'ອັບເດດ',th:'อัปเดต',en:'Updated'}) }} {{ new Date(report.generatedAt).toLocaleString() }}</span><v-text-field v-model="search" density="compact" variant="outlined" prepend-inner-icon="mdi-magnify" :placeholder="l({lo:'ຄົ້ນຫາ...',th:'ค้นหา...',en:'Search...'})" hide-details clearable /></div></div>
+      <div class="section-head">
+        <div>
+          <p>PERFORMANCE DETAIL</p>
+          <h2>{{ l({lo:'ເຈາະເລິກເຖິງລະດັບ Ad',th:'เจาะลึกถึงระดับโฆษณา',en:'Drill down to individual ads'}) }}</h2>
+        </div>
+        <div class="report-meta">
+          <span>{{ l({lo:'ອັບເດດ',th:'อัปเดต',en:'Updated'}) }} {{ new Date(report.generatedAt).toLocaleString() }}</span>
+          <v-select
+            v-model="sortBy"
+            :items="[
+              { title: l({ lo: '⚡ ໃຊ້ຈ່າຍສູງສຸດ', th: '⚡ ใช้จ่ายสูงสุด', en: 'Highest spend' }), value: 'spend' },
+              { title: l({ lo: '✨ ສ້າງໃໝ່ສຸດ', th: '✨ สร้างใหม่ล่าสุด', en: 'Newest created' }), value: 'newest' },
+              { title: l({ lo: '🔤 ຊື່ (A-Z)', th: '🔤 ชื่อ (A-Z)', en: 'Name (A-Z)' }), value: 'name' }
+            ]"
+            item-title="title"
+            item-value="value"
+            density="compact"
+            variant="outlined"
+            hide-details
+            class="sort-select"
+            style="min-width: 160px; max-width: 195px;"
+          />
+          <v-text-field v-model="search" density="compact" variant="outlined" prepend-inner-icon="mdi-magnify" :placeholder="l({lo:'ຄົ້ນຫາ...',th:'ค้นหา...',en:'Search...'})" hide-details clearable />
+        </div>
+      </div>
       <div class="detail-toolbar">
         <div class="toolbar-group">
           <small>{{ l({lo:'ລະດັບຂໍ້ມູນ',th:'ระดับข้อมูล',en:'View level'}) }}</small>

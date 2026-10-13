@@ -2726,7 +2726,7 @@ const formatTime = (ts: string) => {
   }
   .chat-input input {
     height: 44px;
-    font-size: 15px;
+    font-size: 16px;
   }
   .chat-input button {
     width: 44px;

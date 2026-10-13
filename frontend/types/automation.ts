@@ -242,6 +242,8 @@ export interface MetaInsightItem {
   qualityRanking?: string
   engagementRateRanking?: string
   conversionRateRanking?: string
+  createdTime?: string
+  updatedTime?: string
 }
 
 export interface MetaInsightPoint {

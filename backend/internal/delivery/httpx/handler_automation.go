@@ -1,9 +1,11 @@
 package httpx
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/meta-super-app/backend/internal/domain"
@@ -126,6 +128,13 @@ func (h *Handler) CreateAutomationFlow(c fiber.Ctx) error {
 	if err := h.Automation.CreateFlow(c.Context(), flow); err != nil {
 		return automationError(c, err)
 	}
+	if req.PageID != "" && h.meta != nil {
+		go func(pID, accID string) {
+			subCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			_, _ = h.meta.ConnectPage(subCtx, "", accID, pID)
+		}(req.PageID, accountID)
+	}
 	return c.Status(fiber.StatusCreated).JSON(flow)
 }
 
@@ -142,6 +151,13 @@ func (h *Handler) UpdateAutomationFlow(c fiber.Ctx) error {
 	if err := h.Automation.UpdateFlow(c.Context(), flow); err != nil {
 		return automationError(c, err)
 	}
+	if req.PageID != "" && h.meta != nil {
+		go func(pID, accID string) {
+			subCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			_, _ = h.meta.ConnectPage(subCtx, "", accID, pID)
+		}(req.PageID, accountID)
+	}
 	return c.JSON(flow)
 }
 
@@ -153,6 +169,15 @@ func (h *Handler) UpdateAutomationFlowStatus(c fiber.Ctx) error {
 	}
 	if err := h.Automation.SetFlowStatus(c.Context(), c.Params("id"), accountID, req.IsActive); err != nil {
 		return automationError(c, err)
+	}
+	if req.IsActive && h.meta != nil {
+		if flow, err := h.Automation.GetFlow(c.Context(), c.Params("id"), accountID); err == nil && flow != nil && flow.PageID != "" {
+			go func(pID, accID string) {
+				subCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+				defer cancel()
+				_, _ = h.meta.ConnectPage(subCtx, "", accID, pID)
+			}(flow.PageID, accountID)
+		}
 	}
 	return c.SendStatus(fiber.StatusOK)
 }
