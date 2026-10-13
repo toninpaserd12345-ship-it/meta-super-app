@@ -412,6 +412,7 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 				Timestamp int64 `json:"timestamp"`
 				Message   struct {
 					MID         string           `json:"mid"`
+					IsEcho      bool             `json:"is_echo"`
 					Text        string           `json:"text"`
 					Referral    *webhookReferral `json:"referral"`
 					Attachments []struct {
@@ -577,9 +578,41 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 
 			customerID := message.Sender.ID
 			isSystem := false
-			if message.Sender.ID == entry.ID {
+			if message.Sender.ID == entry.ID || message.Message.IsEcho {
 				customerID = message.Recipient.ID
 				isSystem = true
+			}
+
+			// 1. Deduplicate incoming messages by Meta Message ID (MID)
+			if message.Message.MID != "" {
+				midKey := "mid:" + message.Message.MID
+				g.mu.Lock()
+				if _, seen := g.recentEvents[midKey]; seen {
+					g.mu.Unlock()
+					slog.Info("ignoring duplicate message delivery by mid", "mid", message.Message.MID, "page_id", entry.ID)
+					continue
+				}
+				g.recentEvents[midKey] = now.Add(24 * time.Hour)
+				g.mu.Unlock()
+			}
+
+			// 2. Deduplicate standalone referral events
+			if ref != nil && strings.TrimSpace(message.Message.Text) == "" {
+				refID := ref.AdID
+				if refID == "" {
+					refID = ref.Ref
+				}
+				if refID != "" {
+					refKey := fmt.Sprintf("ref:%s:%s:%s", entry.ID, customerID, refID)
+					g.mu.Lock()
+					if _, seen := g.recentEvents[refKey]; seen {
+						g.mu.Unlock()
+						slog.Info("ignoring duplicate referral delivery", "refKey", refKey)
+						continue
+					}
+					g.recentEvents[refKey] = now.Add(10 * time.Minute)
+					g.mu.Unlock()
+				}
 			}
 
 			if g.leadSink != nil && !isSystem {
@@ -590,6 +623,10 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 						sourceType, sourceID = "ad", ref.AdID
 					} else if ref.AdsContextData.PostID != "" {
 						sourceType, sourceID = "post", ref.AdsContextData.PostID
+					} else if ref.CampaignID != "" {
+						sourceType, sourceID = "campaign", ref.CampaignID
+					} else if ref.AdGroupID != "" {
+						sourceType, sourceID = "adset", ref.AdGroupID
 					}
 				}
 				_ = g.leadSink.CaptureLead(ctx, domain.LeadCapture{AccountID: accountID, PageID: entry.ID, SenderID: customerID, SourceType: sourceType, SourceID: sourceID})
@@ -607,58 +644,11 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 					msgType = message.Message.Attachments[0].Type
 					msgContent = message.Message.Attachments[0].Payload.URL
 				}
-				if msgContent != "" {
+				if msgContent != "" || ref != nil {
 					if pageFound {
 						timestampStr := fmt.Sprintf("%d", message.Timestamp)
 						if message.Timestamp == 0 {
 							timestampStr = fmt.Sprintf("%d", time.Now().UnixMilli())
-						}
-
-						// Auto-reply for product code/name
-						if directSet == nil && g.productRepo != nil && msgType == "text" {
-							products, err := g.productRepo.ListProducts(ctx, accountID)
-							if err == nil {
-								msgLower := strings.TrimSpace(strings.ToLower(msgContent))
-								cleanMsg := strings.TrimSpace(strings.TrimLeft(msgLower, "/#:!# "))
-								for _, p := range products {
-									cleanCode := strings.TrimSpace(strings.TrimLeft(strings.ToLower(p.Code), "/#:!# "))
-									prodCodeLower := strings.ToLower(strings.TrimSpace(p.Code))
-									prodNameLower := strings.ToLower(strings.TrimSpace(p.Name))
-									match := (cleanMsg != "" && cleanCode != "" && cleanMsg == cleanCode) ||
-										(p.Code != "" && strings.EqualFold(msgLower, p.Code)) ||
-										strings.EqualFold(msgLower, p.Name) ||
-										strings.EqualFold(cleanMsg, p.Name) ||
-										strings.EqualFold(msgLower, p.ID) ||
-										(prodCodeLower != "" && len(prodCodeLower) >= 2 && strings.Contains(msgLower, prodCodeLower)) ||
-										(prodNameLower != "" && len([]rune(prodNameLower)) >= 3 && strings.Contains(msgLower, prodNameLower))
-									if match {
-										product := p
-										go func(pageID, recipientID string, prod domain.Product) {
-											sendCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-											defer cancel()
-
-											_ = g.SendSenderAction(sendCtx, pageID, recipientID, "mark_seen")
-											time.Sleep(500 * time.Millisecond)
-
-											if prod.ImageUrl != "" {
-												time.Sleep(1000 * time.Millisecond)
-												_ = g.SendMedia(sendCtx, accountID, pageID, recipientID, "image", prod.ImageUrl)
-												time.Sleep(800 * time.Millisecond)
-											}
-
-											_ = g.SendSenderAction(sendCtx, pageID, recipientID, "typing_on")
-											replyText := fmt.Sprintf("%s\n\n%s\n\nລາຄາ: %s", prod.Name, prod.Description, prod.Price)
-											delayMs := 1200 + (len([]rune(replyText)) * 15)
-											if delayMs > 2500 {
-												delayMs = 2500
-											}
-											time.Sleep(time.Duration(delayMs) * time.Millisecond)
-											_ = g.SendMessage(sendCtx, accountID, pageID, recipientID, replyText)
-										}(entry.ID, message.Sender.ID, product)
-										break
-									}
-								}
-							}
 						}
 
 						senderName, senderPic := g.GetProfile(ctx, entry.ID, customerID, page.AccessToken)
@@ -666,13 +656,17 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 						if isSystem {
 							platform = "system"
 						}
+						broadcastContent := msgContent
+						if broadcastContent == "" && ref != nil {
+							broadcastContent = "Started chat from Ad / Post"
+						}
 						g.chatStream.Broadcast(accountID, usecase.ChatEvent{
 							AccountID:  accountID,
 							PageID:     entry.ID,
 							SenderID:   customerID,
 							SenderName: senderName,
 							SenderPic:  senderPic,
-							Message:    msgContent,
+							Message:    broadcastContent,
 							Type:       msgType,
 							Timestamp:  timestampStr,
 							Platform:   platform,
@@ -681,7 +675,27 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 				}
 			}
 
+			// If this message was sent by the page or is an echo event, NEVER trigger auto-replies!
+			if isSystem || message.Message.IsEcho {
+				continue
+			}
+
 			seenKey := entry.ID + ":" + customerID
+
+			// 3. Conversation in-flight lock & 15-second debounce against dual events (e.g. referral + text)
+			g.mu.RLock()
+			isBusy := g.inFlight[seenKey]
+			lastCustomerReplyTime, customerRecentlyReplied := g.firstReplies[seenKey]
+			g.mu.RUnlock()
+			if isBusy {
+				slog.Info("automation reply already in-flight for customer, skipping duplicate", "page_id", entry.ID, "customer_id", customerID)
+				continue
+			}
+			if customerRecentlyReplied && time.Since(lastCustomerReplyTime) < 15*time.Second {
+				slog.Info("customer received automated reply within last 15s, debouncing", "page_id", entry.ID, "customer_id", customerID)
+				continue
+			}
+
 			sourceType, sourceID, resolvedKey := "", "", ""
 			if ref != nil {
 				sourceType, sourceID = "post", ref.Ref
@@ -887,42 +901,57 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 			if rule != nil && rule.FlowID != "" {
 				replyKey += ":" + rule.FlowID
 			}
+
 			g.mu.Lock()
-			if found && resolvedKey != "" {
-				g.conversations[seenKey] = resolvedKey
+			// Check in-flight lock under write lock: conversation seenKey or specific replyKey
+			if g.inFlight[seenKey] || g.inFlight[replyKey] {
+				g.mu.Unlock()
+				continue
 			}
-			lastReplyTime, alreadyReplied := g.firstReplies[replyKey]
+
+			lastReplyTime, alreadyReplied := g.firstReplies[seenKey]
+			if !alreadyReplied {
+				lastReplyTime, alreadyReplied = g.firstReplies[replyKey]
+			}
 
 			isSpamming := false
 			if alreadyReplied {
-				if isAskingPrice(messageText) {
-					// Explicit price inquiries have a short 30-second cooldown so they aren't suppressed by FirstMessageOnly
-					isSpamming = time.Since(lastReplyTime) < 30*time.Second
+				if time.Since(lastReplyTime) < 15*time.Second {
+					isSpamming = true
+				} else if isAskingPrice(messageText) {
+					isSpamming = time.Since(lastReplyTime) < 2*time.Minute
 				} else if hasImage {
-					// Image inquiries have a 1-minute cooldown
-					isSpamming = time.Since(lastReplyTime) < 1*time.Minute
+					isSpamming = time.Since(lastReplyTime) < 2*time.Minute
 				} else if rule != nil && rule.FlowID != "" {
 					if rule.FirstMessageOnly {
 						isSpamming = time.Since(lastReplyTime) < 12*time.Hour
 					} else if rule.CooldownSeconds > 0 {
 						isSpamming = time.Since(lastReplyTime) < time.Duration(rule.CooldownSeconds)*time.Second
+					} else {
+						isSpamming = time.Since(lastReplyTime) < 5*time.Minute
 					}
 				} else if rule != nil && rule.TriggerType == "keyword" {
-					isSpamming = time.Since(lastReplyTime) < time.Minute
+					isSpamming = time.Since(lastReplyTime) < 2*time.Minute
 				} else {
-					// Preserve legacy Auto Reply behavior for imported rules.
-					isSpamming = time.Since(lastReplyTime) < 24*time.Hour
+					isSpamming = time.Since(lastReplyTime) < 5*time.Minute
 				}
 			}
 
-			busy := g.inFlight[replyKey]
-			if found && !isSpamming && !busy {
-				g.inFlight[replyKey] = true
-			}
-			g.mu.Unlock()
-			if !found || isSpamming || busy || !pageFound {
+			if isSpamming || !found || !pageFound {
+				g.mu.Unlock()
 				continue
 			}
+
+			// Immediately set in-flight and firstReplies to BLOCK any duplicate incoming events
+			nowReply := time.Now()
+			g.inFlight[seenKey] = true
+			g.inFlight[replyKey] = true
+			g.firstReplies[seenKey] = nowReply
+			g.firstReplies[replyKey] = nowReply
+			if resolvedKey != "" {
+				g.conversations[seenKey] = resolvedKey
+			}
+			g.mu.Unlock()
 
 			var items []domain.ReplyItem
 			if g.automation != nil {
@@ -930,75 +959,70 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 			}
 			items = g.resolveReplyItemsContext(ctx, rule, items)
 
-			go func(rule *domain.AutomationRule, items []domain.ReplyItem, seenKey, resolvedKey, replyKey, pageID, senderID, sourceType, sourceID, messageText string, hasImage bool) {
+			go func(rule *domain.AutomationRule, items []domain.ReplyItem, seenKey, resolvedKey, replyKey, pageID, recipientID, sourceType, sourceID, messageText string, hasImage bool) {
 				sendCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 				defer cancel()
+				defer func() {
+					g.mu.Lock()
+					delete(g.inFlight, seenKey)
+					delete(g.inFlight, replyKey)
+					nowDone := time.Now()
+					g.firstReplies[seenKey] = nowDone
+					g.firstReplies[replyKey] = nowDone
+					g.mu.Unlock()
+				}()
 
 				// Mark conversation as seen
-				_ = g.SendSenderAction(sendCtx, pageID, senderID, "mark_seen")
-				time.Sleep(500 * time.Millisecond)
+				_ = g.SendSenderAction(sendCtx, pageID, recipientID, "mark_seen")
+				time.Sleep(400 * time.Millisecond)
 
 				for index, step := range items {
 					if !step.IsEnabled {
 						continue
 					}
-					stepKey := seenKey + ":" + resolvedKey + ":" + step.ID
-					stepDone := false
-					trackDeliveryStep := rule.TriggerType != "reply_set_name" && !isAskingPrice(messageText) && !hasImage
-					if trackDeliveryStep {
-						g.mu.RLock()
-						stepDone = g.deliverySteps[stepKey]
-						g.mu.RUnlock()
-					}
+					stepKey := seenKey + ":" + step.ID
+					g.mu.RLock()
+					stepDone := g.deliverySteps[stepKey]
+					g.mu.RUnlock()
 					if stepDone {
 						continue
 					}
 
 					if step.Type == "image" {
-						// For images, a 1-second delay is enough without typing indicator
-						time.Sleep(1000 * time.Millisecond)
+						time.Sleep(800 * time.Millisecond)
 					} else if step.Type == "text" {
 						if index > 0 {
-							time.Sleep(800 * time.Millisecond)
+							time.Sleep(600 * time.Millisecond)
 						}
-						// Only show animated typing indicator "..." for text messages
-						_ = g.SendSenderAction(sendCtx, pageID, senderID, "typing_on")
-
+						_ = g.SendSenderAction(sendCtx, pageID, recipientID, "typing_on")
 						runeCount := len([]rune(step.Content))
-						delayMs := 1200 + (runeCount * 15)
-						if delayMs < 1500 {
-							delayMs = 1500
-						} else if delayMs > 2800 {
-							delayMs = 2800
+						delayMs := 1000 + (runeCount * 12)
+						if delayMs < 1200 {
+							delayMs = 1200
+						} else if delayMs > 2500 {
+							delayMs = 2500
 						}
 						time.Sleep(time.Duration(delayMs) * time.Millisecond)
 					} else {
-						// Other media (voice/audio/video)
-						time.Sleep(1200 * time.Millisecond)
+						time.Sleep(1000 * time.Millisecond)
 					}
 
 					var err error
 					if step.Type == "text" {
-						err = g.SendMessage(sendCtx, rule.AccountID, pageID, senderID, step.Content)
+						err = g.SendMessage(sendCtx, rule.AccountID, pageID, recipientID, step.Content)
 					} else {
-						err = g.SendMedia(sendCtx, rule.AccountID, pageID, senderID, step.Type, step.Content)
+						err = g.SendMedia(sendCtx, rule.AccountID, pageID, recipientID, step.Type, step.Content)
 					}
 					if err != nil {
-						slog.Error("automatic flow message step failed", "page_id", pageID, "sender_id", senderID, "source_id", sourceID, "step", index+1, "type", step.Type, "error", err)
+						slog.Error("automatic flow message step failed", "page_id", pageID, "recipient_id", recipientID, "source_id", sourceID, "step", index+1, "type", step.Type, "error", err)
 						continue
 					}
-					if trackDeliveryStep {
-						g.mu.Lock()
-						g.deliverySteps[stepKey] = true
-						g.mu.Unlock()
-					}
+					g.mu.Lock()
+					g.deliverySteps[stepKey] = true
+					g.mu.Unlock()
 				}
-				g.mu.Lock()
-				g.firstReplies[replyKey] = time.Now()
-				delete(g.inFlight, replyKey)
-				g.mu.Unlock()
-				slog.Info("automatic product reply sent", "page_id", pageID, "sender_id", senderID, "source_type", sourceType, "source_id", sourceID)
-			}(rule, items, seenKey, resolvedKey, replyKey, page.ID, message.Sender.ID, sourceType, sourceID, messageText, hasImage)
+				slog.Info("automatic product reply sent", "page_id", pageID, "recipient_id", recipientID, "source_type", sourceType, "source_id", sourceID)
+			}(rule, items, seenKey, resolvedKey, replyKey, page.ID, customerID, sourceType, sourceID, messageText, hasImage)
 		}
 	}
 	return nil
