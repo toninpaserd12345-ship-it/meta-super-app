@@ -52,6 +52,19 @@ func MigrateRuntimeSchema(db *gorm.DB) error {
 	if err := migrateReplySetCodes(db); err != nil {
 		return err
 	}
+	// Decouple chat_message_models by removing any legacy foreign key constraint
+	_ = db.Exec(`
+		DO $$ 
+		BEGIN 
+			IF EXISTS (
+				SELECT 1 FROM information_schema.table_constraints 
+				WHERE constraint_name = 'fk_chat_message_models_account' 
+				AND table_name = 'chat_message_models'
+			) THEN 
+				ALTER TABLE chat_message_models DROP CONSTRAINT fk_chat_message_models_account; 
+			END IF; 
+		END $$;
+	`).Error
 	// Older releases stored one row per Ad/Post without a flow identity. Group
 	// compatible rows deterministically so the new dashboard shows one
 	// automation with many targets and keeps all existing bindings intact.

@@ -10,7 +10,7 @@ import (
 )
 
 type Config struct {
-	Environment, HTTPAddr, StorageDriver, DatabaseURL, JWTSecret, JWTIssuer  string
+	Environment, HTTPAddr, StorageDriver, DatabaseURL, ChatDatabaseURL, JWTSecret, JWTIssuer string
 	MetaAppID, MetaAppSecret, MetaRedirectURI, MetaFrontendRedirect          string
 	MetaGraphVersion, MetaWebhookFields, MetaWebhookVerifyToken              string
 	MetaStateFile, MetaWhatsAppConfigID                                      string
@@ -35,6 +35,7 @@ func Load() (Config, error) {
 		HTTPAddr:               value("HTTP_ADDR", ":8080"),
 		StorageDriver:          "postgres",
 		DatabaseURL:            os.Getenv("DATABASE_URL"),
+		ChatDatabaseURL:        os.Getenv("CHAT_DATABASE_URL"),
 		JWTSecret:              os.Getenv("JWT_SECRET"),
 		JWTIssuer:              value("JWT_ISSUER", "meta-super-app"),
 		AccessTokenTTL:         ttl,

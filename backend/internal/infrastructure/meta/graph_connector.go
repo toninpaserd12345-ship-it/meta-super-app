@@ -662,6 +662,7 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 							broadcastContent = "Started chat from Ad / Post"
 						}
 						g.chatStream.Broadcast(accountID, usecase.ChatEvent{
+							MID:        message.Message.MID,
 							AccountID:  accountID,
 							PageID:     entry.ID,
 							SenderID:   customerID,

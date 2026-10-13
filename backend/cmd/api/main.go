@@ -94,8 +94,25 @@ func main() {
 	}
 	metaConnector.SetAutomationProvider(appProvider)
 
+	// Initialize Chat Database (Dual DB support: can be primary DB or dedicated chat DB)
+	chatDB := db
+	if cfg.ChatDatabaseURL != "" && cfg.ChatDatabaseURL != cfg.DatabaseURL {
+		cdb, chatErr := database.Open(cfg.ChatDatabaseURL)
+		if chatErr != nil {
+			slog.Warn("dedicated chat database connection failed, falling back to primary db", "error", chatErr)
+		} else {
+			slog.Info("dedicated chat database connected successfully")
+			chatDB = cdb
+			if cfg.AutoMigrate {
+				if err := chatDB.AutoMigrate(&database.ChatMessageModel{}); err != nil {
+					slog.Warn("chat database automigrate failed", "error", err)
+				}
+			}
+		}
+	}
+
 	// Initialize Chat Stream
-	chatRepo := repository.NewGormChat(db)
+	chatRepo := repository.NewGormChat(chatDB)
 	chatStream := usecase.NewChatStream(chatRepo)
 	metaConnector.SetChatStream(chatStream)
 	metaConnector.SetProductRepo(productRepo)

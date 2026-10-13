@@ -21,6 +21,7 @@ func (r *GormChat) SaveMessage(ctx context.Context, msg usecase.ChatEvent) error
 	id := uuid.NewString()
 	model := database.ChatMessageModel{
 		ID:         id,
+		MID:        msg.MID,
 		AccountID:  msg.AccountID,
 		PageID:     msg.PageID,
 		SenderID:   msg.SenderID,
@@ -49,6 +50,8 @@ func (r *GormChat) GetRecentMessages(ctx context.Context, accountID string, limi
 	events := make([]usecase.ChatEvent, len(models))
 	for i, m := range models {
 		events[len(models)-1-i] = usecase.ChatEvent{
+			SeqID:      m.SeqID,
+			MID:        m.MID,
 			AccountID:  m.AccountID,
 			PageID:     m.PageID,
 			SenderID:   m.SenderID,

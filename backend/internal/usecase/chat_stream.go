@@ -6,6 +6,8 @@ import (
 )
 
 type ChatEvent struct {
+	SeqID      uint64 `json:"seq_id,omitempty"`
+	MID        string `json:"mid,omitempty"`
 	AccountID  string `json:"account_id"`
 	PageID     string `json:"page_id"`
 	SenderID   string `json:"sender_id"`
