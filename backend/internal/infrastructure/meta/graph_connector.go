@@ -72,7 +72,7 @@ type GraphConnector struct {
 	replyFlows    map[string]map[string]domain.ReplyFlow
 	firstReplies  map[string]time.Time
 	conversations map[string]string
-	deliverySteps map[string]bool
+	deliverySteps map[string]time.Time
 	inFlight      map[string]bool
 	automation    domain.AutomationProvider
 	productRepo   domain.ProductRepository
@@ -94,7 +94,7 @@ func (g *GraphConnector) SetAutomationProvider(p domain.AutomationProvider) {
 func (g *GraphConnector) SetLeadSink(s domain.LeadSink) { g.leadSink = s }
 
 func NewGraphConnector(cfg GraphConfig, db *gorm.DB) *GraphConnector {
-	g := &GraphConnector{db: db, cfg: cfg, client: &http.Client{Timeout: 15 * time.Second}, states: make(map[string]oauthState), sessions: make(map[string]*graphSession), recentEvents: make(map[string]time.Time), bindings: make(map[string]domain.ProductBinding), products: make(map[string]map[string]domain.Product), replyFlows: make(map[string]map[string]domain.ReplyFlow), firstReplies: make(map[string]time.Time), conversations: make(map[string]string), deliverySteps: make(map[string]bool), inFlight: make(map[string]bool), userProfiles: make(map[string]struct{ Name, Pic string }), adHierarchyCache: make(map[string]adHierarchyInfo)}
+	g := &GraphConnector{db: db, cfg: cfg, client: &http.Client{Timeout: 15 * time.Second}, states: make(map[string]oauthState), sessions: make(map[string]*graphSession), recentEvents: make(map[string]time.Time), bindings: make(map[string]domain.ProductBinding), products: make(map[string]map[string]domain.Product), replyFlows: make(map[string]map[string]domain.ReplyFlow), firstReplies: make(map[string]time.Time), conversations: make(map[string]string), deliverySteps: make(map[string]time.Time), inFlight: make(map[string]bool), userProfiles: make(map[string]struct{ Name, Pic string }), adHierarchyCache: make(map[string]adHierarchyInfo)}
 	if err := g.loadState(); err != nil {
 		slog.Warn("unable to load Meta state", "error", err)
 	}
@@ -119,9 +119,16 @@ func (g *GraphConnector) cleanupRoutine() {
 				delete(g.firstReplies, k)
 			}
 		}
-		// conversations and deliverySteps are transient states for automations, safe to clear fully
-		g.conversations = make(map[string]string)
-		g.deliverySteps = make(map[string]bool)
+		// deliverySteps tracks per-step delivery for 24h
+		for k, t := range g.deliverySteps {
+			if time.Since(t) > 24*time.Hour {
+				delete(g.deliverySteps, k)
+			}
+		}
+		// conversations cache prunes after 24h
+		if len(g.conversations) > 50000 {
+			g.conversations = make(map[string]string)
+		}
 		g.mu.Unlock()
 
 		g.profileMu.Lock()
@@ -679,6 +686,10 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 
 			// If this message was sent by the page or is an echo event, NEVER trigger auto-replies!
 			if isSystem || message.Message.IsEcho {
+				seenKey := entry.ID + ":" + customerID
+				g.mu.Lock()
+				g.firstReplies[seenKey] = now
+				g.mu.Unlock()
 				continue
 			}
 
@@ -761,23 +772,37 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 			}
 			g.mu.RUnlock()
 
+			// Check database for active conversation history if not in memory (e.g. after server restart)
+			if !hasRepliedCustomer && g.db != nil {
+				var count int64
+				if err := g.db.Model(&database.ChatMessageModel{}).
+					Where("page_id = ? AND sender_id = ? AND created_at > ?", entry.ID, customerID, now.Add(-24*time.Hour)).
+					Count(&count).Error; err == nil && count > 0 {
+					hasRepliedCustomer = true
+					g.mu.Lock()
+					g.firstReplies[seenKey] = now
+					g.mu.Unlock()
+				}
+			}
+
 			var rule *domain.AutomationRule
 			if g.automation != nil {
-				if directSet != nil {
+				if directSet != nil && !hasRepliedCustomer {
 					sourceType, sourceID = "reply_set_name", directSet.Name
 					resolvedKey = bindingKey(entry.ID, sourceType, directSet.ID)
 					rule = &domain.AutomationRule{
-						AccountID:       accountID,
-						PageID:          entry.ID,
-						TriggerType:     sourceType,
-						TriggerValue:    directSet.Name,
-						ReplySetID:      directSet.ID,
-						FlowID:          "reply-set-name:" + directSet.ID,
-						FlowName:        directSet.Name,
-						CooldownSeconds: 2,
-						IsActive:        true,
+						AccountID:        accountID,
+						PageID:           entry.ID,
+						TriggerType:      sourceType,
+						TriggerValue:     directSet.Name,
+						ReplySetID:       directSet.ID,
+						FlowID:           "reply-set-name:" + directSet.ID,
+						FlowName:         directSet.Name,
+						CooldownSeconds:  86400,
+						FirstMessageOnly: true,
+						IsActive:         true,
 					}
-				} else if ref != nil || (sourceID != "" && (!hasRepliedCustomer || isAskingPrice(messageText) || hasImage)) {
+				} else if ref != nil || (sourceID != "" && !hasRepliedCustomer) {
 					// 1. Direct campaign match if referral includes campaign_id
 					if ref != nil && ref.CampaignID != "" {
 						rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, "campaign", ref.CampaignID)
@@ -867,9 +892,8 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 							}
 						}
 
-						// If still nil, and customer is asking price, sent an image, or is a first contact:
-						// Fallback to active rule for this page (e.g. if single active flow or ad rule)
-						if rule == nil && (!hasRepliedCustomer || isAskingPrice(messageText) || hasImage) {
+						// If still nil, only fallback if customer has NO prior replies and this is an initial inquiry or fresh ad
+						if rule == nil && !hasRepliedCustomer && (ref != nil || isAskingPrice(messageText)) {
 							targetRule := activeRules[0]
 							for _, ar := range activeRules {
 								if ar.TriggerType == "campaign" || ar.TriggerType == "ad" || ar.TriggerType == "post" {
@@ -919,23 +943,24 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 			isSpamming := false
 			if alreadyReplied {
 				if time.Since(lastReplyTime) < 15*time.Second {
+					// 1. Debounce rapid dual webhooks (e.g. referral + text in same second)
 					isSpamming = true
-				} else if isAskingPrice(messageText) {
-					isSpamming = time.Since(lastReplyTime) < 2*time.Minute
-				} else if hasImage {
-					isSpamming = time.Since(lastReplyTime) < 2*time.Minute
-				} else if rule != nil && rule.FlowID != "" {
-					if rule.FirstMessageOnly {
-						isSpamming = time.Since(lastReplyTime) < 12*time.Hour
-					} else if rule.CooldownSeconds > 0 {
-						isSpamming = time.Since(lastReplyTime) < time.Duration(rule.CooldownSeconds)*time.Second
-					} else {
-						isSpamming = time.Since(lastReplyTime) < 5*time.Minute
+				} else if rule != nil && rule.FirstMessageOnly {
+					// 2. FirstMessageOnly rules must NEVER repeat once already replied
+					isSpamming = true
+				} else if rule != nil && (rule.TriggerType == "ad" || rule.TriggerType == "campaign" || rule.TriggerType == "post") && ref == nil {
+					// 3. Ad/Post/Campaign welcome flows require a fresh ad referral; NEVER re-fire in mid-chat
+					isSpamming = true
+				} else if rule != nil && rule.CooldownSeconds > 0 {
+					// 4. Custom cooldown (minimum 15 minutes in active chats)
+					cooldown := time.Duration(rule.CooldownSeconds) * time.Second
+					if cooldown < 15*time.Minute && ref == nil {
+						cooldown = 15 * time.Minute
 					}
-				} else if rule != nil && rule.TriggerType == "keyword" {
-					isSpamming = time.Since(lastReplyTime) < 2*time.Minute
+					isSpamming = time.Since(lastReplyTime) < cooldown
 				} else {
-					isSpamming = time.Since(lastReplyTime) < 5*time.Minute
+					// 5. Default safe cooldown for all flows: 24 hours
+					isSpamming = time.Since(lastReplyTime) < 24*time.Hour
 				}
 			}
 
@@ -984,7 +1009,7 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 					}
 					stepKey := seenKey + ":" + step.ID
 					g.mu.RLock()
-					stepDone := g.deliverySteps[stepKey]
+					stepDone := !g.deliverySteps[stepKey].IsZero()
 					g.mu.RUnlock()
 					if stepDone {
 						continue
@@ -1020,7 +1045,7 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 						continue
 					}
 					g.mu.Lock()
-					g.deliverySteps[stepKey] = true
+					g.deliverySteps[stepKey] = time.Now()
 					g.mu.Unlock()
 				}
 				slog.Info("automatic product reply sent", "page_id", pageID, "recipient_id", recipientID, "source_type", sourceType, "source_id", sourceID)
