@@ -39,6 +39,7 @@ const loadingAds = ref(false)
 const adSearch = ref('')
 const manualAdId = ref('')
 const manualAdName = ref('')
+const commentReplyText = ref('')
 const firstMessageOnly = ref(true)
 const cooldownSeconds = ref(0)
 const loading = ref(false)
@@ -130,6 +131,7 @@ async function duplicateFlow(flow: AutomationFlow) {
         replySetId: flow.replySetId,
         firstMessageOnly: flow.firstMessageOnly,
         cooldownSeconds: flow.cooldownSeconds,
+        commentReplyText: flow.commentReplyText || '',
         targets: flow.targets.map(t => ({ type: t.type, value: t.value, name: t.name })),
       },
     })
@@ -166,11 +168,12 @@ function apiError(error: unknown, fallback: string) {
 function startWizard() {
   editingId.value = ''
   name.value = ''; pageId.value = pages.value[0]?.id || ''; productId.value = products.value[0]?.id || ''; replySetId.value = usableSets.value[0]?.id || ''
-  targetType.value = 'post'; targets.value = []; firstMessageOnly.value = true; cooldownSeconds.value = 0; step.value = 1; notice.value = ''; view.value = 'wizard'
+  targetType.value = 'post'; targets.value = []; commentReplyText.value = ''; firstMessageOnly.value = true; cooldownSeconds.value = 0; step.value = 1; notice.value = ''; view.value = 'wizard'
 }
 async function editFlow(flow: AutomationFlow) {
   hydrating.value = true
   editingId.value = flow.id; name.value = flow.name; pageId.value = flow.pageId; productId.value = flow.productId; replySetId.value = flow.replySetId
+  commentReplyText.value = flow.commentReplyText || ''
   targetType.value = flow.targets[0]?.type === 'campaign' ? 'campaign' : flow.targets[0]?.type === 'ad' ? 'ad' : 'post'; targets.value = flow.targets.map(({ type, value, name }) => ({ type, value, name }))
   firstMessageOnly.value = flow.firstMessageOnly; cooldownSeconds.value = flow.cooldownSeconds; step.value = 1; notice.value = ''; view.value = 'wizard'
   await nextTick()
@@ -233,7 +236,7 @@ async function saveFlow() {
   saving.value = true; notice.value = ''
   try {
     const url = editingId.value ? `/api/proxy/api/v1/automations/${editingId.value}` : '/api/proxy/api/v1/automations'
-    await $fetch(url, { method: editingId.value ? 'PUT' : 'POST', body: { name: name.value, pageId: pageId.value, productId: productId.value, replySetId: replySetId.value, firstMessageOnly: firstMessageOnly.value, cooldownSeconds: cooldownSeconds.value, targets: targets.value } })
+    await $fetch(url, { method: editingId.value ? 'PUT' : 'POST', body: { name: name.value, pageId: pageId.value, productId: productId.value, replySetId: replySetId.value, commentReplyText: commentReplyText.value, firstMessageOnly: firstMessageOnly.value, cooldownSeconds: cooldownSeconds.value, targets: targets.value } })
     const wasEditing = Boolean(editingId.value)
     await refreshFlows(); noticeType.value = 'success'; notice.value = wasEditing ? (locale.value === 'lo' ? 'ບັນທຶກ Automation ແລ້ວ' : 'Automation updated.') : (locale.value === 'lo' ? 'ສ້າງ Automation ແລ້ວ' : 'Automation created.'); view.value = 'dashboard'; editingId.value = ''
   } catch (error) { noticeType.value = 'error'; notice.value = apiError(error, 'Could not create the automation.') }
@@ -254,7 +257,6 @@ async function deleteFlow(flow: AutomationFlow) {
 watch(pageId, () => { if (hydrating.value) return; targets.value = []; if (targetType.value === 'post') loadPosts() })
 watch(targetType, async value => {
   if (hydrating.value) return
-  targets.value = []
   if (value === 'post') {
     await loadPosts()
   } else {
@@ -325,6 +327,10 @@ watch(adAccountId, loadCampaigns)
             <div><span>{{ t('auto.product') }}</span><strong>{{ productName(flow.productId) }}</strong></div>
             <div><span>{{ t('auto.replySet') }}</span><strong>{{ setName(flow.replySetId) }}</strong></div>
             <div><span>{{ t('auto.cooldown') }}</span><strong>{{ flow.cooldownSeconds }}s</strong></div>
+            <div v-if="flow.commentReplyText" style="grid-column: 1 / -2;">
+              <span>{{ locale==='lo' ? 'ຂໍ້ຄວາມຕອບໜ້າຄອມເມັ້ນ (Public Comment Reply)' : 'Public Comment Reply' }}</span>
+              <strong class="text-body-2" style="white-space: normal;">“{{ flow.commentReplyText }}”</strong>
+            </div>
             <div class="detail-targets">
               <span>{{ t('common.targets') }}</span>
               <div class="chips">
@@ -350,18 +356,50 @@ watch(adAccountId, loadCampaigns)
       <template v-else-if="step===2">
         <div class="section-title"><small>STEP 2</small><h3>{{ t('auto.triggerTitle') }}</h3><p>{{ t('auto.triggerHelp') }}</p></div>
         <v-btn-toggle v-model="targetType" mandatory color="primary" class="target-toggle mb-3">
-          <v-btn value="post" prepend-icon="mdi-post-outline">{{ t('auto.posts') }}</v-btn>
-          <v-btn value="campaign" prepend-icon="mdi-bullhorn-outline">{{ t('auto.campaigns') }}</v-btn>
-          <v-btn value="ad" prepend-icon="mdi-bullhorn">{{ locale==='lo' ? 'ໂຄສະນາ (Ad ID)' : 'Ads (Ad ID)' }}</v-btn>
+          <v-btn value="post" prepend-icon="mdi-post-outline">
+            {{ t('auto.posts') }}
+            <v-badge v-if="targets.filter(t=>t.type==='post').length" :content="targets.filter(t=>t.type==='post').length" color="primary" inline class="ml-1"/>
+          </v-btn>
+          <v-btn value="campaign" prepend-icon="mdi-bullhorn-outline">
+            {{ t('auto.campaigns') }}
+            <v-badge v-if="targets.filter(t=>t.type==='campaign').length" :content="targets.filter(t=>t.type==='campaign').length" color="success" inline class="ml-1"/>
+          </v-btn>
+          <v-btn value="ad" prepend-icon="mdi-bullhorn">
+            {{ locale==='lo' ? 'ໂຄສະນາ (Ad ID)' : 'Ads (Ad ID)' }}
+            <v-badge v-if="targets.filter(t=>t.type==='ad').length" :content="targets.filter(t=>t.type==='ad').length" color="purple" inline class="ml-1"/>
+          </v-btn>
         </v-btn-toggle>
+
+        <!-- Selected targets summary bar across all tabs -->
+        <div v-if="targets.length" class="mb-3 d-flex align-center gap-2 flex-wrap pa-2" style="background: var(--color-surface-soft); border-radius: 10px; border: 1px solid var(--color-border-subtle);">
+          <span class="text-caption font-weight-bold ml-1">
+            {{ locale==='lo' ? `ເລືອກແລ້ວທັງໝົດ (${targets.length}):` : `Total Selected (${targets.length}):` }}
+          </span>
+          <v-chip
+            v-for="t in targets"
+            :key="`${t.type}:${t.value}`"
+            size="small"
+            closable
+            :color="t.type === 'post' ? 'primary' : t.type === 'campaign' ? 'success' : 'purple'"
+            variant="tonal"
+            @click:close="toggleTarget(t)"
+          >
+            <v-icon :icon="t.type === 'post' ? 'mdi-post' : t.type === 'campaign' ? 'mdi-bullhorn-outline' : 'mdi-bullhorn'" size="13" class="mr-1"/>
+            {{ t.type }} · {{ (t.name || t.value).length > 28 ? (t.name || t.value).slice(0, 28) + '…' : (t.name || t.value) }}
+          </v-chip>
+          <v-btn size="x-small" variant="text" color="error" class="ml-auto" @click="clearAllTargets">
+            {{ locale==='lo' ? 'ລ້າງທັງໝົດ' : 'Clear all' }}
+          </v-btn>
+        </div>
+
         <div v-if="loading" class="loading"><v-progress-circular indeterminate color="primary"/></div>
         <div v-else-if="targetType==='post'">
           <div class="d-flex align-center gap-2 mb-3 flex-wrap">
             <v-text-field v-model="postSearch" density="compact" variant="outlined" prepend-inner-icon="mdi-magnify" :placeholder="locale==='lo'?'ຄົ້ນຫາໂພສຕາມແຄັບຊັນ ຫຼື ID...':'Search posts by message or ID...'" hide-details clearable style="max-width: 360px; min-width: 200px;"/>
             <v-btn size="small" variant="tonal" color="primary" prepend-icon="mdi-checkbox-multiple-marked-outline" @click="selectAllAvailablePosts">{{ locale==='lo'?'ເລືອກທຸກໂພສທີ່ວ່າງ':'Select all available' }}</v-btn>
-            <v-btn size="small" variant="text" :disabled="!targets.length" @click="clearAllTargets">{{ locale==='lo'?'ລ້າງການເລືອກ':'Clear' }}</v-btn>
+            <v-btn size="small" variant="text" :disabled="!targets.filter(t=>t.type==='post').length" @click="targets = targets.filter(t=>t.type!=='post')">{{ locale==='lo'?'ລ້າງໂພສ':'Clear posts' }}</v-btn>
             <v-spacer/>
-            <span class="text-caption text-medium-emphasis">{{ targets.length }} {{ locale==='lo'?'ໂພສຖືກເລືອກ':'selected' }}</span>
+            <span class="text-caption text-medium-emphasis">{{ targets.filter(t=>t.type==='post').length }} {{ locale==='lo'?'ໂພສຖືກເລືອກ':'posts selected' }}</span>
           </div>
           <div class="target-list">
             <button v-for="post in filteredPosts" :key="post.id" :disabled="isUsed('post',post.id)" :class="{selected:isSelected('post',post.id),disabled:isUsed('post',post.id)}" @click="toggleTarget({type:'post',value:post.id,name:post.message || 'Facebook Post'})">
@@ -376,7 +414,7 @@ watch(adAccountId, loadCampaigns)
             <v-select v-model="adAccountId" :items="adAccounts.map(item=>({...item,label:`${item.accountType==='business'?'Business':'Personal'} · ${item.name}`}))" item-title="label" item-value="id" :label="t('auto.adAccount')" variant="outlined" density="compact" hide-details style="max-width: 320px;"/>
             <v-text-field v-model="campaignSearch" density="compact" variant="outlined" prepend-inner-icon="mdi-magnify" :placeholder="locale==='lo'?'ຄົ້ນຫາແຄມເປນ...':'Search campaigns...'" hide-details clearable style="max-width: 320px;"/>
             <v-spacer/>
-            <span class="text-caption text-medium-emphasis">{{ targets.length }} {{ locale==='lo'?'ແຄມເປນຖືກເລືອກ':'selected' }}</span>
+            <span class="text-caption text-medium-emphasis">{{ targets.filter(t=>t.type==='campaign').length }} {{ locale==='lo'?'ແຄມເປນຖືກເລືອກ':'campaigns selected' }}</span>
           </div>
           <div class="target-list">
             <button v-for="campaign in filteredCampaigns" :key="campaign.id" :disabled="isUsed('campaign',campaign.id)" :class="{selected:isSelected('campaign',campaign.id),disabled:isUsed('campaign',campaign.id)}" @click="toggleTarget({type:'campaign',value:campaign.id,name:campaign.name})">
@@ -399,7 +437,7 @@ watch(adAccountId, loadCampaigns)
             <v-select v-model="selectedCampaignIdForAds" :items="campaigns" item-title="name" item-value="id" :label="locale==='lo'?'ເລືອກແຄມເປນເພື່ອດຶງໂຄສະນາ':'Select Campaign for Ads'" variant="outlined" density="compact" hide-details style="max-width: 280px;"/>
             <v-text-field v-model="adSearch" density="compact" variant="outlined" prepend-inner-icon="mdi-magnify" :placeholder="locale==='lo'?'ຄົ້ນຫາໂຄສະນາ...':'Search ads...'" hide-details clearable style="max-width: 220px;"/>
             <v-spacer/>
-            <span class="text-caption text-medium-emphasis">{{ targets.length }} {{ locale==='lo'?'ໂຄສະນາຖືກເລືອກ':'selected' }}</span>
+            <span class="text-caption text-medium-emphasis">{{ targets.filter(t=>t.type==='ad').length }} {{ locale==='lo'?'ໂຄສະນາຖືກເລືອກ':'ads selected' }}</span>
           </div>
           <div v-if="loadingAds" class="loading"><v-progress-circular indeterminate color="primary"/></div>
           <div v-else-if="campaignAds.length" class="target-list">
@@ -470,8 +508,36 @@ watch(adAccountId, loadCampaigns)
           </div>
         </div>
       </template>
-      <template v-else-if="step===4"><div class="section-title"><small>STEP 4</small><h3>{{ t('auto.behaviorTitle') }}</h3><p>{{ t('auto.behaviorHelp') }}</p></div><v-switch v-model="firstMessageOnly" color="primary" :label="t('auto.firstLabel')" inset/><v-text-field v-model.number="cooldownSeconds" type="number" min="0" max="86400" :label="t('auto.cooldown')" :hint="t('auto.cooldownHelp')" persistent-hint variant="outlined"/></template>
-      <template v-else><div class="section-title"><small>STEP 5</small><h3>{{ t('auto.reviewTitle') }}</h3><p>{{ t('auto.reviewHelp') }}</p></div><div class="review"><article><span>{{ t('auto.automation') }}</span><strong>{{ name }}</strong><small>{{ selectedPage?.name }}</small></article><article><span>{{ t('auto.response') }}</span><strong>{{ selectedProduct?.name }}</strong><small>{{ setLabel(selectedSet) }}</small></article><article><span>{{ t('common.targets') }}</span><strong>{{ targets.length }} {{ targetType }}</strong><small>{{ firstMessageOnly?t('auto.firstOnly'):t('auto.everyMatch') }}</small></article></div><div class="chips"><v-chip v-for="target in targets" :key="`${target.type}:${target.value}`" color="primary" variant="tonal">{{ target.name || target.value }}</v-chip></div></template>
+      <template v-else-if="step===4">
+        <div class="section-title"><small>STEP 4</small><h3>{{ t('auto.behaviorTitle') }}</h3><p>{{ t('auto.behaviorHelp') }}</p></div>
+        <v-textarea
+          v-model="commentReplyText"
+          rows="3"
+          variant="outlined"
+          :label="locale==='lo' ? 'ຂໍ້ຄວາມຕອບໜ້າຄອມເມັ້ນ (Public Comment Reply)' : 'Public Comment Reply Text'"
+          :placeholder="locale==='lo' ? 'ສະບາຍດີ! ທາງຮ້ານໄດ້ແຈ້ງລາຍລະອຽດໃຫ້ທາງ Inbox ແລ້ວເດີ້ ກວດເບິ່ງແຊັດໄດ້ເລີຍເຈົ້າ 😊' : 'Hello! We sent details to your inbox 😊'"
+          :hint="locale==='lo' ? 'ຂໍ້ຄວາມທີ່ຈະຕອບກັບຄອມເມັ້ນລູກຄ້າໂດຍກົງຢູ່ໜ້າ Facebook Post/Ad (ຫາກປະວ່າງ ລະບົບຈະໃຊ້ຂໍ້ຄວາມມາດຕະຖານ)' : 'Message to reply directly to user comments publicly on the post/ad (leave blank for default)'"
+          persistent-hint
+          class="mb-4"
+        />
+        <v-switch v-model="firstMessageOnly" color="primary" :label="t('auto.firstLabel')" inset/>
+        <v-text-field v-model.number="cooldownSeconds" type="number" min="0" max="86400" :label="t('auto.cooldown')" :hint="t('auto.cooldownHelp')" persistent-hint variant="outlined"/>
+      </template>
+      <template v-else>
+        <div class="section-title"><small>STEP 5</small><h3>{{ t('auto.reviewTitle') }}</h3><p>{{ t('auto.reviewHelp') }}</p></div>
+        <div class="review">
+          <article><span>{{ t('auto.automation') }}</span><strong>{{ name }}</strong><small>{{ selectedPage?.name }}</small></article>
+          <article><span>{{ t('auto.response') }}</span><strong>{{ selectedProduct?.name }}</strong><small>{{ setLabel(selectedSet) }}</small></article>
+          <article><span>{{ t('common.targets') }}</span><strong>{{ targets.length }} {{ locale==='lo' ? 'ເປົ້າໝາຍ' : 'targets' }}</strong><small>{{ firstMessageOnly?t('auto.firstOnly'):t('auto.everyMatch') }}</small></article>
+        </div>
+        <div v-if="commentReplyText.trim()" class="pa-3 mb-3" style="background: var(--color-surface-soft); border-radius: 12px; border: 1px solid var(--color-border-subtle);">
+          <div class="text-caption font-weight-bold mb-1 text-medium-emphasis">{{ locale==='lo' ? 'ຂໍ້ຄວາມຕອບໜ້າຄອມເມັ້ນ (Public Comment Reply):' : 'Public Comment Reply:' }}</div>
+          <div class="text-body-2 font-weight-medium">“{{ commentReplyText }}”</div>
+        </div>
+        <div class="chips">
+          <v-chip v-for="target in targets" :key="`${target.type}:${target.value}`" color="primary" variant="tonal">{{ target.type }} · {{ target.name || target.value }}</v-chip>
+        </div>
+      </template>
     </section>
     <footer class="wizard-actions"><v-btn variant="text" @click="back">{{ step===1?t('common.cancel'):t('common.back') }}</v-btn><v-spacer/><v-btn v-if="step<5" color="primary" append-icon="mdi-arrow-right" :disabled="!stepReady" @click="next">{{ t('common.continue') }}</v-btn><v-btn v-else color="primary" prepend-icon="mdi-check" :loading="saving" @click="saveFlow">{{ editingId ? t('auto.update') : t('auto.create') }}</v-btn></footer>
   </template>

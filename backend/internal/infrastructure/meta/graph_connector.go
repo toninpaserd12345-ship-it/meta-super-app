@@ -622,8 +622,11 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 			}
 			items = g.resolveReplyItemsContext(ctx, rule, items)
 
-			// 1. Reply to comment publicly with polite confirmation
-			publicText := "ສະບາຍດີ! ທາງຮ້ານໄດ້ແຈ້ງລາຍລະອຽດໃຫ້ທາງ Inbox ແລ້ວເດີ້ ກວດເບິ່ງແຊັດໄດ້ເລີຍເຈົ້າ 😊"
+			// 1. Reply to comment publicly with polite confirmation or custom text
+			publicText := strings.TrimSpace(rule.CommentReplyText)
+			if publicText == "" {
+				publicText = "ສະບາຍດີ! ທາງຮ້ານໄດ້ແຈ້ງລາຍລະອຽດໃຫ້ທາງ Inbox ແລ້ວເດີ້ ກວດເບິ່ງແຊັດໄດ້ເລີຍເຈົ້າ 😊"
+			}
 			if err := g.replyToComment(ctx, page, change.Value.CommentID, publicText); err != nil {
 				slog.Error("automatic comment reply failed", "page_id", entry.ID, "post_id", change.Value.PostID, "comment_id", change.Value.CommentID, "error", err)
 			}
@@ -1377,6 +1380,7 @@ func ruleModelToDomain(m database.AutomationRuleModel) domain.AutomationRule {
 		ReplySetID:       m.ReplySetID,
 		FlowID:           m.FlowID,
 		FlowName:         m.FlowName,
+		CommentReplyText: m.CommentReplyText,
 		FirstMessageOnly: m.FirstMessageOnly,
 		CooldownSeconds:  m.CooldownSeconds,
 		IsActive:         m.IsActive,

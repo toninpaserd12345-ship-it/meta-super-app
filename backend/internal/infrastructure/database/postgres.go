@@ -52,6 +52,10 @@ func MigrateRuntimeSchema(db *gorm.DB) error {
 	if err := migrateReplySetCodes(db); err != nil {
 		return err
 	}
+	// Ensure trigger_name can hold long Facebook post captions
+	_ = db.Exec(`
+		ALTER TABLE automation_rule_models ALTER COLUMN trigger_name TYPE text;
+	`).Error
 	// Decouple chat_message_models by removing any legacy foreign key constraint
 	_ = db.Exec(`
 		DO $$ 

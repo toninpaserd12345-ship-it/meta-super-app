@@ -16,6 +16,7 @@ type AutomationRule struct {
 	ReplySetID       string    `json:"replySetId"`
 	FlowID           string    `json:"flowId"`
 	FlowName         string    `json:"flowName"`
+	CommentReplyText string    `json:"commentReplyText"`
 	FirstMessageOnly bool      `json:"firstMessageOnly"`
 	CooldownSeconds  int       `json:"cooldownSeconds"`
 	IsActive         bool      `json:"isActive"`
@@ -39,6 +40,7 @@ type AutomationFlow struct {
 	PageID           string             `json:"pageId"`
 	ProductID        string             `json:"productId"`
 	ReplySetID       string             `json:"replySetId"`
+	CommentReplyText string             `json:"commentReplyText"`
 	FirstMessageOnly bool               `json:"firstMessageOnly"`
 	CooldownSeconds  int                `json:"cooldownSeconds"`
 	IsActive         bool               `json:"isActive"`

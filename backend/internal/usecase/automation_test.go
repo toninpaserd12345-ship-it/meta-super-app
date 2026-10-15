@@ -51,6 +51,75 @@ func TestAutomationFlowGroupsTargetsAndUpdatesTogether(t *testing.T) {
 	}
 }
 
+func TestAutomationFlowMixedTargetsLongCaptionAndCustomCommentReply(t *testing.T) {
+	ctx := context.Background()
+	service := usecase.NewAutomation(repository.NewMemory(""))
+	longCaption := strings.TrimSpace(strings.Repeat("🔥 ໂປຣໂມຊັ່ນພິເສດ! ເກີບ ກິໂຕ ແທ້ 100% ", 20)) // > 600 chars
+	customComment := "ຂອບໃຈທີ່ສົນໃຈ! ພວກເຮົາໄດ້ສົ່ງຂໍ້ມູນໃຫ້ທາງ Inbox ແລ້ວເດີ້"
+
+	flow := &domain.AutomationFlow{
+		AccountID:        "account-1",
+		Name:             "Kito Shoes Promotion",
+		PageID:           "page-107",
+		ProductID:        "prod-1",
+		ReplySetID:       "reply-1",
+		CommentReplyText: customComment,
+		FirstMessageOnly: true,
+		Targets: []domain.AutomationTarget{
+			{Type: "post", Value: "post_107_999", Name: longCaption},
+			{Type: "campaign", Value: "camp_888", Name: "Kito Brand Campaign"},
+		},
+	}
+
+	if err := service.CreateFlow(ctx, flow); err != nil {
+		t.Fatalf("CreateFlow() error = %v", err)
+	}
+
+	fetched, err := service.GetFlow(ctx, flow.ID, "account-1")
+	if err != nil {
+		t.Fatalf("GetFlow() error = %v", err)
+	}
+	if fetched.CommentReplyText != customComment {
+		t.Fatalf("CommentReplyText = %q, want %q", fetched.CommentReplyText, customComment)
+	}
+	if len(fetched.Targets) != 2 {
+		t.Fatalf("expected 2 targets, got %d", len(fetched.Targets))
+	}
+
+	// Verify both targets exist with correct types
+	hasPost := false
+	hasCampaign := false
+	for _, target := range fetched.Targets {
+		if target.Type == "post" && target.Name == longCaption {
+			hasPost = true
+		}
+		if target.Type == "campaign" && target.Value == "camp_888" {
+			hasCampaign = true
+		}
+	}
+	if !hasPost || !hasCampaign {
+		t.Fatalf("expected both post and campaign targets, got: %#v", fetched.Targets)
+	}
+
+	// Test updating flow with new custom comment and targets
+	fetched.CommentReplyText = "ຂໍ້ຄວາມໃໝ່"
+	fetched.Targets = append(fetched.Targets, domain.AutomationTarget{Type: "ad", Value: "ad_777", Name: "Ad 777"})
+	if err := service.UpdateFlow(ctx, fetched); err != nil {
+		t.Fatalf("UpdateFlow() error = %v", err)
+	}
+
+	updated, err := service.GetFlow(ctx, flow.ID, "account-1")
+	if err != nil {
+		t.Fatalf("GetFlow() after update error = %v", err)
+	}
+	if updated.CommentReplyText != "ຂໍ້ຄວາມໃໝ່" {
+		t.Fatalf("CommentReplyText after update = %q, want %q", updated.CommentReplyText, "ຂໍ້ຄວາມໃໝ່")
+	}
+	if len(updated.Targets) != 3 {
+		t.Fatalf("expected 3 targets after update, got %d", len(updated.Targets))
+	}
+}
+
 func TestAutomationCreateRuleValidation(t *testing.T) {
 	tests := []struct {
 		name         string

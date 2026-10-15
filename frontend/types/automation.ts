@@ -155,6 +155,7 @@ export interface AutomationFlow {
   pageId: string
   productId: string
   replySetId: string
+  commentReplyText?: string
   firstMessageOnly: boolean
   cooldownSeconds: number
   isActive: boolean

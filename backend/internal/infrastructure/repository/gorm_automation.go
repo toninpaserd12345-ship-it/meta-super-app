@@ -32,6 +32,7 @@ func (r *GormRepository) CreateRule(ctx context.Context, rule *domain.Automation
 		ReplySetID:       rule.ReplySetID,
 		FlowID:           rule.FlowID,
 		FlowName:         rule.FlowName,
+		CommentReplyText: rule.CommentReplyText,
 		FirstMessageOnly: rule.FirstMessageOnly,
 		CooldownSeconds:  rule.CooldownSeconds,
 		IsActive:         rule.IsActive,
@@ -108,6 +109,7 @@ func (r *GormRepository) UpdateRule(ctx context.Context, rule *domain.Automation
 		}(),
 		"reply_set_id":       rule.ReplySetID,
 		"flow_name":          rule.FlowName,
+		"comment_reply_text": rule.CommentReplyText,
 		"first_message_only": rule.FirstMessageOnly,
 		"cooldown_seconds":   rule.CooldownSeconds,
 		"is_active":          rule.IsActive,
@@ -131,7 +133,7 @@ func (r *GormRepository) CreateFlow(ctx context.Context, flow *domain.Automation
 				ID: target.ID, AccountID: flow.AccountID, PageID: flow.PageID,
 				TriggerType: target.Type, TriggerName: target.Name, TriggerValue: target.Value,
 				ProductID: productID, ReplySetID: flow.ReplySetID, FlowID: flow.ID,
-				FlowName: flow.Name, FirstMessageOnly: flow.FirstMessageOnly,
+				FlowName: flow.Name, CommentReplyText: flow.CommentReplyText, FirstMessageOnly: flow.FirstMessageOnly,
 				CooldownSeconds: flow.CooldownSeconds, IsActive: flow.IsActive,
 			}
 			if err := tx.Create(&model).Error; err != nil {
@@ -170,7 +172,7 @@ func (r *GormRepository) GetFlowsByAccountID(ctx context.Context, accountID stri
 			if rule.FlowID == "" {
 				firstMessageOnly = true
 			}
-			flow = &domain.AutomationFlow{ID: flowID, AccountID: rule.AccountID, Name: name, PageID: rule.PageID, ProductID: rule.ProductID, ReplySetID: rule.ReplySetID, FirstMessageOnly: firstMessageOnly, CooldownSeconds: rule.CooldownSeconds, IsActive: rule.IsActive, CreatedAt: rule.CreatedAt, UpdatedAt: rule.UpdatedAt}
+			flow = &domain.AutomationFlow{ID: flowID, AccountID: rule.AccountID, Name: name, PageID: rule.PageID, ProductID: rule.ProductID, ReplySetID: rule.ReplySetID, CommentReplyText: rule.CommentReplyText, FirstMessageOnly: firstMessageOnly, CooldownSeconds: rule.CooldownSeconds, IsActive: rule.IsActive, CreatedAt: rule.CreatedAt, UpdatedAt: rule.UpdatedAt}
 			groups[flowID] = flow
 			order = append(order, flowID)
 		}
@@ -231,7 +233,7 @@ func (r *GormRepository) UpdateFlow(ctx context.Context, flow *domain.Automation
 				ID: target.ID, AccountID: flow.AccountID, PageID: flow.PageID,
 				TriggerType: target.Type, TriggerName: target.Name, TriggerValue: target.Value,
 				ProductID: productID, ReplySetID: flow.ReplySetID, FlowID: flow.ID,
-				FlowName: flow.Name, FirstMessageOnly: flow.FirstMessageOnly,
+				FlowName: flow.Name, CommentReplyText: flow.CommentReplyText, FirstMessageOnly: flow.FirstMessageOnly,
 				CooldownSeconds: flow.CooldownSeconds, IsActive: flow.IsActive, CreatedAt: flow.CreatedAt,
 			}
 			if err := tx.Create(&model).Error; err != nil {
@@ -288,6 +290,7 @@ func toDomainAutomationRule(m database.AutomationRuleModel) domain.AutomationRul
 		ReplySetID:       m.ReplySetID,
 		FlowID:           m.FlowID,
 		FlowName:         m.FlowName,
+		CommentReplyText: m.CommentReplyText,
 		FirstMessageOnly: m.FirstMessageOnly,
 		CooldownSeconds:  m.CooldownSeconds,
 		IsActive:         m.IsActive,

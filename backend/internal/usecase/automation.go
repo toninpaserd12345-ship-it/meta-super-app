@@ -191,6 +191,7 @@ func (u *Automation) prepareFlow(ctx context.Context, flow *domain.AutomationFlo
 	flow.PageID = strings.TrimSpace(flow.PageID)
 	flow.ProductID = strings.TrimSpace(flow.ProductID)
 	flow.ReplySetID = strings.TrimSpace(flow.ReplySetID)
+	flow.CommentReplyText = strings.TrimSpace(flow.CommentReplyText)
 	if flow.Name == "" || flow.PageID == "" || flow.ProductID == "" || flow.ReplySetID == "" || len(flow.Targets) == 0 {
 		return fmt.Errorf("%w: name, pageId, productId, replySetId, and at least one target are required", ErrInvalidAutomationRule)
 	}

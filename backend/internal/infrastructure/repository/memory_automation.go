@@ -104,7 +104,7 @@ func (r *MemoryRepository) CreateFlow(ctx context.Context, flow *domain.Automati
 	for index := range flow.Targets {
 		target := &flow.Targets[index]
 		target.ID = uuid.New().String()
-		r.automationRules[target.ID] = domain.AutomationRule{ID: target.ID, AccountID: flow.AccountID, PageID: flow.PageID, TriggerType: target.Type, TriggerValue: target.Value, TriggerName: target.Name, ProductID: flow.ProductID, ReplySetID: flow.ReplySetID, FlowID: flow.ID, FlowName: flow.Name, FirstMessageOnly: flow.FirstMessageOnly, CooldownSeconds: flow.CooldownSeconds, IsActive: flow.IsActive, CreatedAt: now, UpdatedAt: now}
+		r.automationRules[target.ID] = domain.AutomationRule{ID: target.ID, AccountID: flow.AccountID, PageID: flow.PageID, TriggerType: target.Type, TriggerValue: target.Value, TriggerName: target.Name, ProductID: flow.ProductID, ReplySetID: flow.ReplySetID, FlowID: flow.ID, FlowName: flow.Name, CommentReplyText: flow.CommentReplyText, FirstMessageOnly: flow.FirstMessageOnly, CooldownSeconds: flow.CooldownSeconds, IsActive: flow.IsActive, CreatedAt: now, UpdatedAt: now}
 	}
 	return nil
 }
@@ -133,7 +133,7 @@ func (r *MemoryRepository) GetFlowsByAccountID(ctx context.Context, accountID st
 			if rule.FlowID == "" {
 				firstMessageOnly = true
 			}
-			flow = &domain.AutomationFlow{ID: id, AccountID: rule.AccountID, Name: name, PageID: rule.PageID, ProductID: rule.ProductID, ReplySetID: rule.ReplySetID, FirstMessageOnly: firstMessageOnly, CooldownSeconds: rule.CooldownSeconds, IsActive: rule.IsActive, CreatedAt: rule.CreatedAt, UpdatedAt: rule.UpdatedAt}
+			flow = &domain.AutomationFlow{ID: id, AccountID: rule.AccountID, Name: name, PageID: rule.PageID, ProductID: rule.ProductID, ReplySetID: rule.ReplySetID, CommentReplyText: rule.CommentReplyText, FirstMessageOnly: firstMessageOnly, CooldownSeconds: rule.CooldownSeconds, IsActive: rule.IsActive, CreatedAt: rule.CreatedAt, UpdatedAt: rule.UpdatedAt}
 			groups[id] = flow
 		}
 		flow.Targets = append(flow.Targets, domain.AutomationTarget{ID: rule.ID, Type: rule.TriggerType, Value: rule.TriggerValue, Name: rule.TriggerName})
@@ -167,7 +167,7 @@ func (r *MemoryRepository) GetFlowByID(ctx context.Context, id string) (*domain.
 			if rule.FlowID == "" {
 				firstMessageOnly = true
 			}
-			flow = &domain.AutomationFlow{ID: id, AccountID: rule.AccountID, Name: name, PageID: rule.PageID, ProductID: rule.ProductID, ReplySetID: rule.ReplySetID, FirstMessageOnly: firstMessageOnly, CooldownSeconds: rule.CooldownSeconds, IsActive: rule.IsActive, CreatedAt: rule.CreatedAt, UpdatedAt: rule.UpdatedAt}
+			flow = &domain.AutomationFlow{ID: id, AccountID: rule.AccountID, Name: name, PageID: rule.PageID, ProductID: rule.ProductID, ReplySetID: rule.ReplySetID, CommentReplyText: rule.CommentReplyText, FirstMessageOnly: firstMessageOnly, CooldownSeconds: rule.CooldownSeconds, IsActive: rule.IsActive, CreatedAt: rule.CreatedAt, UpdatedAt: rule.UpdatedAt}
 		}
 		flow.Targets = append(flow.Targets, domain.AutomationTarget{ID: rule.ID, Type: rule.TriggerType, Value: rule.TriggerValue, Name: rule.TriggerName})
 	}
@@ -199,7 +199,7 @@ func (r *MemoryRepository) UpdateFlow(ctx context.Context, flow *domain.Automati
 	for index := range flow.Targets {
 		target := &flow.Targets[index]
 		target.ID = uuid.New().String()
-		r.automationRules[target.ID] = domain.AutomationRule{ID: target.ID, AccountID: flow.AccountID, PageID: flow.PageID, TriggerType: target.Type, TriggerValue: target.Value, TriggerName: target.Name, ProductID: flow.ProductID, ReplySetID: flow.ReplySetID, FlowID: flow.ID, FlowName: flow.Name, FirstMessageOnly: flow.FirstMessageOnly, CooldownSeconds: flow.CooldownSeconds, IsActive: flow.IsActive, CreatedAt: flow.CreatedAt, UpdatedAt: now}
+		r.automationRules[target.ID] = domain.AutomationRule{ID: target.ID, AccountID: flow.AccountID, PageID: flow.PageID, TriggerType: target.Type, TriggerValue: target.Value, TriggerName: target.Name, ProductID: flow.ProductID, ReplySetID: flow.ReplySetID, FlowID: flow.ID, FlowName: flow.Name, CommentReplyText: flow.CommentReplyText, FirstMessageOnly: flow.FirstMessageOnly, CooldownSeconds: flow.CooldownSeconds, IsActive: flow.IsActive, CreatedAt: flow.CreatedAt, UpdatedAt: now}
 	}
 	return nil
 }

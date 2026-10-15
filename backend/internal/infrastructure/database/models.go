@@ -103,7 +103,7 @@ type AutomationRuleModel struct {
 	Account          AccountModel  `gorm:"foreignKey:AccountID;constraint:OnDelete:CASCADE"`
 	PageID           string        `gorm:"index"`
 	TriggerType      string        `gorm:"size:50;not null"` // post, ad, keyword
-	TriggerName      string        `gorm:"size:255"`
+	TriggerName      string        `gorm:"type:text"`
 	TriggerValue     string        `gorm:"size:255;index"`
 	ProductID        *string       `gorm:"type:uuid;index"`
 	Product          *ProductModel `gorm:"foreignKey:ProductID;constraint:OnDelete:SET NULL"`
@@ -111,6 +111,7 @@ type AutomationRuleModel struct {
 	ReplySet         ReplySetModel `gorm:"foreignKey:ReplySetID;constraint:OnDelete:CASCADE"`
 	FlowID           string        `gorm:"size:64;index"`
 	FlowName         string        `gorm:"size:160"`
+	CommentReplyText string        `gorm:"type:text"`
 	FirstMessageOnly bool          `gorm:"default:true"`
 	CooldownSeconds  int           `gorm:"default:0"`
 	IsActive         bool          `gorm:"default:true"`
