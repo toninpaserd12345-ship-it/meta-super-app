@@ -127,7 +127,7 @@ const resultLabel = (type?: string) => {
   return type && labels[type] ? l(labels[type]) : l({ lo: 'ຜົນລັບ', th: 'ผลลัพธ์', en: 'Results' })
 }
 
-function setPreset(value: string) {
+async function setPreset(value: string) {
   datePreset.value = value
   const days = Number(value)
   if (!Number.isFinite(days)) return
@@ -135,6 +135,7 @@ function setPreset(value: string) {
   const start = new Date(end.getFullYear(), end.getMonth(), end.getDate() - days + 1)
   since.value = iso(start)
   until.value = iso(end)
+  if (ready.value) await loadPerformance()
 }
 
 function statusFor(item: MetaInsightItem) {

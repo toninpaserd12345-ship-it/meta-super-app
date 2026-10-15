@@ -1,6 +1,7 @@
 package httpx
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
@@ -479,7 +480,7 @@ func (h *Handler) metaAdAccounts(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"items": items})
 }
 func (h *Handler) metaCampaigns(c fiber.Ctx) error {
-	ctx, cancel := requestContext(c)
+	ctx, cancel := context.WithTimeout(c.Context(), 30*time.Second)
 	defer cancel()
 	items, err := h.meta.ListCampaigns(ctx, userID(c), c.Locals("accountID").(string), c.Params("adAccountID"))
 	if err != nil {
@@ -488,7 +489,7 @@ func (h *Handler) metaCampaigns(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"items": items})
 }
 func (h *Handler) metaAds(c fiber.Ctx) error {
-	ctx, cancel := requestContext(c)
+	ctx, cancel := context.WithTimeout(c.Context(), 30*time.Second)
 	defer cancel()
 	items, err := h.meta.ListAds(ctx, userID(c), c.Locals("accountID").(string), c.Params("campaignID"))
 	if err != nil {
@@ -497,7 +498,7 @@ func (h *Handler) metaAds(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"items": items})
 }
 func (h *Handler) metaAdsInsights(c fiber.Ctx) error {
-	ctx, cancel := requestContext(c)
+	ctx, cancel := context.WithTimeout(c.Context(), 60*time.Second)
 	defer cancel()
 	report, err := h.meta.AdsInsights(ctx, userID(c), c.Locals("accountID").(string), c.Params("adAccountID"), c.Query("level", "campaign"), c.Query("since"), c.Query("until"))
 	if err != nil {
@@ -511,7 +512,7 @@ func (h *Handler) metaAdsInsights(c fiber.Ctx) error {
 	return c.JSON(report)
 }
 func (h *Handler) metaAudienceAnalysis(c fiber.Ctx) error {
-	ctx, cancel := requestContext(c)
+	ctx, cancel := context.WithTimeout(c.Context(), 30*time.Second)
 	defer cancel()
 	analysis, err := h.meta.AudienceAnalysis(ctx, userID(c), c.Locals("accountID").(string), c.Params("adAccountID"), c.Params("adSetID"))
 	if err != nil {

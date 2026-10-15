@@ -194,9 +194,21 @@ async function loadPosts() {
   finally { loading.value = false }
 }
 async function loadAdAccounts() {
-  if (adAccounts.value.length) return
+  if (adAccounts.value.length) {
+    if (!campaigns.value.length && adAccountId.value) {
+      await loadCampaigns()
+    }
+    return
+  }
   loading.value = true
-  try { adAccounts.value = (await cachedFetch<ItemsResponse<MetaAdAccount>>('/api/proxy/api/v1/meta/ad-accounts', 300_000)).items; if (!adAccountId.value || !adAccounts.value.some(a => a.id === adAccountId.value)) { adAccountId.value = adAccounts.value[0]?.id || '' } }
+  try {
+    adAccounts.value = (await cachedFetch<ItemsResponse<MetaAdAccount>>('/api/proxy/api/v1/meta/ad-accounts', 300_000)).items || []
+    if (!adAccountId.value || !adAccounts.value.some(a => a.id === adAccountId.value)) {
+      adAccountId.value = adAccounts.value[0]?.id || ''
+    } else {
+      await loadCampaigns()
+    }
+  }
   catch (error) { noticeType.value = 'error'; notice.value = apiError(error, 'Could not load Ad Accounts. Reconnect Facebook with ads_read permission.') }
   finally { loading.value = false }
 }
@@ -204,7 +216,16 @@ async function loadCampaigns() {
   campaigns.value = []
   if (!adAccountId.value) return
   loading.value = true
-  try { campaigns.value = (await $fetch<ItemsResponse<MetaCampaign>>(`/api/proxy/api/v1/meta/ad-accounts/${adAccountId.value}/campaigns`)).items }
+  try {
+    campaigns.value = (await $fetch<ItemsResponse<MetaCampaign>>(`/api/proxy/api/v1/meta/ad-accounts/${adAccountId.value}/campaigns`)).items || []
+    if (campaigns.value.length) {
+      if (!selectedCampaignIdForAds.value || !campaigns.value.some(c => c.id === selectedCampaignIdForAds.value)) {
+        selectedCampaignIdForAds.value = campaigns.value[0]?.id || ''
+      } else if (targetType.value === 'ad' && !campaignAds.value.length) {
+        await loadAdsForCampaign()
+      }
+    }
+  }
   catch (error) { noticeType.value = 'error'; notice.value = apiError(error, 'Could not load campaigns.') }
   finally { loading.value = false }
 }
@@ -231,7 +252,18 @@ async function deleteFlow(flow: AutomationFlow) {
 }
 
 watch(pageId, () => { if (hydrating.value) return; targets.value = []; if (targetType.value === 'post') loadPosts() })
-watch(targetType, value => { if (hydrating.value) return; targets.value = []; if (value === 'post') loadPosts(); else loadAdAccounts() })
+watch(targetType, async value => {
+  if (hydrating.value) return
+  targets.value = []
+  if (value === 'post') {
+    await loadPosts()
+  } else {
+    await loadAdAccounts()
+    if (value === 'ad' && selectedCampaignIdForAds.value && !campaignAds.value.length) {
+      await loadAdsForCampaign()
+    }
+  }
+})
 watch(adAccountId, loadCampaigns)
 </script>
 

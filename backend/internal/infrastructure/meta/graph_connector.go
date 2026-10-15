@@ -79,9 +79,15 @@ type GraphConnector struct {
 	leadSink      domain.LeadSink
 
 	adHierarchyCache map[string]adHierarchyInfo
+	insightsCache    map[string]insightsCacheEntry
 
 	profileMu    sync.RWMutex
 	userProfiles map[string]struct{ Name, Pic string }
+}
+
+type insightsCacheEntry struct {
+	report    *domain.MetaInsightsReport
+	expiresAt time.Time
 }
 
 func (g *GraphConnector) SetChatStream(c *usecase.ChatStream) {
@@ -94,7 +100,24 @@ func (g *GraphConnector) SetAutomationProvider(p domain.AutomationProvider) {
 func (g *GraphConnector) SetLeadSink(s domain.LeadSink) { g.leadSink = s }
 
 func NewGraphConnector(cfg GraphConfig, db *gorm.DB) *GraphConnector {
-	g := &GraphConnector{db: db, cfg: cfg, client: &http.Client{Timeout: 15 * time.Second}, states: make(map[string]oauthState), sessions: make(map[string]*graphSession), recentEvents: make(map[string]time.Time), bindings: make(map[string]domain.ProductBinding), products: make(map[string]map[string]domain.Product), replyFlows: make(map[string]map[string]domain.ReplyFlow), firstReplies: make(map[string]time.Time), conversations: make(map[string]string), deliverySteps: make(map[string]time.Time), inFlight: make(map[string]bool), userProfiles: make(map[string]struct{ Name, Pic string }), adHierarchyCache: make(map[string]adHierarchyInfo)}
+	g := &GraphConnector{
+		db:               db,
+		cfg:              cfg,
+		client:           &http.Client{Timeout: 45 * time.Second},
+		states:           make(map[string]oauthState),
+		sessions:         make(map[string]*graphSession),
+		recentEvents:     make(map[string]time.Time),
+		bindings:         make(map[string]domain.ProductBinding),
+		products:         make(map[string]map[string]domain.Product),
+		replyFlows:       make(map[string]map[string]domain.ReplyFlow),
+		firstReplies:     make(map[string]time.Time),
+		conversations:    make(map[string]string),
+		deliverySteps:    make(map[string]time.Time),
+		inFlight:         make(map[string]bool),
+		userProfiles:     make(map[string]struct{ Name, Pic string }),
+		adHierarchyCache: make(map[string]adHierarchyInfo),
+		insightsCache:    make(map[string]insightsCacheEntry),
+	}
 	if err := g.loadState(); err != nil {
 		slog.Warn("unable to load Meta state", "error", err)
 	}
@@ -111,6 +134,12 @@ func (g *GraphConnector) cleanupRoutine() {
 		for id, expires := range g.recentEvents {
 			if now.After(expires) {
 				delete(g.recentEvents, id)
+			}
+		}
+		// insightsCache prunes expired reports
+		for id, item := range g.insightsCache {
+			if now.After(item.expiresAt) {
+				delete(g.insightsCache, id)
 			}
 		}
 		// firstReplies tracks anti-spam 24h
@@ -2355,24 +2384,33 @@ func (g *GraphConnector) ListAds(ctx context.Context, _ string, accountID, campa
 		return []domain.MetaAd{}, nil
 	}
 	query := url.Values{"fields": {"id,name,status,effective_status,creative{thumbnail_url,image_url}"}, "limit": {"200"}, "access_token": {token}}
-	var response struct {
-		Data []struct {
-			ID              string `json:"id"`
-			Name            string `json:"name"`
-			Status          string `json:"status"`
-			EffectiveStatus string `json:"effective_status"`
-			Creative        struct {
-				ThumbnailURL string `json:"thumbnail_url"`
-				ImageURL     string `json:"image_url"`
-			} `json:"creative"`
-		} `json:"data"`
-	}
-	if err = g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/"+url.PathEscape(campaignID)+"/ads?"+query.Encode(), &response); err != nil {
-		return nil, err
-	}
-	items := make([]domain.MetaAd, 0, len(response.Data))
-	for _, item := range response.Data {
-		items = append(items, domain.MetaAd{ID: item.ID, Name: item.Name, Status: item.Status, EffectiveStatus: item.EffectiveStatus, ThumbnailURL: item.Creative.ThumbnailURL, ImageURL: item.Creative.ImageURL})
+	endpoint := "https://graph.facebook.com/" + g.cfg.Version + "/" + url.PathEscape(campaignID) + "/ads?" + query.Encode()
+	items := make([]domain.MetaAd, 0)
+	pageCount := 0
+	for endpoint != "" && pageCount < 10 {
+		pageCount++
+		var response struct {
+			Data []struct {
+				ID              string `json:"id"`
+				Name            string `json:"name"`
+				Status          string `json:"status"`
+				EffectiveStatus string `json:"effective_status"`
+				Creative        struct {
+					ThumbnailURL string `json:"thumbnail_url"`
+					ImageURL     string `json:"image_url"`
+				} `json:"creative"`
+			} `json:"data"`
+			Paging struct {
+				Next string `json:"next"`
+			} `json:"paging"`
+		}
+		if err = g.getJSON(ctx, endpoint, &response); err != nil {
+			return nil, err
+		}
+		for _, item := range response.Data {
+			items = append(items, domain.MetaAd{ID: item.ID, Name: item.Name, Status: item.Status, EffectiveStatus: item.EffectiveStatus, ThumbnailURL: item.Creative.ThumbnailURL, ImageURL: item.Creative.ImageURL})
+		}
+		endpoint = response.Paging.Next
 	}
 	return items, nil
 }
@@ -2522,7 +2560,9 @@ func (g *GraphConnector) fetchInsightRows(ctx context.Context, token, adAccountI
 	}
 	endpoint := "https://graph.facebook.com/" + g.cfg.Version + "/" + url.PathEscape(adAccountID) + "/insights?" + query.Encode()
 	rows := make([]graphInsightRow, 0)
-	for endpoint != "" {
+	pageCount := 0
+	for endpoint != "" && pageCount < 10 {
+		pageCount++
 		var response struct {
 			Data   []graphInsightRow `json:"data"`
 			Paging struct {
@@ -2601,30 +2641,74 @@ func (g *GraphConnector) AdsInsights(ctx context.Context, _ string, accountID, a
 	if !strings.HasPrefix(adAccountID, "act_") {
 		adAccountID = "act_" + adAccountID
 	}
-	var account struct {
-		Currency string `json:"currency"`
-		Timezone string `json:"timezone_name"`
+	cacheKey := fmt.Sprintf("%s:%s:%s:%s", adAccountID, level, since, until)
+	g.mu.RLock()
+	if cached, ok := g.insightsCache[cacheKey]; ok && time.Now().Before(cached.expiresAt) {
+		g.mu.RUnlock()
+		return cached.report, nil
 	}
-	accountQuery := url.Values{"fields": {"currency,timezone_name"}, "access_token": {token}}
-	if err = g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/"+url.PathEscape(adAccountID)+"?"+accountQuery.Encode(), &account); err != nil {
-		return nil, err
+	g.mu.RUnlock()
+
+	var (
+		account struct {
+			Currency string `json:"currency"`
+			Timezone string `json:"timezone_name"`
+		}
+		rows        []graphInsightRow
+		entities    map[string]graphAdEntityDetails
+		accountRows []graphInsightRow
+		daily       []graphInsightRow
+
+		errAccount, errRows, errEntities, errAccountRows, errDaily error
+		wg                                                         sync.WaitGroup
+	)
+
+	wg.Add(5)
+
+	go func() {
+		defer wg.Done()
+		accountQuery := url.Values{"fields": {"currency,timezone_name"}, "access_token": {token}}
+		errAccount = g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/"+url.PathEscape(adAccountID)+"?"+accountQuery.Encode(), &account)
+	}()
+
+	go func() {
+		defer wg.Done()
+		rows, errRows = g.fetchInsightRows(ctx, token, adAccountID, level, since, until, "")
+	}()
+
+	go func() {
+		defer wg.Done()
+		entities, errEntities = g.fetchAdEntities(ctx, token, adAccountID, level)
+	}()
+
+	go func() {
+		defer wg.Done()
+		accountRows, errAccountRows = g.fetchInsightRows(ctx, token, adAccountID, "account", since, until, "")
+	}()
+
+	go func() {
+		defer wg.Done()
+		daily, errDaily = g.fetchInsightRows(ctx, token, adAccountID, "account", since, until, "1")
+	}()
+
+	wg.Wait()
+
+	if errAccount != nil {
+		return nil, errAccount
 	}
-	rows, err := g.fetchInsightRows(ctx, token, adAccountID, level, since, until, "")
-	if err != nil {
-		return nil, err
+	if errRows != nil {
+		return nil, errRows
 	}
-	entities, err := g.fetchAdEntities(ctx, token, adAccountID, level)
-	if err != nil {
-		return nil, err
+	if errEntities != nil {
+		return nil, errEntities
 	}
-	accountRows, err := g.fetchInsightRows(ctx, token, adAccountID, "account", since, until, "")
-	if err != nil {
-		return nil, err
+	if errAccountRows != nil {
+		return nil, errAccountRows
 	}
-	daily, err := g.fetchInsightRows(ctx, token, adAccountID, "account", since, until, "1")
-	if err != nil {
-		return nil, err
+	if errDaily != nil {
+		return nil, errDaily
 	}
+
 	seenEntities := make(map[string]bool)
 	items := make([]domain.MetaInsightItem, 0, len(rows)+len(entities))
 	for _, row := range rows {
@@ -2708,7 +2792,16 @@ func (g *GraphConnector) AdsInsights(ctx context.Context, _ string, accountID, a
 			Reach:       &zero,
 		}
 	}
-	return &domain.MetaInsightsReport{Currency: account.Currency, Timezone: account.Timezone, Level: level, DateStart: since, DateStop: until, GeneratedAt: time.Now().UTC().Format(time.RFC3339), Summary: summary, Items: items, Trend: trend, Warnings: warnings}, nil
+	report := &domain.MetaInsightsReport{Currency: account.Currency, Timezone: account.Timezone, Level: level, DateStart: since, DateStop: until, GeneratedAt: time.Now().UTC().Format(time.RFC3339), Summary: summary, Items: items, Trend: trend, Warnings: warnings}
+
+	g.mu.Lock()
+	g.insightsCache[cacheKey] = insightsCacheEntry{
+		report:    report,
+		expiresAt: time.Now().Add(60 * time.Second),
+	}
+	g.mu.Unlock()
+
+	return report, nil
 }
 
 type graphTargetingNamedItem struct {
@@ -3389,7 +3482,7 @@ func (g *GraphConnector) getJSON(ctx context.Context, endpoint string, target an
 		return err
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 32<<20))
 	if err != nil {
 		return err
 	}
