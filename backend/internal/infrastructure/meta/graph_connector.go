@@ -466,6 +466,8 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 				} `json:"message"`
 				Referral *webhookReferral `json:"referral"`
 				Postback struct {
+					Title    string           `json:"title"`
+					Payload  string           `json:"payload"`
 					Referral *webhookReferral `json:"referral"`
 				} `json:"postback"`
 			} `json:"messaging"`
@@ -512,10 +514,64 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 			if change.Field != "feed" || change.Value.Item != "comment" || change.Value.Verb != "add" || change.Value.PostID == "" || change.Value.CommentID == "" || change.Value.From.ID == "" {
 				continue
 			}
+			// Ignore comments posted by the page itself
+			if change.Value.From.ID == entry.ID {
+				continue
+			}
 			seenKey := entry.ID + ":" + change.Value.From.ID
+			commentText := strings.TrimSpace(change.Value.Message)
+
 			var rule *domain.AutomationRule
+			// 1. Direct Post ID trigger match
 			if g.automation != nil {
 				rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, "post", change.Value.PostID)
+			}
+			// 2. Keyword trigger match on comment text
+			if rule == nil && commentText != "" && g.automation != nil {
+				keywordRules, _ := g.automation.GetKeywordRules(ctx, entry.ID)
+				for _, kr := range keywordRules {
+					if matchesKeywords(commentText, []string{kr.TriggerValue}) {
+						r := kr
+						rule = &r
+						break
+					}
+				}
+			}
+			// 3. Product code or name match on comment text
+			if rule == nil && commentText != "" && g.db != nil && g.productRepo != nil {
+				accountID, _, _ := g.findPage(entry.ID)
+				var activeRules []database.AutomationRuleModel
+				if err := g.db.WithContext(ctx).Where("page_id = ? AND is_active = ?", entry.ID, true).Find(&activeRules).Error; err == nil {
+					msgLower := strings.ToLower(commentText)
+					for _, ar := range activeRules {
+						if ar.ProductID != nil && *ar.ProductID != "" {
+							prod, pErr := g.productRepo.GetProduct(ctx, accountID, *ar.ProductID)
+							if pErr == nil && prod != nil {
+								cLower := strings.ToLower(strings.TrimSpace(prod.Code))
+								nLower := strings.ToLower(strings.TrimSpace(prod.Name))
+								if (cLower != "" && len(cLower) >= 2 && strings.Contains(msgLower, cLower)) ||
+									(nLower != "" && len([]rune(nLower)) >= 3 && strings.Contains(msgLower, nLower)) {
+									r := ruleModelToDomain(ar)
+									rule = &r
+									break
+								}
+							}
+						}
+					}
+				}
+			}
+			// 4. Default fallback active rule for this page (if any active rule exists)
+			if rule == nil && g.db != nil {
+				var activeRules []database.AutomationRuleModel
+				if err := g.db.WithContext(ctx).Where("page_id = ? AND is_active = ?", entry.ID, true).Find(&activeRules).Error; err == nil && len(activeRules) > 0 {
+					for _, ar := range activeRules {
+						if ar.TriggerType == "post" || ar.TriggerType == "keyword" || ar.TriggerType == "campaign" || ar.TriggerType == "ad" {
+							r := ruleModelToDomain(ar)
+							rule = &r
+							break
+						}
+					}
+				}
 			}
 			found := rule != nil
 
@@ -557,31 +613,80 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 				continue
 			}
 
+			// Automatically like the customer's comment
+			_ = g.likeComment(ctx, page, change.Value.CommentID)
+
 			var items []domain.ReplyItem
 			if g.automation != nil {
 				items, _ = g.automation.GetReplySetItems(ctx, rule.ReplySetID, rule.AccountID)
 			}
 			items = g.resolveReplyItemsContext(ctx, rule, items)
 
-			texts := []string{}
-			for _, step := range items {
-				if step.IsEnabled && step.Type == "text" && strings.TrimSpace(step.Content) != "" {
-					texts = append(texts, step.Content)
-				}
-			}
-			text := strings.Join(texts, "\n\n")
-			if strings.TrimSpace(text) == "" {
-				text = "ສະບາຍດີ! ພວກເຮົາໄດ້ສົ່ງລາຍລະອຽດໃຫ້ທາງຂໍ້ຄວາມແລ້ວ"
-			}
-
-			// Reply to comment publicly
-			if err := g.replyToComment(ctx, page, change.Value.CommentID, text); err != nil {
+			// 1. Reply to comment publicly with polite confirmation
+			publicText := "ສະບາຍດີ! ທາງຮ້ານໄດ້ແຈ້ງລາຍລະອຽດໃຫ້ທາງ Inbox ແລ້ວເດີ້ ກວດເບິ່ງແຊັດໄດ້ເລີຍເຈົ້າ 😊"
+			if err := g.replyToComment(ctx, page, change.Value.CommentID, publicText); err != nil {
 				slog.Error("automatic comment reply failed", "page_id", entry.ID, "post_id", change.Value.PostID, "comment_id", change.Value.CommentID, "error", err)
 			}
 
-			// Reply privately
-			if err := g.sendPrivateReply(ctx, page, change.Value.CommentID, text); err != nil {
-				slog.Error("automatic private product reply failed", "page_id", entry.ID, "post_id", change.Value.PostID, "comment_id", change.Value.CommentID, "error", err)
+			// 2. Reply privately:
+			// Check if we can send a rich Generic Template with Image + Button!
+			title := "ລາຍລະອຽດສິນຄ້າ ແລະ ໂປຣໂມຊັ່ນ"
+			subtitle := ""
+			imageURL := ""
+			buttonTitle := "📦 ເບິ່ງລາຍລະອຽດເຕັມ / ສັ່ງຊື້"
+			buttonPayload := "COMMENT_UNLOCK:" + rule.ID + ":" + change.Value.CommentID
+
+			// Extract image and info from linked product or reply items
+			if rule.ProductID != "" && g.productRepo != nil {
+				accountID, _, _ := g.findPage(entry.ID)
+				if prod, pErr := g.productRepo.GetProduct(ctx, accountID, rule.ProductID); pErr == nil && prod != nil {
+					if strings.TrimSpace(prod.Name) != "" {
+						title = prod.Name
+					}
+					if strings.TrimSpace(prod.Price) != "" {
+						subtitle = "ລາຄາ: " + prod.Price
+					}
+					if strings.TrimSpace(prod.ImageUrl) != "" {
+						imageURL = prod.ImageUrl
+					}
+				}
+			}
+
+			// If no image from product, check if items have an image
+			for _, step := range items {
+				if step.IsEnabled && step.Type == "image" && strings.TrimSpace(step.Content) != "" && imageURL == "" {
+					imageURL = step.Content
+				}
+				if step.IsEnabled && step.Type == "text" && strings.TrimSpace(step.Content) != "" && subtitle == "" {
+					subtitle = step.Content
+					if len([]rune(subtitle)) > 75 {
+						subtitle = string([]rune(subtitle)[:72]) + "..."
+					}
+				}
+			}
+
+			var privErr error
+			if imageURL != "" {
+				// Send rich generic template card with image + button!
+				privErr = g.sendPrivateGenericTemplate(ctx, page, change.Value.CommentID, title, subtitle, imageURL, buttonTitle, buttonPayload)
+			}
+			// If sending card failed or no image available, fallback to text private reply
+			if imageURL == "" || privErr != nil {
+				texts := []string{}
+				for _, step := range items {
+					if step.IsEnabled && step.Type == "text" && strings.TrimSpace(step.Content) != "" {
+						texts = append(texts, step.Content)
+					}
+				}
+				fallbackText := strings.Join(texts, "\n\n")
+				if strings.TrimSpace(fallbackText) == "" {
+					fallbackText = "ສະບາຍດີ! ພວກເຮົາໄດ້ສົ່ງລາຍລະອຽດໃຫ້ທາງຂໍ້ຄວາມແລ້ວ"
+				}
+				privErr = g.sendPrivateReply(ctx, page, change.Value.CommentID, fallbackText)
+			}
+
+			if privErr != nil {
+				slog.Error("automatic private product reply failed", "page_id", entry.ID, "post_id", change.Value.PostID, "comment_id", change.Value.CommentID, "error", privErr)
 				g.releaseReply(replyKey)
 				continue
 			}
@@ -729,11 +834,12 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 			isBusy := g.inFlight[seenKey]
 			lastCustomerReplyTime, customerRecentlyReplied := g.firstReplies[seenKey]
 			g.mu.RUnlock()
+			isPostback := message.Postback.Payload != ""
 			if isBusy {
 				slog.Info("automation reply already in-flight for customer, skipping duplicate", "page_id", entry.ID, "customer_id", customerID)
 				continue
 			}
-			if customerRecentlyReplied && time.Since(lastCustomerReplyTime) < 15*time.Second {
+			if !isPostback && customerRecentlyReplied && time.Since(lastCustomerReplyTime) < 15*time.Second {
 				slog.Info("customer received automated reply within last 15s, debouncing", "page_id", entry.ID, "customer_id", customerID)
 				continue
 			}
@@ -816,7 +922,20 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 
 			var rule *domain.AutomationRule
 			if g.automation != nil {
-				if directSet != nil && !hasRepliedCustomer {
+				if message.Postback.Payload != "" && strings.HasPrefix(message.Postback.Payload, "COMMENT_UNLOCK:") {
+					parts := strings.Split(message.Postback.Payload, ":")
+					if len(parts) >= 2 {
+						targetRuleID := parts[1]
+						foundRule, _ := g.automation.GetRule(ctx, targetRuleID, accountID)
+						if foundRule != nil {
+							rule = foundRule
+							sourceType = "comment_unlock"
+							sourceID = targetRuleID
+							resolvedKey = bindingKey(entry.ID, sourceType, sourceID)
+							hasRepliedCustomer = false
+						}
+					}
+				} else if directSet != nil && !hasRepliedCustomer {
 					sourceType, sourceID = "reply_set_name", directSet.Name
 					resolvedKey = bindingKey(entry.ID, sourceType, directSet.ID)
 					rule = &domain.AutomationRule{
@@ -983,7 +1102,9 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 			}
 
 			isSpamming := false
-			if alreadyReplied {
+			if sourceType == "comment_unlock" {
+				isSpamming = false
+			} else if alreadyReplied {
 				if time.Since(lastReplyTime) < 3*time.Second {
 					// 1. Debounce rapid dual webhooks (e.g. referral + text in same second)
 					isSpamming = true
@@ -3289,6 +3410,86 @@ func (g *GraphConnector) replyToComment(ctx context.Context, page graphPage, com
 		return err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err := g.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return err
+	}
+	var envelope struct {
+		Error *graphError `json:"error"`
+	}
+	_ = json.Unmarshal(body, &envelope)
+	if resp.StatusCode >= 400 || envelope.Error != nil {
+		return graphResponseError(resp.StatusCode, envelope.Error)
+	}
+	return nil
+}
+
+func (g *GraphConnector) likeComment(ctx context.Context, page graphPage, commentID string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://graph.facebook.com/"+g.cfg.Version+"/"+url.PathEscape(commentID)+"/likes?access_token="+url.QueryEscape(page.AccessToken), nil)
+	if err != nil {
+		return err
+	}
+	resp, err := g.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	return nil
+}
+
+func (g *GraphConnector) sendPrivateGenericTemplate(ctx context.Context, page graphPage, commentID, title, subtitle, imageURL, buttonTitle, buttonPayload string) error {
+	element := map[string]any{
+		"title": title,
+	}
+	if subtitle != "" {
+		element["subtitle"] = subtitle
+	}
+	if imageURL != "" {
+		element["image_url"] = imageURL
+	}
+	if buttonTitle != "" && buttonPayload != "" {
+		element["buttons"] = []map[string]any{
+			{
+				"type":    "postback",
+				"title":   buttonTitle,
+				"payload": buttonPayload,
+			},
+		}
+	}
+
+	payloadMap := map[string]any{
+		"recipient": map[string]string{
+			"comment_id": commentID,
+		},
+		"messaging_type": "RESPONSE",
+		"message": map[string]any{
+			"attachment": map[string]any{
+				"type": "template",
+				"payload": map[string]any{
+					"template_type": "generic",
+					"elements": []map[string]any{
+						element,
+					},
+				},
+			},
+		},
+	}
+
+	payload, err := json.Marshal(payloadMap)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://graph.facebook.com/"+g.cfg.Version+"/"+url.PathEscape(page.ID)+"/messages?access_token="+url.QueryEscape(page.AccessToken), strings.NewReader(string(payload)))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
 	resp, err := g.client.Do(req)
 	if err != nil {
 		return err

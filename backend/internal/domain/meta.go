@@ -236,6 +236,7 @@ type AutomationProvider interface {
 	GetKeywordRules(ctx context.Context, pageID string) ([]AutomationRule, error)
 	FindReplySetByTrigger(ctx context.Context, accountID, trigger string) (*ReplySet, error)
 	GetReplySetItems(ctx context.Context, replySetID string, accountID string) ([]ReplyItem, error)
+	GetRule(ctx context.Context, id, accountID string) (*AutomationRule, error)
 }
 
 type LeadCapture struct{ AccountID, PageID, SenderID, SourceType, SourceID, ProductID, Name string }

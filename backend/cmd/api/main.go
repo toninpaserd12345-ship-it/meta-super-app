@@ -215,3 +215,8 @@ func (p *appAutomationProvider) FindReplySetByTrigger(ctx context.Context, accou
 func (p *appAutomationProvider) GetReplySetItems(ctx context.Context, replySetID string, accountID string) ([]domain.ReplyItem, error) {
 	return p.reply.GetReplySetItems(ctx, replySetID, accountID)
 }
+
+func (p *appAutomationProvider) GetRule(ctx context.Context, id, accountID string) (*domain.AutomationRule, error) {
+	return p.automation.GetRule(ctx, id, accountID)
+}
+

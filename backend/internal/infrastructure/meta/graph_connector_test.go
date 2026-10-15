@@ -2,6 +2,9 @@ package meta
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"io"
 	"net/http"
@@ -395,3 +398,139 @@ func TestIsAskingPrice(t *testing.T) {
 		}
 	}
 }
+
+type mockCommentAutomationProvider struct {
+	rule  *domain.AutomationRule
+	items []domain.ReplyItem
+}
+
+func (m *mockCommentAutomationProvider) FindActiveRuleForTrigger(ctx context.Context, pageID, triggerType, triggerValue string) (*domain.AutomationRule, error) {
+	if m.rule != nil && m.rule.TriggerType == triggerType && m.rule.TriggerValue == triggerValue {
+		return m.rule, nil
+	}
+	return nil, nil
+}
+
+func (m *mockCommentAutomationProvider) GetKeywordRules(ctx context.Context, pageID string) ([]domain.AutomationRule, error) {
+	if m.rule != nil && m.rule.TriggerType == "keyword" {
+		return []domain.AutomationRule{*m.rule}, nil
+	}
+	return nil, nil
+}
+
+func (m *mockCommentAutomationProvider) FindReplySetByTrigger(ctx context.Context, accountID, trigger string) (*domain.ReplySet, error) {
+	return nil, nil
+}
+
+func (m *mockCommentAutomationProvider) GetReplySetItems(ctx context.Context, replySetID string, accountID string) ([]domain.ReplyItem, error) {
+	return m.items, nil
+}
+
+func (m *mockCommentAutomationProvider) GetRule(ctx context.Context, id, accountID string) (*domain.AutomationRule, error) {
+	if m.rule != nil && m.rule.ID == id {
+		return m.rule, nil
+	}
+	return nil, nil
+}
+
+func signPayload(secret string, body []byte) string {
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write(body)
+	return "sha256=" + hex.EncodeToString(mac.Sum(nil))
+}
+
+func TestCommentAutoReplyWithKeywordAndPostbackUnlock(t *testing.T) {
+	var requestedURLs []string
+	transport := roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		requestedURLs = append(requestedURLs, req.Method+" "+req.URL.String())
+		return &http.Response{
+			StatusCode: 200,
+			Body:       io.NopCloser(strings.NewReader(`{"success":true,"message_id":"mid.123"}`)),
+			Header:     make(http.Header),
+		}, nil
+	})
+
+	const appSecret = "test-secret"
+	g := NewGraphConnector(GraphConfig{Version: "v22.0", AppSecret: appSecret}, nil)
+	g.client = &http.Client{Transport: transport}
+	g.sessions["acc-1"] = &graphSession{
+		UserToken: "user-tok",
+		Pages: map[string]graphPage{
+			"page-1": {
+				MetaPage:    domain.MetaPage{ID: "page-1", Connected: true},
+				AccessToken: "page-tok",
+			},
+		},
+	}
+
+	testRule := &domain.AutomationRule{
+		ID:           "rule-100",
+		AccountID:    "acc-1",
+		PageID:       "page-1",
+		TriggerType:  "keyword",
+		TriggerValue: "ສົນໃຈ",
+		ReplySetID:   "set-1",
+		IsActive:     true,
+	}
+	testItems := []domain.ReplyItem{
+		{ID: "item-1", Type: "text", Content: "ເສື້ອລຸ້ນໃໝ່ 150,000 ກີບ", IsEnabled: true},
+		{ID: "item-2", Type: "image", Content: "https://example.com/shirt.jpg", IsEnabled: true},
+	}
+
+	mockAuto := &mockCommentAutomationProvider{
+		rule:  testRule,
+		items: testItems,
+	}
+	g.SetAutomationProvider(mockAuto)
+
+	// 1. Comment from page itself should be ignored
+	selfCommentPayload := []byte(`{"object":"page","entry":[{"id":"page-1","changes":[{"field":"feed","value":{"item":"comment","verb":"add","post_id":"post-1","comment_id":"c-self","message":"ສົນໃຈ","from":{"id":"page-1"}}}]}]}`)
+	if err := g.ReceiveWebhook(context.Background(), selfCommentPayload, signPayload(appSecret, selfCommentPayload)); err != nil {
+		t.Fatalf("webhook error: %v", err)
+	}
+	if len(requestedURLs) != 0 {
+		t.Fatalf("expected 0 requests for self comment, got %d: %v", len(requestedURLs), requestedURLs)
+	}
+
+	// 2. Customer comment with keyword "ສົນໃຈ" should trigger like, public reply, and private reply
+	customerCommentPayload := []byte(`{"object":"page","entry":[{"id":"page-1","changes":[{"field":"feed","value":{"item":"comment","verb":"add","post_id":"post-1","comment_id":"c-cust-1","message":"ຂ້ອຍສົນໃຈໂຕນີ້","from":{"id":"user-999"}}}]}]}`)
+	if err := g.ReceiveWebhook(context.Background(), customerCommentPayload, signPayload(appSecret, customerCommentPayload)); err != nil {
+		t.Fatalf("webhook error: %v", err)
+	}
+
+	time.Sleep(50 * time.Millisecond)
+	if len(requestedURLs) < 3 {
+		t.Fatalf("expected at least 3 requests (like, comment reply, private reply), got %d: %v", len(requestedURLs), requestedURLs)
+	}
+
+	hasLike := false
+	hasCommentReply := false
+	hasPrivateMessage := false
+	for _, u := range requestedURLs {
+		if strings.Contains(u, "/likes") {
+			hasLike = true
+		}
+		if strings.Contains(u, "/comments") {
+			hasCommentReply = true
+		}
+		if strings.Contains(u, "/messages") || strings.Contains(u, "/private_replies") {
+			hasPrivateMessage = true
+		}
+	}
+	if !hasLike {
+		t.Errorf("missing like request: %v", requestedURLs)
+	}
+	if !hasCommentReply {
+		t.Errorf("missing public comment reply request: %v", requestedURLs)
+	}
+	if !hasPrivateMessage {
+		t.Errorf("missing private reply request: %v", requestedURLs)
+	}
+
+	// 3. Customer clicks button which triggers postback COMMENT_UNLOCK
+	postbackPayload := []byte(`{"object":"page","entry":[{"id":"page-1","messaging":[{"sender":{"id":"user-999"},"recipient":{"id":"page-1"},"timestamp":123456789,"postback":{"title":"📦 ເບິ່ງລາຍລະອຽດເຕັມ","payload":"COMMENT_UNLOCK:rule-100:c-cust-1"}}]}]}`)
+	if err := g.ReceiveWebhook(context.Background(), postbackPayload, signPayload(appSecret, postbackPayload)); err != nil {
+		t.Fatalf("postback webhook error: %v", err)
+	}
+}
+
