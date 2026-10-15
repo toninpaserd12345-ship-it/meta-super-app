@@ -1573,34 +1573,50 @@ func (g *GraphConnector) CompleteAuthorization(ctx context.Context, state, code 
 	if longToken.AccessToken != "" {
 		token.AccessToken = longToken.AccessToken
 	}
-	debug, err := g.debugToken(ctx, token.AccessToken)
+	if pending.AccountID != "" {
+		if err := g.AttachAccount(ctx, pending.AccountID, token.AccessToken); err != nil {
+			return nil, err
+		}
+	}
+	var profile struct {
+		ID    string `json:"id"`
+		Name  string `json:"name"`
+		Email string `json:"email"`
+	}
+	_ = g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/me?fields=id,name,email&access_token="+token.AccessToken, &profile)
+	return &domain.MetaOAuthResult{UserID: pending.UserID, AccountID: pending.AccountID, AccessToken: token.AccessToken, FacebookID: profile.ID, Name: profile.Name, Email: profile.Email}, nil
+}
+
+func (g *GraphConnector) AttachAccount(ctx context.Context, accountID, accessToken string) error {
+	if accountID == "" || accessToken == "" {
+		return errors.New("accountID and accessToken are required")
+	}
+	debug, err := g.debugToken(ctx, accessToken)
 	if err != nil {
-		return nil, fmt.Errorf("debug access token: %w", err)
+		return fmt.Errorf("debug access token: %w", err)
 	}
 	if !debug.Data.IsValid {
-		return nil, errors.New("meta access token is invalid")
+		return errors.New("meta access token is invalid")
 	}
-	pages, whatsAppDiagnostics, err := g.fetchPages(ctx, token.AccessToken)
+	pages, whatsAppDiagnostics, err := g.fetchPages(ctx, accessToken)
 	if err != nil {
-		return nil, fmt.Errorf("load Facebook Pages: %w", err)
+		return fmt.Errorf("load Facebook Pages: %w", err)
 	}
 	applyWhatsAppPermissions(&whatsAppDiagnostics, debug.Data.Scopes)
-	encryptedUserToken := g.encryptToken(token.AccessToken)
+	encryptedUserToken := g.encryptToken(accessToken)
 	if encryptedUserToken == "" {
-		return nil, errors.New("unable to encrypt Meta access token")
+		return errors.New("unable to encrypt Meta access token")
 	}
-	// Persist the freshly authorized credential before completing the callback.
-	// Previously this error was ignored, so the UI could report a successful
-	// reconnect while the next request still loaded the old expired token.
-	if pending.AccountID != "" && g.db != nil {
+
+	if g.db != nil {
 		if err := g.db.Save(&database.MetaConnectionModel{
-			AccountID:           pending.AccountID,
+			AccountID:           accountID,
 			UserToken:           encryptedUserToken,
 			TokenExpiresAt:      debug.Data.ExpiresAt,
 			DataAccessExpiresAt: debug.Data.DataAccessExpiresAt,
 			GrantedPermissions:  strings.Join(debug.Data.Scopes, ","),
 		}).Error; err != nil {
-			return nil, fmt.Errorf("save encrypted Meta authorization: %w", err)
+			return fmt.Errorf("save encrypted Meta authorization: %w", err)
 		}
 
 		for id, page := range pages {
@@ -1609,7 +1625,7 @@ func (g *GraphConnector) CompleteAuthorization(ctx context.Context, state, code 
 				if encTok != "" {
 					_ = g.db.Save(&database.MetaPageTokenModel{
 						PageID:      id,
-						AccountID:   pending.AccountID,
+						AccountID:   accountID,
 						Name:        page.Name,
 						Category:    page.Category,
 						PictureURL:  page.PictureURL,
@@ -1622,14 +1638,15 @@ func (g *GraphConnector) CompleteAuthorization(ctx context.Context, state, code 
 					subCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 					defer cancel()
 					if subErr := g.SubscribePageOnMeta(subCtx, pID, tok); subErr != nil {
-						slog.Warn("auto-subscription on oauth completion failed", "page_id", pID, "error", subErr)
+						slog.Warn("auto-subscription on attach account failed", "page_id", pID, "error", subErr)
 					} else {
-						slog.Info("auto-subscribed page on Meta during oauth completion", "page_id", pID)
+						slog.Info("auto-subscribed page on Meta during attach account", "page_id", pID)
 					}
 				}(id, page.AccessToken)
 			}
 		}
 	}
+
 	g.mu.Lock()
 	for id, page := range pages {
 		page.TokenExpiresAt = debug.Data.ExpiresAt
@@ -1637,18 +1654,17 @@ func (g *GraphConnector) CompleteAuthorization(ctx context.Context, state, code 
 		page.GrantedPermissions = append([]string(nil), debug.Data.Scopes...)
 		pages[id] = page
 	}
-	var profile struct {
-		ID    string `json:"id"`
-		Name  string `json:"name"`
-		Email string `json:"email"`
+	g.sessions[accountID] = &graphSession{
+		UserToken:           accessToken,
+		TokenExpiresAt:      debug.Data.ExpiresAt,
+		DataAccessExpiresAt: debug.Data.DataAccessExpiresAt,
+		GrantedPermissions:  append([]string(nil), debug.Data.Scopes...),
+		WhatsAppDiagnostics: whatsAppDiagnostics,
+		Pages:               pages,
 	}
-	_ = g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/me?fields=id,name,email&access_token="+token.AccessToken, &profile)
-	if pending.AccountID != "" {
-		g.sessions[pending.AccountID] = &graphSession{UserToken: token.AccessToken, TokenExpiresAt: debug.Data.ExpiresAt, DataAccessExpiresAt: debug.Data.DataAccessExpiresAt, GrantedPermissions: append([]string(nil), debug.Data.Scopes...), WhatsAppDiagnostics: whatsAppDiagnostics, Pages: pages}
-		_ = g.persistStateLocked()
-	}
+	_ = g.persistStateLocked()
 	g.mu.Unlock()
-	return &domain.MetaOAuthResult{UserID: pending.UserID, AccountID: pending.AccountID, AccessToken: token.AccessToken, FacebookID: profile.ID, Name: profile.Name, Email: profile.Email}, nil
+	return nil
 }
 
 func (g *GraphConnector) ListPages(ctx context.Context, _ string, accountID string) ([]domain.MetaPage, error) {

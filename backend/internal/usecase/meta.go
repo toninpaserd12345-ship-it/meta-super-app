@@ -28,6 +28,12 @@ func (u *Meta) CompleteAuthorization(ctx context.Context, state, code string) (*
 	result, err := u.connector.CompleteAuthorization(ctx, state, code)
 	return result, err
 }
+func (u *Meta) AttachAccount(ctx context.Context, accountID, accessToken string) error {
+	if accountID == "" || accessToken == "" {
+		return errors.New("accountID and accessToken are required")
+	}
+	return u.connector.AttachAccount(ctx, accountID, accessToken)
+}
 func (u *Meta) ListPages(ctx context.Context, userID, accountID string) ([]domain.MetaPage, error) {
 	return u.connector.ListPages(ctx, userID, accountID)
 }

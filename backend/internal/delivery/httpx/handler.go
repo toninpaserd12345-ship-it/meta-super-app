@@ -370,6 +370,16 @@ func (h *Handler) completeMetaOAuth(c fiber.Ctx) error {
 		slog.Error("facebook app login failed", "error", errLogin)
 		return c.Redirect().To(redirect + "?meta=error")
 	}
+	targetAccountID := result.AccountID
+	if targetAccountID == "" && login != nil && login.User != nil && len(login.User.Accounts) > 0 {
+		targetAccountID = login.User.Accounts[0].Account.ID
+		result.AccountID = targetAccountID
+		if targetAccountID != "" && result.AccessToken != "" {
+			if err := h.meta.AttachAccount(ctx, targetAccountID, result.AccessToken); err != nil {
+				slog.Warn("failed to attach meta authorization to account", "account_id", targetAccountID, "error", err)
+			}
+		}
+	}
 	bytes := make([]byte, 32)
 	if _, err = rand.Read(bytes); err != nil {
 		return fail(c, 500, "ticket_failed", "Login could not be completed.")

@@ -249,6 +249,7 @@ type MetaConnector interface {
 	SendMedia(ctx context.Context, accountID, pageID, recipientID, mediaType, mediaURL string) error
 	AuthorizationURL(context.Context, string, string, []string) (string, error)
 	CompleteAuthorization(context.Context, string, string) (*MetaOAuthResult, error)
+	AttachAccount(context.Context, string, string) error
 	ListPages(context.Context, string, string) ([]MetaPage, error)
 	WhatsAppDiagnostics(context.Context, string) (*MetaWhatsAppDiagnostics, error)
 	WhatsAppSignupConfig(context.Context) MetaWhatsAppSignupConfig

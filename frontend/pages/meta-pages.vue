@@ -82,7 +82,7 @@ const handlePictureError=(pageId:string)=>{
   if(attempt<2){pictureAttempts.value={...pictureAttempts.value,[pageId]:attempt+1};return}
   failedPictures.value={...failedPictures.value,[pageId]:true}
 }
-if(route.query.meta==='connected'){messageType.value='success';message.value='Facebook connected successfully. Choose the accounts you want to activate.';pickerOpen.value=availablePages.value.length>0;await navigateTo('/meta-pages',{replace:true})}
+if(route.query.meta==='connected'){messageType.value='success';pickerOpen.value=availablePages.value.length>0;message.value=pickerOpen.value?'ເຊື່ອມຕໍ່ Facebook ສຳເລັດ. ກະລຸນາເລືອກບັນຊີທີ່ຕ້ອງການເປີດໃຊ້ງານ.':'ເຊື່ອມຕໍ່ Facebook ສຳເລັດ. ເພຈທັງໝົດພ້ອມໃຊ້ງານແລ້ວ.';await navigateTo('/meta-pages',{replace:true})}
 if(route.query.meta==='error'){messageType.value='error';message.value=String(route.query.reason||'Facebook authorization failed.');await navigateTo('/meta-pages',{replace:true})}
 function tokenExpiry(page:MetaPage){if(!page.tokenExpiresAt)return 'No fixed expiry reported';return `Expires ${new Intl.DateTimeFormat(undefined,{dateStyle:'medium'}).format(new Date(page.tokenExpiresAt*1000))}`}
 async function connectFacebook(){
