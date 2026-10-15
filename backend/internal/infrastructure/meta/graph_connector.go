@@ -36,6 +36,7 @@ import (
 type GraphConfig struct {
 	AppID, AppSecret, RedirectURI, Version, WebhookFields, WebhookVerifyToken, StateFile, EncryptionKey string
 	WhatsAppConfigID                                                                                    string
+	PublicMediaURL                                                                                      string
 }
 
 type oauthState struct {
@@ -620,6 +621,21 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 			if g.automation != nil {
 				items, _ = g.automation.GetReplySetItems(ctx, rule.ReplySetID, rule.AccountID)
 			}
+			if len(items) == 0 && g.db != nil && rule.ReplySetID != "" {
+				var rm database.ReplySetModel
+				if err := g.db.WithContext(ctx).Preload("Items").Where("id = ?", rule.ReplySetID).First(&rm).Error; err == nil {
+					for _, it := range rm.Items {
+						items = append(items, domain.ReplyItem{
+							ID:         it.ID,
+							ReplySetID: it.ReplySetID,
+							Type:       it.Type,
+							Content:    it.Content,
+							OrderIndex: it.OrderIndex,
+							IsEnabled:  it.IsEnabled,
+						})
+					}
+				}
+			}
 			items = g.resolveReplyItemsContext(ctx, rule, items)
 
 			// 1. Reply to comment publicly with polite confirmation or custom text
@@ -632,25 +648,54 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 			}
 
 			// 2. Reply privately:
-			// Check if we can send a rich Generic Template with Image + Button!
-			title := "ລາຍລະອຽດສິນຄ້າ ແລະ ໂປຣໂມຊັ່ນ"
-			subtitle := ""
+			// Send rich Generic Template Card with Image + Buttons!
+			title := "🔥 ລາຍລະອຽດສິນຄ້າ ແລະ ໂປຣໂມຊັ່ນພິເສດ"
+			subtitle := "👇 ກົດປຸ່ມດ້ານລຸ່ມນີ້ ເພື່ອເບິ່ງລາຍລະອຽດເພີ່ມເຕີມ & ສັ່ງຊື້"
 			imageURL := ""
-			buttonTitle := "📦 ເບິ່ງລາຍລະອຽດເຕັມ / ສັ່ງຊື້"
+			buttonTitle := "👉 ກົດເບິ່ງລາຍລະອຽດ"
 			buttonPayload := "COMMENT_UNLOCK:" + rule.ID + ":" + change.Value.CommentID
 
 			// Extract image and info from linked product or reply items
-			if rule.ProductID != "" && g.productRepo != nil {
-				accountID, _, _ := g.findPage(entry.ID)
-				if prod, pErr := g.productRepo.GetProduct(ctx, accountID, rule.ProductID); pErr == nil && prod != nil {
+			if rule.ProductID != "" {
+				accID := rule.AccountID
+				if accID == "" {
+					accID, _, _ = g.findPage(entry.ID)
+				}
+				var prod *domain.Product
+				if g.productRepo != nil {
+					prod, _ = g.productRepo.GetProduct(ctx, accID, rule.ProductID)
+				}
+				if prod == nil && g.db != nil {
+					var pm database.ProductModel
+					if err := g.db.WithContext(ctx).Where("id = ?", rule.ProductID).First(&pm).Error; err == nil {
+						prod = &domain.Product{
+							ID:          pm.ID,
+							Name:        pm.Name,
+							Price:       pm.Price,
+							ImageUrl:    pm.ImageUrl,
+							GalleryURLs: pm.GalleryURLs,
+						}
+					}
+				}
+				if prod != nil {
 					if strings.TrimSpace(prod.Name) != "" {
 						title = prod.Name
 					}
 					if strings.TrimSpace(prod.Price) != "" {
-						subtitle = "ລາຄາ: " + prod.Price
+						subtitle = "💰 ລາຄາ: " + prod.Price + " | 👇 ກົດປຸ່ມດ້ານລຸ່ມເພື່ອເບິ່ງລາຍລະອຽດ"
 					}
 					if strings.TrimSpace(prod.ImageUrl) != "" {
 						imageURL = prod.ImageUrl
+					} else if strings.TrimSpace(prod.GalleryURLs) != "" {
+						var urls []string
+						if err := json.Unmarshal([]byte(prod.GalleryURLs), &urls); err == nil && len(urls) > 0 {
+							imageURL = urls[0]
+						} else {
+							parts := strings.Split(prod.GalleryURLs, ",")
+							if len(parts) > 0 && strings.TrimSpace(parts[0]) != "" {
+								imageURL = strings.TrimSpace(parts[0])
+							}
+						}
 					}
 				}
 			}
@@ -660,21 +705,28 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 				if step.IsEnabled && step.Type == "image" && strings.TrimSpace(step.Content) != "" && imageURL == "" {
 					imageURL = step.Content
 				}
-				if step.IsEnabled && step.Type == "text" && strings.TrimSpace(step.Content) != "" && subtitle == "" {
-					subtitle = step.Content
-					if len([]rune(subtitle)) > 75 {
-						subtitle = string([]rune(subtitle)[:72]) + "..."
+				if step.IsEnabled && step.Type == "text" && strings.TrimSpace(step.Content) != "" && subtitle == "👇 ກົດປຸ່ມດ້ານລຸ່ມນີ້ ເພື່ອເບິ່ງລາຍລະອຽດເພີ່ມເຕີມ & ສັ່ງຊື້" {
+					cleanText := strings.TrimSpace(step.Content)
+					if len([]rune(cleanText)) > 65 {
+						cleanText = string([]rune(cleanText)[:62]) + "..."
 					}
+					subtitle = cleanText
 				}
 			}
 
-			var privErr error
-			if imageURL != "" {
-				// Send rich generic template card with image + button!
-				privErr = g.sendPrivateGenericTemplate(ctx, page, change.Value.CommentID, title, subtitle, imageURL, buttonTitle, buttonPayload)
+			// If still no image, fetch image from the Facebook Post itself!
+			if imageURL == "" && change.Value.PostID != "" && page.AccessToken != "" {
+				imageURL = g.fetchPostImage(ctx, page.AccessToken, change.Value.PostID)
 			}
-			// If sending card failed or no image available, fallback to text private reply
-			if imageURL == "" || privErr != nil {
+
+			// Ensure full public URL (prepending storage endpoint if filename only)
+			imageURL = g.resolveMediaURL(imageURL)
+
+			// Send rich generic template card with image + buttons (square 1:1 aspect ratio)
+			privErr := g.sendPrivateGenericTemplate(ctx, page, change.Value.CommentID, title, subtitle, imageURL, buttonTitle, buttonPayload)
+			// If sending card failed, fallback to text private reply
+			if privErr != nil {
+				slog.Warn("generic template card failed, falling back to text reply", "error", privErr)
 				texts := []string{}
 				for _, step := range items {
 					if step.IsEnabled && step.Type == "text" && strings.TrimSpace(step.Content) != "" {
@@ -683,7 +735,7 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 				}
 				fallbackText := strings.Join(texts, "\n\n")
 				if strings.TrimSpace(fallbackText) == "" {
-					fallbackText = "ສະບາຍດີ! ພວກເຮົາໄດ້ສົ່ງລາຍລະອຽດໃຫ້ທາງຂໍ້ຄວາມແລ້ວ"
+					fallbackText = "ສະບາຍດີ! ພວກເຮົາໄດ້ສົ່ງລາຍລະອຽດໃຫ້ທາງຂໍ້ຄວາມແລ້ວ 👉 ກົດຕອບກັບເພື່ອເບິ່ງຂໍ້ມູນເພີ່ມເຕີມ"
 				}
 				privErr = g.sendPrivateReply(ctx, page, change.Value.CommentID, fallbackText)
 			}
@@ -930,6 +982,13 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 					if len(parts) >= 2 {
 						targetRuleID := parts[1]
 						foundRule, _ := g.automation.GetRule(ctx, targetRuleID, accountID)
+						if foundRule == nil && g.db != nil {
+							var arm database.AutomationRuleModel
+							if err := g.db.WithContext(ctx).Where("id = ?", targetRuleID).First(&arm).Error; err == nil {
+								r := ruleModelToDomain(arm)
+								foundRule = &r
+							}
+						}
 						if foundRule != nil {
 							rule = foundRule
 							sourceType = "comment_unlock"
@@ -1157,6 +1216,21 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 			var items []domain.ReplyItem
 			if g.automation != nil {
 				items, _ = g.automation.GetReplySetItems(ctx, rule.ReplySetID, rule.AccountID)
+			}
+			if len(items) == 0 && g.db != nil && rule.ReplySetID != "" {
+				var rm database.ReplySetModel
+				if err := g.db.WithContext(ctx).Preload("Items").Where("id = ?", rule.ReplySetID).First(&rm).Error; err == nil {
+					for _, it := range rm.Items {
+						items = append(items, domain.ReplyItem{
+							ID:         it.ID,
+							ReplySetID: it.ReplySetID,
+							Type:       it.Type,
+							Content:    it.Content,
+							OrderIndex: it.OrderIndex,
+							IsEnabled:  it.IsEnabled,
+						})
+					}
+				}
 			}
 			items = g.resolveReplyItemsContext(ctx, rule, items)
 
@@ -1418,6 +1492,24 @@ func (g *GraphConnector) resolveReplyItemsContext(ctx context.Context, rule *dom
 		g.mu.RLock()
 		product, found = g.products[rule.AccountID][rule.ProductID]
 		g.mu.RUnlock()
+	}
+	if !found && g.db != nil {
+		var pm database.ProductModel
+		if err := g.db.WithContext(ctx).Where("id = ?", rule.ProductID).First(&pm).Error; err == nil {
+			product = domain.Product{
+				ID:          pm.ID,
+				Name:        pm.Name,
+				Price:       pm.Price,
+				ImageUrl:    pm.ImageUrl,
+				GalleryURLs: pm.GalleryURLs,
+				Cost:        pm.Cost,
+				SalePrice:   pm.SalePrice,
+				Quantity:    pm.Quantity,
+				Currency:    pm.Currency,
+				Description: pm.Description,
+			}
+			found = true
+		}
 	}
 	resolved := make([]domain.ReplyItem, len(items))
 	copy(resolved, items)
@@ -3319,6 +3411,7 @@ func (g *GraphConnector) SendMedia(ctx context.Context, accountID, pageID, recip
 	if !found || page.AccessToken == "" {
 		return errors.New("meta page not found or not connected")
 	}
+	mediaURL = g.resolveMediaURL(mediaURL)
 	if page.Category == "WhatsApp" {
 		return g.sendWhatsAppMedia(ctx, page.ID, page.AccessToken, recipientID, mediaType, mediaURL)
 	}
@@ -3446,12 +3539,65 @@ func (g *GraphConnector) likeComment(ctx context.Context, page graphPage, commen
 	return nil
 }
 
+func truncateRunes(s string, max int) string {
+	runes := []rune(s)
+	if len(runes) > max {
+		return string(runes[:max])
+	}
+	return s
+}
+
+func (g *GraphConnector) resolveMediaURL(rawURL string) string {
+	rawURL = strings.TrimSpace(rawURL)
+	if rawURL == "" {
+		return ""
+	}
+	if strings.HasPrefix(rawURL, "http://") || strings.HasPrefix(rawURL, "https://") {
+		return rawURL
+	}
+	base := strings.TrimRight(g.cfg.PublicMediaURL, "/")
+	if base == "" {
+		base = strings.TrimRight(os.Getenv("R2_PUBLIC_URL"), "/")
+	}
+	if base != "" {
+		return base + "/" + strings.TrimLeft(rawURL, "/")
+	}
+	return rawURL
+}
+
+func (g *GraphConnector) fetchPostImage(ctx context.Context, accessToken, postID string) string {
+	if postID == "" || accessToken == "" {
+		return ""
+	}
+	reqURL := "https://graph.facebook.com/" + g.cfg.Version + "/" + url.PathEscape(postID) + "?fields=full_picture&access_token=" + url.QueryEscape(accessToken)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
+	if err != nil {
+		return ""
+	}
+	resp, err := g.client.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		return ""
+	}
+	var data struct {
+		FullPicture string `json:"full_picture"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&data); err == nil {
+		return data.FullPicture
+	}
+	return ""
+}
+
 func (g *GraphConnector) sendPrivateGenericTemplate(ctx context.Context, page graphPage, commentID, title, subtitle, imageURL, buttonTitle, buttonPayload string) error {
+	imageURL = g.resolveMediaURL(imageURL)
 	element := map[string]any{
-		"title": title,
+		"title": truncateRunes(title, 80),
 	}
 	if subtitle != "" {
-		element["subtitle"] = subtitle
+		element["subtitle"] = truncateRunes(subtitle, 80)
 	}
 	if imageURL != "" {
 		element["image_url"] = imageURL
@@ -3460,7 +3606,12 @@ func (g *GraphConnector) sendPrivateGenericTemplate(ctx context.Context, page gr
 		element["buttons"] = []map[string]any{
 			{
 				"type":    "postback",
-				"title":   buttonTitle,
+				"title":   truncateRunes(buttonTitle, 20),
+				"payload": buttonPayload,
+			},
+			{
+				"type":    "postback",
+				"title":   "🛒 ສັ່ງຊື້ / ຮັບໂປຣ",
 				"payload": buttonPayload,
 			},
 		}
@@ -3475,7 +3626,8 @@ func (g *GraphConnector) sendPrivateGenericTemplate(ctx context.Context, page gr
 			"attachment": map[string]any{
 				"type": "template",
 				"payload": map[string]any{
-					"template_type": "generic",
+					"template_type":       "generic",
+					"image_aspect_ratio": "square",
 					"elements": []map[string]any{
 						element,
 					},
