@@ -606,7 +606,7 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 
 			// 2. Deduplicate standalone referral events
 			if ref != nil && strings.TrimSpace(message.Message.Text) == "" {
-				refID := ref.AdID
+				refID := ref.getAdID()
 				if refID == "" {
 					refID = ref.Ref
 				}
@@ -627,8 +627,8 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 				sourceType, sourceID := "message", ""
 				if ref != nil {
 					sourceType, sourceID = "post", ref.Ref
-					if ref.AdID != "" {
-						sourceType, sourceID = "ad", ref.AdID
+					if adID := ref.getAdID(); adID != "" {
+						sourceType, sourceID = "ad", adID
 					} else if ref.AdsContextData.PostID != "" {
 						sourceType, sourceID = "post", ref.AdsContextData.PostID
 					} else if ref.CampaignID != "" {
@@ -711,17 +711,17 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 
 			sourceType, sourceID, resolvedKey := "", "", ""
 			if ref != nil {
-				sourceType, sourceID = "post", ref.Ref
-				if ref.AdID != "" {
-					sourceType, sourceID = "ad", ref.AdID
-				} else if ref.Source == "ADS" && ref.Ref != "" {
-					sourceType, sourceID = "ad", ref.Ref
+				adID := ref.getAdID()
+				if adID != "" {
+					sourceType, sourceID = "ad", adID
 				} else if ref.AdsContextData.PostID != "" {
 					sourceType, sourceID = "post", ref.AdsContextData.PostID
 				} else if ref.CampaignID != "" {
 					sourceType, sourceID = "campaign", ref.CampaignID
 				} else if ref.AdGroupID != "" {
 					sourceType, sourceID = "adset", ref.AdGroupID
+				} else if ref.Ref != "" {
+					sourceType, sourceID = "post", ref.Ref
 				}
 				if sourceID != "" {
 					resolvedKey = bindingKey(entry.ID, sourceType, sourceID)
@@ -774,13 +774,13 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 
 			// Check database for active conversation history if not in memory (e.g. after server restart)
 			if !hasRepliedCustomer && g.db != nil {
-				var count int64
+				var lastMsg database.ChatMessageModel
 				if err := g.db.Model(&database.ChatMessageModel{}).
-					Where("page_id = ? AND sender_id = ? AND created_at > ?", entry.ID, customerID, now.Add(-24*time.Hour)).
-					Count(&count).Error; err == nil && count > 0 {
+					Where("page_id = ? AND sender_id = ?", entry.ID, customerID).
+					Order("created_at DESC").Limit(1).Find(&lastMsg).Error; err == nil && lastMsg.ID != "" {
 					hasRepliedCustomer = true
 					g.mu.Lock()
-					g.firstReplies[seenKey] = now
+					g.firstReplies[seenKey] = lastMsg.CreatedAt
 					g.mu.Unlock()
 				}
 			}
@@ -803,19 +803,30 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 						IsActive:         true,
 					}
 				} else if ref != nil || (sourceID != "" && !hasRepliedCustomer) {
-					// 1. Direct campaign match if referral includes campaign_id
-					if ref != nil && ref.CampaignID != "" {
+					adID := ""
+					if ref != nil {
+						adID = ref.getAdID()
+					} else if sourceType == "ad" {
+						adID = sourceID
+					}
+
+					// 1. Direct AD match if adID is present
+					if adID != "" {
+						rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, "ad", adID)
+					}
+					// 2. Direct campaign match if referral includes campaign_id
+					if rule == nil && ref != nil && ref.CampaignID != "" {
 						rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, "campaign", ref.CampaignID)
 					}
-					// 2. Direct adgroup/adset match if referral includes adgroup_id
+					// 3. Direct adgroup/adset match if referral includes adgroup_id
 					if rule == nil && ref != nil && ref.AdGroupID != "" {
 						rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, "adset", ref.AdGroupID)
 					}
-					// 3. Match by direct ad or post ID
+					// 4. Match by sourceType & sourceID
 					if rule == nil && sourceID != "" {
 						rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, sourceType, sourceID)
 					}
-					// 4. Match by alternative type (ad vs post)
+					// 5. Match by alternative type (ad vs post)
 					if rule == nil && sourceID != "" {
 						altType := "ad"
 						if sourceType == "ad" {
@@ -823,28 +834,30 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 						}
 						rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, altType, sourceID)
 					}
-					// 5. Hierarchy resolution (ad -> campaign / adset / post)
-					if rule == nil && (sourceType == "ad" || (ref != nil && (ref.Source == "ADS" || ref.AdID != ""))) {
-						targetAdID := sourceID
-						if ref != nil && ref.AdID != "" {
-							targetAdID = ref.AdID
+					// 6. Hierarchy resolution (ad -> campaign / adset / post)
+					if rule == nil && (adID != "" || (ref != nil && ref.Source == "ADS")) {
+						targetAdID := adID
+						if targetAdID == "" && ref != nil {
+							targetAdID = ref.Ref
 						}
-						campaignID, adSetID, postID := g.resolveAdHierarchy(ctx, entry.ID, targetAdID)
-						if adSetID != "" {
-							rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, "adset", adSetID)
-						}
-						if rule == nil && campaignID != "" {
-							rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, "campaign", campaignID)
-						}
-						if rule == nil && postID != "" {
-							rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, "post", postID)
+						if targetAdID != "" {
+							campaignID, adSetID, postID := g.resolveAdHierarchy(ctx, entry.ID, targetAdID)
+							if campaignID != "" {
+								rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, "campaign", campaignID)
+							}
+							if rule == nil && adSetID != "" {
+								rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, "adset", adSetID)
+							}
+							if rule == nil && postID != "" {
+								rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, "post", postID)
+							}
 						}
 					}
-					// 6. Referral ads_context_data post_id match
+					// 7. Referral ads_context_data post_id match
 					if rule == nil && ref != nil && ref.AdsContextData.PostID != "" {
 						rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, "post", ref.AdsContextData.PostID)
 					}
-					// 7. Direct campaign / custom match from ref.Ref if rule is still not found
+					// 8. Direct campaign / custom match from ref.Ref if rule is still not found
 					if rule == nil && ref != nil && ref.Ref != "" {
 						rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, "campaign", ref.Ref)
 					}
@@ -942,24 +955,32 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 
 			isSpamming := false
 			if alreadyReplied {
-				if time.Since(lastReplyTime) < 15*time.Second {
+				if time.Since(lastReplyTime) < 3*time.Second {
 					// 1. Debounce rapid dual webhooks (e.g. referral + text in same second)
 					isSpamming = true
+				} else if ref != nil {
+					// 2. Fresh Ad referral (Click-to-Messenger):
+					// Only suppress if the customer received this exact reply within the rule's cooldown or 30 seconds
+					minCooldown := 30 * time.Second
+					if rule != nil && rule.CooldownSeconds > 0 {
+						minCooldown = time.Duration(rule.CooldownSeconds) * time.Second
+					}
+					isSpamming = time.Since(lastReplyTime) < minCooldown
 				} else if rule != nil && rule.FirstMessageOnly {
-					// 2. FirstMessageOnly rules must NEVER repeat once already replied
+					// 3. Regular chat messages: FirstMessageOnly must never repeat mid-conversation
 					isSpamming = true
-				} else if rule != nil && (rule.TriggerType == "ad" || rule.TriggerType == "campaign" || rule.TriggerType == "post") && ref == nil {
-					// 3. Ad/Post/Campaign welcome flows require a fresh ad referral; NEVER re-fire in mid-chat
+				} else if rule != nil && (rule.TriggerType == "ad" || rule.TriggerType == "campaign" || rule.TriggerType == "post") {
+					// 4. Ad/Post/Campaign welcome flows require a fresh ad referral; NEVER re-fire in mid-chat without referral
 					isSpamming = true
 				} else if rule != nil && rule.CooldownSeconds > 0 {
-					// 4. Custom cooldown (minimum 15 minutes in active chats)
+					// 5. Custom cooldown (minimum 15 minutes in active chats)
 					cooldown := time.Duration(rule.CooldownSeconds) * time.Second
-					if cooldown < 15*time.Minute && ref == nil {
+					if cooldown < 15*time.Minute {
 						cooldown = 15 * time.Minute
 					}
 					isSpamming = time.Since(lastReplyTime) < cooldown
 				} else {
-					// 5. Default safe cooldown for all flows: 24 hours
+					// 6. Default safe cooldown for all flows: 24 hours
 					isSpamming = time.Since(lastReplyTime) < 24*time.Hour
 				}
 			}
@@ -1073,17 +1094,22 @@ func (g *GraphConnector) resolveAdHierarchy(ctx context.Context, pageID, adID st
 	}
 	g.mu.RUnlock()
 
-	accountID, _, ok := g.findPage(pageID)
+	accountID, page, ok := g.findPage(pageID)
 	if !ok {
 		return "", "", ""
 	}
 	token, err := g.userToken(ctx, accountID)
-	if err != nil {
+	if err != nil || token == "" {
+		token = page.AccessToken
+	}
+	if token == "" {
 		return "", "", ""
 	}
-	query := url.Values{"fields": {"campaign{id},adset{id},creative{effective_object_story_id}"}, "access_token": {token}}
-	var response struct {
-		Campaign struct {
+
+	type adGraphResp struct {
+		CampaignID string `json:"campaign_id"`
+		AdSetID    string `json:"adset_id"`
+		Campaign   struct {
 			ID string `json:"id"`
 		} `json:"campaign"`
 		AdSet struct {
@@ -1093,13 +1119,29 @@ func (g *GraphConnector) resolveAdHierarchy(ctx context.Context, pageID, adID st
 			EffectiveObjectStoryID string `json:"effective_object_story_id"`
 		} `json:"creative"`
 	}
+
+	var response adGraphResp
+	query := url.Values{"fields": {"campaign_id,adset_id,campaign{id},adset{id},creative{effective_object_story_id}"}, "access_token": {token}}
 	endpoint := "https://graph.facebook.com/" + g.cfg.Version + "/" + url.PathEscape(adID) + "?" + query.Encode()
 	if err := g.getJSON(ctx, endpoint, &response); err != nil {
-		slog.Warn("could not resolve Meta Ad hierarchy", "page_id", pageID, "ad_id", adID, "error", err)
-		return "", "", ""
+		// Fallback without creative in case creative query is rejected
+		queryFallback := url.Values{"fields": {"campaign_id,adset_id,campaign{id},adset{id}"}, "access_token": {token}}
+		endpointFallback := "https://graph.facebook.com/" + g.cfg.Version + "/" + url.PathEscape(adID) + "?" + queryFallback.Encode()
+		if err2 := g.getJSON(ctx, endpointFallback, &response); err2 != nil {
+			if page.AccessToken != "" && page.AccessToken != token {
+				queryFallback.Set("access_token", page.AccessToken)
+				_ = g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/"+url.PathEscape(adID)+"?"+queryFallback.Encode(), &response)
+			}
+		}
 	}
 	campaignID := response.Campaign.ID
+	if campaignID == "" {
+		campaignID = response.CampaignID
+	}
 	adSetID := response.AdSet.ID
+	if adSetID == "" {
+		adSetID = response.AdSetID
+	}
 	postID := response.Creative.EffectiveObjectStoryID
 	if campaignID != "" || adSetID != "" || postID != "" {
 		g.mu.Lock()
@@ -1125,12 +1167,48 @@ type webhookReferral struct {
 	AdGroupID      string `json:"adgroup_id"`
 	CampaignID     string `json:"campaign_id"`
 	AdsContextData struct {
+		AdID      string `json:"ad_id"`
 		AdTitle   string `json:"ad_title"`
 		PhotoURL  string `json:"photo_url"`
 		VideoURL  string `json:"video_url"`
 		PostID    string `json:"post_id"`
 		ProductID string `json:"product_id"`
 	} `json:"ads_context_data"`
+}
+
+func (r *webhookReferral) getAdID() string {
+	if r == nil {
+		return ""
+	}
+	if id := strings.TrimSpace(r.AdID); id != "" {
+		return id
+	}
+	if id := strings.TrimSpace(r.AdsContextData.AdID); id != "" {
+		return id
+	}
+	if r.Source == "ADS" {
+		ref := strings.TrimSpace(r.Ref)
+		if strings.HasPrefix(ref, "ad_id:") {
+			return strings.TrimPrefix(ref, "ad_id:")
+		}
+		if strings.HasPrefix(ref, "ad_id=") {
+			return strings.TrimPrefix(ref, "ad_id=")
+		}
+		if strings.HasPrefix(ref, "ad:") {
+			return strings.TrimPrefix(ref, "ad:")
+		}
+		allDigits := len(ref) >= 8
+		for _, ch := range ref {
+			if ch < '0' || ch > '9' {
+				allDigits = false
+				break
+			}
+		}
+		if allDigits {
+			return ref
+		}
+	}
+	return ""
 }
 
 func ruleModelToDomain(m database.AutomationRuleModel) domain.AutomationRule {

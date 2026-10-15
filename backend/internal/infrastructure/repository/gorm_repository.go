@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+
 	"github.com/google/uuid"
 
 	"github.com/meta-super-app/backend/internal/domain"
@@ -79,12 +81,40 @@ func (r *GormRepository) FindByFacebookID(ctx context.Context, fbid string) (*do
 }
 
 func (r *GormRepository) RegisterFacebookUser(ctx context.Context, fbid, name, email string) (*domain.User, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		name = "Facebook User"
+	}
+	fbid = strings.TrimSpace(fbid)
+	cleanEmail := strings.TrimSpace(email)
+	if cleanEmail == "" {
+		cleanEmail = fmt.Sprintf("fb_%s@users.meta-app.internal", fbid)
+	}
+
 	var user domain.User
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// 1. Check if user already exists by facebook_id
+		var existingByFB database.UserModel
+		if err := tx.Where("facebook_id = ?", fbid).First(&existingByFB).Error; err == nil {
+			user = domain.User{ID: existingByFB.ID, Name: existingByFB.Name, Email: existingByFB.Email, FacebookID: existingByFB.FacebookID}
+			return nil
+		}
+
+		// 2. Check if user already exists by email
+		var existingByEmail database.UserModel
+		if err := tx.Where("email = ?", cleanEmail).First(&existingByEmail).Error; err == nil {
+			if err := tx.Model(&existingByEmail).Update("facebook_id", fbid).Error; err != nil {
+				return err
+			}
+			user = domain.User{ID: existingByEmail.ID, Name: existingByEmail.Name, Email: existingByEmail.Email, FacebookID: &fbid}
+			return nil
+		}
+
+		// 3. Create new user
 		u := database.UserModel{
 			ID:           uuid.NewString(),
 			Name:         name,
-			Email:        email,
+			Email:        cleanEmail,
 			FacebookID:   &fbid,
 			PasswordHash: "facebook_oauth",
 		}

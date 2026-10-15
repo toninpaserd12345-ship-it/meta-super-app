@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AutomationFlow, AutomationTarget, ItemsResponse, MetaAdAccount, MetaCampaign, MetaPage, MetaPost, Product, ReplySet } from '~/types/automation'
+import type { AutomationFlow, AutomationTarget, ItemsResponse, MetaAd, MetaAdAccount, MetaCampaign, MetaPage, MetaPost, Product, ReplySet } from '~/types/automation'
 
 definePageMeta({ middleware: 'auth' })
 const { can } = useAuth()
@@ -27,12 +27,18 @@ const name = ref('')
 const pageId = ref('')
 const productId = ref('')
 const replySetId = ref('')
-const targetType = ref<'post' | 'campaign'>('post')
+const targetType = ref<'post' | 'campaign' | 'ad'>('post')
 const targets = ref<AutomationTarget[]>([])
 const posts = ref<MetaPost[]>([])
 const adAccounts = ref<MetaAdAccount[]>([])
 const campaigns = ref<MetaCampaign[]>([])
 const adAccountId = useCookie('meta_ad_account_id', { default: () => '', maxAge: 2592000 })
+const selectedCampaignIdForAds = ref('')
+const campaignAds = ref<MetaAd[]>([])
+const loadingAds = ref(false)
+const adSearch = ref('')
+const manualAdId = ref('')
+const manualAdName = ref('')
 const firstMessageOnly = ref(true)
 const cooldownSeconds = ref(0)
 const loading = ref(false)
@@ -71,7 +77,38 @@ const filteredCampaigns = computed(() => {
   if (!query) return campaigns.value
   return campaigns.value.filter(c => c.name.toLowerCase().includes(query) || c.id.includes(query))
 })
+const filteredCampaignAds = computed(() => {
+  const query = adSearch.value.trim().toLowerCase()
+  if (!query) return campaignAds.value
+  return campaignAds.value.filter(a => (a.name || '').toLowerCase().includes(query) || a.id.includes(query))
+})
 const stepReady = computed(() => step.value === 1 ? Boolean(name.value.trim() && pageId.value) : step.value === 2 ? targets.value.length > 0 : step.value === 3 ? Boolean(productId.value && replySetId.value) : true)
+
+function addManualAd() {
+  const id = manualAdId.value.trim()
+  if (!id) return
+  const adName = manualAdName.value.trim() || `Ad ${id}`
+  if (!targets.value.some(t => t.type === 'ad' && t.value === id)) {
+    targets.value.push({ type: 'ad', value: id, name: adName })
+  }
+  manualAdId.value = ''
+  manualAdName.value = ''
+}
+
+async function loadAdsForCampaign() {
+  campaignAds.value = []
+  if (!selectedCampaignIdForAds.value) return
+  loadingAds.value = true
+  try {
+    campaignAds.value = (await $fetch<ItemsResponse<MetaAd>>(`/api/proxy/api/v1/meta/campaigns/${selectedCampaignIdForAds.value}/ads`)).items || []
+  } catch (error) {
+    noticeType.value = 'error'
+    notice.value = apiError(error, 'Could not load ads.')
+  } finally {
+    loadingAds.value = false
+  }
+}
+watch(selectedCampaignIdForAds, loadAdsForCampaign)
 
 function selectAllAvailablePosts() {
   const available = posts.value.filter(p => !isUsed('post', p.id))
@@ -134,7 +171,7 @@ function startWizard() {
 async function editFlow(flow: AutomationFlow) {
   hydrating.value = true
   editingId.value = flow.id; name.value = flow.name; pageId.value = flow.pageId; productId.value = flow.productId; replySetId.value = flow.replySetId
-  targetType.value = flow.targets[0]?.type === 'campaign' ? 'campaign' : 'post'; targets.value = flow.targets.map(({ type, value, name }) => ({ type, value, name }))
+  targetType.value = flow.targets[0]?.type === 'campaign' ? 'campaign' : flow.targets[0]?.type === 'ad' ? 'ad' : 'post'; targets.value = flow.targets.map(({ type, value, name }) => ({ type, value, name }))
   firstMessageOnly.value = flow.firstMessageOnly; cooldownSeconds.value = flow.cooldownSeconds; step.value = 1; notice.value = ''; view.value = 'wizard'
   await nextTick()
   hydrating.value = false
@@ -280,7 +317,11 @@ watch(adAccountId, loadCampaigns)
       <template v-if="step===1"><div class="section-title"><small>STEP 1</small><h3>{{ t('auto.setupTitle') }}</h3><p>{{ t('auto.setupHelp') }}</p></div><div class="form-grid"><v-text-field v-model="name" :label="t('auto.name')" :placeholder="t('auto.nameExample')" variant="outlined"/><v-select v-model="pageId" :items="pages" item-title="name" item-value="id" :label="t('auto.page')" variant="outlined"/></div></template>
       <template v-else-if="step===2">
         <div class="section-title"><small>STEP 2</small><h3>{{ t('auto.triggerTitle') }}</h3><p>{{ t('auto.triggerHelp') }}</p></div>
-        <v-btn-toggle v-model="targetType" mandatory color="primary" class="target-toggle mb-3"><v-btn value="post" prepend-icon="mdi-post-outline">{{ t('auto.posts') }}</v-btn><v-btn value="campaign" prepend-icon="mdi-bullhorn-outline">{{ t('auto.campaigns') }}</v-btn></v-btn-toggle>
+        <v-btn-toggle v-model="targetType" mandatory color="primary" class="target-toggle mb-3">
+          <v-btn value="post" prepend-icon="mdi-post-outline">{{ t('auto.posts') }}</v-btn>
+          <v-btn value="campaign" prepend-icon="mdi-bullhorn-outline">{{ t('auto.campaigns') }}</v-btn>
+          <v-btn value="ad" prepend-icon="mdi-bullhorn">{{ locale==='lo' ? 'ໂຄສະນາ (Ad ID)' : 'Ads (Ad ID)' }}</v-btn>
+        </v-btn-toggle>
         <div v-if="loading" class="loading"><v-progress-circular indeterminate color="primary"/></div>
         <div v-else-if="targetType==='post'">
           <div class="d-flex align-center gap-2 mb-3 flex-wrap">
@@ -298,10 +339,12 @@ watch(adAccountId, loadCampaigns)
             </button>
           </div>
         </div>
-        <template v-else>
+        <div v-else-if="targetType==='campaign'">
           <div class="d-flex align-center gap-2 mb-3 flex-wrap">
             <v-select v-model="adAccountId" :items="adAccounts.map(item=>({...item,label:`${item.accountType==='business'?'Business':'Personal'} · ${item.name}`}))" item-title="label" item-value="id" :label="t('auto.adAccount')" variant="outlined" density="compact" hide-details style="max-width: 320px;"/>
             <v-text-field v-model="campaignSearch" density="compact" variant="outlined" prepend-inner-icon="mdi-magnify" :placeholder="locale==='lo'?'ຄົ້ນຫາແຄມເປນ...':'Search campaigns...'" hide-details clearable style="max-width: 320px;"/>
+            <v-spacer/>
+            <span class="text-caption text-medium-emphasis">{{ targets.length }} {{ locale==='lo'?'ແຄມເປນຖືກເລືອກ':'selected' }}</span>
           </div>
           <div class="target-list">
             <button v-for="campaign in filteredCampaigns" :key="campaign.id" :disabled="isUsed('campaign',campaign.id)" :class="{selected:isSelected('campaign',campaign.id),disabled:isUsed('campaign',campaign.id)}" @click="toggleTarget({type:'campaign',value:campaign.id,name:campaign.name})">
@@ -309,7 +352,35 @@ watch(adAccountId, loadCampaigns)
               <div><strong>{{ campaign.name }}</strong><span>{{ campaign.adSetCount }} ad sets · {{ campaign.adCount }} ads</span><small>{{ isUsed('campaign',campaign.id)?t('auto.alreadyUsed'):campaign.effectiveStatus }}</small></div>
             </button>
           </div>
-        </template>
+        </div>
+        <div v-else-if="targetType==='ad'">
+          <div class="mb-4 pa-3" style="background: var(--color-surface-soft); border-radius: 12px; border: 1px solid var(--color-border);">
+            <div class="text-subtitle-2 mb-2"><strong>{{ locale==='lo' ? 'ເພີ່ມ Ad ID ໂດຍກົງ' : 'Add Ad ID directly' }}</strong></div>
+            <div class="d-flex align-center gap-2 flex-wrap">
+              <v-text-field v-model="manualAdId" density="compact" variant="outlined" :placeholder="locale==='lo'?'ປ້ອນ Ad ID (ຕົວຢ່າງ: 2381234567890)':'Enter Ad ID (e.g. 2381234567890)'" hide-details style="max-width: 280px; min-width: 200px;"/>
+              <v-text-field v-model="manualAdName" density="compact" variant="outlined" :placeholder="locale==='lo'?'ຊື່ໂຄສະນາ (ເລືອກໃສ່ໄດ້)':'Ad Name (optional)'" hide-details style="max-width: 240px; min-width: 160px;"/>
+              <v-btn color="primary" size="small" prepend-icon="mdi-plus" :disabled="!manualAdId.trim()" @click="addManualAd">{{ locale==='lo' ? 'ເພີ່ມ Ad ID' : 'Add Ad' }}</v-btn>
+            </div>
+          </div>
+          <div class="d-flex align-center gap-2 mb-3 flex-wrap">
+            <v-select v-model="adAccountId" :items="adAccounts.map(item=>({...item,label:`${item.accountType==='business'?'Business':'Personal'} · ${item.name}`}))" item-title="label" item-value="id" :label="t('auto.adAccount')" variant="outlined" density="compact" hide-details style="max-width: 260px;"/>
+            <v-select v-model="selectedCampaignIdForAds" :items="campaigns" item-title="name" item-value="id" :label="locale==='lo'?'ເລືອກແຄມເປນເພື່ອດຶງໂຄສະນາ':'Select Campaign for Ads'" variant="outlined" density="compact" hide-details style="max-width: 280px;"/>
+            <v-text-field v-model="adSearch" density="compact" variant="outlined" prepend-inner-icon="mdi-magnify" :placeholder="locale==='lo'?'ຄົ້ນຫາໂຄສະນາ...':'Search ads...'" hide-details clearable style="max-width: 220px;"/>
+            <v-spacer/>
+            <span class="text-caption text-medium-emphasis">{{ targets.length }} {{ locale==='lo'?'ໂຄສະນາຖືກເລືອກ':'selected' }}</span>
+          </div>
+          <div v-if="loadingAds" class="loading"><v-progress-circular indeterminate color="primary"/></div>
+          <div v-else-if="campaignAds.length" class="target-list">
+            <button v-for="ad in filteredCampaignAds" :key="ad.id" :disabled="isUsed('ad', ad.id)" :class="{selected:isSelected('ad', ad.id), disabled:isUsed('ad', ad.id)}" @click="toggleTarget({type:'ad', value:ad.id, name:ad.name || ('Ad ' + ad.id)})">
+              <v-checkbox-btn :model-value="isSelected('ad', ad.id)"/>
+              <img v-if="ad.thumbnailUrl || ad.imageUrl" :src="ad.thumbnailUrl || ad.imageUrl" :alt="ad.name" loading="lazy" class="target-image">
+              <div><strong>{{ ad.name || ('Ad ' + ad.id) }}</strong><span>ID: {{ ad.id }}</span><small>{{ isUsed('ad', ad.id) ? t('auto.alreadyUsed') : ad.effectiveStatus || ad.status }}</small></div>
+            </button>
+          </div>
+          <div v-else-if="!targets.length && selectedCampaignIdForAds" class="text-center pa-4 text-medium-emphasis">
+            {{ locale==='lo' ? 'ບໍ່ພົບໂຄສະນາໃນແຄມເປນນີ້ ຫຼື ຍັງບໍ່ໄດ້ດຶງຂໍ້ມູນ' : 'No ads found in this campaign.' }}
+          </div>
+        </div>
       </template>
       <template v-else-if="step===3">
         <div class="section-title">

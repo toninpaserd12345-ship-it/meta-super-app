@@ -65,6 +65,12 @@ func MigrateRuntimeSchema(db *gorm.DB) error {
 			END IF; 
 		END $$;
 	`).Error
+	// Backfill synthetic emails for legacy users with blank email to avoid unique constraint violations
+	_ = db.Exec(`
+		UPDATE user_models
+		SET email = concat('fb_', COALESCE(facebook_id, id::text), '@users.meta-app.internal')
+		WHERE email = '' OR email IS NULL
+	`).Error
 	// Older releases stored one row per Ad/Post without a flow identity. Group
 	// compatible rows deterministically so the new dashboard shows one
 	// automation with many targets and keeps all existing bindings intact.
