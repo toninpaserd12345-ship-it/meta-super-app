@@ -513,7 +513,7 @@ onMounted(async () => {
         density="compact"
         hide-details
         :loading="loadingAccounts"
-        style="min-width: 220px;"
+        class="filter-account-select"
       />
       <v-select
         v-model="selectedProductId"
@@ -524,7 +524,7 @@ onMounted(async () => {
         variant="outlined"
         density="compact"
         hide-details
-        style="min-width: 200px;"
+        class="filter-product-select"
       />
       <div class="app-filter-divider" />
       <v-select
@@ -540,11 +540,11 @@ onMounted(async () => {
         variant="outlined"
         density="compact"
         hide-details
-        style="min-width: 140px;"
+        class="filter-date-select"
         @update:model-value="setPreset"
       />
-      <v-text-field v-if="datePreset === 'custom'" v-model="since" type="date" label="From" variant="outlined" density="compact" hide-details style="max-width: 130px;" />
-      <v-text-field v-if="datePreset === 'custom'" v-model="until" type="date" label="To" variant="outlined" density="compact" hide-details style="max-width: 130px;" />
+      <v-text-field v-if="datePreset === 'custom'" v-model="since" type="date" label="From" variant="outlined" density="compact" hide-details class="filter-custom-date" />
+      <v-text-field v-if="datePreset === 'custom'" v-model="until" type="date" label="To" variant="outlined" density="compact" hide-details class="filter-custom-date" />
     </div>
 
     <div class="app-filter-group">
@@ -868,18 +868,23 @@ onMounted(async () => {
 
             <!-- Col 3: Chats & Closing Rate -->
             <div class="col col-chats">
-              <strong>{{ fmt(item.reportedResults) }} <small class="font-weight-normal text-caption">ແຊັດ</small></strong>
-              <small class="text-medium-emphasis">ປິດຂາຍ: {{ percent(item.closingRate ? item.closingRate * 100 : null) }}</small>
+              <span class="col-kpi-label">💬 ແຊັດ & ປິດຂາຍ</span>
+              <div>
+                <strong>{{ fmt(item.reportedResults) }} <small class="font-weight-normal text-caption">ແຊັດ</small></strong>
+                <small class="text-medium-emphasis ml-2">ປິດຂາຍ: {{ percent(item.closingRate ? item.closingRate * 100 : null) }}</small>
+              </div>
             </div>
 
             <!-- Col 4: Spend -->
             <div class="col col-spend">
+              <span class="col-kpi-label">💳 ຄ່າແອດ (Spend)</span>
               <strong>{{ money(item.spend) }}</strong>
               <small class="text-caption text-medium-emphasis">CPM: {{ money(item.cpm) }}</small>
             </div>
 
             <!-- Col 5: Completed Orders & Payment Tracks -->
             <div class="col col-orders">
+              <span class="col-kpi-label">📦 ອໍເດີສຳເລັດ</span>
               <strong>{{ fmt(item.completedOrders) }} <small class="font-weight-normal text-caption">ອໍເດີ</small></strong>
               <div class="order-sub-track">
                 <span class="text-success">💳 ໂອນ: {{ item.prepaidOrders }}</span>
@@ -890,6 +895,7 @@ onMounted(async () => {
 
             <!-- Col 6: Real CPA vs Target -->
             <div class="col col-cpa">
+              <span class="col-kpi-label">🎯 Real CPA</span>
               <strong :class="{ 'text-success': item.realCpa && item.realCpa <= item.targetCpa, 'text-error': item.realCpa && item.realCpa >= item.breakEvenCpa }">
                 {{ money(item.realCpa) }}
               </strong>
@@ -900,6 +906,7 @@ onMounted(async () => {
 
             <!-- Col 7: Net Contribution Profit -->
             <div class="col col-profit">
+              <span class="col-kpi-label">💰 ກຳໄລສຸດທິ</span>
               <strong :class="item.netContribution >= 0 ? 'text-success' : 'text-error'">
                 {{ money(item.netContribution) }}
               </strong>
@@ -1071,16 +1078,21 @@ onMounted(async () => {
                 </div>
 
                 <div class="col col-chats">
-                  <strong>{{ fmt(item.reportedResults) }} <small class="font-weight-normal text-caption">ແຊັດ</small></strong>
-                  <small class="text-medium-emphasis">ປິດຂາຍ: {{ percent(item.closingRate ? item.closingRate * 100 : null) }}</small>
+                  <span class="col-kpi-label">💬 ແຊັດ & ປິດຂາຍ</span>
+                  <div>
+                    <strong>{{ fmt(item.reportedResults) }} <small class="font-weight-normal text-caption">ແຊັດ</small></strong>
+                    <small class="text-medium-emphasis ml-2">ປິດຂາຍ: {{ percent(item.closingRate ? item.closingRate * 100 : null) }}</small>
+                  </div>
                 </div>
 
                 <div class="col col-spend">
+                  <span class="col-kpi-label">💳 ຄ່າແອດ (Spend)</span>
                   <strong>{{ money(item.spend) }}</strong>
                   <small class="text-caption text-medium-emphasis">CPM: {{ money(item.cpm) }}</small>
                 </div>
 
                 <div class="col col-orders">
+                  <span class="col-kpi-label">📦 ອໍເດີສຳເລັດ</span>
                   <strong>{{ fmt(item.completedOrders) }} <small class="font-weight-normal text-caption">ອໍເດີ</small></strong>
                   <div class="order-sub-track">
                     <span class="text-success">💳 ໂອນ: {{ item.prepaidOrders }}</span>
@@ -1090,6 +1102,7 @@ onMounted(async () => {
                 </div>
 
                 <div class="col col-cpa">
+                  <span class="col-kpi-label">🎯 Real CPA</span>
                   <strong :class="{ 'text-success': item.realCpa && item.realCpa <= item.targetCpa, 'text-error': item.realCpa && item.realCpa >= item.breakEvenCpa }">
                     {{ money(item.realCpa) }}
                   </strong>
@@ -1097,6 +1110,7 @@ onMounted(async () => {
                 </div>
 
                 <div class="col col-profit">
+                  <span class="col-kpi-label">💰 ກຳໄລສຸດທິ</span>
                   <strong :class="item.netContribution >= 0 ? 'text-success' : 'text-error'">
                     {{ money(item.netContribution) }}
                   </strong>
@@ -1446,6 +1460,12 @@ onMounted(async () => {
 .metric-box small{font-size:10px;color:var(--color-text-secondary);text-transform:uppercase}
 .metric-box strong{font-size:15px;font-weight:700}
 
+.col-kpi-label { display: none; }
+.filter-account-select { min-width: 220px; }
+.filter-product-select { min-width: 200px; }
+.filter-date-select { min-width: 140px; }
+.filter-custom-date { max-width: 130px; }
+
 @media(max-width:1280px){
   .filter-bar{grid-template-columns:repeat(2,1fr)}
   .matrix-header{display:none}
@@ -1454,11 +1474,195 @@ onMounted(async () => {
   .action-plan-grid{grid-template-columns:1fr}
   .metric-detail-grid{grid-template-columns:repeat(3,1fr)}
 }
+
 @media(max-width:720px){
-  .summary-grid{grid-template-columns:repeat(2,1fr)}
-  .row-main{grid-template-columns:1fr}
-  .metric-detail-grid{grid-template-columns:repeat(2,1fr)}
-  .settings-grid,.settings-grid.primary-settings{grid-template-columns:1fr}
-  .audience-metrics{grid-template-columns:repeat(2,1fr)}
+  .col-kpi-label {
+    display: block;
+    font-size: 10px;
+    font-weight: 750;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    margin-bottom: 2px;
+  }
+  .filter-account-select, .filter-product-select, .filter-date-select, .filter-custom-date {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+  .strategy-banner {
+    padding: 12px;
+  }
+  .strategy-metrics-pills {
+    gap: 6px;
+  }
+  .strategy-metrics-pills .pill {
+    font-size: 10.5px;
+    padding: 3px 6px;
+  }
+  .action-plan-card {
+    padding: 14px;
+  }
+  .action-plan-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .plan-col {
+    padding: 10px 12px;
+  }
+
+  .performance-section {
+    padding: 12px;
+    border-radius: 14px;
+  }
+  .section-head, .report-meta {
+    display: grid;
+    width: 100%;
+  }
+  .report-meta .sort-select, .report-meta .v-text-field {
+    width: 100% !important;
+    max-width: none !important;
+  }
+  .detail-toolbar {
+    position: static;
+    margin-inline: 0;
+    border-radius: 12px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .level-tabs {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+  }
+  .level-tabs .v-btn {
+    min-width: 0;
+    padding-inline: 6px;
+    font-size: 11.5px;
+  }
+  .status-filter-group {
+    width: 100%;
+    overflow: hidden;
+  }
+  .status-tabs {
+    display: flex;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 3px;
+    scrollbar-width: none;
+  }
+  .status-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  .status-tabs .v-btn {
+    flex: 0 0 auto;
+    padding-inline: 10px;
+    font-size: 11.5px;
+  }
+
+  /* Well-proportioned Mobile Matrix Card */
+  .row-main {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    padding: 14px;
+    position: relative;
+    border-radius: 14px;
+  }
+  .col-entity {
+    grid-column: 1 / -1;
+    width: 100%;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .col-status {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: row !important;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 2px;
+  }
+  .col-spend, .col-orders, .col-cpa, .col-profit {
+    display: grid;
+    padding: 8px 10px;
+    border-radius: 9px;
+    background: var(--color-background);
+    min-width: 0;
+  }
+  .col-spend strong, .col-orders strong, .col-cpa strong, .col-profit strong {
+    font-size: 14px;
+    line-height: 1.2;
+  }
+  .col-spend { grid-column: 1; }
+  .col-orders { grid-column: 2; }
+  .col-cpa { grid-column: 1; }
+  .col-profit { grid-column: 2; }
+
+  .col-chats {
+    grid-column: 1 / -1;
+    padding: 8px 10px;
+    border-radius: 9px;
+    background: var(--color-surface-soft);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .col-action {
+    grid-column: 1 / -1;
+    margin-top: 6px;
+    padding-top: 10px;
+    border-top: 1px solid var(--color-border);
+  }
+  .col-action > div {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    gap: 8px;
+    width: 100%;
+  }
+  .col-action .v-btn {
+    width: 100%;
+    min-height: 40px;
+    font-size: 12.5px;
+    font-weight: 700;
+  }
+
+  .product-group-header {
+    padding: 12px 14px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .group-metrics {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+  .metric-box {
+    text-align: left;
+    padding: 6px 8px;
+    background: var(--color-surface);
+    border-radius: 8px;
+    border: 1px solid var(--color-border);
+  }
+
+  .metric-detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .metric-detail-grid > div {
+    padding: 8px 10px;
+  }
+  .metric-detail-grid strong {
+    font-size: 13.5px;
+  }
+
+  .settings-grid, .settings-grid.primary-settings {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

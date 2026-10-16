@@ -247,7 +247,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   background: var(--color-surface-soft);
 }
 
-/* Mobile Overhaul */
+/* Mobile SaaS Responsiveness Overhaul */
 @media (max-width: 640px) {
   :root {
     --tap-target: 44px;
@@ -261,23 +261,134 @@ button, a { -webkit-tap-highlight-color: transparent; }
     font-size: 16px !important; 
   }
   .v-btn:not(.v-btn--icon) { 
-    min-height: 42px; 
-    font-size: 13.5px !important;
+    min-height: 40px; 
+    font-size: 13px !important;
   }
+  
+  /* 1. Header proportions on mobile */
   .app-page-head {
     margin-bottom: 14px;
+    gap: 10px;
+  }
+  .app-page-head .head-content {
+    max-width: 100%;
+  }
+  .app-page-head .head-badge {
+    font-size: 10px;
+    padding: 2px 7px;
+    margin-bottom: 4px;
+  }
+  .app-page-head h1 {
+    font-size: 20px;
+    line-height: 1.25;
+    margin-bottom: 4px;
+  }
+  .app-page-head p {
+    font-size: 12.5px;
+    line-height: 1.45;
   }
   .app-page-head .head-actions {
     width: 100%;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 8px;
+    margin-top: 4px;
   }
   .app-page-head .head-actions > * {
-    flex: 1 1 auto;
+    width: 100%;
+    justify-content: center;
   }
+
+  /* 2. Sub-Navigation Tabs horizontal touch-scroll */
+  .app-sub-nav {
+    display: flex;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    white-space: nowrap;
+    padding: 3px;
+    gap: 4px;
+    margin-bottom: 14px;
+    border-radius: 12px;
+  }
+  .app-sub-nav::-webkit-scrollbar {
+    display: none;
+  }
+  .app-sub-nav-item {
+    flex: 1 0 auto;
+    justify-content: center;
+    padding: 7px 11px;
+    font-size: 12px;
+    border-radius: 8px;
+  }
+
+  /* 3. Universal Command & Filter Bar on mobile */
   .app-filter-bar {
-    padding: 10px 12px;
+    padding: 12px;
+    gap: 10px;
+    flex-direction: column;
+    align-items: stretch;
+    margin-bottom: 14px;
+    border-radius: 12px;
   }
+  .app-filter-group {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    gap: 8px;
+  }
+  .app-filter-group > * {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+  .app-filter-divider {
+    display: none;
+  }
+
+  /* 4. Well-proportioned 2-column KPI Grid */
+  .app-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .app-kpi-card {
+    padding: 11px 12px;
+    border-radius: 11px;
+    gap: 4px;
+  }
+  .app-kpi-card .kpi-header {
+    gap: 4px;
+  }
+  .app-kpi-card .kpi-label {
+    font-size: 10px;
+    letter-spacing: 0.02em;
+  }
+  .app-kpi-card .kpi-icon {
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+  }
+  .app-kpi-card .kpi-value {
+    font-size: clamp(16px, 4.2vw, 19px);
+    letter-spacing: -0.02em;
+  }
+  .app-kpi-card .kpi-sub {
+    font-size: 9.5px;
+    line-height: 1.35;
+    flex-wrap: wrap;
+    gap: 2px 4px;
+  }
+
+  /* 5. Safe spacing above mobile bottom nav */
+  .mobile-bottom-safe {
+    padding-bottom: calc(84px + env(safe-area-inset-bottom)) !important;
+  }
+}
+
+@media (max-width: 360px) {
   .app-kpi-grid {
     grid-template-columns: 1fr;
-    gap: 10px;
   }
 }

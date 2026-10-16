@@ -2438,6 +2438,24 @@ async function saveStatusUpdate() {
   .orders-toolbar {
     flex-direction: column;
     align-items: stretch;
+    gap: 10px;
+  }
+  .filter-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 4px;
+    width: 100%;
+  }
+  .filter-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  .tab-pill {
+    flex-shrink: 0;
+    white-space: nowrap;
+    padding: 6px 12px;
+    font-size: 11.5px;
   }
   .search-filters {
     flex-direction: column;

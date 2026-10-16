@@ -240,10 +240,41 @@ async function changeAccount(event: Event) {
 }
 @media(max-width: 760px) {
   .account-select-wrapper { display: none; }
-  .header-quick-action.chat-btn span:not(.live-dot) { display: none; }
-  .header-quick-action.chat-btn { padding: 0 8px; width: 34px; justify-content: center; }
 }
 @media(max-width: 640px) {
+  .app-header {
+    gap: 8px;
+    margin-bottom: 12px;
+    padding: 2px 0;
+  }
   .mobile-drawer-toggle { display: grid; }
+  /* Live Chat is already in bottom mobile bar */
+  .header-quick-action.chat-btn { display: none !important; }
+  
+  .account-name {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+  }
+  .crumb-icon {
+    width: 28px;
+    height: 28px;
+  }
+  .locale-switch button {
+    min-width: 28px;
+    height: 26px;
+    font-size: 10px;
+  }
+  .avatar {
+    width: 30px;
+    height: 30px;
+    font-size: 10.5px;
+  }
+}
+@media(max-width: 400px) {
+  .role-pill { display: none; }
+  .account-name { max-width: 95px; }
 }
 </style>

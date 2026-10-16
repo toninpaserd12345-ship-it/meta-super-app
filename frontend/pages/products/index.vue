@@ -1545,7 +1545,8 @@ const unitProfit = (product: Product) =>
 .variant-matrix-table {
   border: 1px solid var(--color-border);
   border-radius: 8px;
-  overflow: hidden;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   background: var(--color-surface);
   margin-top: 8px;
 }
@@ -1559,6 +1560,7 @@ const unitProfit = (product: Product) =>
   font-weight: 700;
   color: var(--color-text-secondary);
   border-bottom: 1px solid var(--color-border);
+  min-width: 420px;
 }
 .variant-table-row {
   display: grid;
@@ -1567,6 +1569,7 @@ const unitProfit = (product: Product) =>
   align-items: center;
   padding: 6px 10px;
   border-bottom: 1px solid var(--color-border);
+  min-width: 420px;
 }
 .variant-table-row:last-child {
   border-bottom: none;

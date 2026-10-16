@@ -46,16 +46,16 @@ const isChatActiveOnMobile = computed(() => {
     display: none !important;
   }
   .mobile-nav {
-    height: 68px;
+    height: 60px;
     display: flex;
     position: fixed;
     z-index: 80;
-    inset: auto 12px max(10px, env(safe-area-inset-bottom)) 12px;
-    padding: 6px;
+    inset: auto 10px max(8px, env(safe-area-inset-bottom)) 10px;
+    padding: 4px;
     background: rgba(255, 255, 255, 0.96);
     border: 1px solid var(--color-border);
-    border-radius: 19px;
-    box-shadow: 0 12px 34px rgba(31, 35, 75, 0.16);
+    border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(31, 35, 75, 0.14);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
   }
