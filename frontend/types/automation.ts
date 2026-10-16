@@ -375,6 +375,14 @@ export interface AdPerformanceItem {
   reason: string
   recommendedAction: string
   proposedBudgetChange?: string | null
+
+  productId?: string
+  productName?: string
+  productImageUrl?: string
+  productPrice?: string
+  autoReplyFlowId?: string
+  autoReplyFlowName?: string
+  isLinkedToProduct?: boolean
 }
 
 export interface PerformanceAnalysisSummary {

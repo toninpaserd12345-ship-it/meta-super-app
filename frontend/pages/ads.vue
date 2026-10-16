@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { MetaAdAccount, MetaAudienceAnalysis, MetaCampaign, MetaInsightItem, MetaInsightsReport } from '~/types/automation'
+import type { AutomationFlow, ItemsResponse, MetaAdAccount, MetaAudienceAnalysis, MetaCampaign, MetaInsightItem, MetaInsightsReport, Product } from '~/types/automation'
 
 definePageMeta({ middleware: 'auth' })
 const { l } = useLocale()
@@ -21,6 +21,10 @@ const success = ref('')
 const search = ref('')
 const statusFilter = ref<StatusFilter>('all')
 const selectedId = ref('')
+const selectedProductId = ref('all')
+const products = ref<Product[]>([])
+const flows = ref<AutomationFlow[]>([])
+const loadingAutomations = ref(false)
 const settingsOpen = ref(false)
 const actionPlanOpen = ref(false)
 const actionPlanAcknowledged = ref(false)
@@ -51,6 +55,89 @@ const minimumPlanSpend = ref<number | null>(null)
 const sortBy = ref<'spend' | 'newest' | 'name'>('spend')
 
 const selectedAccount = computed(() => adAccounts.value.find(item => item.id === adAccountId.value))
+
+async function loadAutomationsAndProducts() {
+  loadingAutomations.value = true
+  try {
+    const [prodRes, flowRes] = await Promise.all([
+      $fetch<ItemsResponse<Product>>('/api/proxy/api/v1/products').catch(() => ({ items: [] })),
+      $fetch<ItemsResponse<AutomationFlow>>('/api/proxy/api/v1/automations').catch(() => ({ items: [] })),
+    ])
+    products.value = prodRes.items || []
+    flows.value = flowRes.items || []
+  } catch {}
+  finally {
+    loadingAutomations.value = false
+  }
+}
+
+const triggerToProduct = computed(() => {
+  const map: Record<string, { product: Product; flowName: string }> = {}
+  const productMap = new Map<string, Product>(products.value.map(p => [p.id, p]))
+
+  for (const flow of flows.value) {
+    const prod = productMap.get(flow.productId)
+    if (!prod) continue
+    for (const target of flow.targets || []) {
+      if (target.value) {
+        map[target.value] = { product: prod, flowName: flow.name }
+      }
+    }
+  }
+  return map
+})
+
+function getLinkedProduct(item: MetaInsightItem) {
+  if (triggerToProduct.value[item.entityId]) return triggerToProduct.value[item.entityId]
+  if (item.adSetId && triggerToProduct.value[item.adSetId]) return triggerToProduct.value[item.adSetId]
+  if (item.campaignId && triggerToProduct.value[item.campaignId]) return triggerToProduct.value[item.campaignId]
+  return undefined
+}
+
+const productOptions = computed(() => {
+  const allList = report.value?.items || []
+  const countsByProduct: Record<string, { count: number; name: string; img?: string }> = {}
+  let unlinkedCount = 0
+
+  for (const it of allList) {
+    const linked = getLinkedProduct(it)
+    if (linked) {
+      const existing = countsByProduct[linked.product.id]
+      if (!existing) {
+        countsByProduct[linked.product.id] = {
+          count: 1,
+          name: linked.product.name,
+          img: linked.product.imageUrl,
+        }
+      } else {
+        existing.count++
+      }
+    } else {
+      unlinkedCount++
+    }
+  }
+
+  const list = [
+    { title: l({ lo: `ທຸກສິນຄ້າ (${allList.length})`, th: `สินค้าทั้งหมด (${allList.length})`, en: `All Products (${allList.length})` }), value: 'all' },
+  ]
+
+  for (const [pId, pData] of Object.entries(countsByProduct)) {
+    list.push({
+      title: `📦 ${pData.name} (${pData.count} ແອດ)`,
+      value: pId,
+    })
+  }
+
+  if (unlinkedCount > 0) {
+    list.push({
+      title: l({ lo: `⚠️ ແອດທີ່ຍັງບໍ່ຜູກສິນຄ້າ (${unlinkedCount})`, th: `⚠️ แอดที่ยังไม่ผูกสินค้า (${unlinkedCount})`, en: `⚠️ Unlinked Ads (${unlinkedCount})` }),
+      value: 'unlinked',
+    })
+  }
+
+  return list
+})
+
 const items = computed(() => {
   const query = search.value.trim().toLowerCase()
   const list = report.value?.items || []
@@ -62,6 +149,12 @@ const items = computed(() => {
       if (statusFilter.value === 'paused') return status === 'PAUSED' || status === 'CAMPAIGN_PAUSED' || status === 'ADSET_PAUSED'
       if (statusFilter.value === 'issues') return !!status && status !== 'ACTIVE' && status !== 'IN_PROCESS' && status !== 'PENDING_REVIEW' && status !== 'PAUSED' && status !== 'CAMPAIGN_PAUSED' && status !== 'ADSET_PAUSED'
       return true
+    })
+    .filter((item) => {
+      if (selectedProductId.value === 'all') return true
+      const linked = getLinkedProduct(item)
+      if (selectedProductId.value === 'unlinked') return !linked
+      return linked?.product.id === selectedProductId.value
     })
     .sort((a, b) => {
       if (sortBy.value === 'newest') {
@@ -345,7 +438,12 @@ async function applyActionPlan() {
 
 watch(adAccountId, async () => { if (!ready.value) return; loadThresholds(); await loadPerformance() })
 watch(level, async () => { if (ready.value) await loadPerformance() })
-onMounted(async () => { await loadAccounts(); loadThresholds(); ready.value = true; if (adAccountId.value) await loadPerformance() })
+onMounted(async () => {
+  await Promise.all([loadAccounts(), loadAutomationsAndProducts()])
+  loadThresholds()
+  ready.value = true
+  if (adAccountId.value) await loadPerformance()
+})
 </script>
 
 <template>
@@ -394,6 +492,7 @@ onMounted(async () => { await loadAccounts(); loadThresholds(); ready.value = tr
 
   <section class="filter-bar" aria-label="Ads report filters">
     <v-select v-model="adAccountId" :items="adAccounts.map(account => ({ ...account, label: `${account.accountType === 'business' ? 'Business' : 'Personal'} · ${account.name}` }))" item-title="label" item-value="id" :label="l({ lo: 'ບັນຊີໂຄສະນາ', th: 'บัญชีโฆษณา', en: 'Ad account' })" variant="outlined" density="comfortable" hide-details :loading="loadingAccounts" />
+    <v-select v-model="selectedProductId" :items="productOptions" item-title="title" item-value="value" :label="l({ lo: 'ສິນຄ້າ (Auto Reply)', th: 'สินค้า (Auto Reply)', en: 'Product (Auto Reply)' })" variant="outlined" density="comfortable" hide-details style="min-width: 210px;" />
     <v-select :model-value="datePreset" :items="[{title:l({lo:'7 ມື້ຫຼ້າສຸດ',th:'7 วันล่าสุด',en:'Last 7 days'}),value:'7'},{title:l({lo:'30 ມື້ຫຼ້າສຸດ',th:'30 วันล่าสุด',en:'Last 30 days'}),value:'30'},{title:l({lo:'ກຳນົດເອງ',th:'กำหนดเอง',en:'Custom'}),value:'custom'}]" item-title="title" item-value="value" :label="l({lo:'ໄລຍະເວລາ',th:'ช่วงเวลา',en:'Date range'})" variant="outlined" density="comfortable" hide-details @update:model-value="setPreset" />
     <v-text-field v-model="since" type="date" label="From" variant="outlined" density="comfortable" hide-details @update:model-value="datePreset='custom'" />
     <v-text-field v-model="until" type="date" label="To" variant="outlined" density="comfortable" hide-details @update:model-value="datePreset='custom'" />
@@ -493,7 +592,32 @@ onMounted(async () => { await loadAccounts(); loadThresholds(); ready.value = tr
       <div v-else class="performance-list">
         <article v-for="item in items" :key="item.entityId" class="performance-row" :class="{ expanded: selectedId === item.entityId }">
           <button class="row-main" type="button" :aria-expanded="selectedId === item.entityId" @click="toggleItem(item)">
-            <span class="entity-cell"><span class="entity-icon"><v-icon :icon="item.entityType==='campaign'?'mdi-bullhorn-outline':item.entityType==='adset'?'mdi-account-group-outline':'mdi-advertisements'" /></span><span><strong>{{ item.entityName || item.entityId }}</strong><small v-if="item.entityType!=='campaign'">{{ item.campaignName }}<template v-if="item.entityType==='ad'"> · {{ item.adSetName }}</template></small><code>{{ item.entityId }}</code></span></span>
+            <span class="entity-cell">
+              <span class="entity-icon"><v-icon :icon="item.entityType==='campaign'?'mdi-bullhorn-outline':item.entityType==='adset'?'mdi-account-group-outline':'mdi-advertisements'" /></span>
+              <span>
+                <strong>{{ item.entityName || item.entityId }}</strong>
+                <small v-if="item.entityType!=='campaign'">{{ item.campaignName }}<template v-if="item.entityType==='ad'"> · {{ item.adSetName }}</template></small>
+                <code>{{ item.entityId }}</code>
+                <!-- Product & Auto Reply Badge -->
+                <div v-if="getLinkedProduct(item)" class="d-flex align-center gap-1 mt-1 flex-wrap">
+                  <v-chip size="x-small" color="primary" variant="flat" class="font-weight-bold">
+                    <v-avatar start v-if="getLinkedProduct(item)!.product.imageUrl" size="14">
+                      <v-img :src="getLinkedProduct(item)!.product.imageUrl" cover />
+                    </v-avatar>
+                    {{ getLinkedProduct(item)!.product.name }}
+                  </v-chip>
+                  <span class="text-caption text-medium-emphasis">({{ getLinkedProduct(item)!.flowName }})</span>
+                </div>
+                <div v-else class="d-flex align-center gap-1 mt-1">
+                  <v-chip size="x-small" color="grey" variant="text" class="text-caption">
+                    {{ l({ lo: '⚠️ ຍັງບໍ່ຜູກ Auto Reply', th: '⚠️ ยังไม่ผูก Auto Reply', en: '⚠️ Unlinked' }) }}
+                  </v-chip>
+                  <NuxtLink to="/auto-replies" class="text-caption text-primary text-decoration-none font-weight-medium" @click.stop>
+                    + ຜູກແອດນີ້
+                  </NuxtLink>
+                </div>
+              </span>
+            </span>
             <span class="delivery-chip" :class="statusClass(statusFor(item))"><span class="status-dot" :class="statusClass(statusFor(item))" />{{ statusLabel(statusFor(item)) }}</span>
             <span class="metric metric-spend mobile-key"><small>{{ l({lo:'ໃຊ້ຈ່າຍ',th:'ใช้จ่าย',en:'Spend'}) }}</small><strong>{{ money(item.spend) }}</strong></span>
             <span class="metric metric-results mobile-key"><small>{{ resultLabel(item.results.type) }}</small><strong>{{ fmt(item.results.value, 0) }}</strong></span>

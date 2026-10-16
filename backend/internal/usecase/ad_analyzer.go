@@ -192,6 +192,15 @@ type AdPerformanceItem struct {
 	Reason               string   `json:"reason"`                         // Lao explanation
 	RecommendedAction    string   `json:"recommendedAction"`              // Lao concrete recommendation
 	ProposedBudgetChange *string  `json:"proposedBudgetChange,omitempty"` // e.g. "200,000 -> 240,000 (+20%)"
+
+	// Product & Auto Reply Binding
+	ProductID         string `json:"productId,omitempty"`
+	ProductName       string `json:"productName,omitempty"`
+	ProductImageUrl   string `json:"productImageUrl,omitempty"`
+	ProductPrice      string `json:"productPrice,omitempty"`
+	AutoReplyFlowID   string `json:"autoReplyFlowId,omitempty"`
+	AutoReplyFlowName string `json:"autoReplyFlowName,omitempty"`
+	IsLinkedToProduct bool   `json:"isLinkedToProduct"`
 }
 
 type PerformanceAnalysisSummary struct {
@@ -288,6 +297,20 @@ func (u *AdAnalyzer) AnalyzePerformance(ctx context.Context, userID, accountID, 
 		}
 		if ord.CampaignID != "" {
 			ordersByCampaignID[ord.CampaignID] = append(ordersByCampaignID[ord.CampaignID], ord)
+		}
+	}
+
+	// 4b. Query Automation Rules to link Ads/Campaigns to Products via Auto Reply
+	var autoRules []database.AutomationRuleModel
+	_ = u.db.WithContext(ctx).
+		Preload("Product").
+		Where("account_id = ?", accountID).
+		Find(&autoRules).Error
+
+	rulesByTriggerValue := make(map[string]database.AutomationRuleModel)
+	for _, rule := range autoRules {
+		if rule.TriggerValue != "" {
+			rulesByTriggerValue[rule.TriggerValue] = rule
 		}
 	}
 
@@ -411,18 +434,75 @@ func (u *AdAnalyzer) AnalyzePerformance(ctx context.Context, userID, accountID, 
 			closingRate = &cr
 		}
 
-		// Break-even and Target CPA calculation
+		// Match linked Product & Auto Reply Flow
+		var linkedProduct *database.ProductModel
+		var linkedFlowID, linkedFlowName string
+		if rule, ok := rulesByTriggerValue[metaItem.EntityID]; ok && rule.Product != nil {
+			linkedProduct = rule.Product
+			linkedFlowID = rule.FlowID
+			linkedFlowName = rule.FlowName
+		} else if metaItem.AdID != "" {
+			if rule, ok := rulesByTriggerValue[metaItem.AdID]; ok && rule.Product != nil {
+				linkedProduct = rule.Product
+				linkedFlowID = rule.FlowID
+				linkedFlowName = rule.FlowName
+			}
+		}
+		if linkedProduct == nil && metaItem.CampaignID != "" {
+			if rule, ok := rulesByTriggerValue[metaItem.CampaignID]; ok && rule.Product != nil {
+				linkedProduct = rule.Product
+				linkedFlowID = rule.FlowID
+				linkedFlowName = rule.FlowName
+			}
+		}
+
+		// Also check if any order items matched to this ad/campaign have a product
+		if linkedProduct == nil && len(matchedOrders) > 0 {
+			for _, ord := range matchedOrders {
+				for _, itm := range ord.Items {
+					if itm.ProductID != "" {
+						var prod database.ProductModel
+						if err := u.db.WithContext(ctx).Where("id = ?", itm.ProductID).First(&prod).Error; err == nil && prod.ID != "" {
+							linkedProduct = &prod
+							break
+						}
+					}
+				}
+				if linkedProduct != nil {
+					break
+				}
+			}
+		}
+
+		// Break-even and Target CPA calculation with SKU-specific overrides
 		avgSellingPrice := 150000.0
 		if completedOrders > 0 {
 			avgSellingPrice = completedRev / float64(completedOrders)
 		}
+
+		effectiveTargetProfit := strategy.TargetProfitPerOrder
+		effectivePackagingCost := strategy.AvgPackagingCost
+		effectiveShippingCostStore := strategy.AvgShippingCostStore
+
+		if linkedProduct != nil {
+			if linkedProduct.TargetProfit > 0 {
+				effectiveTargetProfit = linkedProduct.TargetProfit
+			}
+			if linkedProduct.PackagingCost > 0 {
+				effectivePackagingCost = linkedProduct.PackagingCost
+			}
+			if linkedProduct.ShippingCostStore > 0 {
+				effectiveShippingCostStore = linkedProduct.ShippingCostStore
+			}
+		}
+
 		codLossFactor := (strategy.CODReturnRatePercent / 100.0) * strategy.ReturnFeePerOrder
-		totalVarPerOrder := strategy.AvgPackagingCost + strategy.AvgShippingCostStore + codLossFactor
+		totalVarPerOrder := effectivePackagingCost + effectiveShippingCostStore + codLossFactor
 		breakEvenCPA := avgSellingPrice - totalVarPerOrder
 		if breakEvenCPA < 20000 {
 			breakEvenCPA = 85000 // default reasonable benchmark
 		}
-		targetCPA := breakEvenCPA - strategy.TargetProfitPerOrder
+		targetCPA := breakEvenCPA - effectiveTargetProfit
 		if targetCPA < 15000 {
 			targetCPA = breakEvenCPA * 0.65
 		}
@@ -490,7 +570,17 @@ func (u *AdAnalyzer) AnalyzePerformance(ctx context.Context, userID, accountID, 
 			StatusBadgeColor:      badgeColor,
 			Reason:                reason,
 			RecommendedAction:     action,
-			ProposedBudgetChange: proposedBudget,
+			ProposedBudgetChange:  proposedBudget,
+			IsLinkedToProduct:     linkedProduct != nil,
+		}
+
+		if linkedProduct != nil {
+			item.ProductID = linkedProduct.ID
+			item.ProductName = linkedProduct.Name
+			item.ProductImageUrl = linkedProduct.ImageUrl
+			item.ProductPrice = linkedProduct.Price
+			item.AutoReplyFlowID = linkedFlowID
+			item.AutoReplyFlowName = linkedFlowName
 		}
 
 		items = append(items, item)

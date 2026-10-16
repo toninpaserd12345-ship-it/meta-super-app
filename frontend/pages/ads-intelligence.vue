@@ -27,6 +27,8 @@ const success = ref('')
 const search = ref('')
 const statusFilter = ref<StatusFilter>('all')
 const selectedId = ref('')
+const selectedProductId = ref<string>('all')
+const viewMode = ref<'table' | 'grouped'>('table')
 
 // Strategy Settings & Versioning Modals
 const strategyModalOpen = ref(false)
@@ -75,7 +77,7 @@ const items = computed(() => {
   const query = search.value.trim().toLowerCase()
   const list = report.value?.items || []
   return list
-    .filter(item => !query || [item.entityName, item.campaignName, item.adSetName, item.entityId].some(val => val?.toLowerCase().includes(query)))
+    .filter(item => !query || [item.entityName, item.campaignName, item.adSetName, item.entityId, item.productName].some(val => val?.toLowerCase().includes(query)))
     .filter((item) => {
       const status = (item.effectiveStatus || item.status || '').toUpperCase()
       if (statusFilter.value === 'active') return status === 'ACTIVE' || status === 'IN_PROCESS' || status === 'PENDING_REVIEW'
@@ -85,6 +87,11 @@ const items = computed(() => {
       if (statusFilter.value === 'improve') return item.decisionCode === 'IMPROVE'
       if (statusFilter.value === 'pause') return item.decisionCode === 'PAUSE' || item.decisionCode === 'PAUSE_TEST'
       return true
+    })
+    .filter((item) => {
+      if (selectedProductId.value === 'all') return true
+      if (selectedProductId.value === 'unlinked') return !item.productId
+      return item.productId === selectedProductId.value
     })
     .sort((a, b) => {
       if (sortBy.value === 'cpa') {
@@ -103,6 +110,107 @@ const items = computed(() => {
       }
       return (b.spend ?? -1) - (a.spend ?? -1)
     })
+})
+
+const productOptions = computed(() => {
+  const allList = report.value?.items || []
+  const countsByProduct: Record<string, { count: number; name: string; img?: string }> = {}
+  let unlinkedCount = 0
+
+  for (const it of allList) {
+    if (it.productId) {
+      const existing = countsByProduct[it.productId]
+      if (!existing) {
+        countsByProduct[it.productId] = {
+          count: 1,
+          name: it.productName || 'Product',
+          img: it.productImageUrl,
+        }
+      } else {
+        existing.count++
+      }
+    } else {
+      unlinkedCount++
+    }
+  }
+
+  const list = [
+    { title: l({ lo: `ທຸກສິນຄ້າ (${allList.length})`, th: `สินค้าทั้งหมด (${allList.length})`, en: `All Products (${allList.length})` }), value: 'all' },
+  ]
+
+  for (const [pId, pData] of Object.entries(countsByProduct)) {
+    list.push({
+      title: `📦 ${pData.name} (${pData.count} ແອດ)`,
+      value: pId,
+    })
+  }
+
+  if (unlinkedCount > 0) {
+    list.push({
+      title: l({ lo: `⚠️ ແອດທີ່ຍັງບໍ່ຜູກສິນຄ້າ (${unlinkedCount})`, th: `⚠️ แอดที่ยังไม่ผูกสินค้า (${unlinkedCount})`, en: `⚠️ Unlinked Ads (${unlinkedCount})` }),
+      value: 'unlinked',
+    })
+  }
+
+  return list
+})
+
+interface ProductGroup {
+  productId: string
+  productName: string
+  productImageUrl?: string
+  productPrice?: string
+  autoReplyFlowName?: string
+  autoReplyFlowId?: string
+  isLinked: boolean
+  items: AdPerformanceItem[]
+  totalSpend: number
+  totalCompletedOrders: number
+  totalRevenue: number
+  totalNetProfit: number
+  averageRealCPA?: number
+}
+
+const groupedByProduct = computed<ProductGroup[]>(() => {
+  const groups: Record<string, ProductGroup> = {}
+
+  for (const item of items.value) {
+    const key = item.productId || '__unlinked__'
+    if (!groups[key]) {
+      groups[key] = {
+        productId: item.productId || '',
+        productName: item.productName || (item.productId ? 'Product' : l({ lo: 'ແອດທີ່ຍັງບໍ່ໄດ້ຜູກກັບ Auto Reply', th: 'แอดที่ยังไม่ผูกกับ Auto Reply', en: 'Ads not linked to Auto Reply' })),
+        productImageUrl: item.productImageUrl,
+        productPrice: item.productPrice,
+        autoReplyFlowName: item.autoReplyFlowName,
+        autoReplyFlowId: item.autoReplyFlowId,
+        isLinked: !!item.productId,
+        items: [],
+        totalSpend: 0,
+        totalCompletedOrders: 0,
+        totalRevenue: 0,
+        totalNetProfit: 0,
+      }
+    }
+    const g = groups[key]
+    g.items.push(item)
+    g.totalSpend += item.spend
+    g.totalCompletedOrders += item.completedOrders
+    g.totalRevenue += item.completedRevenue
+    g.totalNetProfit += item.netContribution
+  }
+
+  const result = Object.values(groups).map((g) => {
+    if (g.totalCompletedOrders > 0) {
+      g.averageRealCPA = g.totalSpend / g.totalCompletedOrders
+    }
+    return g
+  })
+
+  return result.sort((a, b) => {
+    if (a.isLinked !== b.isLinked) return a.isLinked ? -1 : 1
+    return b.totalSpend - a.totalSpend
+  })
 })
 
 const summary = computed(() => report.value?.summary)
@@ -375,6 +483,7 @@ onMounted(async () => {
   <!-- Filter Controls -->
   <section class="filter-bar" aria-label="Ads report filters">
     <v-select v-model="adAccountId" :items="adAccounts.map(account => ({ ...account, label: `${account.accountType === 'business' ? 'Business' : 'Personal'} · ${account.name}` }))" item-title="label" item-value="id" :label="l({ lo: 'ບັນຊີໂຄສະນາ', th: 'บัญชีโฆษณา', en: 'Ad account' })" variant="outlined" density="comfortable" hide-details :loading="loadingAccounts" />
+    <v-select v-model="selectedProductId" :items="productOptions" item-title="title" item-value="value" :label="l({ lo: 'ສິນຄ້າ (Auto Reply)', th: 'สินค้า (Auto Reply)', en: 'Product (Auto Reply)' })" variant="outlined" density="comfortable" hide-details style="min-width: 210px;" />
     <v-select :model-value="datePreset" :items="[{title:l({lo:'7 ມື້ຫຼ້າສຸດ',th:'7 วันล่าสุด',en:'Last 7 days'}),value:'7'},{title:l({lo:'30 ມື້ຫຼ້າສຸດ',th:'30 วันล่าสุด',en:'Last 30 days'}),value:'30'},{title:l({lo:'ກຳນົດເອງ',th:'กำหนดเอง',en:'Custom'}),value:'custom'}]" item-title="title" item-value="value" :label="l({lo:'ໄລຍະເວລາ',th:'ช่วงเวลา',en:'Date range'})" variant="outlined" density="comfortable" hide-details @update:model-value="setPreset" />
     <v-text-field v-model="since" type="date" label="From" variant="outlined" density="comfortable" hide-details @update:model-value="datePreset='custom'" />
     <v-text-field v-model="until" type="date" label="To" variant="outlined" density="comfortable" hide-details @update:model-value="datePreset='custom'" />
@@ -531,6 +640,13 @@ onMounted(async () => {
       <!-- Controls & Status Filter Chips -->
       <div class="detail-toolbar">
         <div class="toolbar-group">
+          <small>{{ l({lo:'ຮູບແບບການເບິ່ງ',th:'รูปแบบการดู',en:'View mode'}) }}</small>
+          <v-btn-toggle v-model="viewMode" mandatory color="primary" variant="outlined" class="level-tabs">
+            <v-btn value="table"><v-icon icon="mdi-table-large" /> <span>{{ l({lo:'ຕາຕະລາງລວມ',th:'ตารางรวม',en:'Flat Table'}) }}</span></v-btn>
+            <v-btn value="grouped"><v-icon icon="mdi-package-variant-closed" /> <span>{{ l({lo:'ແຍກຕາມສິນຄ້າ',th:'แยกตามสินค้า',en:'Group by Product'}) }}</span></v-btn>
+          </v-btn-toggle>
+        </div>
+        <div class="toolbar-group">
           <small>{{ l({lo:'ລະດັບຂໍ້ມູນ',th:'ระดับข้อมูล',en:'View level'}) }}</small>
           <v-btn-toggle v-model="level" mandatory color="primary" variant="outlined" class="level-tabs">
             <v-btn value="campaign"><v-icon icon="mdi-bullhorn-outline" /> <span>Campaign</span></v-btn>
@@ -557,7 +673,7 @@ onMounted(async () => {
       </div>
 
       <!-- Matrix Rows -->
-      <div v-else class="performance-list">
+      <div v-else-if="viewMode === 'table'" class="performance-list">
         <!-- Table Header (Desktop) -->
         <div class="matrix-header">
           <div class="col col-entity">1. Campaign / Ad</div>
@@ -579,6 +695,24 @@ onMounted(async () => {
                 <strong>{{ item.entityName || item.entityId }}</strong>
                 <small v-if="item.campaignName && item.entityType!=='campaign'">{{ item.campaignName }}</small>
                 <code>{{ item.entityId }}</code>
+                <!-- Product & Auto Reply Badge -->
+                <div v-if="item.isLinkedToProduct" class="d-flex align-center gap-1 mt-1 flex-wrap">
+                  <v-chip size="x-small" color="primary" variant="flat" class="font-weight-bold">
+                    <v-avatar start v-if="item.productImageUrl" size="14">
+                      <v-img :src="item.productImageUrl" cover />
+                    </v-avatar>
+                    {{ item.productName }}
+                  </v-chip>
+                  <span class="text-caption text-medium-emphasis">({{ item.autoReplyFlowName }})</span>
+                </div>
+                <div v-else class="d-flex align-center gap-1 mt-1">
+                  <v-chip size="x-small" color="grey" variant="text" class="text-caption">
+                    {{ l({ lo: '⚠️ ຍັງບໍ່ຜູກ Auto Reply', th: '⚠️ ยังไม่ผูก Auto Reply', en: '⚠️ Unlinked' }) }}
+                  </v-chip>
+                  <NuxtLink to="/auto-replies" class="text-caption text-primary text-decoration-none font-weight-medium" @click.stop>
+                    + ຜູກແອດນີ້
+                  </NuxtLink>
+                </div>
               </div>
             </div>
 
@@ -705,6 +839,182 @@ onMounted(async () => {
             </section>
           </div>
         </article>
+      </div>
+
+      <!-- Grouped by Product View -->
+      <div v-else class="grouped-product-container">
+        <section
+          v-for="group in groupedByProduct"
+          :key="group.productId || '__unlinked__'"
+          class="product-group-card mb-6"
+        >
+          <!-- Product Header -->
+          <div class="product-group-header">
+            <div class="d-flex align-center gap-3">
+              <v-avatar size="46" rounded="lg" color="surface-variant" class="border">
+                <v-img v-if="group.productImageUrl" :src="group.productImageUrl" cover />
+                <v-icon v-else icon="mdi-package-variant-closed" size="26" color="primary" />
+              </v-avatar>
+              <div>
+                <div class="d-flex align-center gap-2 flex-wrap">
+                  <h3 class="text-subtitle-1 font-weight-bold mb-0">{{ group.productName }}</h3>
+                  <v-chip v-if="group.isLinked" size="x-small" color="purple-darken-1" variant="flat" class="font-weight-medium">
+                    Auto Reply: {{ group.autoReplyFlowName || 'Active' }}
+                  </v-chip>
+                  <v-chip v-else size="x-small" color="warning" variant="tonal">
+                    ⚠️ ຍັງບໍ່ຜູກ Auto Reply
+                  </v-chip>
+                </div>
+                <div class="text-caption text-medium-emphasis">
+                  <span v-if="group.productPrice">ລາຄາ: {{ group.productPrice }} · </span>
+                  <span>{{ group.items.length }} ແອດ / ແຄມເປນ</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Group Rollup Metrics -->
+            <div class="group-metrics">
+              <div class="metric-box">
+                <small>ໃຊ້ຈ່າຍລວມ</small>
+                <strong>{{ money(group.totalSpend) }}</strong>
+              </div>
+              <div class="metric-box">
+                <small>ອໍເດີສຳເລັດ</small>
+                <strong>{{ fmt(group.totalCompletedOrders) }} ບິນ</strong>
+              </div>
+              <div class="metric-box">
+                <small>Real CPA ສະເລ່ຍ</small>
+                <strong :class="{ 'text-success': group.averageRealCPA && group.averageRealCPA <= 45000, 'text-error': group.averageRealCPA && group.averageRealCPA > 85000 }">
+                  {{ group.averageRealCPA ? money(group.averageRealCPA) : '—' }}
+                </strong>
+              </div>
+              <div class="metric-box">
+                <small>ກຳໄລສຸດທິ (Net Profit)</small>
+                <strong :class="group.totalNetProfit >= 0 ? 'text-success' : 'text-error'">
+                  {{ money(group.totalNetProfit) }}
+                </strong>
+              </div>
+            </div>
+          </div>
+
+          <!-- Items in Group -->
+          <div class="performance-list border-0">
+            <div class="matrix-header">
+              <div class="col col-entity">1. Campaign / Ad</div>
+              <div class="col col-status">2. ສະຖານະ & SOP</div>
+              <div class="col col-chats">3. ແຊັດ & ປິດຂາຍ</div>
+              <div class="col col-spend">4. ຄ່າແອດ (Spend)</div>
+              <div class="col col-orders">5. ອໍເດີສຳເລັດ</div>
+              <div class="col col-cpa">6. Real CPA</div>
+              <div class="col col-profit">7. ກຳໄລສຸດທິ</div>
+              <div class="col col-action">8. ຄຳແນະນຳ & ຈັດການ</div>
+            </div>
+
+            <article v-for="item in group.items" :key="item.entityId" class="performance-row" :class="{ expanded: selectedId === item.entityId }">
+              <div class="row-main" @click="toggleItem(item)">
+                <div class="col col-entity">
+                  <span class="entity-icon"><v-icon :icon="item.entityType==='campaign'?'mdi-bullhorn-outline':item.entityType==='adset'?'mdi-account-group-outline':'mdi-advertisements'" /></span>
+                  <div class="entity-text">
+                    <strong>{{ item.entityName || item.entityId }}</strong>
+                    <small v-if="item.campaignName && item.entityType!=='campaign'">{{ item.campaignName }}</small>
+                    <code>{{ item.entityId }}</code>
+                  </div>
+                </div>
+
+                <div class="col col-status">
+                  <div class="d-flex flex-column gap-1">
+                    <span class="delivery-chip" :class="statusClass(item.effectiveStatus || item.status)">
+                      <span class="status-dot" :class="statusClass(item.effectiveStatus || item.status)" />
+                      {{ statusLabel(item.effectiveStatus || item.status) }}
+                    </span>
+                    <v-chip size="x-small" :color="decisionBadgeInfo(item.decisionCode).color" variant="flat" class="font-weight-bold">
+                      <v-icon :icon="decisionBadgeInfo(item.decisionCode).icon" start size="12" />
+                      {{ decisionBadgeInfo(item.decisionCode).label }}
+                    </v-chip>
+                  </div>
+                </div>
+
+                <div class="col col-chats">
+                  <strong>{{ fmt(item.reportedResults) }} <small class="font-weight-normal text-caption">ແຊັດ</small></strong>
+                  <small class="text-medium-emphasis">ປິດຂາຍ: {{ percent(item.closingRate ? item.closingRate * 100 : null) }}</small>
+                </div>
+
+                <div class="col col-spend">
+                  <strong>{{ money(item.spend) }}</strong>
+                  <small class="text-caption text-medium-emphasis">CPM: {{ money(item.cpm) }}</small>
+                </div>
+
+                <div class="col col-orders">
+                  <strong>{{ fmt(item.completedOrders) }} <small class="font-weight-normal text-caption">ອໍເດີ</small></strong>
+                  <div class="order-sub-track">
+                    <span class="text-success">💳 ໂອນ: {{ item.prepaidOrders }}</span>
+                    <span class="text-info">🚚 COD: {{ item.codDeliveredOrders }}</span>
+                    <span v-if="item.codPendingOrders > 0" class="text-warning">⏳ ສົ່ງຢູ່: {{ item.codPendingOrders }}</span>
+                  </div>
+                </div>
+
+                <div class="col col-cpa">
+                  <strong :class="{ 'text-success': item.realCpa && item.realCpa <= item.targetCpa, 'text-error': item.realCpa && item.realCpa >= item.breakEvenCpa }">
+                    {{ money(item.realCpa) }}
+                  </strong>
+                  <small class="text-caption text-medium-emphasis">ເປົ້າ: {{ money(item.targetCpa) }}</small>
+                </div>
+
+                <div class="col col-profit">
+                  <strong :class="item.netContribution >= 0 ? 'text-success' : 'text-error'">
+                    {{ money(item.netContribution) }}
+                  </strong>
+                </div>
+
+                <div class="col col-action" @click.stop>
+                  <div class="d-flex align-center gap-1">
+                    <v-btn
+                      v-if="item.decisionCode === 'SCALE'"
+                      size="x-small"
+                      color="success"
+                      variant="flat"
+                      prepend-icon="mdi-arrow-up-bold"
+                      class="font-weight-bold"
+                      @click="promptScaleBudget(item)"
+                    >
+                      Scale +20%
+                    </v-btn>
+                    <v-btn
+                      size="x-small"
+                      :color="(item.effectiveStatus || item.status) === 'ACTIVE' ? 'error' : 'success'"
+                      variant="tonal"
+                      :loading="updatingId === item.entityId"
+                      @click="changeStatus(item, (item.effectiveStatus || item.status) === 'ACTIVE' ? 'PAUSED' : 'ACTIVE')"
+                    >
+                      {{ (item.effectiveStatus || item.status) === 'ACTIVE' ? 'ພັກ' : 'ເປີດ' }}
+                    </v-btn>
+                    <v-btn size="x-small" variant="text" icon="mdi-chevron-down" :class="{ 'rotate-180': selectedId === item.entityId }" @click="toggleItem(item)" />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Expanded Accordion Detail -->
+              <div v-if="selectedId === item.entityId" class="row-detail">
+                <div class="detail-alert" :class="item.statusBadgeColor">
+                  <v-icon :icon="decisionBadgeInfo(item.decisionCode).icon" size="24" />
+                  <div>
+                    <h4 class="font-weight-bold mb-1">{{ decisionBadgeInfo(item.decisionCode).label }}: {{ item.reason }}</h4>
+                    <p class="mb-0 text-caption">{{ item.recommendedAction }}</p>
+                  </div>
+                </div>
+
+                <div class="metric-detail-grid mt-3">
+                  <div><span>ລາຍຮັບຕົວຈິງ</span><strong>{{ money(item.completedRevenue) }}</strong><small>ໂອນກ່ອນ + COD ຮັບເງິນແລ້ວ</small></div>
+                  <div><span>ຄ່າແອດ (Spend)</span><strong>{{ money(item.spend) }}</strong><small>ຈ່າຍໃຫ້ Meta</small></div>
+                  <div><span>Real CPA</span><strong>{{ money(item.realCpa) }}</strong><small>ຕົ້ນທຶນແອດຕໍ່ອໍເດີຕົວຈິງ</small></div>
+                  <div><span>Break-even CPA</span><strong>{{ money(item.breakEvenCpa) }}</strong><small>ຈຸດຄຸ້ມທຶນສູງສຸດ</small></div>
+                  <div><span>Target CPA</span><strong>{{ money(item.targetCpa) }}</strong><small>ເປົ້າໝາຍກຳໄລທີ່ຕ້ອງການ</small></div>
+                  <div><span>ກຳໄລສຸດທິ (Net Contribution)</span><strong :class="item.netContribution>=0?'text-success':'text-error'">{{ money(item.netContribution) }}</strong><small>ລາຍຮັບ − ຕົ້ນທຶນ − ຄ່າແອດ</small></div>
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
       </div>
     </section>
   </template>
@@ -992,6 +1302,13 @@ onMounted(async () => {
 .history-card{padding:12px 14px;border:1px solid var(--color-border);border-radius:12px;background:var(--color-background)}
 .history-grid-pills{display:flex;flex-wrap:wrap;gap:6px;font-size:11px}
 .history-grid-pills span{background:var(--color-surface);padding:3px 6px;border-radius:6px;border:1px solid var(--color-border)}
+
+.product-group-card{border:1px solid var(--color-border);border-radius:var(--radius-lg);background:var(--color-surface);overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.03)}
+.product-group-header{padding:16px 20px;background:linear-gradient(145deg,var(--color-surface),color-mix(in srgb,var(--color-primary) 6%,var(--color-surface)));border-bottom:1px solid var(--color-border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px}
+.group-metrics{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.metric-box{display:grid;text-align:right;gap:2px}
+.metric-box small{font-size:10px;color:var(--color-text-secondary);text-transform:uppercase}
+.metric-box strong{font-size:15px;font-weight:700}
 
 @media(max-width:1280px){
   .filter-bar{grid-template-columns:repeat(2,1fr)}
