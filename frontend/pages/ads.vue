@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { AutomationFlow, ItemsResponse, MetaAdAccount, MetaAudienceAnalysis, MetaCampaign, MetaInsightItem, MetaInsightsReport, Product } from '~/types/automation'
 import { useAdVat } from '~/composables/useAdVat'
+import { useProductAdStrategy, type ProductAdStrategy } from '~/composables/useProductAdStrategy'
 
 definePageMeta({ middleware: 'auth' })
 const { l } = useLocale()
@@ -176,18 +177,12 @@ const since = ref(iso(new Date(today.getFullYear(), today.getMonth(), today.getD
 const until = ref(iso(today))
 const datePreset = ref('7')
 
-export interface ProductAdStrategy {
-  productId: string
-  enabled?: boolean
-  targetCost?: number | null
-  grossMargin?: number | null
-  scaleMinPurchases?: number | null
-  scaleMaxCPA?: number | null
-  scaleMaxDailyBudgetCap?: number | null
-  stopMinSpend?: number | null
-}
-
-const productStrategies = ref<Record<string, ProductAdStrategy>>({})
+const {
+  productStrategies,
+  loadStrategies: loadProductStrategiesFromStore,
+  saveStrategies: saveProductStrategiesToStore,
+} = useProductAdStrategy()
+const route = useRoute()
 const strategyTab = ref<'products' | 'default'>('products')
 const selectedStrategyProductId = ref<string>('')
 const targetCost = ref<number | null>(null)
@@ -274,6 +269,16 @@ const productOptions = computed(() => {
       title: `📦 ${pData.name} (${pData.count} ແອດ)`,
       value: pId,
     })
+  }
+
+  // Also include remaining products from store catalog
+  for (const prod of products.value) {
+    if (!countsByProduct[prod.id]) {
+      list.push({
+        title: `📦 ${prod.name} (0 ແອດ)`,
+        value: prod.id,
+      })
+    }
   }
 
   if (unlinkedCount > 0) {
@@ -976,18 +981,11 @@ function convertPriceToAdCurrency(productPrice: number, prodCurrency?: string): 
 }
 
 function loadProductStrategies() {
-  if (!import.meta.client || !adAccountId.value) return
-  const saved = localStorage.getItem(`ads-product-strategies:${adAccountId.value}`)
-  if (saved) {
-    try {
-      productStrategies.value = JSON.parse(saved)
-    } catch {}
-  }
+  loadProductStrategiesFromStore(adAccountId.value)
 }
 
 function saveProductStrategies() {
-  if (!import.meta.client || !adAccountId.value) return
-  localStorage.setItem(`ads-product-strategies:${adAccountId.value}`, JSON.stringify(productStrategies.value))
+  saveProductStrategiesToStore(adAccountId.value)
 }
 
 function getEffectiveStrategy(item?: MetaInsightItem) {
@@ -1867,7 +1865,15 @@ watch(adAccountId, async () => {
   await loadPerformance()
 })
 watch(level, async () => { if (ready.value) await loadPerformance() })
+watch(() => route.query.product, (newProd) => {
+  if (newProd) {
+    selectedProductId.value = String(newProd)
+  }
+})
 onMounted(async () => {
+  if (route.query.product) {
+    selectedProductId.value = String(route.query.product)
+  }
   await Promise.all([loadAccounts(), loadAutomationsAndProducts()])
   loadThresholds()
   loadAutoPilotConfig()

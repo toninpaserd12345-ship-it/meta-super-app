@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { AutomationFlow, ItemsResponse, Product, ProductVariant, Warehouse, WarehouseStock } from '~/types/automation'
+import { useProductAdStrategy, type ProductAdStrategy } from '~/composables/useProductAdStrategy'
 
 definePageMeta({ middleware: 'auth' })
 
@@ -72,6 +73,22 @@ const stockForm = reactive<{
 // Product detail modal
 const detailDialog = ref(false)
 const selectedProductForDetail = ref<Product | null>(null)
+
+// Product Ad Strategy modal
+const { productStrategies, loadStrategies, getStrategy, setStrategy, autoCalculate } = useProductAdStrategy()
+const strategyDialog = ref(false)
+const strategySaving = ref(false)
+const selectedProductForStrategy = ref<Product | null>(null)
+const strategyForm = reactive<ProductAdStrategy>({
+  productId: '',
+  enabled: true,
+  targetCost: null,
+  grossMargin: null,
+  scaleMinPurchases: 3,
+  scaleMaxCPA: null,
+  scaleMaxDailyBudgetCap: null,
+  stopMinSpend: null,
+})
 
 const fileInput = ref<HTMLInputElement>()
 const searchQuery = ref('')
@@ -433,6 +450,99 @@ const formatAmount = (value?: number | null, currency = 'LAK') =>
 
 const unitProfit = (product: Product) =>
   product.salePrice != null && product.cost != null ? product.salePrice - product.cost : undefined
+
+onMounted(() => {
+  loadStrategies()
+})
+
+function getProductAdCount(productId: string): number {
+  const flows = productAutomations(productId)
+  return flows.reduce((sum, f) => sum + (f.targets?.length || 0), 0)
+}
+
+function openAdStrategy(product: Product) {
+  selectedProductForStrategy.value = product
+  loadStrategies()
+  const existing = getStrategy(product.id)
+  if (existing) {
+    Object.assign(strategyForm, {
+      productId: product.id,
+      enabled: existing.enabled ?? true,
+      targetCost: existing.targetCost ?? null,
+      grossMargin: existing.grossMargin ?? null,
+      scaleMinPurchases: existing.scaleMinPurchases ?? 3,
+      scaleMaxCPA: existing.scaleMaxCPA ?? null,
+      scaleMaxDailyBudgetCap: existing.scaleMaxDailyBudgetCap ?? null,
+      stopMinSpend: existing.stopMinSpend ?? null,
+    })
+  } else {
+    const calculated = autoCalculate(product, product.currency || 'LAK')
+    Object.assign(strategyForm, calculated)
+  }
+  strategyDialog.value = true
+}
+
+function autoCalcCurrentStrategy() {
+  if (!selectedProductForStrategy.value) return
+  const calc = autoCalculate(selectedProductForStrategy.value, selectedProductForStrategy.value.currency || 'LAK')
+  Object.assign(strategyForm, calc)
+  noticeType.value = 'success'
+  notice.value = l({
+    lo: '✨ ຄິດໄລ່ຍຸດທະສາດໂຄສະນາອັດຕະໂນມັດຈາກລາຄາສິນຄ້າແລ້ວ!',
+    th: '✨ คำนวณยุทธศาสตร์โฆษณาอัตโนมัติจากราคาสินค้าแล้ว!',
+    en: '✨ Auto-calculated ad strategy from product price!',
+  })
+}
+
+function saveAdStrategy() {
+  if (!selectedProductForStrategy.value) return
+  strategySaving.value = true
+  try {
+    setStrategy(selectedProductForStrategy.value.id, {
+      enabled: strategyForm.enabled,
+      targetCost: strategyForm.targetCost != null && !isNaN(Number(strategyForm.targetCost)) ? Number(strategyForm.targetCost) : null,
+      grossMargin: strategyForm.grossMargin != null && !isNaN(Number(strategyForm.grossMargin)) ? Number(strategyForm.grossMargin) : null,
+      scaleMinPurchases: strategyForm.scaleMinPurchases != null && !isNaN(Number(strategyForm.scaleMinPurchases)) ? Number(strategyForm.scaleMinPurchases) : 3,
+      scaleMaxCPA: strategyForm.scaleMaxCPA != null && !isNaN(Number(strategyForm.scaleMaxCPA)) ? Number(strategyForm.scaleMaxCPA) : null,
+      scaleMaxDailyBudgetCap: strategyForm.scaleMaxDailyBudgetCap != null && !isNaN(Number(strategyForm.scaleMaxDailyBudgetCap)) ? Number(strategyForm.scaleMaxDailyBudgetCap) : null,
+      stopMinSpend: strategyForm.stopMinSpend != null && !isNaN(Number(strategyForm.stopMinSpend)) ? Number(strategyForm.stopMinSpend) : null,
+    })
+    noticeType.value = 'success'
+    notice.value = l({
+      lo: `ບັນທຶກຍຸດທະສາດໂຄສະນາຂອງ “${selectedProductForStrategy.value.name}” ສຳເລັດແລ້ວ!`,
+      th: `บันทึกยุทธศาสตร์โฆษณาของ “${selectedProductForStrategy.value.name}” สำเร็จแล้ว!`,
+      en: `Saved ad strategy for “${selectedProductForStrategy.value.name}”!`,
+    })
+    strategyDialog.value = false
+  } catch (err) {
+    noticeType.value = 'error'
+    notice.value = l({
+      lo: 'ບັນທຶກຍຸດທະສາດບໍ່ສຳເລັດ',
+      th: 'บันทึกยุทธศาสตร์ไม่สำเร็จ',
+      en: 'Failed to save strategy',
+    })
+  } finally {
+    strategySaving.value = false
+  }
+}
+
+function resetAdStrategy() {
+  if (!selectedProductForStrategy.value) return
+  setStrategy(selectedProductForStrategy.value.id, { enabled: false })
+  strategyDialog.value = false
+  noticeType.value = 'success'
+  notice.value = l({
+    lo: `ລ້າງຍຸດທະສາດສະເພາະຂອງ “${selectedProductForStrategy.value.name}” ແລ້ວ (ກັບໄປໃຊ້ຄ່າກາງ)`,
+    th: `ล้างยุทธศาสตร์เฉพาะของ “${selectedProductForStrategy.value.name}” แล้ว (กลับไปใช้ค่ากลาง)`,
+    en: `Reset custom strategy for “${selectedProductForStrategy.value.name}” to account default.`,
+  })
+}
+
+function goToProductAds(productId: string) {
+  strategyDialog.value = false
+  if (detailDialog.value) detailDialog.value = false
+  navigateTo({ path: '/ads', query: { product: productId } })
+}
 </script>
 
 <template>
@@ -524,6 +634,31 @@ const unitProfit = (product: Product) =>
             <span v-if="parseProductVariants(product.variants).length" class="tag-pill tag-variants">
               <v-icon icon="mdi-layers-outline" size="11" class="mr-1"/>{{ parseProductVariants(product.variants).length }} {{ l({ lo: 'ຮູບແບບ', th: 'แบบ', en: 'variants' }) }}
             </span>
+
+            <!-- Auto-Reply Flow pill -->
+            <span
+              v-if="productAutomations(product.id).length"
+              class="tag-pill tag-autoreply"
+              :title="productAutomations(product.id).map(a => a.name).join(', ')"
+              @click.stop="openAdStrategy(product)"
+              style="cursor: pointer;"
+            >
+              <v-icon icon="mdi-robot-outline" size="11" class="mr-1"/>
+              {{ productAutomations(product.id).length }} Flow
+              <span class="ad-count-sub">({{ getProductAdCount(product.id) }} ແອດ)</span>
+            </span>
+
+            <!-- Custom Ad Strategy pill -->
+            <span
+              v-if="productStrategies[product.id]?.enabled"
+              class="tag-pill tag-strategy"
+              :title="`Target CPA: ${formatAmount(productStrategies[product.id]?.targetCost, product.currency)}`"
+              @click.stop="openAdStrategy(product)"
+              style="cursor: pointer;"
+            >
+              <v-icon icon="mdi-target-variant" size="11" class="mr-1"/>
+              {{ l({ lo: 'Strategy ພ້ອມ', th: 'Strategy พร้อม', en: 'Custom Strategy' }) }}
+            </span>
           </div>
 
           <p v-if="product.description" class="product-desc">{{ product.description }}</p>
@@ -560,6 +695,14 @@ const unitProfit = (product: Product) =>
         </div>
 
         <div class="product-actions">
+          <v-btn
+            icon="mdi-target-variant"
+            variant="text"
+            size="small"
+            color="deep-purple"
+            @click="openAdStrategy(product)"
+            :title="l({ lo: 'ຍຸດທະສາດໂຄສະນາ (Ad Strategy)', th: 'ยุทธศาสตร์โฆษณา (Ad Strategy)', en: 'Ad Strategy & Auto-Pilot' })"
+          />
           <v-btn
             icon="mdi-warehouse"
             variant="text"
@@ -949,6 +1092,85 @@ const unitProfit = (product: Product) =>
             </div>
           </div>
 
+          <!-- Ad Strategy & Meta Ads section -->
+          <div class="detail-strategy-section mb-3">
+            <div class="d-flex align-center justify-space-between mb-2">
+              <h4 class="mb-0">
+                <v-icon icon="mdi-target-variant" size="16" class="mr-1 text-deep-purple"/>
+                {{ l({ lo: 'ຍຸດທະສາດໂຄສະນາ & Meta Ads', th: 'ยุทธศาสตร์โฆษณา & Meta Ads', en: 'Ad Strategy & Meta Ads' }) }}
+              </h4>
+              <v-btn
+                size="x-small"
+                variant="tonal"
+                color="deep-purple"
+                prepend-icon="mdi-cog-outline"
+                @click="openAdStrategy(selectedProductForDetail)"
+              >
+                {{ l({ lo: 'ຕັ້ງຄ່າຍຸດທະສາດ', th: 'ตั้งค่ายุทธศาสตร์', en: 'Configure Strategy' }) }}
+              </v-btn>
+            </div>
+
+            <!-- Auto-Reply Flow integration info -->
+            <div class="strategy-summary-card">
+              <div class="ssc-flow-row">
+                <div class="d-flex align-center">
+                  <v-icon icon="mdi-robot-outline" size="18" class="mr-2 text-indigo" />
+                  <div>
+                    <div class="text-caption font-weight-bold">
+                      {{ l({ lo: 'Auto-Reply Flow ທີ່ຜູກໄວ້:', th: 'Auto-Reply Flow ที่ผูกไว้:', en: 'Linked Auto-Reply Flows:' }) }}
+                    </div>
+                    <div v-if="productAutomations(selectedProductForDetail.id).length" class="text-caption text-indigo">
+                      <span v-for="f in productAutomations(selectedProductForDetail.id)" :key="f.id" class="mr-2">
+                        🤖 {{ f.name }} ({{ f.targets?.length || 0 }} ແອດ)
+                      </span>
+                    </div>
+                    <div v-else class="text-caption text-muted">
+                      {{ l({ lo: 'ຍັງບໍ່ທັນມີ Auto-Reply flow ຜູກກັບສິນຄ້ານີ້', th: 'ยังไม่มี Auto-Reply flow ผูกกับสินค้านี้', en: 'No auto-reply flow linked yet' }) }}
+                    </div>
+                  </div>
+                </div>
+                <v-btn
+                  v-if="getProductAdCount(selectedProductForDetail.id) > 0"
+                  size="x-small"
+                  variant="outlined"
+                  color="primary"
+                  prepend-icon="mdi-bullhorn-outline"
+                  @click="goToProductAds(selectedProductForDetail.id)"
+                >
+                  {{ l({ lo: 'ເບິ່ງແອດທັງໝົດ', th: 'ดูแอดทั้งหมด', en: 'View Linked Ads' }) }}
+                </v-btn>
+              </div>
+
+              <!-- Metrics Breakdown -->
+              <div class="ssc-metrics-grid mt-2">
+                <div class="ssc-metric">
+                  <span class="label">{{ l({ lo: 'ສະຖານະ Strategy', th: 'สถานะ Strategy', en: 'Strategy Status' }) }}</span>
+                  <span class="value" :class="productStrategies[selectedProductForDetail.id]?.enabled ? 'text-success' : 'text-muted'">
+                    {{ productStrategies[selectedProductForDetail.id]?.enabled ? l({ lo: 'ເປີດໃຊ້ສະເພາະສິນຄ້າ', th: 'เปิดใช้เฉพาะสินค้า', en: 'Custom Enabled' }) : l({ lo: 'ໃຊ້ຄ່າກາງບັນຊີ', th: 'ใช้ค่ากลางบัญชี', en: 'Account Default' }) }}
+                  </span>
+                </div>
+                <div class="ssc-metric">
+                  <span class="label">{{ l({ lo: 'Target CPA (ຈຸດຄຸ້ມທຶນ)', th: 'Target CPA (จุดคุ้มทุน)', en: 'Target CPA' }) }}</span>
+                  <span class="value font-weight-bold">
+                    {{ formatAmount(productStrategies[selectedProductForDetail.id]?.targetCost, selectedProductForDetail.currency) }}
+                  </span>
+                </div>
+                <div class="ssc-metric">
+                  <span class="label">{{ l({ lo: 'Scale Min Orders', th: 'Scale Min Orders', en: 'Scale Min Orders' }) }}</span>
+                  <span class="value">
+                    {{ productStrategies[selectedProductForDetail.id]?.scaleMinPurchases || 3 }} {{ l({ lo: 'ອໍເດີ', th: 'ออเดอร์', en: 'orders' }) }}
+                  </span>
+                </div>
+                <div class="ssc-metric">
+                  <span class="label">{{ l({ lo: 'Scale Max CPA', th: 'Scale Max CPA', en: 'Scale Max CPA' }) }}</span>
+                  <span class="value">
+                    {{ formatAmount(productStrategies[selectedProductForDetail.id]?.scaleMaxCPA, selectedProductForDetail.currency) }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div v-if="selectedProductForDetail.description" class="detail-desc-box">
             <small class="text-muted">{{ l({ lo: 'ລາຍລະອຽດ:', th: 'รายละเอียด:', en: 'Description:' }) }}</small>
             <p>{{ selectedProductForDetail.description }}</p>
@@ -960,6 +1182,280 @@ const unitProfit = (product: Product) =>
           </v-btn>
           <v-spacer/>
           <v-btn color="primary" @click="detailDialog = false">{{ l({ lo: 'ປິດ', th: 'ปิด', en: 'Close' }) }}</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- Product Ad Strategy Dialog -->
+    <v-dialog v-model="strategyDialog" max-width="680" scrollable>
+      <v-card v-if="selectedProductForStrategy" class="dialog-card">
+        <v-card-title class="dialog-title d-flex align-center justify-space-between">
+          <div class="d-flex align-center">
+            <v-icon icon="mdi-target-variant" color="deep-purple" class="mr-2" />
+            <div>
+              <div class="font-weight-bold text-subtitle-1">
+                {{ l({ lo: 'ຍຸດທະສາດໂຄສະນາ & Auto-Pilot ແຍກຕາມສິນຄ້າ', th: 'ยุทธศาสตร์โฆษณา & Auto-Pilot แยกตามสินค้า', en: 'Per-Product Ad Strategy & Auto-Pilot' }) }}
+              </div>
+              <div class="text-caption text-muted font-weight-normal">
+                {{ l({ lo: 'ຕັ້ງເກນ CPA, ເພດານງົບ ແລະ ເງື່ອນໄຂ Scale/Stop ໃຫ້ແທດເໝາະກັບກຳໄລຂອງສິນຄ້ານີ້', th: 'ตั้งเกณฑ์ CPA, เพดานงบ และเงื่อนไข Scale/Stop ให้ตรงกับกำไรของสินค้านี้', en: 'Tune CPA target, budget cap, and scale/stop rules tailored to this product’s margin.' }) }}
+              </div>
+            </div>
+          </div>
+          <v-btn icon="mdi-close" variant="text" size="small" @click="strategyDialog = false" />
+        </v-card-title>
+
+        <v-divider />
+
+        <v-card-text style="max-height: 75vh; overflow-y: auto;" class="pa-4">
+          <!-- Product Context Banner -->
+          <div class="product-strategy-banner mb-4">
+            <div
+              class="banner-img"
+              :style="selectedProductForStrategy.imageUrl ? `background-image: url(${selectedProductForStrategy.imageUrl}); background-size: cover; background-position: center;` : ''"
+            >
+              <v-icon v-if="!selectedProductForStrategy.imageUrl" icon="mdi-package-variant-closed" size="24" />
+            </div>
+            <div class="banner-info">
+              <div class="d-flex align-center justify-space-between">
+                <strong class="text-body-1">{{ selectedProductForStrategy.name }}</strong>
+                <span v-if="selectedProductForStrategy.code" class="tag-pill tag-code">#{{ selectedProductForStrategy.code }}</span>
+              </div>
+              <div class="banner-numbers mt-1">
+                <span>
+                  <small>{{ l({ lo: 'ລາຄາຂາຍ:', th: 'ราคาขาย:', en: 'Price:' }) }}</small>
+                  <strong>{{ selectedProductForStrategy.salePrice != null ? formatAmount(selectedProductForStrategy.salePrice, selectedProductForStrategy.currency) : selectedProductForStrategy.price }}</strong>
+                </span>
+                <span>
+                  <small>{{ l({ lo: 'ຕົ້ນທຶນ:', th: 'ต้นทุน:', en: 'Cost:' }) }}</small>
+                  <strong>{{ formatAmount(selectedProductForStrategy.cost, selectedProductForStrategy.currency) }}</strong>
+                </span>
+                <span>
+                  <small>{{ l({ lo: 'ກຳໄລ/ໜ່ວຍ:', th: 'กำไร/หน่วย:', en: 'Profit/unit:' }) }}</small>
+                  <strong class="text-success">{{ formatAmount(unitProfit(selectedProductForStrategy), selectedProductForStrategy.currency) }}</strong>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Linked Auto-Reply Flows & Ads Banner -->
+          <div class="flow-sync-banner mb-4">
+            <div class="d-flex align-center justify-space-between">
+              <div class="d-flex align-center">
+                <v-icon icon="mdi-robot-outline" color="indigo" class="mr-2" size="20" />
+                <div>
+                  <div class="text-caption font-weight-bold">
+                    {{ l({ lo: 'ການຜູກກັບ Auto-Reply & Meta Ads', th: 'การผูกกับ Auto-Reply & Meta Ads', en: 'Linked Auto-Reply & Meta Ads' }) }}
+                  </div>
+                  <div class="text-caption text-muted">
+                    <template v-if="productAutomations(selectedProductForStrategy.id).length">
+                      {{ l({ lo: 'ສິນຄ້ານີ້ຜູກກັບ', th: 'สินค้านี้ผูกกับ', en: 'Linked to' }) }}
+                      <strong>{{ productAutomations(selectedProductForStrategy.id).length }} Flow</strong>
+                      ({{ getProductAdCount(selectedProductForStrategy.id) }} {{ l({ lo: 'ແອດໂຄສະນາ', th: 'แอดโฆษณา', en: 'linked ads' }) }})
+                    </template>
+                    <template v-else>
+                      {{ l({ lo: 'ຍັງບໍ່ມີ Auto-Reply flow ຜູກກັບສິນຄ້ານີ້. ສາມາດຜູກໄດ້ທີ່ເມນູ Auto Replies.', th: 'ยังไม่มี Auto-Reply flow ผูกกับสินค้านี้ ผูกได้ที่เมนู Auto Replies', en: 'No auto-reply flow linked yet. Connect in Auto Replies.' }) }}
+                    </template>
+                  </div>
+                </div>
+              </div>
+              <v-btn
+                v-if="getProductAdCount(selectedProductForStrategy.id) > 0"
+                variant="tonal"
+                color="primary"
+                size="small"
+                prepend-icon="mdi-bullhorn-outline"
+                @click="goToProductAds(selectedProductForStrategy.id)"
+              >
+                {{ l({ lo: 'ເບິ່ງແອດຂອງສິນຄ້ານີ້', th: 'ดูแอดของสินค้านี้', en: 'View Product Ads' }) }}
+              </v-btn>
+              <v-btn
+                v-else
+                variant="text"
+                color="indigo"
+                size="small"
+                prepend-icon="mdi-plus"
+                to="/auto-replies"
+              >
+                {{ l({ lo: 'ຜູກ Auto-Reply', th: 'ผูก Auto-Reply', en: 'Link Auto-Reply' }) }}
+              </v-btn>
+            </div>
+          </div>
+
+          <!-- Strategy Enable & Auto-Calculate Bar -->
+          <div class="d-flex align-center justify-space-between mb-4 pa-3 bg-surface-variant rounded-lg">
+            <div>
+              <v-switch
+                v-model="strategyForm.enabled"
+                color="deep-purple"
+                hide-details
+                density="compact"
+                :label="l({ lo: 'ເປີດໃຊ້ຍຸດທະສາດສະເພາະສິນຄ້ານີ້ (Enable Custom Strategy)', th: 'เปิดใช้ยุทธศาสตร์เฉพาะสินค้านี้', en: 'Enable Custom Strategy for this Product' })"
+              />
+              <div class="text-caption text-muted ml-8">
+                {{ strategyForm.enabled ? l({ lo: 'ລະບົບຈະໃຊ້ເກນເຫຼົ່ານີ້ແທນຄ່າກາງບັນຊີ ເມື່ອປະເມີນແອດຂອງສິນຄ້ານີ້', th: 'ระบบจะใช้เกณฑ์เหล่านี้แทนค่ากลางบัญชี เมื่อประเมินแอดของสินค้านี้', en: 'Rules will override account defaults when evaluating ads for this product.' }) : l({ lo: 'ປິດຢູ່ (ແອດຂອງສິນຄ້ານີ້ຈະໃຊ້ຄ່າກາງບັນຊີ Ads)', th: 'ปิดอยู่ (แอดของสินค้านี้จะใช้ค่ากลางบัญชี Ads)', en: 'Disabled (Will fallback to account default settings).' }) }}
+              </div>
+            </div>
+            <v-btn
+              variant="flat"
+              color="deep-purple"
+              size="small"
+              prepend-icon="mdi-calculator-variant"
+              @click="autoCalcCurrentStrategy"
+            >
+              {{ l({ lo: '✨ ຄິດໄລ່ອັດຕະໂນມັດ', th: '✨ คำนวณอัตโนมัติ', en: '✨ Auto-Calculate' }) }}
+            </v-btn>
+          </div>
+
+          <!-- Form Fields Grid -->
+          <div class="strategy-form-grid" :class="{ 'opacity-50 pointer-events-none': !strategyForm.enabled }">
+            <!-- 1. Target CPA -->
+            <div class="form-group-item">
+              <label class="form-label">
+                <v-icon icon="mdi-bullseye-arrow" size="14" class="mr-1 text-primary" />
+                {{ l({ lo: 'Target CPA (ຕົ້ນທຶນຕໍ່ອໍເດີທີ່ຕ້ອງການ)', th: 'Target CPA (ต้นทุนต่อออเดอร์ที่ต้องการ)', en: 'Target CPA (Cost/Purchase)' }) }}
+              </label>
+              <v-text-field
+                v-model.number="strategyForm.targetCost"
+                type="number"
+                variant="outlined"
+                density="compact"
+                hide-details
+                :suffix="selectedProductForStrategy.currency || 'LAK'"
+                placeholder="20% ຂອງລາຄາຂາຍ"
+              />
+              <span class="field-hint">
+                {{ l({ lo: 'ເພດານຕົ້ນທຶນໂຄສະນາຕໍ່ 1 ອໍເດີ ທີ່ຖືວ່າຄຸ້ມຄ່າກຳໄລ', th: 'เพดานต้นทุนโฆษณาต่อ 1 ออเดอร์ที่ถือว่าคุ้มค่ากำไร', en: 'Target acquisition cost per purchase for healthy profit' }) }}
+              </span>
+            </div>
+
+            <!-- 2. Gross Margin % -->
+            <div class="form-group-item">
+              <label class="form-label">
+                <v-icon icon="mdi-percent" size="14" class="mr-1 text-teal" />
+                {{ l({ lo: 'Gross Profit Margin % (ອັດຕາກຳໄລຂັ້ນຕົ້ນ)', th: 'Gross Profit Margin % (อัตรากำไรขั้นต้น)', en: 'Gross Profit Margin %' }) }}
+              </label>
+              <v-text-field
+                v-model.number="strategyForm.grossMargin"
+                type="number"
+                variant="outlined"
+                density="compact"
+                hide-details
+                suffix="%"
+                placeholder="50"
+              />
+              <span class="field-hint">
+                {{ l({ lo: 'ໃຊ້ຄຳນວນຈຸດຄຸ້ມທຶນ Break-Even ROAS ຕົວຈິງ', th: 'ใช้คำนวณจุดคุ้มทุน Break-Even ROAS ตัวจริง', en: 'Used to calculate Break-Even ROAS' }) }}
+              </span>
+            </div>
+
+            <!-- 3. Scale Min Purchases -->
+            <div class="form-group-item">
+              <label class="form-label">
+                <v-icon icon="mdi-cart-check" size="14" class="mr-1 text-success" />
+                {{ l({ lo: 'Scale Min Purchases (ອໍເດີຂັ້ນຕ່ຳເພື່ອ Scale)', th: 'Scale Min Purchases (ออเดอร์ขั้นต่ำเพื่อ Scale)', en: 'Scale Min Purchases' }) }}
+              </label>
+              <v-text-field
+                v-model.number="strategyForm.scaleMinPurchases"
+                type="number"
+                variant="outlined"
+                density="compact"
+                hide-details
+                :suffix="l({ lo: 'ອໍເດີ', th: 'ออเดอร์', en: 'orders' })"
+                placeholder="3"
+              />
+              <span class="field-hint">
+                {{ l({ lo: 'ແອດຕ້ອງມີອໍເດີຂັ້ນຕ່ຳເທົ່ານີ້ຈຶ່ງອະນຸຍາດໃຫ້ເພີ່ມງົບ (Scale)', th: 'แอดต้องมีออเดอร์ขั้นต่ำเท่านี้จึงอนุญาตให้เพิ่มงบ (Scale)', en: 'Minimum verified purchases before Auto-Pilot scales budget' }) }}
+              </span>
+            </div>
+
+            <!-- 4. Scale Max CPA -->
+            <div class="form-group-item">
+              <label class="form-label">
+                <v-icon icon="mdi-currency-usd" size="14" class="mr-1 text-warning" />
+                {{ l({ lo: 'Scale Max CPA (CPA ສູງສຸດທີ່ອະນຸຍາດ Scale)', th: 'Scale Max CPA (CPA สูงสุดที่อนุญาต Scale)', en: 'Scale Max CPA' }) }}
+              </label>
+              <v-text-field
+                v-model.number="strategyForm.scaleMaxCPA"
+                type="number"
+                variant="outlined"
+                density="compact"
+                hide-details
+                :suffix="selectedProductForStrategy.currency || 'LAK'"
+                placeholder="25% ຂອງລາຄາຂາຍ"
+              />
+              <span class="field-hint">
+                {{ l({ lo: 'ຖ້າ CPA ສູງເກີນຄ່ານີ້ ລະບົບຈະບໍ່ເພີ່ມງົບໃຫ້ ເພື່ອປ້ອງກັນຂາດທຶນ', th: 'ถ้า CPA สูงเกินค่านี้ ระบบจะไม่เพิ่มงบให้ เพื่อป้องกันขาดทุน', en: 'Do not scale if CPA exceeds this threshold' }) }}
+              </span>
+            </div>
+
+            <!-- 5. Max Daily Budget Cap -->
+            <div class="form-group-item">
+              <label class="form-label">
+                <v-icon icon="mdi-shield-lock-outline" size="14" class="mr-1 text-info" />
+                {{ l({ lo: 'Max Daily Budget Cap (ເພດານງົບສູງສຸດຕໍ່ມື້)', th: 'Max Daily Budget Cap (เพดานงบสูงสุดต่อวัน)', en: 'Max Daily Budget Cap' }) }}
+              </label>
+              <v-text-field
+                v-model.number="strategyForm.scaleMaxDailyBudgetCap"
+                type="number"
+                variant="outlined"
+                density="compact"
+                hide-details
+                :suffix="selectedProductForStrategy.currency || 'LAK'"
+                placeholder="ບໍ່ຈຳກັດ"
+              />
+              <span class="field-hint">
+                {{ l({ lo: 'ເພດານງົບສູງສຸດຕໍ່ມື້ ປ້ອງກັນບໍ່ໃຫ້ແອດ Scale ງົບເກີນກຳນົດ', th: 'เพดานงบสูงสุดต่อวัน ป้องกันไม่ให้แอด Scale งบเกินกำหนด', en: 'Hard cap on daily budget during automatic scaling' }) }}
+              </span>
+            </div>
+
+            <!-- 6. Stop-Loss Spend -->
+            <div class="form-group-item">
+              <label class="form-label">
+                <v-icon icon="mdi-hand-back-left" size="14" class="mr-1 text-error" />
+                {{ l({ lo: 'Stop-Loss Spend (ງົບຮອດນີ້ແລ້ວບໍ່ມີອໍເດີໃຫ້ຢຸດ)', th: 'Stop-Loss Spend (งบถึงนี้แล้วไม่มีออเดอร์ให้หยุด)', en: 'Stop-Loss Spend (Pause threshold)' }) }}
+              </label>
+              <v-text-field
+                v-model.number="strategyForm.stopMinSpend"
+                type="number"
+                variant="outlined"
+                density="compact"
+                hide-details
+                :suffix="selectedProductForStrategy.currency || 'LAK'"
+                placeholder="80% ຂອງລາຄາຂາຍ"
+              />
+              <span class="field-hint">
+                {{ l({ lo: 'ຖ້າແອດໃຊ້ງົບຮອດນີ້ແລ້ວຍັງບໍ່ມີອໍເດີ (0 purchases) ຈະແນະນຳໃຫ້ຢຸດ (Pause)', th: 'ถ้าแอดใช้งบถึงนี้แล้วยังไม่มีออเดอร์ (0 purchases) จะแนะนำให้หยุด (Pause)', en: 'Recommend pause if spent this amount with zero purchases' }) }}
+              </span>
+            </div>
+          </div>
+        </v-card-text>
+
+        <v-divider />
+
+        <v-card-actions class="pa-3">
+          <v-btn
+            v-if="selectedProductForStrategy"
+            variant="text"
+            color="error"
+            size="small"
+            prepend-icon="mdi-restore"
+            @click="resetAdStrategy"
+          >
+            {{ l({ lo: 'ລ້າງຄ່າ (ໃຊ້ຄ່າກາງ)', th: 'ล้างค่า (ใช้ค่ากลาง)', en: 'Reset to Default' }) }}
+          </v-btn>
+          <v-spacer />
+          <v-btn variant="text" @click="strategyDialog = false">
+            {{ l({ lo: 'ຍົກເລີກ', th: 'ยกเลิก', en: 'Cancel' }) }}
+          </v-btn>
+          <v-btn
+            color="deep-purple"
+            variant="flat"
+            :loading="strategySaving"
+            prepend-icon="mdi-content-save"
+            @click="saveAdStrategy"
+          >
+            {{ l({ lo: '💾 ບັນທຶກຍຸດທະສາດ', th: '💾 บันทึกยุทธศาสตร์', en: '💾 Save Strategy' }) }}
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -1115,6 +1611,33 @@ const unitProfit = (product: Product) =>
   background: #fdf4ff;
   color: #a855f7;
   border: 1px solid #f3e8ff;
+}
+.tag-autoreply {
+  background: #eef2ff;
+  color: #4338ca;
+  border: 1px solid #c7d2fe;
+  display: inline-flex;
+  align-items: center;
+  transition: all .15s ease;
+}
+.tag-autoreply:hover {
+  background: #e0e7ff;
+}
+.tag-strategy {
+  background: #faf5ff;
+  color: #6b21a8;
+  border: 1px solid #e9d5ff;
+  display: inline-flex;
+  align-items: center;
+  transition: all .15s ease;
+}
+.tag-strategy:hover {
+  background: #f3e8ff;
+}
+.ad-count-sub {
+  font-size: 9.5px;
+  opacity: 0.8;
+  margin-left: 2px;
 }
 .code-copy-pill {
   display: inline-flex;
@@ -1677,5 +2200,125 @@ const unitProfit = (product: Product) =>
 .qty-badge.zero-stock {
   background: #fee2e2;
   color: #ef4444;
+}
+
+/* Product Ad Strategy styles */
+.detail-strategy-section h4 {
+  font-size: 13px;
+  font-weight: 750;
+}
+.strategy-summary-card {
+  padding: 10px 12px;
+  background: var(--color-surface-variant);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+.ssc-flow-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ssc-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+@media (max-width: 600px) {
+  .ssc-metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+.ssc-metric {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 8px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+}
+.ssc-metric .label {
+  font-size: 9.5px;
+  color: var(--color-text-muted);
+}
+.ssc-metric .value {
+  font-size: 11.5px;
+  color: var(--color-text);
+}
+
+.product-strategy-banner {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  background: var(--color-surface-variant);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+}
+.product-strategy-banner .banner-img {
+  width: 64px;
+  height: 64px;
+  border-radius: 8px;
+  background-color: var(--color-background);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.product-strategy-banner .banner-info {
+  flex: 1;
+  min-width: 0;
+}
+.banner-numbers {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.banner-numbers > span {
+  display: flex;
+  flex-direction: column;
+  font-size: 11px;
+}
+.banner-numbers small {
+  color: var(--color-text-muted);
+  font-size: 9.5px;
+}
+.flow-sync-banner {
+  padding: 10px 12px;
+  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: 8px;
+}
+.strategy-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+@media (max-width: 600px) {
+  .strategy-form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.form-group-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.form-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  color: var(--color-text);
+}
+.field-hint {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  line-height: 1.3;
+}
+.tag-code {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 30%, transparent);
 }
 </style>
