@@ -558,8 +558,10 @@ function calculateCostRatio(adCost: number, productPrice: number, adCurrency: st
 }
 
 function buyingOpportunity(item: MetaInsightItem) {
-  const purchases = item.results?.value || 0
-  const cost = item.results?.cost
+  const purchases = getPurchasesCount(item) || 0
+  const cost = getCostPerPurchase(item)
+  const messages = getMessagesCount(item) || 0
+  const messageCost = getCostPerMessage(item)
   const clicks = item.linkClicks || 0
   const spend = item.spend || 0
   const ctr = item.linkCtr || 0
@@ -579,8 +581,8 @@ function buyingOpportunity(item: MetaInsightItem) {
   const costRatioIsHigh = costRatio != null && costRatio > 50
   const conversionRateText = conversionRate != null ? `${fmt(conversionRate, 1)}%` : '—'
 
-  // 1. High Buying Opportunity (🔥)
-  if (purchases >= 3 || (purchases >= 1 && (costRatio != null ? costRatio <= 25 : (cost == null || cost <= (targetCost.value || 1.8)))) || (conversionRate != null && conversionRate >= 3.5)) {
+  // 1. High Buying Opportunity (🔥) - Strict: requires at least 1 verified purchase with good metrics, or >= 3 purchases!
+  if (purchases >= 3 || (purchases >= 1 && (costRatio != null ? costRatio <= 25 : (cost == null || cost <= (targetCost.value || 1.8))))) {
     return {
       level: 'high',
       label: l({ lo: '🔥 ໂອກາດຊື້ສູງ', th: '🔥 โอกาสซื้อสูง', en: '🔥 High Opportunity' }),
@@ -601,15 +603,13 @@ function buyingOpportunity(item: MetaInsightItem) {
     }
   }
 
-  // 2. Moderate Buying Opportunity (⚡)
-  if (purchases >= 1 || (ctr >= 1.5 && spend > 0)) {
+  // 2. Moderate Buying Opportunity (⚡) - Has at least 1 verified purchase
+  if (purchases >= 1) {
     return {
       level: 'medium',
       label: l({ lo: '⚡ ໂອກາດຊື້ປານກາງ', th: '⚡ โอกาสซื้อปานกลาง', en: '⚡ Moderate Opportunity' }),
       shortLabel: l({ lo: '⚡ ໂອກາດປານກາງ', th: '⚡ โอกาสปานกลาง', en: '⚡ Moderate' }),
-      badgeText: purchases > 0
-        ? l({ lo: `⚡ ໂອກາດຊື້ດີ (${purchases} ອໍເດີ${conversionRate != null ? ` · CR ${conversionRate}%` : ''})`, th: `⚡ โอกาสซื้อดี (${purchases} ออเดอร์)`, en: `⚡ Moderate (${purchases} orders)` })
-        : l({ lo: `⚡ ມີຄົນສົນໃຈຄລິກ (CTR ${percent(ctr)})`, th: `⚡ มีคนสนใจคลิก (CTR ${percent(ctr)})`, en: `⚡ Good traffic (CTR ${percent(ctr)})` }),
+      badgeText: l({ lo: `⚡ ໂອກາດຊື້ດີ (${purchases} ອໍເດີ${conversionRate != null ? ` · CR ${conversionRate}%` : ''})`, th: `⚡ โอกาสซื้อดี (${purchases} ออเดอร์)`, en: `⚡ Moderate (${purchases} orders)` }),
       color: '#0284c7',
       chipColor: 'info',
       bgColor: 'rgba(2,132,199,.12)',
@@ -623,7 +623,52 @@ function buyingOpportunity(item: MetaInsightItem) {
     }
   }
 
-  // 3. Low Buying Opportunity (💤)
+  // 3. Inquiries / Messaging (💬) - Received messages, but 0 purchases yet
+  if (messages > 0) {
+    const costText = messageCost != null ? ` · ${money(messageCost)}/ຂໍ້ຄວາມ` : ''
+    return {
+      level: 'inquiries',
+      label: l({ lo: '💬 ມີຄົນທັກແຊັດ', th: '💬 มีคนทักแชต', en: '💬 Inquiries' }),
+      shortLabel: l({ lo: '💬 ຄົນທັກ', th: '💬 คนทัก', en: '💬 Inquiries' }),
+      badgeText: l({
+        lo: `💬 ມີຄົນທັກ ${messages} ຂໍ້ຄວາມ (ຍັງບໍ່ມີອໍເດີ${costText})`,
+        th: `💬 มีคนทัก ${messages} ข้อความ (ยังไม่มีออเดอร์${costText})`,
+        en: `💬 ${messages} inquiries (0 orders${costText})`
+      }),
+      color: '#0284c7',
+      chipColor: 'info',
+      bgColor: 'rgba(2,132,199,.12)',
+      conversionRate: null,
+      conversionRateText: '—',
+      purchases: 0,
+      costRatio,
+      costRatioText,
+      costRatioIsGood,
+      costRatioIsHigh,
+    }
+  }
+
+  // 4. Good Traffic (⚡) - CTR >= 1.5% and budget spent
+  if (ctr >= 1.5 && spend > 0) {
+    return {
+      level: 'medium',
+      label: l({ lo: '⚡ ມີຄົນສົນໃຈຄລິກ', th: '⚡ มีคนสนใจคลิก', en: '⚡ Good traffic' }),
+      shortLabel: l({ lo: '⚡ ສົນໃຈຄລິກ', th: '⚡ สนใจคลิก', en: '⚡ Good CTR' }),
+      badgeText: l({ lo: `⚡ ມີຄົນສົນໃຈຄລິກ (CTR ${percent(ctr)})`, th: `⚡ มีคนสนใจคลิก (CTR ${percent(ctr)})`, en: `⚡ Good traffic (CTR ${percent(ctr)})` }),
+      color: '#0284c7',
+      chipColor: 'info',
+      bgColor: 'rgba(2,132,199,.12)',
+      conversionRate: null,
+      conversionRateText: '—',
+      purchases: 0,
+      costRatio,
+      costRatioText,
+      costRatioIsGood,
+      costRatioIsHigh,
+    }
+  }
+
+  // 5. Low Buying Opportunity (💤)
   const thresholdSpend = currencyOffset.value === 1 ? 50000 : 5
   if (spend > thresholdSpend && purchases === 0) {
     return {
@@ -644,18 +689,18 @@ function buyingOpportunity(item: MetaInsightItem) {
     }
   }
 
-  // 4. Neutral / Testing (🌱)
+  // 6. Neutral / Testing (🌱)
   return {
     level: 'neutral',
     label: l({ lo: '🌱 ກຳລັງທົດສອບ', th: '🌱 กำลังทดสอบ', en: '🌱 Testing' }),
     shortLabel: l({ lo: '🌱 ທົດສອບ', th: '🌱 ทดสอบ', en: '🌱 Testing' }),
-    badgeText: l({ lo: '🌱 ກຳລັງທົດສອບແອດ', th: '🌱 กำลังทดสอบแอด', en: '🌱 Testing phase' }),
+    badgeText: l({ lo: '🌱 ກຳລັງທົດສອບ (ປ່ອຍແລ່ນຕາມງົບ)', th: '🌱 กำลังทดสอบ (ปล่อยวิ่งตามงบ)', en: '🌱 Testing phase (Run on budget)' }),
     color: '#6b7280',
     chipColor: 'default',
     bgColor: 'rgba(107,114,128,.12)',
-    conversionRate,
-    conversionRateText,
-    purchases,
+    conversionRate: null,
+    conversionRateText: '—',
+    purchases: 0,
     costRatio,
     costRatioText,
     costRatioIsGood,
@@ -667,11 +712,14 @@ function decision(item: MetaInsightItem): { code: DecisionCode; color: string; i
   if (!item.impressions && !item.spend) {
     return { code: 'no_data', color: 'default', icon: 'mdi-minus-circle-outline', title: l({ lo: 'ສ້າງໃໝ່ / ຍັງບໍ່ມີຂໍ້ມູນ', th: 'เพิ่งสร้าง / ยังไม่มีข้อมูล', en: 'New / No delivery data' }), detail: l({ lo: 'ໂຄສະນາຫາກໍ່ສ້າງໃໝ່ ຫຼື ຍັງບໍ່ທັນມີຄ່າໃຊ້ຈ່າຍ ແລະການສະແດງຜົນໃນຊ່ວງເວລານີ້.', th: 'โฆษณาเพิ่งสร้างหรือยังไม่มีค่าใช้จ่ายและการแสดงผลในช่วงเวลานี้', en: 'Newly created ad or no delivery/spend in selected date range.' }), signals: [] }
   }
+  const isPaused = statusFor(item).toUpperCase().includes('PAUSED')
   const bad: string[] = []
   const good: string[] = []
   const opp = buyingOpportunity(item)
-  const purchases = item.results?.value || 0
-  const cost = item.results?.cost
+  const purchases = getPurchasesCount(item) || 0
+  const cost = getCostPerPurchase(item)
+  const messages = getMessagesCount(item) || 0
+  const messageCost = getCostPerMessage(item)
 
   // 1. Core Conversion & Purchase Outcome
   if (purchases >= 3) {
@@ -685,6 +733,12 @@ function decision(item: MetaInsightItem): { code: DecisionCode; color: string; i
       lo: `ມີການຊື້ເກີດຂຶ້ນ: ${purchases} ອໍເດີ${cost != null ? ` (${money(cost)}/ອໍເດີ)` : ''}`,
       th: `มีคำสั่งซื้อเกิดขึ้น: ${purchases} ออเดอร์${cost != null ? ` (${money(cost)}/ออเดอร์)` : ''}`,
       en: `Has purchases: ${purchases} orders${cost != null ? ` (${money(cost)}/order)` : ''}`
+    }))
+  } else if (messages > 0) {
+    good.push(l({
+      lo: `ມີຄົນທັກແຊັດ: ${messages} ຂໍ້ຄວາມ${messageCost != null ? ` (ສະເລ່ຍ ${money(messageCost)}/ຂໍ້ຄວາມ)` : ''} (ຍັງບໍ່ມີອໍເດີ)`,
+      th: `มีคนทักแชต: ${messages} ข้อความ${messageCost != null ? ` (เฉลี่ย ${money(messageCost)}/ข้อความ)` : ''} (ยังไม่มีออเดอร์)`,
+      en: `Inquiries: ${messages} messages${messageCost != null ? ` (Avg ${money(messageCost)}/msg)` : ''} (0 purchases)`
     }))
   } else if (item.spend != null && item.spend > (currencyOffset.value === 1 ? 50000 : 5)) {
     bad.push(l({
@@ -763,17 +817,70 @@ function decision(item: MetaInsightItem): { code: DecisionCode; color: string; i
   const rankings = [item.qualityRanking, item.engagementRateRanking, item.conversionRateRanking].filter(Boolean)
   if (rankings.some(value => value?.includes('BELOW_AVERAGE'))) bad.push(l({ lo: 'Ranking ຕ່ຳກວ່າຄ່າສະເລ່ຍ', th: 'อันดับต่ำกว่าค่าเฉลี่ย', en: 'Ranking is below average' }))
 
-  // Final Decision Synthesis
+  // Paused Ad Handling (NEVER recommend Scale for paused ads with 0 purchases!)
+  if (isPaused) {
+    if (purchases >= 3) {
+      return {
+        code: 'review',
+        color: 'warning',
+        icon: 'mdi-pause-circle-outline',
+        title: l({ lo: '⏸️ ປິດຊົ່ວຄາວ (ເຄີຍໄດ້ອໍເດີດີ)', th: '⏸️ หยุดชั่วคราว (เคยได้ออเดอร์ดี)', en: 'Paused (Good historic orders)' }),
+        detail: l({
+          lo: `ແອດນີ້ຖືກປິດຢູ່ ແຕ່ເຄີຍປິດໄດ້ ${purchases} ອໍເດີ. ສາມາດກວດສອບແລ້ວກົດເປີດໃໝ່ໄດ້.`,
+          th: `แอดนี้ถูกปิดอยู่ แต่เคยได้ ${purchases} ออเดอร์ สามารถตรวจสอบแล้วกดเปิดใหม่ได้`,
+          en: `This ad is paused but achieved ${purchases} orders. You can review and activate it.`
+        }),
+        signals: [...good, ...bad]
+      }
+    }
+    return {
+      code: 'pause',
+      color: 'default',
+      icon: 'mdi-pause-circle-outline',
+      title: l({ lo: '⏸️ ປິດຊົ່ວຄາວ (Paused)', th: '⏸️ หยุดชั่วคราว (Paused)', en: 'Paused' }),
+      detail: messages > 0
+        ? l({
+            lo: `ແອດຖືກປິດຢູ່. ມີຄົນທັກ ${messages} ຂໍ້ຄວາມ (ໃຊ້ງົບ ${money(item.spend)}), ແຕ່ຍັງບໍ່ມີອໍເດີ. ບໍ່ຕ້ອງສະເກວ.`,
+            th: `แอดถูกหยุดอยู่ มีคนทัก ${messages} ข้อความ (ใช้งบ ${money(item.spend)}) แต่ยังไม่มีออเดอร์ ไม่ต้อง Scale`,
+            en: `Ad is paused. Received ${messages} messages (${money(item.spend)} spend) with 0 purchases. Do not scale.`
+          })
+        : l({
+            lo: `ແອດຖືກປິດຕັ້ງແຕ່ກ່ອນໜ້ານີ້ (ໃຊ້ງົບ ${money(item.spend)}).`,
+            th: `แอดถูกหยุดไว้ก่อนหน้านี้ (ใช้งบ ${money(item.spend)})`,
+            en: `Ad was previously paused (spent ${money(item.spend)}).`
+          }),
+      signals: [...good, ...bad]
+    }
+  }
+
+  // Active Ads Evaluation:
+  // ONLY scale if verified purchases >= 3
   if (purchases >= 3 && bad.length <= 1) {
     return {
       code: 'keep',
       color: 'success',
       icon: 'mdi-rocket-launch-outline',
-      title: l({ lo: 'ຄວນເປີດຕໍ່ / Scale', th: 'ควรเปิดต่อ / Scale', en: 'Keep Running / Scale' }),
+      title: l({ lo: '🚀 ຄວນເປີດຕໍ່ / Scale', th: '🚀 ควรเปิดต่อ / Scale', en: 'Keep Running / Scale' }),
       detail: l({
         lo: `ປິດໄດ້ ${purchases} ອໍເດີ, ໂອກາດຊື້ສູງ. ສາມາດເພີ່ມງົບ +10% ຫາ +20% ໄດ້.`,
         th: `ปิดได้ ${purchases} ออเดอร์ โอกาสซื้อสูง สามารถเพิ่มงบ +10% ถึง +20% ได้`,
         en: `${purchases} orders closed, high buying opportunity. Ready for +10% to +20% scaling.`
+      }),
+      signals: [...good, ...bad]
+    }
+  }
+
+  // Active Ads with messages but 0 purchases: RUN ON BUDGET! Do NOT scale!
+  if (purchases === 0 && messages > 0) {
+    return {
+      code: 'keep',
+      color: 'info',
+      icon: 'mdi-chat-processing-outline',
+      title: l({ lo: '🌱 ປ່ອຍແລ່ນຕາມງົບ (ເບິ່ງການປິດການຂາຍ)', th: '🌱 ปล่อยวิ่งตามงบ (ดูการปิดการขาย)', en: '🌱 Run on Budget (Monitor Sales)' }),
+      detail: l({
+        lo: `ມີຄົນທັກ ${messages} ຂໍ້ຄວາມ${messageCost != null ? ` (${money(messageCost)}/ຂໍ້ຄວາມ)` : ''}, ແຕ່ຍັງບໍ່ທັນມີອໍເດີ. ໃຫ້ປ່ອຍແລ່ນຕາມງົບປົກກະຕິ (ບໍ່ຕ້ອງສະເກວ) ເພື່ອກວດສອບການຕອບແຊັດ ແລະ ປິດການຂາຍ.`,
+        th: `มีคนทัก ${messages} ข้อความ${messageCost != null ? ` (${money(messageCost)}/ข้อความ)` : ''} แต่ยังไม่มีออเดอร์ ให้ปล่อยวิ่งตามงบปกติ (ไม่ต้อง Scale) เพื่อตรวจสอบการตอบแชตและปิดการขาย`,
+        en: `${messages} messages received${messageCost != null ? ` (${money(messageCost)}/msg)` : ''} with 0 purchases. Keep running on current budget (do not scale) while monitoring sales conversion.`
       }),
       signals: [...good, ...bad]
     }
@@ -805,8 +912,8 @@ function decision(item: MetaInsightItem): { code: DecisionCode; color: string; i
     code: 'keep',
     color: 'success',
     icon: 'mdi-check-circle-outline',
-    title: l({ lo: 'ຄວນເປີດຕໍ່', th: 'ควรเปิดต่อ', en: 'Keep running' }),
-    detail: l({ lo: 'ສັນຍານຫຼັກຍັງດີ. ຕິດຕາມຕົ້ນທຶນ ແລະ trend ຕໍ່ໄປ.', th: 'สัญญาณหลักยังดี ติดตามต้นทุนและแนวโน้มต่อไป', en: 'Core signals look healthy. Continue monitoring cost and trend.' }),
+    title: l({ lo: '🌱 ປ່ອຍແລ່ນຕາມງົບ', th: '🌱 ปล่อยวิ่งตามงบ', en: 'Run on Budget' }),
+    detail: l({ lo: 'ສັນຍານຫຼັກຍັງປົກກະຕິ. ປ່ອຍແລ່ນຕາມງົບເດີມ ແລະຕິດຕາມຜົນຕໍ່ໄປ.', th: 'สัญญาณหลักยังปกติ ปล่อยวิ่งตามงบเดิมและติดตามผลต่อไป', en: 'Core signals are stable. Keep running on current budget and monitor.' }),
     signals: [...good, ...bad]
   }
 }
@@ -1109,7 +1216,7 @@ function recordScaleEvent(item: MetaInsightItem, oldBudget: number, newBudget: n
     oldBudget,
     newBudget,
     scalePercent: pct,
-    purchasesAtScale: item.results?.value || 0,
+    purchasesAtScale: getPurchasesCount(item) || 0,
     scaledBy: source,
   }
   scaleHistory.value[item.entityId] = record
@@ -1199,7 +1306,7 @@ function isStopLossCandidate(item: MetaInsightItem): { eligible: boolean; reason
   if (statusFor(item).toUpperCase() !== 'ACTIVE') return { eligible: false, reason: '' }
   if (!autoPilotConfig.value.autoStopEnabled) return { eligible: false, reason: '' }
 
-  const purchases = item.results?.value || 0
+  const purchases = getPurchasesCount(item) || 0
   const spend = item.spend || 0
   const ctr = item.linkCtr ?? 0
   const minSpend = autoPilotConfig.value.stopMinSpend ?? (currencyOffset.value === 1 ? 50000 : 5)
@@ -1228,8 +1335,8 @@ function isScaleCandidate(item: MetaInsightItem): {
     return { eligible: false, inCooldown: cooldown.inCooldown, cooldownInfo: cooldown, reason: '' }
   }
 
-  const purchases = item.results?.value || 0
-  const cost = item.results?.cost
+  const purchases = getPurchasesCount(item) || 0
+  const cost = getCostPerPurchase(item)
   const frequency = item.frequency || 1.0
   const minPurchases = autoPilotConfig.value.scaleMinPurchases ?? 3
   const maxCPA = autoPilotConfig.value.scaleMaxCPA ?? targetCost.value ?? (currencyOffset.value === 1 ? 50000 : 2.5)
@@ -2012,28 +2119,36 @@ onMounted(async () => {
             <div class="row-actions" @click.stop>
               <v-btn
                 size="x-small"
-                :variant="getCooldownInfo(item).inCooldown ? 'tonal' : 'flat'"
-                :color="getCooldownInfo(item).inCooldown ? 'warning' : 'primary'"
-                :prepend-icon="getCooldownInfo(item).inCooldown ? 'mdi-clock-outline' : 'mdi-cash-fast'"
+                :variant="getCooldownInfo(item).inCooldown ? 'tonal' : (isScaleCandidate(item).eligible ? 'flat' : 'outlined')"
+                :color="getCooldownInfo(item).inCooldown ? 'warning' : (isScaleCandidate(item).eligible ? 'primary' : 'default')"
+                :prepend-icon="getCooldownInfo(item).inCooldown ? 'mdi-clock-outline' : (isScaleCandidate(item).eligible ? 'mdi-rocket-launch' : 'mdi-tune-vertical')"
                 class="quick-scale-btn font-weight-bold"
                 @click="openBudgetModal(item)"
               >
-                {{ getCooldownInfo(item).inCooldown ? `Cooldown (${getCooldownInfo(item).hoursLeft}h)` : 'Scale' }}
+                {{
+                  getCooldownInfo(item).inCooldown
+                    ? `Cooldown (${getCooldownInfo(item).hoursLeft}h)`
+                    : (isScaleCandidate(item).eligible ? '🚀 Scale (+20%)' : l({ lo: '💰 ປັບງົບ', th: '💰 ปรับงบ', en: '💰 Budget' }))
+                }}
               </v-btn>
               <v-icon :icon="selectedId === item.entityId ? 'mdi-chevron-up' : 'mdi-chevron-down'" class="expand-chevron" />
             </div>
             <div class="mobile-scale-bar" @click.stop>
               <v-btn
                 size="small"
-                :variant="getCooldownInfo(item).inCooldown ? 'tonal' : 'flat'"
-                :color="getCooldownInfo(item).inCooldown ? 'warning' : 'primary'"
-                :prepend-icon="getCooldownInfo(item).inCooldown ? 'mdi-clock-outline' : 'mdi-cash-fast'"
+                :variant="getCooldownInfo(item).inCooldown ? 'tonal' : (isScaleCandidate(item).eligible ? 'flat' : 'outlined')"
+                :color="getCooldownInfo(item).inCooldown ? 'warning' : (isScaleCandidate(item).eligible ? 'primary' : 'default')"
+                :prepend-icon="getCooldownInfo(item).inCooldown ? 'mdi-clock-outline' : (isScaleCandidate(item).eligible ? 'mdi-rocket-launch' : 'mdi-tune-vertical')"
                 class="font-weight-bold"
                 @click="openBudgetModal(item)"
               >
-                {{ getCooldownInfo(item).inCooldown
-                  ? l({ lo: `⏳ ສະເກວແລ້ວ (Cooldown ອີກ ${getCooldownInfo(item).hoursLeft}h ${getCooldownInfo(item).minutesLeft}m)`, th: `⏳ Scale แล้ว (Cooldown อีก ${getCooldownInfo(item).hoursLeft}h ${getCooldownInfo(item).minutesLeft}m)`, en: `⏳ Scaled (Cooldown ${getCooldownInfo(item).hoursLeft}h ${getCooldownInfo(item).minutesLeft}m left)` })
-                  : l({ lo: '⚡ Scale ງົບປະມານ (+10% / +20%)', th: '⚡ Scale งบประมาณ (+10% / +20%)', en: '⚡ Scale Budget (+10% / +20%)' })
+                {{
+                  getCooldownInfo(item).inCooldown
+                    ? l({ lo: `⏳ ສະເກວແລ້ວ (Cooldown ອີກ ${getCooldownInfo(item).hoursLeft}h ${getCooldownInfo(item).minutesLeft}m)`, th: `⏳ Scale แล้ว (Cooldown อีก ${getCooldownInfo(item).hoursLeft}h ${getCooldownInfo(item).minutesLeft}m)`, en: `⏳ Scaled (Cooldown ${getCooldownInfo(item).hoursLeft}h ${getCooldownInfo(item).minutesLeft}m left)` })
+                    : (isScaleCandidate(item).eligible
+                        ? l({ lo: '🚀 Scale ງົບ (+10% / +20%)', th: '🚀 Scale งบ (+10% / +20%)', en: '🚀 Scale Budget (+10% / +20%)' })
+                        : l({ lo: '💰 ປັບງົບປະມານ (Budget)', th: '💰 ปรับงบประมาณ (Budget)', en: '💰 Adjust Budget' })
+                      )
                 }}
               </v-btn>
             </div>
