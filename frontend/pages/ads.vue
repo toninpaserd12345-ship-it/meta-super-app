@@ -94,6 +94,60 @@ const autoPilotLogs = ref<AutoPilotLog[]>([])
 const scaleHistory = ref<Record<string, ScaleRecord>>({})
 const guideModalOpen = ref(false)
 const guideStep = ref(1)
+const isLiveTourActive = ref(false)
+const liveTourStep = ref(1)
+
+function startLiveTour() {
+  guideModalOpen.value = false
+  isLiveTourActive.value = true
+  liveTourStep.value = 1
+  nextTick(() => {
+    scrollToTourTarget(1)
+  })
+}
+
+function nextTourStep() {
+  if (liveTourStep.value < 5) {
+    liveTourStep.value++
+    nextTick(() => {
+      scrollToTourTarget(liveTourStep.value)
+    })
+  } else {
+    endLiveTour()
+  }
+}
+
+function prevTourStep() {
+  if (liveTourStep.value > 1) {
+    liveTourStep.value--
+    nextTick(() => {
+      scrollToTourTarget(liveTourStep.value)
+    })
+  }
+}
+
+function endLiveTour() {
+  isLiveTourActive.value = false
+  liveTourStep.value = 1
+}
+
+function scrollToTourTarget(step: number) {
+  if (!import.meta.client) return
+  let targetId = ''
+  if (step === 2) targetId = 'tour-filter-bar'
+  else if (step === 3) targetId = 'tour-kpi-summary'
+  else if (step === 4) targetId = 'tour-mode-banner'
+  else if (step === 5) targetId = 'tour-performance-section'
+
+  if (targetId) {
+    const el = document.getElementById(targetId)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  } else {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+}
 const autoPilotConfig = ref<AutoPilotConfig>({
   enabled: false,
   scope: 'all',
@@ -1444,6 +1498,17 @@ onMounted(async () => {
       <p>{{ l({ lo: 'ຕິດຕາມຜົນງານການນຳສົ່ງ, CTR, Impressions, Frequency, ປະສິດທິພາບແອດ ແລະ ຄວບຄຸມສະຖານະ.', th: 'ติดตามผลการนำส่ง CTR, Impressions, Frequency, ประสิทธิภาพแอด และควบคุมสถานะ', en: 'Track ad delivery, CTR, impressions, frequency, creative metrics, and toggle campaign status.' }) }}</p>
     </div>
     <div class="head-actions">
+      <!-- Live On-Page Tour Button -->
+      <v-btn
+        color="primary"
+        variant="flat"
+        prepend-icon="mdi-crosshairs-gps"
+        class="font-weight-bold"
+        @click="startLiveTour"
+      >
+        {{ l({ lo: '🎯 ພາທົວໜ້າເວັບແທ້ (Live Tour)', th: '🎯 พาทัวร์หน้าเว็บจริง (Live Tour)', en: '🎯 Live Tour' }) }}
+      </v-btn>
+
       <!-- Interactive Visual Guide Dialog Button -->
       <v-btn
         color="info"
@@ -1486,7 +1551,7 @@ onMounted(async () => {
   <v-alert v-if="success" type="success" variant="tonal" class="mb-4" closable @click:close="success = ''">{{ success }}</v-alert>
 
   <!-- Dual-System Mode Banner -->
-  <section class="system-mode-banner" :class="{ 'autopilot-active': autoPilotConfig.enabled }">
+  <section class="system-mode-banner" id="tour-mode-banner" :class="{ 'autopilot-active': autoPilotConfig.enabled, 'tour-spotlight-active': isLiveTourActive && liveTourStep === 4 }">
     <div class="mode-badge-wrap">
       <span class="mode-pill" :class="autoPilotConfig.enabled ? 'autopilot' : 'manual'">
         <v-icon :icon="autoPilotConfig.enabled ? 'mdi-robot' : 'mdi-hand-back-right-outline'" size="18" />
@@ -1553,7 +1618,7 @@ onMounted(async () => {
   </section>
 
   <!-- Modern Standardized Command & Filter Bar -->
-  <section class="app-filter-bar" aria-label="Ads report filters">
+  <section class="app-filter-bar" id="tour-filter-bar" :class="{ 'tour-spotlight-active': isLiveTourActive && liveTourStep === 2 }" aria-label="Ads report filters">
     <div class="app-filter-group">
       <v-select
         v-model="adAccountId"
@@ -1627,7 +1692,7 @@ onMounted(async () => {
     </div>
 
     <!-- Modern 5-KPI Cards Grid with VAT Breakdown -->
-    <section class="app-kpi-grid" aria-label="Ads summary">
+    <section class="app-kpi-grid" id="tour-kpi-summary" :class="{ 'tour-spotlight-active': isLiveTourActive && liveTourStep === 3 }" aria-label="Ads summary">
       <article class="app-kpi-card accent-primary">
         <div class="kpi-header">
           <span class="kpi-label">{{ l({ lo: 'ຍອດຈ່າຍຄ່າແອດຕົວຈິງ (Gross)', th: 'ยอดใช้จ่ายจริงรวม VAT', en: 'Total Gross Spend' }) }}</span>
@@ -1710,7 +1775,7 @@ onMounted(async () => {
       </v-card>
     </section>
 
-    <section class="performance-section">
+    <section class="performance-section" id="tour-performance-section" :class="{ 'tour-spotlight-active': isLiveTourActive && liveTourStep === 5 }">
       <div class="section-head">
         <div>
           <p>PERFORMANCE DETAIL</p>
@@ -2519,6 +2584,26 @@ onMounted(async () => {
         <v-btn icon="mdi-close" variant="text" @click="guideModalOpen = false" />
       </v-card-title>
 
+      <!-- Quick Switch to Live Tour Banner -->
+      <div class="px-4 py-2 bg-primary-subtle d-flex align-center justify-space-between flex-wrap gap-2 border-b">
+        <div class="d-flex align-center gap-2">
+          <v-icon icon="mdi-lightbulb-on-outline" color="primary" size="18" />
+          <span class="text-caption font-weight-medium">
+            {{ l({ lo: 'ຕ້ອງການໃຫ້ລະບົບພາທົວ ແລະ ຊີ້ບອກເທິງໜ້າເວັບແທ້ເລີຍບໍ່?', th: 'ต้องการให้ระบบพาทัวร์และชี้บอกบนหน้าเว็บจริงเลยหรือไม่?', en: 'Want an interactive tour pointing directly at real elements on this page?' }) }}
+          </span>
+        </div>
+        <v-btn
+          size="small"
+          color="primary"
+          variant="flat"
+          prepend-icon="mdi-crosshairs-gps"
+          class="font-weight-bold"
+          @click="startLiveTour"
+        >
+          {{ l({ lo: '🎯 ເລີ່ມພາທົວໜ້າເວັບແທ້ດຽວນີ້', th: '🎯 เริ่มพาทัวร์หน้าเว็บจริงตอนนี้', en: '🎯 Start Live Tour Now' }) }}
+        </v-btn>
+      </div>
+
       <!-- Stepper Header Navigation -->
       <div class="guide-stepper-bar px-4 py-3 border-b d-flex align-center justify-space-between flex-wrap gap-2">
         <div class="d-flex align-center flex-wrap gap-2">
@@ -3119,6 +3204,148 @@ onMounted(async () => {
       </v-card-actions>
     </v-card>
   </v-dialog>
+
+  <!-- Live On-Page Tour Overlay & Floating Widget -->
+  <Teleport to="body">
+    <div v-if="isLiveTourActive" class="live-tour-root">
+      <!-- Non-blocking backdrop tint -->
+      <div class="live-tour-backdrop" @click="endLiveTour" />
+
+      <!-- Floating Tour Popover Box -->
+      <div class="live-tour-popover-card">
+        <div class="tour-card-header d-flex align-center justify-space-between pa-3 border-b">
+          <div class="d-flex align-center gap-2">
+            <v-avatar color="primary" size="28" variant="tonal">
+              <v-icon icon="mdi-crosshairs-gps" size="16" />
+            </v-avatar>
+            <div>
+              <div class="tour-badge-text">LIVE ON-PAGE TOUR</div>
+              <strong class="tour-title-text">
+                {{ liveTourStep === 1 ? l({ lo: '1. ສ້າງສິນຄ້າ & ຜູກບັອດ Auto-Reply', th: '1. สร้างสินค้า & ผูกบอท Auto-Reply', en: '1. Product & Auto-Reply' })
+                 : liveTourStep === 2 ? l({ lo: '2. ແຖບເລືອກຂໍ້ມູນຕົວຈິງ (Filter Bar)', th: '2. แถบเลือกข้อมูลจริง (Filter Bar)', en: '2. Real Filter Bar' })
+                 : liveTourStep === 3 ? l({ lo: '3. ອ່ານຄ່າຕົວເລກທີ່ແທ້ຈິງ (KPI Cards)', th: '3. อ่านค่าตัวเลขจริง (KPI Cards)', en: '3. Real KPI Cards' })
+                 : liveTourStep === 4 ? l({ lo: '4. ຄວບຄຸມ Auto-Pilot & ຕັ້ງ Budget Cap', th: '4. ควบคุม Auto-Pilot & ตั้ง Budget Cap', en: '4. Auto-Pilot & Safety Cap' })
+                 : l({ lo: '5. ຕາຕະລາງແອດ, ປຸ່ມສະເກວ & Cooldown 24h', th: '5. ตารางแอด ปุ่มสเกล & Cooldown 24h', en: '5. Scaling Table & 24h Cooldown' }) }}
+              </strong>
+            </div>
+          </div>
+          <v-btn icon="mdi-close" size="small" variant="text" @click="endLiveTour" />
+        </div>
+
+        <v-progress-linear :model-value="liveTourStep * 20" color="primary" height="3" />
+
+        <div class="tour-card-body pa-4">
+          <!-- Step 1 Content -->
+          <div v-if="liveTourStep === 1">
+            <p class="text-body-2 mb-3">
+              {{ l({ lo: 'ກ່ອນຈະສະເກວແອດ: ຕ້ອງສ້າງສິນຄ້າໃນລະບົບ ແລະ ຜູກບັອດຕອບແຊັດເຂົ້າກັບແອດກ່ອນ ເພື່ອໃຫ້ລະບົບຮູ້ຍອດຊື້ (Purchases) ທີ່ແທ້ຈິງ!', th: 'ก่อนจะสเกลแอด: ต้องสร้างสินค้าในระบบ และผูกบอทตอบแชทเข้ากับแอดก่อน เพื่อให้ระบบรู้ยอดซื้อที่แท้จริง', en: 'Before scaling ads: create products and link auto-reply to ads so the system captures real verified purchases!' }) }}
+            </p>
+            <div class="d-flex flex-wrap gap-2 mb-2">
+              <v-btn to="/products" target="_blank" prepend-icon="mdi-package-variant-closed" size="small" color="primary" variant="tonal" class="font-weight-bold">
+                📦 {{ l({ lo: 'ເປີດໜ້າສິນຄ້າ (Products)', th: 'เปิดหน้าสินค้า (Products)', en: 'Open Products' }) }}
+              </v-btn>
+              <v-btn to="/auto-replies" target="_blank" prepend-icon="mdi-robot" size="small" color="success" variant="tonal" class="font-weight-bold">
+                🤖 {{ l({ lo: 'ເປີດໜ້າ Auto-Replies', th: 'เปิดหน้า Auto-Replies', en: 'Open Auto-Replies' }) }}
+              </v-btn>
+            </div>
+            <small class="text-caption text-medium-emphasis">
+              {{ l({ lo: '💡 ເມື່ອຜູກຮຽບຮ້ອຍແລ້ວ ກົດ "ຕໍ່ໄປ" ເພື່ອກວດໜ້າ Ads ຕົວຈິງ!', th: '💡 เมื่อผูกเรียบร้อยแล้ว กด "ถัดไป" เพื่อตรวจหน้า Ads นี้ได้เลย', en: '💡 Once linked, click "Next" to inspect this live Ads Manager!' }) }}
+            </small>
+          </div>
+
+          <!-- Step 2 Content -->
+          <div v-else-if="liveTourStep === 2">
+            <div class="tour-spotlight-pointer-hint mb-2 text-primary font-weight-bold d-flex align-center gap-1">
+              <v-icon icon="mdi-arrow-up-bold" size="16" class="bounce-up" />
+              {{ l({ lo: 'ສັງເກດແຖບ Filter Bar ດ້ານເທິງທີ່ກຳລັງເຫຼື້ອມ:', th: 'สังเกตแถบ Filter Bar ด้านบนที่กำลังเรืองแสง:', en: 'Notice the spotlighted Filter Bar above:' }) }}
+            </div>
+            <ul class="text-body-2 pl-4 mb-2">
+              <li><strong>{{ l({ lo: '1. ເລືອກບັນຊີ:', th: '1. เลือกบัญชี:', en: '1. Account:' }) }}</strong> {{ l({ lo: 'ເລືອກ Ad Account ທີ່ຕ້ອງການວິເຄາະ', th: 'เลือกบัญชีที่ต้องการ', en: 'Select target ad account' }) }}</li>
+              <li><strong>{{ l({ lo: '2. ໄລຍະ 7 ມື້ (ສຳຄັນ!):', th: '2. ระยะ 7 วัน (สำคัญ!):', en: '2. Last 7 Days:' }) }}</strong> {{ l({ lo: 'ຢ່າເບິ່ງສະເພາະມື້ນີ້ ເພື່ອໃຫ້ຂໍ້ມູນສະຖຽນ', th: 'อย่าดูแค่วันนี้ เพื่อให้ข้อมูลนิ่ง', en: 'Avoid single-day data swings' }) }}</li>
+              <li><strong>{{ l({ lo: '3. ຟິວເຕີສິນຄ້າ:', th: '3. ฟิลเตอร์สินค้า:', en: '3. Product Scope:' }) }}</strong> {{ l({ lo: 'ເລືອກສິນຄ້າ (ເຊັ່ນ kito AG29) ເພື່ອກວດສະເພາະແອດຂອງສິນຄ້ານີ້', th: 'เลือกสินค้าเพื่อดูเฉพาะแอดของสินค้านั้น', en: 'Filter by specific product e.g. kito AG29' }) }}</li>
+            </ul>
+          </div>
+
+          <!-- Step 3 Content -->
+          <div v-else-if="liveTourStep === 3">
+            <div class="tour-spotlight-pointer-hint mb-2 text-primary font-weight-bold d-flex align-center gap-1">
+              <v-icon icon="mdi-arrow-up-bold" size="16" class="bounce-up" />
+              {{ l({ lo: 'ສັງເກດ 5 ກ່ອງຕົວເລກ KPI ດ້ານເທິງ:', th: 'สังเกต 5 กล่องตัวเลข KPI ด้านบน:', en: 'Notice the 5 KPI Cards above:' }) }}
+            </div>
+            <ul class="text-body-2 pl-4 mb-2">
+              <li><strong>{{ l({ lo: 'Purchases & CPA:', th: 'Purchases & CPA:', en: 'Purchases & CPA:' }) }}</strong> {{ l({ lo: 'ຖ້າຊື້ >= 3 ອໍເດີ ແລະ CPA ຕ່ຳ = Winner ພ້ອມສະເກວ', th: 'ถ้าซื้อ >= 3 ออเดอร์และ CPA ต่ำ = Winner พร้อมสเกล', en: 'Orders >= 3 and low CPA = Winner' }) }}</li>
+              <li><strong>{{ l({ lo: 'CTR:', th: 'CTR:', en: 'CTR:' }) }}</strong> {{ l({ lo: 'ຖ້າ CTR < 1.0% ແລະ 0 ອໍເດີ = ເຂົ້າເກນຕັດຂາດທຶນ (Stop-Loss)', th: 'ถ้า CTR < 1.0% และ 0 ออเดอร์ = เข้าเกณฑ์หยุดแอด', en: 'CTR < 1% with 0 orders = Stop-Loss' }) }}</li>
+              <li><strong>{{ l({ lo: 'Frequency:', th: 'Frequency:', en: 'Frequency:' }) }}</strong> {{ l({ lo: 'ບໍ່ຄວນເກີນ 2.5 ຄັ້ງ ເພື່ອປ້ອງກັນແອດອີ່ມໂຕ', th: 'ไม่ควรเกิน 2.5 ครั้ง เพื่อป้องกันแอดล้า', en: 'Must stay under 2.5' }) }}</li>
+            </ul>
+          </div>
+
+          <!-- Step 4 Content -->
+          <div v-else-if="liveTourStep === 4">
+            <div class="tour-spotlight-pointer-hint mb-2 text-success font-weight-bold d-flex align-center gap-1">
+              <v-icon icon="mdi-arrow-up-bold" size="16" class="bounce-up" />
+              {{ l({ lo: 'ສັງເກດແຖບຄວບຄຸມ Dual-System Banner ດ້ານເທິງ:', th: 'สังเกตแถบควบคุม Dual-System ด้านบน:', en: 'Notice the Dual-System Banner above:' }) }}
+            </div>
+            <p class="text-body-2 mb-2">
+              {{ l({ lo: 'ທ່ານສາມາດສະຫຼັບລະຫວ່າງ Manual (ກົດສະເກວເອງ) ຫຼື Auto-Pilot (ບັອດເຝົ້າແອດ 24/7). ກົດປຸ່ມ "ຕັ້ງຄ່າກົດ & Log" ເພື່ອກຳນົດເພດານງົບ (Daily Budget Cap) ແລະ ສູດສະເກວ 20%!', th: 'คุณสามารถสลับระหว่าง Manual (กดสเกลเอง) หรือ Auto-Pilot (บอทเฝ้าแอด 24/7) กดปุ่ม "ตั้งค่ากฎ & Log" เพื่อตั้งเพดานงบสูงสุด!', en: 'Toggle between Manual and Auto-Pilot. Click Rules & Logs to configure Daily Budget Cap and 20% scaling!' }) }}
+            </p>
+          </div>
+
+          <!-- Step 5 Content -->
+          <div v-else-if="liveTourStep === 5">
+            <div class="tour-spotlight-pointer-hint mb-2 text-primary font-weight-bold d-flex align-center gap-1">
+              <v-icon icon="mdi-arrow-up-bold" size="16" class="bounce-up" />
+              {{ l({ lo: 'ສັງເກດຕາຕະລາງແອດດ້ານເທິງ/ລຸ່ມ:', th: 'สังเกตตารางแอด:', en: 'Notice the ad table:' }) }}
+            </div>
+            <ul class="text-body-2 pl-4 mb-2">
+              <li><strong>{{ l({ lo: 'ປຸ່ມ 🚀 ສະເກວ (+20%):', th: 'ปุ่ม 🚀 สเกล (+20%):', en: 'Scale Button (+20%):' }) }}</strong> {{ l({ lo: 'ກົດເພີ່ມງົບດ້ວຍມືໄດ້ທັນທີ', th: 'กดเพิ่มงบได้ทันที', en: 'Approve budget bump manually' }) }}</li>
+              <li><strong>{{ l({ lo: 'ປ້າຍ ⏳ Cooldown 24h:', th: 'ป้าย ⏳ Cooldown 24h:', en: '24h Cooldown Badge:' }) }}</strong> {{ l({ lo: 'ລັອກ 24h ປ້ອງກັນບໍ່ໃຫ້ຫຼຸດ Meta Learning Phase', th: 'ล็อก 24h เพื่อปกป้อง Learning Phase', en: 'Locked for 24h to protect learning phase' }) }}</li>
+              <li><strong>{{ l({ lo: 'ກົດອໍເດີໃໝ່ (Incremental Sales):', th: 'กฎออเดอร์ใหม่ (Incremental Sales):', en: 'Incremental Sales Guardrail:' }) }}</strong> {{ l({ lo: 'ຖ້າໝົດ 24h ແຕ່ບໍ່ມີອໍເດີໃໝ່ເພີ່ມຂຶ້ນ ລະບົບຈະບໍ່ສະເກວຕໍ່ເດັດຂາດ!', th: 'ถ้าหมด 24h แต่ไม่มีออเดอร์ใหม่เพิ่มขึ้น ระบบจะไม่สเกลต่อเด็ดขาด', en: 'No scaling without new orders!' }) }}</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="tour-card-actions pa-3 border-t d-flex align-center justify-space-between bg-surface-variant">
+          <span class="text-caption font-weight-bold text-medium-emphasis">
+            {{ l({ lo: `ຂັ້ນຕອນ ${liveTourStep} / 5`, th: `ขั้นตอน ${liveTourStep} / 5`, en: `Step ${liveTourStep} of 5` }) }}
+          </span>
+          <div class="d-flex align-center gap-2">
+            <v-btn
+              size="small"
+              variant="outlined"
+              :disabled="liveTourStep === 1"
+              @click="prevTourStep"
+            >
+              {{ l({ lo: 'ຍ້ອນກັບ', th: 'ย้อนกลับ', en: 'Back' }) }}
+            </v-btn>
+
+            <v-btn
+              v-if="liveTourStep < 5"
+              size="small"
+              color="primary"
+              variant="flat"
+              append-icon="mdi-arrow-right"
+              class="font-weight-bold px-3"
+              @click="nextTourStep"
+            >
+              {{ l({ lo: 'ຕໍ່ໄປ', th: 'ถัดไป', en: 'Next' }) }}
+            </v-btn>
+
+            <v-btn
+              v-else
+              size="small"
+              color="success"
+              variant="flat"
+              prepend-icon="mdi-check"
+              class="font-weight-bold px-3"
+              @click="endLiveTour"
+            >
+              {{ l({ lo: 'ສຳເລັດ', th: 'เสร็จสิ้น', en: 'Finish' }) }}
+            </v-btn>
+          </div>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -3760,5 +3987,71 @@ onMounted(async () => {
 }
 .ad-row-mockup.info-state {
   background: rgba(100, 116, 139, 0.03);
+}
+
+/* Live On-Page Tour Styles */
+.live-tour-root {
+  position: relative;
+  z-index: 99990;
+}
+.live-tour-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(2px);
+  z-index: 99991;
+}
+.tour-spotlight-active {
+  position: relative !important;
+  z-index: 99995 !important;
+  box-shadow: 0 0 0 4px #0284c7, 0 0 35px rgba(2, 132, 199, 0.5) !important;
+  border-radius: 14px !important;
+  background: var(--color-surface, #ffffff) !important;
+  transition: all 0.3s ease !important;
+}
+.live-tour-popover-card {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 440px;
+  max-width: calc(100vw - 32px);
+  background: var(--color-surface, #ffffff);
+  border: 1.5px solid var(--color-primary, #0284c7);
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+  z-index: 99999;
+  overflow: hidden;
+  animation: slide-up-fade 0.25s ease-out;
+}
+.tour-badge-text {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--color-primary, #0284c7);
+  letter-spacing: 0.08em;
+}
+.tour-title-text {
+  font-size: 13.5px;
+  line-height: 1.3;
+}
+.bounce-up {
+  animation: bounce-up 1.5s infinite ease-in-out;
+}
+@keyframes bounce-up {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+@keyframes slide-up-fade {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 </style>
