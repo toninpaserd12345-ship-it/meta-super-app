@@ -2816,15 +2816,19 @@ type graphAdEntityDetails struct {
 	Name            string `json:"name"`
 	Status          string `json:"status"`
 	EffectiveStatus string `json:"effective_status"`
+	DailyBudget     string `json:"daily_budget"`
+	LifetimeBudget  string `json:"lifetime_budget"`
 	CampaignID      string `json:"campaign_id"`
 	Campaign        struct {
-		ID   string `json:"id"`
-		Name string `json:"name"`
+		ID          string `json:"id"`
+		Name        string `json:"name"`
+		DailyBudget string `json:"daily_budget"`
 	} `json:"campaign"`
 	AdSetID string `json:"adset_id"`
 	AdSet   struct {
-		ID   string `json:"id"`
-		Name string `json:"name"`
+		ID          string `json:"id"`
+		Name        string `json:"name"`
+		DailyBudget string `json:"daily_budget"`
 	} `json:"adset"`
 	CreatedTime string `json:"created_time"`
 	UpdatedTime string `json:"updated_time"`
@@ -2836,12 +2840,14 @@ func (g *GraphConnector) fetchAdEntities(ctx context.Context, token, adAccountID
 	if !ok {
 		return map[string]graphAdEntityDetails{}, nil
 	}
-	fields := "id,name,status,effective_status,created_time,updated_time"
+	fields := "id,name,status,effective_status,daily_budget,lifetime_budget,created_time,updated_time"
 	switch level {
+	case "campaign":
+		fields = "id,name,status,effective_status,daily_budget,lifetime_budget,created_time,updated_time"
 	case "adset":
-		fields = "id,name,status,effective_status,campaign_id,campaign{id,name},created_time,updated_time"
+		fields = "id,name,status,effective_status,daily_budget,lifetime_budget,campaign_id,campaign{id,name,daily_budget},created_time,updated_time"
 	case "ad":
-		fields = "id,name,status,effective_status,campaign_id,campaign{id,name},adset_id,adset{id,name},created_time,updated_time"
+		fields = "id,name,status,effective_status,campaign_id,campaign{id,name,daily_budget},adset_id,adset{id,name,daily_budget},created_time,updated_time"
 	}
 	query := url.Values{"fields": {fields}, "limit": {"250"}, "access_token": {token}}
 	endpoint := "https://graph.facebook.com/" + g.cfg.Version + "/" + url.PathEscape(adAccountID) + "/" + edge + "?" + query.Encode()
@@ -2958,6 +2964,16 @@ func (g *GraphConnector) AdsInsights(ctx context.Context, _ string, accountID, a
 			if item.AdSetName == "" && entity.AdSet.Name != "" {
 				item.AdSetName = entity.AdSet.Name
 			}
+			if entity.DailyBudget != "" {
+				item.DailyBudget = numberPointer(entity.DailyBudget)
+			} else if entity.AdSet.DailyBudget != "" {
+				item.DailyBudget = numberPointer(entity.AdSet.DailyBudget)
+			} else if entity.Campaign.DailyBudget != "" {
+				item.DailyBudget = numberPointer(entity.Campaign.DailyBudget)
+			}
+			if entity.LifetimeBudget != "" {
+				item.LifetimeBudget = numberPointer(entity.LifetimeBudget)
+			}
 			item.CreatedTime = entity.CreatedTime
 			item.UpdatedTime = entity.UpdatedTime
 		}
@@ -2997,6 +3013,16 @@ func (g *GraphConnector) AdsInsights(ctx context.Context, _ string, accountID, a
 			AdSetName:       adSetName,
 			CreatedTime:     entity.CreatedTime,
 			UpdatedTime:     entity.UpdatedTime,
+		}
+		if entity.DailyBudget != "" {
+			item.DailyBudget = numberPointer(entity.DailyBudget)
+		} else if entity.AdSet.DailyBudget != "" {
+			item.DailyBudget = numberPointer(entity.AdSet.DailyBudget)
+		} else if entity.Campaign.DailyBudget != "" {
+			item.DailyBudget = numberPointer(entity.Campaign.DailyBudget)
+		}
+		if entity.LifetimeBudget != "" {
+			item.LifetimeBudget = numberPointer(entity.LifetimeBudget)
 		}
 		if level == "ad" {
 			item.AdID = entity.ID

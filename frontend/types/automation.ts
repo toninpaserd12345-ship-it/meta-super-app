@@ -264,6 +264,8 @@ export interface MetaInsightItem {
   qualityRanking?: string
   engagementRateRanking?: string
   conversionRateRanking?: string
+  dailyBudget?: number
+  lifetimeBudget?: number
   createdTime?: string
   updatedTime?: string
 }

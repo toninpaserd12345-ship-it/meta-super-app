@@ -127,6 +127,8 @@ type MetaInsightItem struct {
 	QualityRanking        string            `json:"qualityRanking,omitempty"`
 	EngagementRateRanking string            `json:"engagementRateRanking,omitempty"`
 	ConversionRateRanking string            `json:"conversionRateRanking,omitempty"`
+	DailyBudget           *float64          `json:"dailyBudget,omitempty"`
+	LifetimeBudget        *float64          `json:"lifetimeBudget,omitempty"`
 	CreatedTime           string            `json:"createdTime,omitempty"`
 	UpdatedTime           string            `json:"updatedTime,omitempty"`
 }

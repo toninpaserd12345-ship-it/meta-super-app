@@ -37,6 +37,17 @@ const audienceByAdSet = reactive<Record<string, MetaAudienceAnalysis>>({})
 const audienceLoading = reactive<Record<string, boolean>>({})
 const audienceErrors = reactive<Record<string, string>>({})
 
+// Scale / Budget Control Modal
+const budgetModalOpen = ref(false)
+const targetBudgetItem = ref<MetaInsightItem | null>(null)
+const baseDailyBudget = ref<number>(0)
+const newDailyBudget = ref<number>(0)
+const selectedPercent = ref<number | null>(20)
+const updatingBudget = ref(false)
+
+const zeroDecimalCurrencies = new Set(['LAK', 'VND', 'JPY', 'KRW', 'KHR', 'IDR', 'CLP', 'PYG'])
+const currencyOffset = computed(() => zeroDecimalCurrencies.has((currency.value || '').toUpperCase()) ? 1 : 100)
+
 const iso = (date: Date) => {
   const copy = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
   return copy.toISOString().slice(0, 10)
@@ -420,6 +431,108 @@ async function changeStatus(item: MetaInsightItem, status: 'ACTIVE' | 'PAUSED', 
   } finally { updatingId.value = '' }
 }
 
+function openBudgetModal(item: MetaInsightItem) {
+  targetBudgetItem.value = item
+  selectedPercent.value = 20
+
+  const start = new Date(since.value).getTime()
+  const end = new Date(until.value).getTime()
+  const days = Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1)
+
+  let base = 0
+  if (item.dailyBudget && item.dailyBudget > 0) {
+    base = item.dailyBudget / currencyOffset.value
+  } else if (item.spend && item.spend > 0) {
+    base = item.spend / days
+  } else {
+    base = currencyOffset.value === 1 ? 100000 : 10
+  }
+
+  if (currencyOffset.value === 1) {
+    base = Math.max(20000, Math.round(base / 10000) * 10000)
+  } else {
+    base = Math.max(1, Math.round(base * 100) / 100)
+  }
+
+  baseDailyBudget.value = base
+  setBudgetPercent(20)
+  budgetModalOpen.value = true
+}
+
+function setBudgetPercent(pct: number) {
+  selectedPercent.value = pct
+  let calculated = baseDailyBudget.value * (1 + pct / 100)
+  if (currencyOffset.value === 1) {
+    calculated = Math.max(20000, Math.round(calculated / 10000) * 10000)
+  } else {
+    calculated = Math.max(1, Math.round(calculated * 100) / 100)
+  }
+  newDailyBudget.value = calculated
+}
+
+const budgetDiff = computed(() => {
+  return (newDailyBudget.value || 0) - (baseDailyBudget.value || 0)
+})
+
+const budgetDiffPercent = computed(() => {
+  if (!baseDailyBudget.value || baseDailyBudget.value <= 0) return 0
+  return Math.round((((newDailyBudget.value || 0) - baseDailyBudget.value) / baseDailyBudget.value) * 100)
+})
+
+async function applyBudgetChange() {
+  if (!targetBudgetItem.value || newDailyBudget.value <= 0) return
+  updatingBudget.value = true
+  notice.value = ''
+
+  const item = targetBudgetItem.value
+  let targetType: 'campaign' | 'adset' = 'campaign'
+  let targetId = item.entityId
+  let targetName = item.entityName
+
+  if (item.entityType === 'ad') {
+    if (item.adSetId) {
+      targetType = 'adset'
+      targetId = item.adSetId
+      targetName = item.adSetName || item.entityName
+    } else {
+      targetType = 'campaign'
+      targetId = item.campaignId || item.entityId
+      targetName = item.campaignName || item.entityName
+    }
+  } else if (item.entityType === 'adset') {
+    targetType = 'adset'
+    targetId = item.entityId
+  } else {
+    targetType = 'campaign'
+    targetId = item.entityId
+  }
+
+  const apiBudget = Math.round(newDailyBudget.value * currencyOffset.value)
+
+  try {
+    await $fetch(`/api/proxy/api/v1/meta/ads/${targetType}/${encodeURIComponent(targetId)}/budget`, {
+      method: 'PATCH',
+      body: { dailyBudget: apiBudget },
+    })
+
+    success.value = l({
+      lo: `ປັບງົບປະມານໃຫ້ “${targetName}” ເປັນ ${money(newDailyBudget.value)}/ມື້ ສຳເລັດແລ້ວ!`,
+      th: `ปรับงบประมาณให้ “${targetName}” เป็น ${money(newDailyBudget.value)}/วัน เรียบร้อยแล้ว`,
+      en: `Updated budget for “${targetName}” to ${money(newDailyBudget.value)}/day successfully.`,
+    })
+    budgetModalOpen.value = false
+    await loadPerformance()
+  } catch (error: any) {
+    notice.value = error?.data?.error?.message || error?.data?.message || error?.statusMessage || l({
+      lo: 'ປັບງົບບໍ່ສຳເລັດ. ກວດສອບສິດ ads_management ຫຼື ປະເພດງົບປະມານຂອງແຄມເປນ.',
+      th: 'ปรับงบประมาณไม่สำเร็จ ตรวจสอบสิทธิ์ ads_management หรือประเภทงบประมาณ',
+      en: 'Could not update budget. Confirm ads_management permission and budget type.',
+    })
+  } finally {
+    updatingBudget.value = false
+  }
+}
+
 function openActionPlan() {
   selectedActionIds.value = []
   actionPlanAcknowledged.value = false
@@ -717,7 +830,19 @@ onMounted(async () => {
                 </div>
               </span>
             </span>
-            <span class="delivery-chip" :class="statusClass(statusFor(item))"><span class="status-dot" :class="statusClass(statusFor(item))" />{{ statusLabel(statusFor(item)) }}</span>
+            <div class="delivery-wrap">
+              <span class="delivery-chip" :class="statusClass(statusFor(item))"><span class="status-dot" :class="statusClass(statusFor(item))" />{{ statusLabel(statusFor(item)) }}</span>
+              <v-btn
+                size="x-small"
+                variant="tonal"
+                color="primary"
+                prepend-icon="mdi-cash-fast"
+                class="quick-scale-btn font-weight-bold ml-1"
+                @click.stop="openBudgetModal(item)"
+              >
+                Scale
+              </v-btn>
+            </div>
             <span class="metric metric-spend mobile-key"><small>{{ l({lo:'ໃຊ້ຈ່າຍ',th:'ใช้จ่าย',en:'Spend'}) }}</small><strong>{{ money(item.spend) }}</strong></span>
             <span class="metric metric-results mobile-key"><small>{{ resultLabel(item.results.type) }}</small><strong>{{ fmt(item.results.value, 0) }}</strong></span>
             <span class="metric metric-cost mobile-key"><small>{{ l({lo:'ຕົ້ນທຶນ/ຜົນ',th:'ต้นทุน/ผล',en:'Cost/result'}) }}</small><strong>{{ money(item.results.cost) }}</strong></span>
@@ -757,7 +882,23 @@ onMounted(async () => {
               <div><span>{{ l({lo:'ຫຼັງ Margin − Ads',th:'หลัง Margin − Ads',en:'Margin value − ads'}) }}</span><strong>{{ money(contribution(item)) }}</strong><small>{{ l({lo:'ບໍ່ລວມຄ່າດຳເນີນງານ',th:'ไม่รวมค่าใช้จ่ายดำเนินงาน',en:'Excludes operating costs'}) }}</small></div>
               <div v-if="item.entityType==='ad'"><span>Quality ranking</span><strong>{{ item.qualityRanking || '—' }}</strong><small>{{ item.engagementRateRanking || '—' }} · {{ item.conversionRateRanking || '—' }}</small></div>
             </div>
-            <div class="status-actions"><div><strong>{{ l({lo:'ສະຖານະການສົ່ງ',th:'สถานะการส่ง',en:'Delivery status'}) }}</strong><span>{{ statusLabel(statusFor(item)) }}</span></div><v-btn color="success" variant="tonal" prepend-icon="mdi-play" :loading="updatingId===item.entityId" :disabled="statusFor(item)==='ACTIVE'" @click="changeStatus(item,'ACTIVE')">{{ l({lo:'ເປີດໃຊ້ງານ',th:'เปิดใช้งาน',en:'Activate'}) }}</v-btn><v-btn color="error" variant="outlined" prepend-icon="mdi-pause" :loading="updatingId===item.entityId" :disabled="statusFor(item)==='PAUSED'" @click="changeStatus(item,'PAUSED')">{{ l({lo:'ປິດຊົ່ວຄາວ',th:'หยุดชั่วคราว',en:'Pause'}) }}</v-btn></div>
+            <div class="status-actions">
+              <div>
+                <strong>{{ l({lo:'ສະຖານະການສົ່ງ',th:'สถานะการส่ง',en:'Delivery status'}) }}</strong>
+                <span>{{ statusLabel(statusFor(item)) }}</span>
+              </div>
+              <v-btn
+                color="primary"
+                variant="flat"
+                prepend-icon="mdi-cash-fast"
+                class="font-weight-bold btn-scale-budget"
+                @click="openBudgetModal(item)"
+              >
+                {{ l({ lo: 'ປັບງົບ / Scale ງົບ', th: 'ปรับงบ / Scale งบ', en: 'Scale Budget' }) }}
+              </v-btn>
+              <v-btn color="success" variant="tonal" prepend-icon="mdi-play" :loading="updatingId===item.entityId" :disabled="statusFor(item)==='ACTIVE'" @click="changeStatus(item,'ACTIVE')">{{ l({lo:'ເປີດໃຊ້ງານ',th:'เปิดใช้งาน',en:'Activate'}) }}</v-btn>
+              <v-btn color="error" variant="outlined" prepend-icon="mdi-pause" :loading="updatingId===item.entityId" :disabled="statusFor(item)==='PAUSED'" @click="changeStatus(item,'PAUSED')">{{ l({lo:'ປິດຊົ່ວຄາວ',th:'หยุดชั่วคราว',en:'Pause'}) }}</v-btn>
+            </div>
           </div>
         </article>
       </div>
@@ -787,6 +928,179 @@ onMounted(async () => {
   <v-dialog v-model="settingsOpen" max-width="620">
     <v-card rounded="xl"><v-card-title class="dialog-title"><div><small>DECISION SETTINGS</small><h2>{{ l({lo:'ກຳນົດເກນຕາມຮ້ານ',th:'กำหนดเกณฑ์ตามร้าน',en:'Store-specific thresholds'}) }}</h2></div><v-btn icon="mdi-close" variant="text" @click="settingsOpen=false" /></v-card-title><v-card-text class="settings-body"><v-alert type="info" variant="tonal" density="compact" class="mb-4">{{ l({lo:'ແຕ່ລະຮ້ານມີກຳໄລ ແລະເປົ້າໝາຍບໍ່ຄືກັນ. ລະບົບຈະບໍ່ hard-code ຄຳຕັດສິນ.',th:'แต่ละร้านมีกำไรและเป้าหมายต่างกัน ระบบจะไม่ตัดสินด้วยค่าตายตัว',en:'Every store has different margins and goals; recommendations are not hard-coded.'}) }}</v-alert><div class="settings-grid primary-settings"><v-text-field v-model.number="targetCost" type="number" min="0" step="0.01" :label="l({lo:'ຕົ້ນທຶນ/ຜົນລັບສູງສຸດ',th:'ต้นทุน/ผลลัพธ์สูงสุด',en:'Maximum cost per result'})" :suffix="currency" variant="outlined" /><v-text-field v-model.number="grossMargin" type="number" min="0" max="100" step="1" :label="l({lo:'Gross margin ຂອງສິນຄ້າ',th:'Gross margin ของสินค้า',en:'Product gross margin'})" suffix="%" variant="outlined" :hint="breakEvenROAS?`Break-even ROAS ${fmt(breakEvenROAS,2)}×`:''" persistent-hint /></div><div class="settings-grid"><v-text-field v-model.number="weakCTR" type="number" min="0" step="0.1" label="Weak CTR below" suffix="%" variant="outlined" /><v-text-field v-model.number="goodCTR" type="number" min="0" step="0.1" label="Good CTR from" suffix="%" variant="outlined" /><v-text-field v-model.number="maxFrequency" type="number" min="1" step="0.1" label="Frequency warning from" variant="outlined" /><v-text-field v-model.number="minimumPlanImpressions" type="number" min="0" step="100" :label="l({lo:'Impressions ຕ່ຳສຸດສຳລັບແຜນ',th:'Impressions ขั้นต่ำสำหรับแผน',en:'Minimum plan impressions'})" variant="outlined" /><v-text-field v-model.number="minimumPlanSpend" type="number" min="0" step="0.01" :label="l({lo:'Spend ຕ່ຳສຸດສຳລັບແຜນ',th:'Spend ขั้นต่ำสำหรับแผน',en:'Minimum plan spend'})" :suffix="currency" variant="outlined" /></div></v-card-text><v-card-actions class="dialog-actions"><v-btn variant="text" @click="targetCost=null;grossMargin=null;goodCTR=3;weakCTR=1;maxFrequency=3;minimumPlanImpressions=1000;minimumPlanSpend=null">{{ l({lo:'ຄ່າເລີ່ມຕົ້ນ',th:'ค่าเริ่มต้น',en:'Reset'}) }}</v-btn><v-spacer /><v-btn color="primary" @click="saveThresholds">{{ l({lo:'ບັນທຶກ',th:'บันทึก',en:'Save settings'}) }}</v-btn></v-card-actions></v-card>
   </v-dialog>
+
+  <!-- Scale Budget Modal -->
+  <v-dialog v-model="budgetModalOpen" max-width="520" persistent>
+    <v-card rounded="xl" class="budget-dialog-card">
+      <v-card-title class="dialog-title">
+        <div>
+          <small class="text-primary font-weight-bold letter-spacing-1">BUDGET SCALING & CONTROL</small>
+          <h2>{{ l({ lo: 'ປັບງົບປະມານໂຄສະນາ', th: 'ปรับงบประมาณโฆษณา', en: 'Scale / Adjust Ad Budget' }) }}</h2>
+        </div>
+        <v-btn icon="mdi-close" variant="text" :disabled="updatingBudget" @click="budgetModalOpen = false" />
+      </v-card-title>
+
+      <v-card-text class="settings-body">
+        <!-- Target Info Card -->
+        <div class="target-entity-card mb-4">
+          <div class="d-flex align-center justify-space-between gap-2 mb-1">
+            <span class="entity-type-badge text-uppercase">{{ targetBudgetItem?.entityType }}</span>
+            <span v-if="targetBudgetItem" class="delivery-chip compact" :class="statusClass(statusFor(targetBudgetItem))">
+              <span class="status-dot" :class="statusClass(statusFor(targetBudgetItem))" />
+              {{ statusLabel(statusFor(targetBudgetItem)) }}
+            </span>
+          </div>
+          <h3 class="entity-name-display">{{ targetBudgetItem?.entityName }}</h3>
+          <p v-if="targetBudgetItem?.entityType === 'ad'" class="ad-parent-note">
+            <v-icon icon="mdi-information-outline" size="14" />
+            {{ l({
+              lo: `Meta ກຳນົດງົບຢູ່ລະດັບ Ad Set: ຈະປັບງົບໃຫ້ Ad Set “${targetBudgetItem?.adSetName || targetBudgetItem?.campaignName}”`,
+              th: `Meta กำหนดงบที่ระดับ Ad Set: จะปรับงบให้ Ad Set “${targetBudgetItem?.adSetName || targetBudgetItem?.campaignName}”`,
+              en: `Meta controls budget at Ad Set level: will update Ad Set “${targetBudgetItem?.adSetName || targetBudgetItem?.campaignName}”`,
+            }) }}
+          </p>
+          <div class="d-flex align-center gap-3 text-caption text-medium-emphasis mt-2">
+            <span>{{ l({ lo: 'ໃຊ້ຈ່າຍສະເລ່ຍຊ່ວງນີ້:', th: 'ใช้จ่ายเฉลี่ยช่วงนี้:', en: 'Recent spend:' }) }} <b>{{ money(targetBudgetItem?.spend) }}</b></span>
+          </div>
+        </div>
+
+        <!-- Quick Percentage Buttons (Pills) -->
+        <div class="mb-4">
+          <div class="d-flex align-center justify-space-between mb-2">
+            <label class="text-caption font-weight-bold text-uppercase text-medium-emphasis">
+              {{ l({ lo: 'ເລືອກເປີເຊັນເພີ່ມ/ຫຼຸດງົບ (Quick Scale)', th: 'เลือกเปอร์เซ็นต์เพิ่ม/ลดงบ', en: 'Quick Scale Percentage' }) }}
+            </label>
+            <span class="text-caption text-primary font-weight-medium">
+              {{ l({ lo: 'ປອດໄພສຸດ: +10% ຫາ +20%', th: 'ปลอดภัยสุด: +10% ถึง +20%', en: 'Safest: +10% to +20%' }) }}
+            </span>
+          </div>
+
+          <!-- Scale Up Pills -->
+          <div class="scale-pills-row mb-2">
+            <span class="pill-group-label text-success">
+              <v-icon icon="mdi-arrow-up-bold" size="12" /> {{ l({ lo: 'ເພີ່ມ', th: 'เพิ่ม', en: 'Up' }) }}
+            </span>
+            <v-btn
+              v-for="pct in [10, 15, 20, 30, 50]"
+              :key="`up-${pct}`"
+              size="small"
+              :variant="selectedPercent === pct ? 'flat' : 'outlined'"
+              :color="selectedPercent === pct ? 'success' : undefined"
+              class="scale-pill-btn"
+              :class="{ 'active-pill': selectedPercent === pct }"
+              @click="setBudgetPercent(pct)"
+            >
+              +{{ pct }}%
+            </v-btn>
+          </div>
+
+          <!-- Scale Down Pills -->
+          <div class="scale-pills-row">
+            <span class="pill-group-label text-warning">
+              <v-icon icon="mdi-arrow-down-bold" size="12" /> {{ l({ lo: 'ຫຼຸດ', th: 'ลด', en: 'Down' }) }}
+            </span>
+            <v-btn
+              v-for="pct in [-10, -20, -30, -50]"
+              :key="`down-${pct}`"
+              size="small"
+              :variant="selectedPercent === pct ? 'flat' : 'outlined'"
+              :color="selectedPercent === pct ? 'warning' : undefined"
+              class="scale-pill-btn"
+              :class="{ 'active-pill': selectedPercent === pct }"
+              @click="setBudgetPercent(pct)"
+            >
+              {{ pct }}%
+            </v-btn>
+            <v-btn
+              size="small"
+              variant="text"
+              class="scale-pill-btn"
+              @click="setBudgetPercent(0)"
+            >
+              {{ l({ lo: 'ຄືນຄ່າ', th: 'รีเซ็ต', en: 'Reset' }) }}
+            </v-btn>
+          </div>
+        </div>
+
+        <!-- Before & After Comparison Card -->
+        <div class="budget-comparison-box mb-4">
+          <div class="comp-col">
+            <span class="comp-label">{{ l({ lo: 'ງົບປັດຈຸບັນ (Baseline)', th: 'งบปัจจุบัน', en: 'Current Baseline' }) }}</span>
+            <strong class="comp-value">{{ money(baseDailyBudget) }}<small>/ມື້</small></strong>
+          </div>
+          <div class="comp-arrow">
+            <v-icon icon="mdi-arrow-right-bold" color="primary" />
+          </div>
+          <div class="comp-col highlight">
+            <span class="comp-label">{{ l({ lo: 'ງົບໃໝ່ທີ່ຕ້ອງການຕັ້ງ', th: 'งบประมาณใหม่', en: 'New Budget' }) }}</span>
+            <strong class="comp-value text-primary">{{ money(newDailyBudget) }}<small>/ມື້</small></strong>
+          </div>
+        </div>
+
+        <!-- Difference Badge -->
+        <div class="d-flex align-center justify-space-between px-2 mb-4">
+          <span class="text-caption text-medium-emphasis">{{ l({ lo: 'ສ່ວນຕ່າງງົບປະມານ:', th: 'ส่วนต่างงบประมาณ:', en: 'Budget Difference:' }) }}</span>
+          <v-chip
+            size="small"
+            :color="budgetDiff > 0 ? 'success' : budgetDiff < 0 ? 'warning' : 'default'"
+            variant="flat"
+            class="font-weight-bold"
+          >
+            {{ budgetDiff > 0 ? '+' : '' }}{{ money(budgetDiff) }}/ມື້ ({{ budgetDiff > 0 ? '+' : '' }}{{ budgetDiffPercent }}%)
+          </v-chip>
+        </div>
+
+        <!-- Custom Input Field -->
+        <v-text-field
+          v-model.number="newDailyBudget"
+          type="number"
+          :label="l({ lo: 'ກຳນົດງົບປະມານຕໍ່ມື້ (Daily Budget)', th: 'ระบุงบประมาณต่อวัน', en: 'Daily Budget' })"
+          :suffix="currency"
+          variant="outlined"
+          density="comfortable"
+          :hint="l({ lo: 'ສາມາດພິມຕົວເລກທີ່ຕ້ອງການປັບເອງໄດ້ໂດຍກົງ', th: 'สามารถพิมพ์ตัวเลขที่ต้องการระบุได้โดยตรง', en: 'You can type any exact custom amount' })"
+          persistent-hint
+          @input="selectedPercent = null"
+        />
+
+        <!-- Best Practice Advisory Alert -->
+        <v-alert
+          type="info"
+          variant="tonal"
+          density="compact"
+          class="mt-4"
+          icon="mdi-lightbulb-on-outline"
+        >
+          <div class="text-caption">
+            <strong>{{ l({ lo: 'ຄຳແນະນຳຈາກ Algorithm ຂອງ Meta:', th: 'คำแนะนำจาก Algorithm ของ Meta:', en: 'Meta Algorithm Tip:' }) }}</strong>
+            {{ l({
+              lo: 'ການປັບເພີ່ມງົບ 10% ຫາ 20% ຕໍ່ຄັ້ງ ແມ່ນວິທີທີ່ປອດໄພທີ່ສຸດ ເພື່ອປ້ອງກັນບໍ່ໃຫ້ Meta Reset Learning Phase.',
+              th: 'การปรับเพิ่มงบ 10% ถึง 20% ต่อครั้ง เป็นวิธีที่ปลอดภัยที่สุด เพื่อไม่ให้ Meta รีเซ็ต Learning Phase',
+              en: 'Adjusting budget within 10% to 20% is the safest way to avoid triggering a Learning Phase reset.',
+            }) }}
+          </div>
+        </v-alert>
+      </v-card-text>
+
+      <v-card-actions class="dialog-actions">
+        <v-btn variant="text" :disabled="updatingBudget" @click="budgetModalOpen = false">
+          {{ l({ lo: 'ຍົກເລີກ', th: 'ยกเลิก', en: 'Cancel' }) }}
+        </v-btn>
+        <v-spacer />
+        <v-btn
+          color="primary"
+          variant="flat"
+          :loading="updatingBudget"
+          :disabled="!newDailyBudget || newDailyBudget <= 0"
+          prepend-icon="mdi-check"
+          class="font-weight-bold px-4"
+          @click="applyBudgetChange"
+        >
+          {{ l({ lo: 'ຢືນຢັນປັບງົບ', th: 'ยืนยันปรับงบ', en: 'Apply Budget' }) }}
+        </v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
 </template>
 
 <style scoped>
@@ -804,6 +1118,24 @@ onMounted(async () => {
 .filter-product-select { min-width: 200px; }
 .filter-date-select { min-width: 140px; }
 .filter-custom-date { max-width: 130px; }
+
+.delivery-wrap{display:inline-flex;align-items:center;gap:6px}
+.quick-scale-btn{height:26px !important;padding-inline:8px !important;font-size:11px !important;letter-spacing:0}
+.btn-scale-budget{font-size:13px}
+
+.target-entity-card{background:var(--color-surface-soft);border:1px solid var(--color-border);border-radius:12px;padding:12px 14px}
+.entity-type-badge{font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--color-primary);background:var(--color-primary-soft);padding:3px 7px;border-radius:6px}
+.entity-name-display{font-size:16px;font-weight:700;margin:6px 0 2px;line-height:1.3}
+.ad-parent-note{font-size:11.5px;color:var(--color-primary);margin:4px 0 0;display:flex;align-items:center;gap:4px}
+.scale-pills-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.pill-group-label{font-size:11px;font-weight:800;min-width:44px;display:inline-flex;align-items:center;gap:2px}
+.scale-pill-btn{min-width:52px;height:32px;font-weight:700;border-radius:8px;font-size:12px}
+.budget-comparison-box{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-radius:12px;background:color-mix(in srgb,var(--color-primary) 6%,var(--color-surface));border:1px dashed color-mix(in srgb,var(--color-primary) 30%,var(--color-border))}
+.comp-col{display:grid;gap:2px}
+.comp-label{font-size:10.5px;color:var(--color-text-secondary);font-weight:600}
+.comp-value{font-size:17px;font-weight:800}
+.comp-value small{font-size:11px;font-weight:500;color:var(--color-text-muted);margin-left:2px}
+.comp-arrow{display:flex;align-items:center;justify-content:center}
 
 @media(max-width:1280px){
   .filter-bar{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -872,10 +1204,15 @@ onMounted(async () => {
     top:16px;
     right:14px;
   }
-  .delivery-chip{
+  .delivery-wrap{
     grid-column:1;
     grid-row:2;
     justify-self:start;
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+  }
+  .delivery-chip{
     font-size:10px;
   }
   .decision-chip{
@@ -922,7 +1259,11 @@ onMounted(async () => {
     gap:8px;
   }
   .status-actions>div{grid-column:1/-1;margin-bottom:4px}
+  .status-actions .btn-scale-budget{grid-column:1/-1}
   .status-actions .v-btn{width:100%;min-height:42px;font-size:13px;font-weight:700}
+  .scale-pill-btn{min-width:44px;height:30px;font-size:11px;padding-inline:6px}
+  .budget-comparison-box{padding:10px 12px}
+  .comp-value{font-size:15px}
 
   .settings-grid,.settings-grid.primary-settings{grid-template-columns:1fr}
   .trend-card,.decision-card{padding:14px}
