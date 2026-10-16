@@ -92,9 +92,12 @@ type ProductModel struct {
 	Status      string `gorm:"size:30;default:'active'" json:"status"`
 	Colors      string `gorm:"size:255" json:"colors"`
 	Sizes       string `gorm:"size:255" json:"sizes"`
-	Variants    string `gorm:"type:text" json:"variants"`
-	CreatedAt   time.Time `json:"createdAt"`
-	UpdatedAt   time.Time `json:"updatedAt"`
+	Variants          string    `gorm:"type:text" json:"variants"`
+	PackagingCost     float64   `gorm:"type:decimal(18,2);default:0" json:"packagingCost"`
+	ShippingCostStore float64   `gorm:"type:decimal(18,2);default:0" json:"shippingCostStore"`
+	TargetProfit      float64   `gorm:"type:decimal(18,2);default:0" json:"targetProfit"`
+	CreatedAt         time.Time `json:"createdAt"`
+	UpdatedAt         time.Time `json:"updatedAt"`
 }
 
 type AutomationRuleModel struct {
@@ -267,33 +270,45 @@ type WarehouseStockModel struct {
 }
 
 type OrderModel struct {
-	ID                string           `gorm:"type:uuid;primaryKey" json:"id"`
-	AccountID         string           `gorm:"type:uuid;index;not null" json:"accountId"`
-	Account           AccountModel     `gorm:"foreignKey:AccountID;constraint:OnDelete:CASCADE" json:"-"`
-	OrderNumber       string           `gorm:"size:60;uniqueIndex;not null" json:"orderNumber"`
-	LeadID            *string          `gorm:"type:uuid;index" json:"leadId,omitempty"`
-	SenderID          string           `gorm:"size:60;index" json:"senderId"`
-	PageID            string           `gorm:"size:60;index" json:"pageId"`
-	WarehouseID       string           `gorm:"type:uuid;index" json:"warehouseId"`
-	Warehouse         *WarehouseModel  `gorm:"foreignKey:WarehouseID;constraint:OnDelete:SET NULL" json:"warehouse,omitempty"`
-	CustomerName      string           `gorm:"size:255" json:"customerName"`
-	CustomerPhone     string           `gorm:"size:50" json:"customerPhone"`
-	CustomerAddress   string           `gorm:"type:text" json:"customerAddress"`
-	Subtotal          float64          `gorm:"type:decimal(18,2);default:0" json:"subtotal"`
-	Discount          float64          `gorm:"type:decimal(18,2);default:0" json:"discount"`
-	ShippingFee       float64          `gorm:"type:decimal(18,2);default:0" json:"shippingFee"`
-	TotalAmount       float64          `gorm:"type:decimal(18,2);default:0" json:"totalAmount"`
-	Currency          string           `gorm:"size:10;default:'LAK'" json:"currency"`
-	PaymentStatus     string           `gorm:"size:30;default:'unpaid'" json:"paymentStatus"`       // unpaid, paid, refunded
-	PaymentMethod     string           `gorm:"size:50" json:"paymentMethod"`                       // bcel_one, transfer, cod, cash
-	FulfillmentStatus string           `gorm:"size:30;default:'pending'" json:"fulfillmentStatus"` // pending, confirmed, shipping, delivered, cancelled
-	DeliveryCourier   string           `gorm:"size:100" json:"deliveryCourier"`                    // Anousith, HAL, Houngaloun, Flash, Kerry, etc.
-	DeliveryTracking  string           `gorm:"size:255" json:"deliveryTracking"`
-	Notes             string           `gorm:"type:text" json:"notes"`
-	FacebookLeadSent  bool             `gorm:"default:false" json:"facebookLeadSent"`
-	Items             []OrderItemModel `gorm:"foreignKey:OrderID;constraint:OnDelete:CASCADE" json:"items"`
-	CreatedAt         time.Time        `gorm:"index" json:"createdAt"`
-	UpdatedAt         time.Time        `json:"updatedAt"`
+	ID                 string           `gorm:"type:uuid;primaryKey" json:"id"`
+	AccountID          string           `gorm:"type:uuid;index;not null" json:"accountId"`
+	Account            AccountModel     `gorm:"foreignKey:AccountID;constraint:OnDelete:CASCADE" json:"-"`
+	OrderNumber        string           `gorm:"size:60;uniqueIndex;not null" json:"orderNumber"`
+	LeadID             *string          `gorm:"type:uuid;index" json:"leadId,omitempty"`
+	AdID               string           `gorm:"size:100;index" json:"adId,omitempty"`
+	CampaignID         string           `gorm:"size:100;index" json:"campaignId,omitempty"`
+	SenderID           string           `gorm:"size:60;index" json:"senderId"`
+	PageID             string           `gorm:"size:60;index" json:"pageId"`
+	WarehouseID        string           `gorm:"type:uuid;index" json:"warehouseId"`
+	Warehouse          *WarehouseModel  `gorm:"foreignKey:WarehouseID;constraint:OnDelete:SET NULL" json:"warehouse,omitempty"`
+	CustomerName       string           `gorm:"size:255" json:"customerName"`
+	CustomerPhone      string           `gorm:"size:50" json:"customerPhone"`
+	CustomerAddress    string           `gorm:"type:text" json:"customerAddress"`
+	Subtotal           float64          `gorm:"type:decimal(18,2);default:0" json:"subtotal"`
+	Discount           float64          `gorm:"type:decimal(18,2);default:0" json:"discount"`
+	ShippingFee        float64          `gorm:"type:decimal(18,2);default:0" json:"shippingFee"`
+	TotalAmount        float64          `gorm:"type:decimal(18,2);default:0" json:"totalAmount"`
+	ProductCost        float64          `gorm:"type:decimal(18,2);default:0" json:"productCost"`
+	PackagingCost      float64          `gorm:"type:decimal(18,2);default:0" json:"packagingCost"`
+	StoreShippingCost  float64          `gorm:"type:decimal(18,2);default:0" json:"storeShippingCost"`
+	ReturnFee          float64          `gorm:"type:decimal(18,2);default:0" json:"returnFee"`
+	TotalVariableCost  float64          `gorm:"type:decimal(18,2);default:0" json:"totalVariableCost"`
+	NetProfitBeforeAds float64          `gorm:"type:decimal(18,2);default:0" json:"netProfitBeforeAds"`
+	IsCOD              bool             `gorm:"default:false;index" json:"isCod"`
+	PrepaidAmount      float64          `gorm:"type:decimal(18,2);default:0" json:"prepaidAmount"`
+	CODAmount          float64          `gorm:"type:decimal(18,2);default:0" json:"codAmount"`
+	CODTransferStatus  string           `gorm:"size:30;default:'pending'" json:"codTransferStatus"` // pending, transferred
+	Currency           string           `gorm:"size:10;default:'LAK'" json:"currency"`
+	PaymentStatus      string           `gorm:"size:30;default:'unpaid'" json:"paymentStatus"`       // unpaid, paid, refunded
+	PaymentMethod      string           `gorm:"size:50" json:"paymentMethod"`                       // transfer, cod, cash
+	FulfillmentStatus  string           `gorm:"size:30;default:'pending'" json:"fulfillmentStatus"` // pending, confirmed, shipping, delivered, cancelled
+	DeliveryCourier    string           `gorm:"size:100" json:"deliveryCourier"`                    // Anousith, HAL, Houngaloun, Flash, Kerry, etc.
+	DeliveryTracking   string           `gorm:"size:255" json:"deliveryTracking"`
+	Notes              string           `gorm:"type:text" json:"notes"`
+	FacebookLeadSent   bool             `gorm:"default:false" json:"facebookLeadSent"`
+	Items              []OrderItemModel `gorm:"foreignKey:OrderID;constraint:OnDelete:CASCADE" json:"items"`
+	CreatedAt          time.Time        `gorm:"index" json:"createdAt"`
+	UpdatedAt          time.Time        `json:"updatedAt"`
 }
 
 type OrderItemModel struct {
@@ -309,4 +324,25 @@ type OrderItemModel struct {
 	Quantity     int           `gorm:"not null;default:1" json:"quantity"`
 	UnitPrice    float64       `gorm:"type:decimal(18,2);not null" json:"unitPrice"`
 	TotalPrice   float64       `gorm:"type:decimal(18,2);not null" json:"totalPrice"`
+	CostPrice    float64       `gorm:"type:decimal(18,2);default:0" json:"costPrice"`
+	TotalCost    float64       `gorm:"type:decimal(18,2);default:0" json:"totalCost"`
+}
+
+type AdStrategySettingsModel struct {
+	ID                   string       `gorm:"type:uuid;primaryKey" json:"id"`
+	AccountID            string       `gorm:"type:uuid;index;not null" json:"accountId"`
+	Account              AccountModel `gorm:"foreignKey:AccountID;constraint:OnDelete:CASCADE" json:"-"`
+	AdAccountID          string       `gorm:"size:100;index" json:"adAccountId"`
+	EffectiveFrom        time.Time    `gorm:"index;not null" json:"effectiveFrom"`
+	EffectiveTo          *time.Time   `gorm:"index" json:"effectiveTo,omitempty"`
+	TargetProfitPerOrder float64      `gorm:"type:decimal(18,2);default:0" json:"targetProfitPerOrder"`
+	AvgPackagingCost     float64      `gorm:"type:decimal(18,2);default:0" json:"avgPackagingCost"`
+	AvgShippingCostStore float64      `gorm:"type:decimal(18,2);default:0" json:"avgShippingCostStore"`
+	CODReturnRatePercent float64      `gorm:"type:decimal(6,2);default:8.0" json:"codReturnRatePercent"`
+	ReturnFeePerOrder    float64      `gorm:"type:decimal(18,2);default:0" json:"returnFeePerOrder"`
+	DailyBudgetCap       float64      `gorm:"type:decimal(18,2);default:0" json:"dailyBudgetCap"`
+	MaxTestLossBudget    float64      `gorm:"type:decimal(18,2);default:0" json:"maxTestLossBudget"`
+	Note                 string       `gorm:"size:500" json:"note"`
+	CreatedAt            time.Time    `json:"createdAt"`
+	UpdatedAt            time.Time    `json:"updatedAt"`
 }

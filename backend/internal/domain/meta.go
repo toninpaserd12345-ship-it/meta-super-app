@@ -212,9 +212,12 @@ type Product struct {
 	GalleryURLs string   `json:"galleryUrls,omitempty"`
 	MinStock    *int64   `json:"minStock,omitempty"`
 	Status      string   `json:"status,omitempty"`
-	Colors      string   `json:"colors,omitempty"`
-	Sizes       string   `json:"sizes,omitempty"`
-	Variants    string   `json:"variants,omitempty"`
+	Colors            string   `json:"colors,omitempty"`
+	Sizes             string   `json:"sizes,omitempty"`
+	Variants          string   `json:"variants,omitempty"`
+	PackagingCost     float64  `json:"packagingCost,omitempty"`
+	ShippingCostStore float64  `json:"shippingCostStore,omitempty"`
+	TargetProfit      float64  `json:"targetProfit,omitempty"`
 }
 
 type ReplyFlow struct {
@@ -265,6 +268,7 @@ type MetaConnector interface {
 	AdsInsights(context.Context, string, string, string, string, string, string) (*MetaInsightsReport, error)
 	AudienceAnalysis(context.Context, string, string, string, string) (*MetaAudienceAnalysis, error)
 	UpdateAdEntityStatus(context.Context, string, string, string, string) error
+	UpdateAdEntityBudget(ctx context.Context, userID, accountID, entityID string, dailyBudget int64) error
 	VerifyWebhook(string) bool
 	ReceiveWebhook(context.Context, []byte, string) error
 	SetAutomationProvider(AutomationProvider)

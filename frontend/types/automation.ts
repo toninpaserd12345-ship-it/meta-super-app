@@ -32,6 +32,9 @@ export interface Product {
   colors?: string
   sizes?: string
   variants?: string
+  packagingCost?: number | null
+  shippingCostStore?: number | null
+  targetProfit?: number | null
 }
 
 export interface Warehouse {
@@ -71,6 +74,8 @@ export interface OrderItem {
   quantity: number
   unitPrice: number
   totalPrice: number
+  costPrice?: number
+  totalCost?: number
 }
 
 export interface Order {
@@ -80,6 +85,8 @@ export interface Order {
   leadId?: string
   senderId?: string
   pageId?: string
+  adId?: string
+  campaignId?: string
   warehouseId: string
   warehouse?: Warehouse
   customerName: string
@@ -90,6 +97,16 @@ export interface Order {
   shippingFee: number
   totalAmount: number
   currency: string
+  productCost?: number
+  packagingCost?: number
+  storeShippingCost?: number
+  returnFee?: number
+  totalVariableCost?: number
+  netProfitBeforeAds?: number
+  isCod?: boolean
+  prepaidAmount?: number
+  codAmount?: number
+  codTransferStatus?: string
   paymentStatus: 'unpaid' | 'paid' | 'refunded'
   paymentMethod: string
   fulfillmentStatus: 'pending' | 'confirmed' | 'shipping' | 'delivered' | 'cancelled'
@@ -294,3 +311,111 @@ export interface MetaAudienceAnalysis {
   estimateSource?: string
   warnings?: string[]
 }
+
+export interface AdStrategySettings {
+  id: string
+  accountId: string
+  adAccountId: string
+  effectiveFrom: string
+  effectiveTo?: string | null
+  targetProfitPerOrder: number
+  avgPackagingCost: number
+  avgShippingCostStore: number
+  codReturnRatePercent: number
+  returnFeePerOrder: number
+  dailyBudgetCap: number
+  maxTestLossBudget: number
+  note?: string
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface AdPerformanceItem {
+  entityType: 'campaign' | 'adset' | 'ad'
+  entityId: string
+  entityName: string
+  campaignId?: string
+  campaignName?: string
+  adSetId?: string
+  adSetName?: string
+  status: string
+  effectiveStatus: string
+
+  spend: number
+  impressions: number
+  reach: number
+  frequency: number
+  linkClicks: number
+  linkCtr: number
+  linkCpc: number
+  cpm: number
+  reportedResults: number
+  reportedCost?: number | null
+
+  totalOrders: number
+  prepaidOrders: number
+  prepaidRevenue: number
+  codTotalOrders: number
+  codDeliveredOrders: number
+  codDeliveredRevenue: number
+  codPendingOrders: number
+  codPendingRevenue: number
+  codReturnedOrders: number
+  completedOrders: number
+  completedRevenue: number
+  grossProfitBeforeAds: number
+  netContribution: number
+
+  realCpa?: number | null
+  targetCpa: number
+  breakEvenCpa: number
+  closingRate?: number | null
+  decisionCode: 'SCALE' | 'HOLD' | 'IMPROVE' | 'PAUSE' | 'PAUSE_TEST' | 'INSUFFICIENT_DATA'
+  statusBadgeColor: 'success' | 'info' | 'warning' | 'error' | 'secondary'
+  reason: string
+  recommendedAction: string
+  proposedBudgetChange?: string | null
+}
+
+export interface PerformanceAnalysisSummary {
+  totalSpend: number
+  totalImpressions: number
+  totalChats: number
+  totalPrepaidOrders: number
+  totalPrepaidRevenue: number
+  totalCODOrders: number
+  totalCODDelivered: number
+  totalCODDeliveredRev: number
+  totalCODPending: number
+  totalCODPendingRev: number
+  totalCODReturned: number
+  totalCompletedOrders: number
+  totalCompletedRevenue: number
+  totalGrossProfit: number
+  totalNetProfit: number
+  overallRealCpa?: number | null
+  prepaidPercentage: number
+}
+
+export interface PerformanceActionPlan {
+  toPause: string[]
+  toScale: string[]
+  toHold: string[]
+  nextExperiments: string[]
+  nextReviewDate: string
+  dailyBudgetCap: number
+}
+
+export interface PerformanceAnalysisReport {
+  currency: string
+  timezone: string
+  level: string
+  dateStart: string
+  dateStop: string
+  generatedAt: string
+  strategy: AdStrategySettings
+  summary: PerformanceAnalysisSummary
+  items: AdPerformanceItem[]
+  actionPlan: PerformanceActionPlan
+}
+

@@ -3198,6 +3198,42 @@ func (g *GraphConnector) UpdateAdEntityStatus(ctx context.Context, _ string, acc
 	return nil
 }
 
+func (g *GraphConnector) UpdateAdEntityBudget(ctx context.Context, _ string, accountID, entityID string, dailyBudget int64) error {
+	token, err := g.userToken(ctx, accountID)
+	if err != nil {
+		return err
+	}
+	values := url.Values{"daily_budget": {strconv.FormatInt(dailyBudget, 10)}, "access_token": {token}}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://graph.facebook.com/"+g.cfg.Version+"/"+url.PathEscape(entityID), strings.NewReader(values.Encode()))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err := g.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return err
+	}
+	var envelope struct {
+		Success bool        `json:"success"`
+		Error   *graphError `json:"error"`
+	}
+	if err = json.Unmarshal(body, &envelope); err != nil {
+		return err
+	}
+	if resp.StatusCode >= 400 || envelope.Error != nil {
+		return graphResponseError(resp.StatusCode, envelope.Error)
+	}
+	if !envelope.Success {
+		return errors.New("Meta did not confirm the budget change")
+	}
+	return nil
+}
+
 func (g *GraphConnector) ListProductBindings(_ context.Context, _, accountID string) ([]domain.ProductBinding, error) {
 	g.mu.RLock()
 	defer g.mu.RUnlock()

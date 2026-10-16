@@ -126,6 +126,16 @@ func (u *Meta) UpdateAdEntityStatus(ctx context.Context, userID, accountID, enti
 	}
 	return u.connector.UpdateAdEntityStatus(ctx, userID, accountID, entityID, status)
 }
+func (u *Meta) UpdateAdEntityBudget(ctx context.Context, userID, accountID, entityType, entityID string, dailyBudget int64) error {
+	entityType = strings.ToLower(strings.TrimSpace(entityType))
+	if entityType != "campaign" && entityType != "adset" {
+		return errors.New("budget update only supported for campaign and adset")
+	}
+	if entityID == "" || dailyBudget <= 0 {
+		return errors.New("invalid ad budget update")
+	}
+	return u.connector.UpdateAdEntityBudget(ctx, userID, accountID, entityID, dailyBudget)
+}
 func (u *Meta) VerifyWebhook(token string) bool { return u.connector.VerifyWebhook(token) }
 func (u *Meta) ReceiveWebhook(ctx context.Context, body []byte, signature string) error {
 	return u.connector.ReceiveWebhook(ctx, body, signature)

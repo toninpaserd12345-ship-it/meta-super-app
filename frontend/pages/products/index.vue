@@ -21,13 +21,16 @@ const uploading = ref(false)
 const notice = ref('')
 const noticeType = ref<'success' | 'error'>('success')
 
-const form = reactive<Product & { code?: string; salePrice: number | null; cost: number | null; quantity: number | null; currency: string }>({
+const form = reactive<Product & { code?: string; salePrice: number | null; cost: number | null; quantity: number | null; currency: string; packagingCost: number | null; shippingCostStore: number | null; targetProfit: number | null }>({
   id: '',
   code: '',
   name: '',
   price: '',
   salePrice: null,
   cost: null,
+  packagingCost: null,
+  shippingCostStore: null,
+  targetProfit: null,
   quantity: null,
   currency: 'LAK',
   description: '',
@@ -110,6 +113,9 @@ function openCreate() {
     price: '',
     salePrice: null,
     cost: null,
+    packagingCost: null,
+    shippingCostStore: null,
+    targetProfit: null,
     quantity: null,
     currency: 'LAK',
     description: '',
@@ -135,6 +141,9 @@ function openEdit(product: Product) {
     {
       salePrice: null,
       cost: null,
+      packagingCost: null,
+      shippingCostStore: null,
+      targetProfit: null,
       quantity: null,
       currency: 'LAK',
       barcode: '',
@@ -316,6 +325,9 @@ async function saveProduct() {
         price: form.price.trim() || `${form.salePrice} ${form.currency}`,
         salePrice: form.salePrice,
         cost: form.cost,
+        packagingCost: form.packagingCost,
+        shippingCostStore: form.shippingCostStore,
+        targetProfit: form.targetProfit,
         quantity: form.quantity,
         currency: form.currency.trim().toUpperCase() || 'LAK',
         description: form.description.trim(),
@@ -633,6 +645,12 @@ const unitProfit = (product: Product) =>
           <div class="money-grid mb-2">
             <v-text-field v-model.number="form.cost" type="number" min="0" :label="l({ lo: 'ຕົ້ນທຶນຕໍ່ໜ່ວຍ', th: 'ต้นทุนต่อหน่วย', en: 'Cost per unit' })" hide-details/>
             <v-text-field v-model.number="form.quantity" type="number" min="0" step="1" :label="l({ lo: 'ຈຳນວນຄົງເຫຼືອທັງໝົດ', th: 'จำนวนคงเหลือทั้งหมด', en: 'Total Stock' })" hide-details/>
+          </div>
+
+          <div class="fields-3col mb-2">
+            <v-text-field v-model.number="form.packagingCost" type="number" min="0" :label="l({ lo: 'ຄ່າແພັກ/ໜ່ວຍ', th: 'ค่าแพ็ค/หน่วย', en: 'Packaging cost' })" suffix="₭" hide-details/>
+            <v-text-field v-model.number="form.shippingCostStore" type="number" min="0" :label="l({ lo: 'ຄ່າສົ່ງຮ້ານອອກ/ໜ່ວຍ', th: 'ค่าส่งร้านออก', en: 'Store shipping subsidy' })" suffix="₭" hide-details/>
+            <v-text-field v-model.number="form.targetProfit" type="number" min="0" :label="l({ lo: 'ເປົ້າກຳໄລ/ໜ່ວຍ', th: 'เป้ากำไร/หน่วย', en: 'Target profit' })" suffix="₭" hide-details/>
           </div>
 
           <div class="fields-2col mb-2">
@@ -1139,6 +1157,11 @@ const unitProfit = (product: Product) =>
 .fields-2col {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.fields-3col {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 10px;
 }
 .image-upload-wrapper {

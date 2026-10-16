@@ -36,6 +36,7 @@ type Handler struct {
 	Leads      *usecase.Leads
 	Inventory  *usecase.Inventory
 	Orders     *usecase.Orders
+	AdAnalyzer *usecase.AdAnalyzer
 
 	tokens                         domain.TokenService
 	metaMode, metaFrontendRedirect string
@@ -55,8 +56,8 @@ type facebookLoginExchange struct {
 	AccountID string `json:"accountId,omitempty"`
 }
 
-func NewHandler(auth *usecase.Auth, meta *usecase.Meta, team *usecase.Team, billing *usecase.Billing, storage *usecase.StorageUseCase, reply *usecase.Reply, automation *usecase.Automation, product *usecase.Product, stream *usecase.ChatStream, leads *usecase.Leads, inventory *usecase.Inventory, orders *usecase.Orders, tokens domain.TokenService, metaMode, metaFrontendRedirect string) *Handler {
-	return &Handler{auth: auth, meta: meta, team: team, billing: billing, Storage: storage, Reply: reply, Automation: automation, Product: product, Stream: stream, Leads: leads, Inventory: inventory, Orders: orders, tokens: tokens, metaMode: metaMode, metaFrontendRedirect: metaFrontendRedirect, tickets: make(map[string]loginTicket)}
+func NewHandler(auth *usecase.Auth, meta *usecase.Meta, team *usecase.Team, billing *usecase.Billing, storage *usecase.StorageUseCase, reply *usecase.Reply, automation *usecase.Automation, product *usecase.Product, stream *usecase.ChatStream, leads *usecase.Leads, inventory *usecase.Inventory, orders *usecase.Orders, adAnalyzer *usecase.AdAnalyzer, tokens domain.TokenService, metaMode, metaFrontendRedirect string) *Handler {
+	return &Handler{auth: auth, meta: meta, team: team, billing: billing, Storage: storage, Reply: reply, Automation: automation, Product: product, Stream: stream, Leads: leads, Inventory: inventory, Orders: orders, AdAnalyzer: adAnalyzer, tokens: tokens, metaMode: metaMode, metaFrontendRedirect: metaFrontendRedirect, tickets: make(map[string]loginTicket)}
 }
 
 func (h *Handler) App() *fiber.App {
@@ -132,6 +133,11 @@ func (h *Handler) App() *fiber.App {
 	auth.Get("/api/v1/meta/ad-accounts/:adAccountID/audience/:adSetID", requireAccount(h.auth, domain.ClaimPagesRead), h.metaAudienceAnalysis)
 	auth.Get("/api/v1/meta/campaigns/:campaignID/ads", requireAccount(h.auth, domain.ClaimPagesRead), h.metaAds)
 	auth.Patch("/api/v1/meta/ads/:entityType/:entityID/status", requireAccount(h.auth, domain.ClaimPagesConnect), h.metaAdStatus)
+	auth.Patch("/api/v1/meta/ads/:entityType/:entityID/budget", requireAccount(h.auth, domain.ClaimPagesConnect), h.updateAdEntityBudget)
+	auth.Get("/api/v1/meta/ad-accounts/:adAccountID/strategy-settings", requireAccount(h.auth, domain.ClaimPagesRead), h.getAdStrategySettings)
+	auth.Post("/api/v1/meta/ad-accounts/:adAccountID/strategy-settings", requireAccount(h.auth, domain.ClaimPagesConnect), h.saveAdStrategySettings)
+	auth.Get("/api/v1/meta/ad-accounts/:adAccountID/strategy-settings/history", requireAccount(h.auth, domain.ClaimPagesRead), h.getAdStrategySettingsHistory)
+	auth.Get("/api/v1/meta/ad-accounts/:adAccountID/performance-analysis", requireAccount(h.auth, domain.ClaimPagesRead), h.getAdPerformanceAnalysis)
 	auth.Get("/api/v1/products", requireAccount(h.auth, domain.ClaimPagesRead), h.products)
 	auth.Post("/api/v1/products", requireAccount(h.auth, domain.ClaimPagesConnect), h.saveProduct)
 	auth.Delete("/api/v1/products/:id", requireAccount(h.auth, domain.ClaimPagesConnect), h.deleteProduct)
@@ -553,3 +559,87 @@ func (h *Handler) metaAdStatus(c fiber.Ctx) error {
 	}
 	return c.JSON(fiber.Map{"id": c.Params("entityID"), "status": strings.ToUpper(body.Status)})
 }
+
+func (h *Handler) updateAdEntityBudget(c fiber.Ctx) error {
+	var body struct {
+		DailyBudget int64 `json:"dailyBudget"`
+	}
+	if err := c.Bind().JSON(&body); err != nil || body.DailyBudget <= 0 {
+		return fail(c, fiber.StatusBadRequest, "invalid_request", "Daily budget is invalid or must be greater than zero.")
+	}
+	ctx, cancel := requestContext(c)
+	defer cancel()
+	if err := h.meta.UpdateAdEntityBudget(ctx, userID(c), c.Locals("accountID").(string), c.Params("entityType"), c.Params("entityID"), body.DailyBudget); err != nil {
+		if errors.Is(err, domain.ErrMetaReconnectRequired) {
+			return usecaseError(c, err)
+		}
+		slog.Warn("Meta ad budget update failed", "entity_type", c.Params("entityType"), "entity_id", c.Params("entityID"), "error", err)
+		return fail(c, fiber.StatusBadGateway, "meta_budget_update_failed", "Meta could not change this budget. Confirm ads_management permission and that this entity supports budget changes.")
+	}
+	return c.JSON(fiber.Map{"id": c.Params("entityID"), "dailyBudget": body.DailyBudget})
+}
+
+func (h *Handler) getAdStrategySettings(c fiber.Ctx) error {
+	ctx, cancel := requestContext(c)
+	defer cancel()
+
+	targetTime := time.Now()
+	if tStr := c.Query("at"); tStr != "" {
+		if pt, err := time.Parse("2006-01-02", tStr); err == nil {
+			targetTime = pt
+		}
+	}
+	settings, err := h.AdAnalyzer.GetActiveStrategySettings(ctx, c.Locals("accountID").(string), c.Params("adAccountID"), targetTime)
+	if err != nil {
+		return usecaseError(c, err)
+	}
+	return c.JSON(settings)
+}
+
+func (h *Handler) saveAdStrategySettings(c fiber.Ctx) error {
+	var input usecase.SaveStrategySettingsInput
+	if err := c.Bind().JSON(&input); err != nil {
+		return fail(c, fiber.StatusBadRequest, "invalid_request", "Invalid strategy settings payload.")
+	}
+	ctx, cancel := requestContext(c)
+	defer cancel()
+	settings, err := h.AdAnalyzer.SaveStrategySettings(ctx, c.Locals("accountID").(string), c.Params("adAccountID"), input)
+	if err != nil {
+		return usecaseError(c, err)
+	}
+	return c.JSON(settings)
+}
+
+func (h *Handler) getAdStrategySettingsHistory(c fiber.Ctx) error {
+	ctx, cancel := requestContext(c)
+	defer cancel()
+	history, err := h.AdAnalyzer.ListStrategySettingsHistory(ctx, c.Locals("accountID").(string), c.Params("adAccountID"))
+	if err != nil {
+		return usecaseError(c, err)
+	}
+	return c.JSON(fiber.Map{"items": history})
+}
+
+func (h *Handler) getAdPerformanceAnalysis(c fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(c.Context(), 60*time.Second)
+	defer cancel()
+	report, err := h.AdAnalyzer.AnalyzePerformance(
+		ctx,
+		userID(c),
+		c.Locals("accountID").(string),
+		c.Params("adAccountID"),
+		c.Query("level", "campaign"),
+		c.Query("since"),
+		c.Query("until"),
+	)
+	if err != nil {
+		if errors.Is(err, domain.ErrMetaReconnectRequired) {
+			return usecaseError(c, err)
+		}
+		slog.Warn("Ad performance analysis failed", "ad_account_id", c.Params("adAccountID"), "error", err)
+		return fail(c, fiber.StatusBadGateway, "analysis_failed", err.Error())
+	}
+	c.Set(fiber.HeaderCacheControl, "no-store")
+	return c.JSON(report)
+}
+

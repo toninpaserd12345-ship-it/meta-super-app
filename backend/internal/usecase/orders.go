@@ -44,9 +44,13 @@ type CreateOrderInput struct {
 	SenderID          string                 `json:"senderId"`
 	PageID            string                 `json:"pageId"`
 	LeadID            string                 `json:"leadId"`
+	AdID              string                 `json:"adId"`
+	CampaignID        string                 `json:"campaignId"`
 	Currency          string                 `json:"currency"`
 	Discount          float64                `json:"discount"`
 	ShippingFee       float64                `json:"shippingFee"`
+	PackagingCost     *float64               `json:"packagingCost,omitempty"`
+	StoreShippingCost *float64               `json:"storeShippingCost,omitempty"`
 	PaymentStatus     string                 `json:"paymentStatus"`
 	PaymentMethod     string                 `json:"paymentMethod"`
 	FulfillmentStatus string                 `json:"fulfillmentStatus"`
@@ -57,12 +61,14 @@ type CreateOrderInput struct {
 }
 
 type UpdateOrderStatusInput struct {
-	PaymentStatus     *string `json:"paymentStatus"`
-	PaymentMethod     *string `json:"paymentMethod"`
-	FulfillmentStatus *string `json:"fulfillmentStatus"`
-	DeliveryCourier   *string `json:"deliveryCourier"`
-	DeliveryTracking  *string `json:"deliveryTracking"`
-	Notes             *string `json:"notes"`
+	PaymentStatus     *string  `json:"paymentStatus"`
+	PaymentMethod     *string  `json:"paymentMethod"`
+	FulfillmentStatus *string  `json:"fulfillmentStatus"`
+	DeliveryCourier   *string  `json:"deliveryCourier"`
+	DeliveryTracking  *string  `json:"deliveryTracking"`
+	Notes             *string  `json:"notes"`
+	ReturnFee         *float64 `json:"returnFee"`
+	CODTransferStatus *string  `json:"codTransferStatus"`
 }
 
 func (u *Orders) ListOrders(ctx context.Context, accountID string, status string) ([]database.OrderModel, error) {
@@ -134,6 +140,9 @@ func (u *Orders) CreateOrder(ctx context.Context, accountID string, in CreateOrd
 	orderNumber := fmt.Sprintf("%s-%04d", todayPrefix, countToday+1)
 
 	var subtotal float64
+	var totalProductCost float64
+	var calcPackagingCost float64
+	var calcStoreShippingCost float64
 	var orderItems []database.OrderItemModel
 
 	// Transaction: create order, create items, deduct stock
@@ -156,6 +165,15 @@ func (u *Orders) CreateOrder(ctx context.Context, accountID string, in CreateOrd
 			itemTotal := unitPrice * float64(itemIn.Quantity)
 			subtotal += itemTotal
 
+			unitCost := 0.0
+			if prod.Cost != nil {
+				unitCost = *prod.Cost
+			}
+			itemTotalCost := unitCost * float64(itemIn.Quantity)
+			totalProductCost += itemTotalCost
+			calcPackagingCost += prod.PackagingCost * float64(itemIn.Quantity)
+			calcStoreShippingCost += prod.ShippingCostStore
+
 			orderItems = append(orderItems, database.OrderItemModel{
 				ID:           uuid.NewString(),
 				OrderID:      orderID,
@@ -168,6 +186,8 @@ func (u *Orders) CreateOrder(ctx context.Context, accountID string, in CreateOrd
 				Quantity:     itemIn.Quantity,
 				UnitPrice:    unitPrice,
 				TotalPrice:   itemTotal,
+				CostPrice:    unitCost,
+				TotalCost:    itemTotalCost,
 			})
 
 			// 3. Deduct stock from specific warehouse
@@ -216,31 +236,75 @@ func (u *Orders) CreateOrder(ctx context.Context, accountID string, in CreateOrd
 			leadIDPtr = &in.LeadID
 		}
 
+		adID := strings.TrimSpace(in.AdID)
+		campaignID := strings.TrimSpace(in.CampaignID)
+		if (adID == "" || campaignID == "") && leadIDPtr != nil {
+			var lead database.LeadModel
+			if err := tx.Where("id = ?", *leadIDPtr).First(&lead).Error; err == nil {
+				if lead.SourceType == "ad" && adID == "" {
+					adID = lead.SourceID
+				} else if lead.SourceType == "campaign" && campaignID == "" {
+					campaignID = lead.SourceID
+				}
+			}
+		}
+
+		isCOD := strings.EqualFold(strings.TrimSpace(in.PaymentMethod), "cod")
+		prepaidAmount := 0.0
+		codAmount := 0.0
+		if isCOD {
+			codAmount = totalAmount
+		} else {
+			prepaidAmount = totalAmount
+		}
+
+		finalPkgCost := calcPackagingCost
+		if in.PackagingCost != nil {
+			finalPkgCost = *in.PackagingCost
+		}
+		finalStoreShipCost := calcStoreShippingCost
+		if in.StoreShippingCost != nil {
+			finalStoreShipCost = *in.StoreShippingCost
+		}
+		totalVariableCost := totalProductCost + finalPkgCost + finalStoreShipCost
+		netProfitBeforeAds := totalAmount - totalVariableCost
+
 		orderRow := database.OrderModel{
-			ID:                orderID,
-			AccountID:         accountID,
-			OrderNumber:       orderNumber,
-			LeadID:            leadIDPtr,
-			SenderID:          strings.TrimSpace(in.SenderID),
-			PageID:            strings.TrimSpace(in.PageID),
-			WarehouseID:       warehouseID,
-			CustomerName:      strings.TrimSpace(in.CustomerName),
-			CustomerPhone:     strings.TrimSpace(in.CustomerPhone),
-			CustomerAddress:   strings.TrimSpace(in.CustomerAddress),
-			Subtotal:          subtotal,
-			Discount:          in.Discount,
-			ShippingFee:       in.ShippingFee,
-			TotalAmount:       totalAmount,
-			Currency:          currency,
-			PaymentStatus:     payStatus,
-			PaymentMethod:     strings.TrimSpace(in.PaymentMethod),
-			FulfillmentStatus: fulStatus,
-			DeliveryCourier:   strings.TrimSpace(in.DeliveryCourier),
-			DeliveryTracking:  strings.TrimSpace(in.DeliveryTracking),
-			Notes:             strings.TrimSpace(in.Notes),
-			FacebookLeadSent:  false,
-			CreatedAt:         time.Now(),
-			UpdatedAt:         time.Now(),
+			ID:                 orderID,
+			AccountID:          accountID,
+			OrderNumber:        orderNumber,
+			LeadID:             leadIDPtr,
+			AdID:               adID,
+			CampaignID:         campaignID,
+			SenderID:           strings.TrimSpace(in.SenderID),
+			PageID:             strings.TrimSpace(in.PageID),
+			WarehouseID:        warehouseID,
+			CustomerName:       strings.TrimSpace(in.CustomerName),
+			CustomerPhone:      strings.TrimSpace(in.CustomerPhone),
+			CustomerAddress:    strings.TrimSpace(in.CustomerAddress),
+			Subtotal:           subtotal,
+			Discount:           in.Discount,
+			ShippingFee:        in.ShippingFee,
+			TotalAmount:        totalAmount,
+			ProductCost:        totalProductCost,
+			PackagingCost:      finalPkgCost,
+			StoreShippingCost:  finalStoreShipCost,
+			TotalVariableCost:  totalVariableCost,
+			NetProfitBeforeAds: netProfitBeforeAds,
+			IsCOD:              isCOD,
+			PrepaidAmount:      prepaidAmount,
+			CODAmount:          codAmount,
+			CODTransferStatus:  "pending",
+			Currency:           currency,
+			PaymentStatus:      payStatus,
+			PaymentMethod:      strings.TrimSpace(in.PaymentMethod),
+			FulfillmentStatus:  fulStatus,
+			DeliveryCourier:    strings.TrimSpace(in.DeliveryCourier),
+			DeliveryTracking:   strings.TrimSpace(in.DeliveryTracking),
+			Notes:              strings.TrimSpace(in.Notes),
+			FacebookLeadSent:   false,
+			CreatedAt:          time.Now(),
+			UpdatedAt:          time.Now(),
 		}
 
 		if err := tx.Create(&orderRow).Error; err != nil {
@@ -341,7 +405,17 @@ func (u *Orders) UpdateOrderStatus(ctx context.Context, accountID, id string, in
 		updates["payment_status"] = strings.TrimSpace(*in.PaymentStatus)
 	}
 	if in.PaymentMethod != nil {
-		updates["payment_method"] = strings.TrimSpace(*in.PaymentMethod)
+		pm := strings.TrimSpace(*in.PaymentMethod)
+		updates["payment_method"] = pm
+		isCOD := strings.EqualFold(pm, "cod")
+		updates["is_cod"] = isCOD
+		if isCOD {
+			updates["cod_amount"] = order.TotalAmount
+			updates["prepaid_amount"] = 0.0
+		} else {
+			updates["prepaid_amount"] = order.TotalAmount
+			updates["cod_amount"] = 0.0
+		}
 	}
 	if in.FulfillmentStatus != nil && strings.TrimSpace(*in.FulfillmentStatus) != "" {
 		updates["fulfillment_status"] = strings.TrimSpace(*in.FulfillmentStatus)
@@ -354,6 +428,15 @@ func (u *Orders) UpdateOrderStatus(ctx context.Context, accountID, id string, in
 	}
 	if in.Notes != nil {
 		updates["notes"] = strings.TrimSpace(*in.Notes)
+	}
+	if in.ReturnFee != nil {
+		updates["return_fee"] = *in.ReturnFee
+		totVar := order.ProductCost + order.PackagingCost + order.StoreShippingCost + *in.ReturnFee
+		updates["total_variable_cost"] = totVar
+		updates["net_profit_before_ads"] = order.TotalAmount - totVar
+	}
+	if in.CODTransferStatus != nil {
+		updates["cod_transfer_status"] = strings.TrimSpace(*in.CODTransferStatus)
 	}
 
 	err := u.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {

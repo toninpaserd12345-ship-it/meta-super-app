@@ -1,16 +1,22 @@
 <script setup lang="ts">
-import type { MetaAdAccount, MetaAudienceAnalysis, MetaCampaign, MetaInsightItem, MetaInsightsReport } from '~/types/automation'
+import type {
+  MetaAdAccount,
+  MetaAudienceAnalysis,
+  MetaCampaign,
+  PerformanceAnalysisReport,
+  AdPerformanceItem,
+  AdStrategySettings,
+} from '~/types/automation'
 
 definePageMeta({ middleware: 'auth' })
 const { l } = useLocale()
 
 type Level = 'campaign' | 'adset' | 'ad'
-type DecisionCode = 'keep' | 'review' | 'pause' | 'no_data'
-type StatusFilter = 'all' | 'active' | 'paused' | 'issues'
+type StatusFilter = 'all' | 'active' | 'paused' | 'scale' | 'hold' | 'improve' | 'pause'
 
 const adAccounts = ref<MetaAdAccount[]>([])
 const campaigns = ref<MetaCampaign[]>([])
-const report = ref<MetaInsightsReport | null>(null)
+const report = ref<PerformanceAnalysisReport | null>(null)
 const adAccountId = useCookie('meta_ad_account_id', { default: () => '', maxAge: 2592000 })
 const level = ref<Level>('campaign')
 const loadingAccounts = ref(true)
@@ -21,13 +27,34 @@ const success = ref('')
 const search = ref('')
 const statusFilter = ref<StatusFilter>('all')
 const selectedId = ref('')
-const settingsOpen = ref(false)
-const actionPlanOpen = ref(false)
-const actionPlanAcknowledged = ref(false)
-const selectedActionIds = ref<string[]>([])
-const applyingActionPlan = ref(false)
+
+// Strategy Settings & Versioning Modals
+const strategyModalOpen = ref(false)
+const historyModalOpen = ref(false)
+const strategyHistory = ref<AdStrategySettings[]>([])
+const savingStrategy = ref(false)
+const loadingHistory = ref(false)
+
+// Strategy Settings Form
+const strategyForm = reactive({
+  targetProfitPerOrder: 30000,
+  avgPackagingCost: 5000,
+  avgShippingCostStore: 15000,
+  codReturnRatePercent: 8.0,
+  returnFeePerOrder: 15000,
+  dailyBudgetCap: 500000,
+  maxTestLossBudget: 200000,
+  effectiveFrom: '',
+  note: '',
+})
+
+// Budget Scale Modal
+const budgetModalOpen = ref(false)
+const targetBudgetItem = ref<AdPerformanceItem | null>(null)
+const newDailyBudget = ref<number>(0)
+const updatingBudget = ref(false)
+
 const ready = ref(false)
-const campaignsAccountId = ref('')
 const audienceByAdSet = reactive<Record<string, MetaAudienceAnalysis>>({})
 const audienceLoading = reactive<Record<string, boolean>>({})
 const audienceErrors = reactive<Record<string, string>>({})
@@ -40,91 +67,87 @@ const today = new Date()
 const since = ref(iso(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 6)))
 const until = ref(iso(today))
 const datePreset = ref('7')
-
-const targetCost = ref<number | null>(null)
-const goodCTR = ref(3)
-const weakCTR = ref(1)
-const maxFrequency = ref(3)
-const grossMargin = ref<number | null>(null)
-const minimumPlanImpressions = ref(1000)
-const minimumPlanSpend = ref<number | null>(null)
-const sortBy = ref<'spend' | 'newest' | 'name'>('spend')
+const sortBy = ref<'spend' | 'cpa' | 'profit' | 'orders' | 'name'>('spend')
 
 const selectedAccount = computed(() => adAccounts.value.find(item => item.id === adAccountId.value))
+
 const items = computed(() => {
   const query = search.value.trim().toLowerCase()
   const list = report.value?.items || []
   return list
-    .filter(item => !query || [item.entityName, item.campaignName, item.adSetName, item.adName, item.entityId].some(value => value?.toLowerCase().includes(query)))
+    .filter(item => !query || [item.entityName, item.campaignName, item.adSetName, item.entityId].some(val => val?.toLowerCase().includes(query)))
     .filter((item) => {
       const status = (item.effectiveStatus || item.status || '').toUpperCase()
       if (statusFilter.value === 'active') return status === 'ACTIVE' || status === 'IN_PROCESS' || status === 'PENDING_REVIEW'
       if (statusFilter.value === 'paused') return status === 'PAUSED' || status === 'CAMPAIGN_PAUSED' || status === 'ADSET_PAUSED'
-      if (statusFilter.value === 'issues') return !!status && status !== 'ACTIVE' && status !== 'IN_PROCESS' && status !== 'PENDING_REVIEW' && status !== 'PAUSED' && status !== 'CAMPAIGN_PAUSED' && status !== 'ADSET_PAUSED'
+      if (statusFilter.value === 'scale') return item.decisionCode === 'SCALE'
+      if (statusFilter.value === 'hold') return item.decisionCode === 'HOLD'
+      if (statusFilter.value === 'improve') return item.decisionCode === 'IMPROVE'
+      if (statusFilter.value === 'pause') return item.decisionCode === 'PAUSE' || item.decisionCode === 'PAUSE_TEST'
       return true
     })
     .sort((a, b) => {
-      if (sortBy.value === 'newest') {
-        const timeA = a.createdTime || ''
-        const timeB = b.createdTime || ''
-        if (timeA || timeB) return timeB.localeCompare(timeA)
-        return (b.spend ?? -1) - (a.spend ?? -1)
+      if (sortBy.value === 'cpa') {
+        const cpaA = a.realCpa ?? 999999999
+        const cpaB = b.realCpa ?? 999999999
+        return cpaA - cpaB
+      }
+      if (sortBy.value === 'profit') {
+        return b.netContribution - a.netContribution
+      }
+      if (sortBy.value === 'orders') {
+        return b.completedOrders - a.completedOrders
       }
       if (sortBy.value === 'name') {
         return (a.entityName || '').localeCompare(b.entityName || '')
       }
-      // Default: Highest spend first; if spends are equal (like newly created items), sort newest first
-      const spendA = a.spend ?? -1
-      const spendB = b.spend ?? -1
-      if (spendA !== spendB) return spendB - spendA
-      const timeA = a.createdTime || ''
-      const timeB = b.createdTime || ''
-      if (timeA || timeB) return timeB.localeCompare(timeA)
-      return (a.entityName || '').localeCompare(b.entityName || '')
+      return (b.spend ?? -1) - (a.spend ?? -1)
     })
 })
-const summary = computed(() => report.value?.summary)
-const currency = computed(() => report.value?.currency || 'USD')
-const maxTrendSpend = computed(() => Math.max(1, ...(report.value?.trend || []).map(point => point.spend || 0)))
-const statusCounts = computed(() => (report.value?.items || []).reduce((counts, item) => {
-  const status = (item.effectiveStatus || item.status || '').toUpperCase()
-  if (status === 'ACTIVE' || status === 'IN_PROCESS' || status === 'PENDING_REVIEW') counts.active += 1
-  else if (status === 'PAUSED' || status === 'CAMPAIGN_PAUSED' || status === 'ADSET_PAUSED') counts.paused += 1
-  else counts.issues += 1
-  return counts
-}, { active: 0, paused: 0, issues: 0 } as Record<'active' | 'paused' | 'issues', number>))
 
-const fmt = (value?: number, digits = 2) => value == null ? '—' : new Intl.NumberFormat(undefined, { maximumFractionDigits: digits }).format(value)
-const money = (value?: number) => value == null ? '—' : new Intl.NumberFormat(undefined, { style: 'currency', currency: currency.value, maximumFractionDigits: 2 }).format(value)
-const percent = (value?: number) => value == null ? '—' : `${fmt(value, 2)}%`
-const contribution = (item?: MetaInsightItem) => item?.conversionValue != null && item?.spend != null && grossMargin.value != null
-  ? item.conversionValue * (grossMargin.value / 100) - item.spend
-  : undefined
-const breakEvenROAS = computed(() => grossMargin.value && grossMargin.value > 0 ? 100 / grossMargin.value : undefined)
-const adSetIDFor = (item: MetaInsightItem) => item.entityType === 'adset' ? item.entityId : item.adSetId || ''
-const audienceFor = (item: MetaInsightItem) => audienceByAdSet[adSetIDFor(item)]
-const estimatedAudienceSize = (item: MetaInsightItem) => {
-  const audience = audienceFor(item)
-  if (!audience) return undefined
-  if (audience.estimatedMonthlyUsers) return audience.estimatedMonthlyUsers
-  if (since.value === until.value) return audience.estimatedDailyUsers
-  return undefined
+const summary = computed(() => report.value?.summary)
+const strategy = computed(() => report.value?.strategy)
+const currency = computed(() => report.value?.currency || 'LAK')
+
+const fmt = (value?: number | null, digits = 0) => value == null ? '—' : new Intl.NumberFormat(undefined, { maximumFractionDigits: digits }).format(value)
+const money = (value?: number | null) => value == null ? '—' : `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(Math.round(value))} ₭`
+const percent = (value?: number | null) => value == null ? '—' : `${fmt(value, 1)}%`
+
+const adSetIDFor = (item: AdPerformanceItem) => item.entityType === 'adset' ? item.entityId : item.adSetId || ''
+const audienceFor = (item: AdPerformanceItem) => audienceByAdSet[adSetIDFor(item)]
+
+const statusLabel = (status?: string) => {
+  const value = (status || '').toUpperCase()
+  if (value === 'ACTIVE') return l({ lo: 'ເປີດໃຊ້ງານ', th: 'กำลังใช้งาน', en: 'Active' })
+  if (value === 'PAUSED') return l({ lo: 'ປິດຊົ່ວຄາວ', th: 'หยุดชั่วคราว', en: 'Paused' })
+  if (value === 'CAMPAIGN_PAUSED') return l({ lo: 'Campaign ຖືກປິດ', th: 'แคมเปญถูกหยุด', en: 'Campaign paused' })
+  if (value === 'ADSET_PAUSED') return l({ lo: 'Ad Set ຖືກປິດ', th: 'ชุดโฆษณาถูกหยุด', en: 'Ad set paused' })
+  if (value === 'IN_PROCESS' || value === 'PENDING_REVIEW') return l({ lo: 'ກຳລັງກວດສອບ', th: 'กำลังตรวจสอบ', en: 'In review' })
+  return status || l({ lo: 'ບໍ່ຮູ້ສະຖານະ', th: 'ไม่ทราบสถานะ', en: 'Unknown' })
 }
-const audienceCoverage = (item: MetaInsightItem) => {
-  const size = estimatedAudienceSize(item)
-  return size && item.reach != null ? (item.reach / size) * 100 : undefined
+
+const statusClass = (status?: string) => {
+  const value = (status || '').toUpperCase()
+  if (value === 'ACTIVE' || value === 'IN_PROCESS' || value === 'PENDING_REVIEW') return 'active'
+  if (value === 'PAUSED' || value === 'CAMPAIGN_PAUSED' || value === 'ADSET_PAUSED') return 'paused'
+  return 'issues'
 }
-const resultLabel = (type?: string) => {
-  const labels: Record<string, { lo: string; th: string; en: string }> = {
-    purchase: { lo: 'ການຊື້', th: 'การซื้อ', en: 'Purchases' },
-    lead: { lo: 'ລີດ', th: 'ลีด', en: 'Leads' },
-    'onsite_conversion.lead_grouped': { lo: 'ລີດ', th: 'ลีด', en: 'Leads' },
-    messaging_conversation_started_7d: { lo: 'ການສົນທະນາ', th: 'การสนทนา', en: 'Conversations' },
-    'onsite_conversion.messaging_first_reply': { lo: 'ຕອບຄັ້ງທຳອິດ', th: 'ตอบครั้งแรก', en: 'First replies' },
-    landing_page_view: { lo: 'ເບິ່ງໜ້າເວັບ', th: 'ดูหน้าเว็บ', en: 'Landing-page views' },
-    link_click: { lo: 'ຄລິກລິ້ງ', th: 'คลิกลิงก์', en: 'Link clicks' },
+
+function decisionBadgeInfo(code: string) {
+  switch (code) {
+    case 'SCALE':
+      return { label: 'SCALE (+20%)', color: 'success', icon: 'mdi-trending-up', class: 'badge-scale' }
+    case 'HOLD':
+      return { label: 'HOLD (ລໍຖ້າ COD)', color: 'info', icon: 'mdi-timer-sand', class: 'badge-hold' }
+    case 'IMPROVE':
+      return { label: 'IMPROVE (ປັບແອດ)', color: 'warning', icon: 'mdi-wrench', class: 'badge-improve' }
+    case 'PAUSE':
+      return { label: 'PAUSE (ຫຼຸດທຶນ)', color: 'error', icon: 'mdi-pause-circle', class: 'badge-pause' }
+    case 'PAUSE_TEST':
+      return { label: 'PAUSE (ໝົດງົບລອງ)', color: 'error', icon: 'mdi-alert-octagon', class: 'badge-pause-test' }
+    default:
+      return { label: 'ລໍຖ້າຂໍ້ມູນ 24-48h', color: 'secondary', icon: 'mdi-clock-outline', class: 'badge-nodata' }
   }
-  return type && labels[type] ? l(labels[type]) : l({ lo: 'ຜົນລັບ', th: 'ผลลัพธ์', en: 'Results' })
 }
 
 async function setPreset(value: string) {
@@ -138,106 +161,20 @@ async function setPreset(value: string) {
   if (ready.value) await loadPerformance()
 }
 
-function statusFor(item: MetaInsightItem) {
-  return item.effectiveStatus || item.status || campaigns.value.find(campaign => campaign.id === item.entityId)?.effectiveStatus || ''
-}
-
-const statusLabel = (status?: string) => {
-  const value = (status || '').toUpperCase()
-  if (value === 'ACTIVE') return l({ lo: 'ເປີດໃຊ້ງານ', th: 'กำลังใช้งาน', en: 'Active' })
-  if (value === 'PAUSED') return l({ lo: 'ປິດຊົ່ວຄາວ', th: 'หยุดชั่วคราว', en: 'Paused' })
-  if (value === 'CAMPAIGN_PAUSED') return l({ lo: 'Campaign ຖືກປິດ', th: 'แคมเปญถูกหยุด', en: 'Campaign paused' })
-  if (value === 'ADSET_PAUSED') return l({ lo: 'Ad Set ຖືກປິດ', th: 'ชุดโฆษณาถูกหยุด', en: 'Ad set paused' })
-  if (value === 'IN_PROCESS' || value === 'PENDING_REVIEW') return l({ lo: 'ກຳລັງກວດສອບ', th: 'กำลังตรวจสอบ', en: 'In review' })
-  if (value === 'DISAPPROVED') return l({ lo: 'ບໍ່ຜ່ານການອະນຸມັດ', th: 'ไม่ผ่านการอนุมัติ', en: 'Disapproved' })
-  return status || l({ lo: 'ບໍ່ຮູ້ສະຖານະ', th: 'ไม่ทราบสถานะ', en: 'Unknown' })
-}
-
-const statusClass = (status?: string) => {
-  const value = (status || '').toUpperCase()
-  if (value === 'ACTIVE' || value === 'IN_PROCESS' || value === 'PENDING_REVIEW') return 'active'
-  if (value === 'PAUSED' || value === 'CAMPAIGN_PAUSED' || value === 'ADSET_PAUSED') return 'paused'
-  return 'issues'
-}
-
-function decision(item: MetaInsightItem): { code: DecisionCode; color: string; icon: string; title: string; detail: string; signals: string[] } {
-  if (!item.impressions && !item.spend) {
-    return { code: 'no_data', color: 'default', icon: 'mdi-minus-circle-outline', title: l({ lo: 'ສ້າງໃໝ່ / ຍັງບໍ່ມີຂໍ້ມູນ', th: 'เพิ่งสร้าง / ยังไม่มีข้อมูล', en: 'New / No delivery data' }), detail: l({ lo: 'ໂຄສະນາຫາກໍ່ສ້າງໃໝ່ ຫຼື ຍັງບໍ່ທັນມີຄ່າໃຊ້ຈ່າຍ ແລະການສະແດງຜົນໃນຊ່ວງເວລານີ້.', th: 'โฆษณาเพิ่งสร้างหรือยังไม่มีค่าใช้จ่ายและการแสดงผลในช่วงเวลานี้', en: 'Newly created ad or no delivery/spend in selected date range.' }), signals: [] }
-  }
-  const bad: string[] = []
-  const good: string[] = []
-  if (targetCost.value && item.results.cost != null) {
-    if (item.results.cost > targetCost.value) bad.push(l({ lo: 'ຕົ້ນທຶນ/ຜົນລັບສູງກວ່າຈຸດຄຸ້ມທຶນ', th: 'ต้นทุน/ผลลัพธ์สูงกว่าจุดคุ้มทุน', en: 'Cost/result is above break-even' }))
-    else good.push(l({ lo: 'ຕົ້ນທຶນ/ຜົນລັບຢູ່ໃນເປົ້າ', th: 'ต้นทุน/ผลลัพธ์อยู่ในเป้า', en: 'Cost/result is within target' }))
-  }
-  const estimatedContribution = contribution(item)
-  if (estimatedContribution != null) {
-    if (estimatedContribution < 0) bad.push(l({ lo: 'ມູນຄ່າຂາຍຫຼັງຫັກ Margin ບໍ່ພໍຄ່າ Ads', th: 'มูลค่าขายหลังหัก Margin ไม่พอค่าโฆษณา', en: 'Margin-adjusted conversion value does not cover ad spend' }))
-    else good.push(l({ lo: 'ມູນຄ່າຂາຍຫຼັງຫັກ Margin ຍັງຄຸ້ມຄ່າ Ads', th: 'มูลค่าขายหลังหัก Margin ยังคุ้มค่าโฆษณา', en: 'Margin-adjusted conversion value covers ad spend' }))
-  }
-  if (item.linkCtr != null) {
-    if (item.linkCtr < weakCTR.value) bad.push(l({ lo: 'CTR ຕ່ຳ—Creative ອາດບໍ່ດຶງດູດ', th: 'CTR ต่ำ—ครีเอทีฟอาจไม่น่าสนใจ', en: 'Low CTR—creative may not attract clicks' }))
-    else if (item.linkCtr >= goodCTR.value) good.push(l({ lo: 'CTR ດີ', th: 'CTR ดี', en: 'Strong CTR' }))
-  }
-  if (item.frequency != null) {
-    if (item.frequency >= maxFrequency.value) bad.push(l({ lo: 'Frequency ສູງ—Audience ເລີ່ມເຫັນຊ້ຳ', th: 'Frequency สูง—กลุ่มเป้าหมายเริ่มเห็นซ้ำ', en: 'High frequency—audience is seeing repeats' }))
-    else if (item.frequency < maxFrequency.value - 0.5) good.push(l({ lo: 'Frequency ຍັງປົກກະຕິ', th: 'Frequency ยังปกติ', en: 'Frequency is still healthy' }))
-  }
-  const coverage = audienceCoverage(item)
-  if (coverage != null && coverage >= 60 && item.frequency != null && item.frequency >= maxFrequency.value) {
-    bad.push(l({ lo: 'ເຂົ້າເຖິງ Audience ສ່ວນໃຫຍ່ແລ້ວ ແລະ Frequency ສູງ', th: 'เข้าถึงกลุ่มเป้าหมายส่วนใหญ่แล้วและ Frequency สูง', en: 'Most of the estimated audience is reached and frequency is high' }))
-  } else if (coverage != null && coverage < 30) {
-    good.push(l({ lo: 'Audience ຍັງມີພື້ນທີ່ໃຫ້ຂະຫຍາຍ', th: 'กลุ่มเป้าหมายยังมีพื้นที่ให้ขยาย', en: 'The audience still has room to scale' }))
-  }
-  const rankings = [item.qualityRanking, item.engagementRateRanking, item.conversionRateRanking].filter(Boolean)
-  if (rankings.some(value => value?.includes('BELOW_AVERAGE'))) bad.push(l({ lo: 'Ranking ຕ່ຳກວ່າຄ່າສະເລ່ຍ', th: 'อันดับต่ำกว่าค่าเฉลี่ย', en: 'Ranking is below average' }))
-  if (bad.length >= 2) return { code: 'pause', color: 'error', icon: 'mdi-pause-circle-outline', title: l({ lo: 'ຄວນພິຈາລະນາປິດ', th: 'ควรพิจารณาปิด', en: 'Pause candidate' }), detail: l({ lo: 'ມີຫຼາຍສັນຍານອ່ອນ. ກວດ 3–7 ມື້ ແລະກຳໄລກ່ອນປິດ.', th: 'มีหลายสัญญาณอ่อน ตรวจแนวโน้ม 3–7 วันและกำไรก่อนปิด', en: 'Several weak signals. Check the 3–7 day trend and profit before pausing.' }), signals: bad }
-  if (bad.length === 1) return { code: 'review', color: 'warning', icon: 'mdi-alert-circle-outline', title: l({ lo: 'ຄວນກວດສອບ', th: 'ควรตรวจสอบ', en: 'Review' }), detail: l({ lo: 'ຍັງບໍ່ຄວນປິດທັນທີ. ປັບ Creative, Audience ຫຼືລໍຖ້າເບິ່ງ trend.', th: 'ยังไม่ควรปิดทันที ลองปรับครีเอทีฟ กลุ่มเป้าหมาย หรือดูแนวโน้มต่อ', en: 'Do not pause yet. Review creative, audience, and the trend.' }), signals: bad }
-  return { code: 'keep', color: 'success', icon: 'mdi-check-circle-outline', title: l({ lo: 'ຄວນເປີດຕໍ່', th: 'ควรเปิดต่อ', en: 'Keep running' }), detail: l({ lo: 'ສັນຍານຫຼັກຍັງດີ. ຕິດຕາມຕົ້ນທຶນ ແລະ trend ຕໍ່ໄປ.', th: 'สัญญาณหลักยังดี ติดตามต้นทุนและแนวโน้มต่อไป', en: 'Core signals look healthy. Continue monitoring cost and trend.' }), signals: good }
-}
-
-const decisionCounts = computed(() => items.value.reduce((result, item) => {
-  result[decision(item).code] += 1
-  return result
-}, { keep: 0, review: 0, pause: 0, no_data: 0 } as Record<DecisionCode, number>))
-const actionCandidates = computed(() => (report.value?.items || []).filter((item) => {
-  if (statusFor(item).toUpperCase() !== 'ACTIVE' || decision(item).code !== 'pause') return false
-  if ((item.impressions || 0) < minimumPlanImpressions.value) return false
-  return minimumPlanSpend.value == null || (item.spend || 0) >= minimumPlanSpend.value
-}))
-const selectedActionItems = computed(() => actionCandidates.value.filter(item => selectedActionIds.value.includes(item.entityId)))
-
-function loadThresholds() {
-  if (!import.meta.client || !adAccountId.value) return
-  const saved = localStorage.getItem(`ads-thresholds:${adAccountId.value}`)
-  if (!saved) return
-  try {
-    const value = JSON.parse(saved)
-    targetCost.value = value.targetCost ?? null
-    goodCTR.value = value.goodCTR ?? 3
-    weakCTR.value = value.weakCTR ?? 1
-    maxFrequency.value = value.maxFrequency ?? 3
-    grossMargin.value = value.grossMargin ?? null
-    minimumPlanImpressions.value = value.minimumPlanImpressions ?? 1000
-    minimumPlanSpend.value = value.minimumPlanSpend ?? null
-  } catch {}
-}
-function saveThresholds() {
-  if (!import.meta.client || !adAccountId.value) return
-  localStorage.setItem(`ads-thresholds:${adAccountId.value}`, JSON.stringify({ targetCost: targetCost.value, goodCTR: goodCTR.value, weakCTR: weakCTR.value, maxFrequency: maxFrequency.value, grossMargin: grossMargin.value, minimumPlanImpressions: minimumPlanImpressions.value, minimumPlanSpend: minimumPlanSpend.value }))
-  settingsOpen.value = false
-}
-
 async function loadAccounts() {
   loadingAccounts.value = true
   notice.value = ''
   try {
     const result = await $fetch<{ items: MetaAdAccount[] }>('/api/proxy/api/v1/meta/ad-accounts')
     adAccounts.value = result.items || []
-    if (!adAccountId.value || !adAccounts.value.some(item => item.id === adAccountId.value)) adAccountId.value = adAccounts.value[0]?.id || ''
+    if (!adAccountId.value || !adAccounts.value.some(item => item.id === adAccountId.value)) {
+      adAccountId.value = adAccounts.value[0]?.id || ''
+    }
   } catch (error: any) {
-    notice.value = error?.data?.error?.message || error?.data?.message || error?.statusMessage || l({ lo: 'ບໍ່ສາມາດໂຫຼດບັນຊີໂຄສະນາໄດ້.', th: 'โหลดบัญชีโฆษณาไม่สำเร็จ', en: 'Could not load ad accounts.' })
-  } finally { loadingAccounts.value = false }
+    notice.value = error?.data?.error?.message || error?.data?.message || l({ lo: 'ບໍ່ສາມາດໂຫຼດບັນຊີໂຄສະນາໄດ້.', th: 'โหลดบัญชีโฆษณาไม่สำเร็จ', en: 'Could not load ad accounts.' })
+  } finally {
+    loadingAccounts.value = false
+  }
 }
 
 async function loadPerformance() {
@@ -247,21 +184,141 @@ async function loadPerformance() {
   success.value = ''
   try {
     const query = new URLSearchParams({ level: level.value, since: since.value, until: until.value })
-    const [campaignResult, insightResult] = await Promise.all([
+    const [campaignResult, analysisResult] = await Promise.all([
       $fetch<{ items: MetaCampaign[] }>(`/api/proxy/api/v1/meta/ad-accounts/${encodeURIComponent(adAccountId.value)}/campaigns`),
-      $fetch<MetaInsightsReport>(`/api/proxy/api/v1/meta/ad-accounts/${encodeURIComponent(adAccountId.value)}/insights?${query.toString()}`),
+      $fetch<PerformanceAnalysisReport>(`/api/proxy/api/v1/meta/ad-accounts/${encodeURIComponent(adAccountId.value)}/performance-analysis?${query.toString()}`),
     ])
     campaigns.value = campaignResult.items || []
-    campaignsAccountId.value = adAccountId.value
-    report.value = insightResult
+    report.value = analysisResult
     selectedId.value = ''
+
+    // Populate strategy form from active settings
+    if (analysisResult?.strategy) {
+      const s = analysisResult.strategy
+      strategyForm.targetProfitPerOrder = s.targetProfitPerOrder || 30000
+      strategyForm.avgPackagingCost = s.avgPackagingCost || 5000
+      strategyForm.avgShippingCostStore = s.avgShippingCostStore || 15000
+      strategyForm.codReturnRatePercent = s.codReturnRatePercent || 8.0
+      strategyForm.returnFeePerOrder = s.returnFeePerOrder || 15000
+      strategyForm.dailyBudgetCap = s.dailyBudgetCap || 500000
+      strategyForm.maxTestLossBudget = s.maxTestLossBudget || 200000
+      strategyForm.effectiveFrom = iso(new Date())
+      strategyForm.note = s.note || ''
+
+      // If user hasn't configured custom settings yet (ID is 'default'), auto-prompt the 1-minute setup modal
+      if (s.id === 'default' && !strategyModalOpen.value) {
+        strategyModalOpen.value = true
+      }
+    }
   } catch (error: any) {
     report.value = null
-    notice.value = error?.data?.error?.message || error?.data?.message || error?.statusMessage || l({ lo: 'ດຶງຂໍ້ມູນ Insights ບໍ່ສຳເລັດ. ກວດສິດ ads_read ແລ້ວລອງໃໝ່.', th: 'โหลด Insights ไม่สำเร็จ ตรวจสิทธิ์ ads_read แล้วลองใหม่', en: 'Could not load Insights. Check ads_read permission and retry.' })
-  } finally { loadingReport.value = false }
+    notice.value = error?.data?.error?.message || error?.data?.message || l({ lo: 'ດຶງຂໍ້ມູນການວິເຄາະໂຄສະນາບໍ່ສຳເລັດ.', th: 'โหลดการวิเคราะห์โฆษณาไม่สำเร็จ', en: 'Could not load performance analysis.' })
+  } finally {
+    loadingReport.value = false
+  }
 }
 
-async function loadAudience(item: MetaInsightItem) {
+async function saveStrategySettings() {
+  if (!adAccountId.value) return
+  savingStrategy.value = true
+  notice.value = ''
+  try {
+    const payload = {
+      adAccountId: adAccountId.value,
+      targetProfitPerOrder: Number(strategyForm.targetProfitPerOrder),
+      avgPackagingCost: Number(strategyForm.avgPackagingCost),
+      avgShippingCostStore: Number(strategyForm.avgShippingCostStore),
+      codReturnRatePercent: Number(strategyForm.codReturnRatePercent),
+      returnFeePerOrder: Number(strategyForm.returnFeePerOrder),
+      dailyBudgetCap: Number(strategyForm.dailyBudgetCap),
+      maxTestLossBudget: Number(strategyForm.maxTestLossBudget),
+      effectiveFrom: strategyForm.effectiveFrom ? new Date(strategyForm.effectiveFrom).toISOString() : new Date().toISOString(),
+      note: strategyForm.note,
+    }
+    await $fetch(`/api/proxy/api/v1/meta/ad-accounts/${encodeURIComponent(adAccountId.value)}/strategy-settings`, {
+      method: 'POST',
+      body: payload,
+    })
+    success.value = l({ lo: 'ບັນທຶກເກນຍຸດທະສາດສຳເລັດແລ້ວ! ລະບົບຈະຄິດໄລ່ຕາມເກນໃໝ່ນີ້.', th: 'บันทึกเกณฑ์ยุทธศาสตร์เรียบร้อยแล้ว', en: 'Strategy settings updated successfully.' })
+    strategyModalOpen.value = false
+    await loadPerformance()
+  } catch (error: any) {
+    notice.value = error?.data?.error?.message || error?.data?.message || l({ lo: 'ບັນທຶກເກນບໍ່ສຳເລັດ.', th: 'บันทึกเกณฑ์ไม่สำเร็จ', en: 'Could not save strategy settings.' })
+  } finally {
+    savingStrategy.value = false
+  }
+}
+
+async function openHistoryModal() {
+  if (!adAccountId.value) return
+  historyModalOpen.value = true
+  loadingHistory.value = true
+  try {
+    const res = await $fetch<{ items: AdStrategySettings[] }>(`/api/proxy/api/v1/meta/ad-accounts/${encodeURIComponent(adAccountId.value)}/strategy-settings/history`)
+    strategyHistory.value = res.items || []
+  } catch (error: any) {
+    strategyHistory.value = []
+  } finally {
+    loadingHistory.value = false
+  }
+}
+
+async function changeStatus(item: AdPerformanceItem, status: 'ACTIVE' | 'PAUSED', confirmed = false) {
+  if (status === 'PAUSED' && !confirmed && !confirm(l({ lo: `ຢືນຢັນພັກໂຄສະນາ “${item.entityName}”?`, th: `ยืนยันหยุดโฆษณา “${item.entityName}”?`, en: `Pause “${item.entityName}”?` }))) return false
+  updatingId.value = item.entityId
+  notice.value = ''
+  success.value = ''
+  try {
+    await $fetch(`/api/proxy/api/v1/meta/ads/${item.entityType}/${encodeURIComponent(item.entityId)}/status`, {
+      method: 'PATCH',
+      body: { status },
+    })
+    item.status = status
+    item.effectiveStatus = status
+    success.value = status === 'ACTIVE'
+      ? l({ lo: `ເປີດ “${item.entityName}” ສຳເລັດ.`, th: `เปิด “${item.entityName}” แล้ว`, en: `“${item.entityName}” is now active.` })
+      : l({ lo: `ພັກ “${item.entityName}” ສຳເລັດ.`, th: `หยุด “${item.entityName}” แล้ว`, en: `“${item.entityName}” is now paused.` })
+    return true
+  } catch (error: any) {
+    notice.value = error?.data?.error?.message || error?.data?.message || l({ lo: 'ປ່ຽນສະຖານະບໍ່ສຳເລັດ.', th: 'เปลี่ยนสถานะไม่สำเร็จ', en: 'Could not change status.' })
+    return false
+  } finally {
+    updatingId.value = ''
+  }
+}
+
+function promptScaleBudget(item: AdPerformanceItem) {
+  targetBudgetItem.value = item
+  // Suggest +20% from current spend or a minimum base
+  const base = Math.max(item.spend * 1.2, 100000)
+  newDailyBudget.value = Math.round(base / 10000) * 10000
+  budgetModalOpen.value = true
+}
+
+async function applyBudgetChange() {
+  if (!targetBudgetItem.value || newDailyBudget.value <= 0) return
+  updatingBudget.value = true
+  notice.value = ''
+  try {
+    await $fetch(`/api/proxy/api/v1/meta/ads/${targetBudgetItem.value.entityType}/${encodeURIComponent(targetBudgetItem.value.entityId)}/budget`, {
+      method: 'PATCH',
+      body: { dailyBudget: Math.round(newDailyBudget.value) },
+    })
+    success.value = l({
+      lo: `ເພີ່ມງົບໃຫ້ “${targetBudgetItem.value.entityName}” ເປັນ ${money(newDailyBudget.value)}/ມື້ ສຳເລັດແລ້ວ!`,
+      th: `ปรับงบประมาณให้ “${targetBudgetItem.value.entityName}” เรียบร้อยแล้ว`,
+      en: `Updated budget successfully.`,
+    })
+    budgetModalOpen.value = false
+    await loadPerformance()
+  } catch (error: any) {
+    notice.value = error?.data?.error?.message || error?.data?.message || l({ lo: 'ປັບງົບບໍ່ສຳເລັດ. ກວດສອບສິດ ads_management.', th: 'ปรับงบไม่สำเร็จ', en: 'Could not update budget.' })
+  } finally {
+    updatingBudget.value = false
+  }
+}
+
+async function loadAudience(item: AdPerformanceItem) {
   const adSetID = adSetIDFor(item)
   if (!adSetID || audienceByAdSet[adSetID] || audienceLoading[adSetID]) return
   audienceLoading[adSetID] = true
@@ -275,90 +332,34 @@ async function loadAudience(item: MetaInsightItem) {
   }
 }
 
-async function toggleItem(item: MetaInsightItem) {
+async function toggleItem(item: AdPerformanceItem) {
   selectedId.value = selectedId.value === item.entityId ? '' : item.entityId
   if (selectedId.value && item.entityType !== 'campaign') await loadAudience(item)
 }
 
-function audienceAdvice(item: MetaInsightItem) {
-  const coverage = audienceCoverage(item)
-  if (coverage == null) return { tone: 'info', title: l({ lo: 'ຂໍ້ມູນປະມານຍັງບໍ່ພໍ', th: 'ข้อมูลประมาณการยังไม่พอ', en: 'Estimate not available' }), detail: l({ lo: 'ໃຫ້ໃຊ້ Frequency, CTR ແລະ Cost/Result ເປັນຫຼັກ.', th: 'ให้ใช้ Frequency, CTR และ Cost/Result เป็นหลัก', en: 'Use frequency, CTR, and cost per result as the primary signals.' }) }
-  if (coverage >= 60 && (item.frequency || 0) >= maxFrequency.value) return { tone: 'warning', title: l({ lo: 'Audience ອາດເລີ່ມອີ່ມຕົວ', th: 'กลุ่มเป้าหมายอาจเริ่มอิ่มตัว', en: 'Audience may be saturating' }), detail: l({ lo: 'ຖ້າ CTR ລົງ ແລະ Cost/Result ສູງຂຶ້ນ ໃຫ້ປ່ຽນ Creative, ຂະຫຍາຍ Audience ຫຼືປິດຕົວທີ່ອ່ອນ.', th: 'หาก CTR ลดและ Cost/Result สูงขึ้น ให้เปลี่ยนครีเอทีฟ ขยายกลุ่มเป้าหมาย หรือหยุดตัวที่อ่อน', en: 'If CTR is falling and cost/result is rising, refresh creative, broaden the audience, or pause the weak item.' }) }
-  return { tone: 'success', title: l({ lo: 'Audience ຍັງໄປຕໍ່ໄດ້', th: 'กลุ่มเป้าหมายยังไปต่อได้', en: 'Audience still has capacity' }), detail: l({ lo: 'ຢ່າປິດຈາກ Ratio ຢ່າງດຽວ; ໃຫ້ເບິ່ງ Cost/Result ແລະຜົນລັບຮ່ວມກັນ.', th: 'อย่าหยุดจาก Ratio เพียงอย่างเดียว ให้ดู Cost/Result และผลลัพธ์ร่วมกัน', en: 'Do not pause from coverage alone; compare it with cost per result and actual outcomes.' }) }
-}
-
-function targetingTags(audience?: MetaAudienceAnalysis) {
-  if (!audience) return []
-  const targeting = audience.targeting || {}
-  const tags: { icon: string; label: string }[] = []
-  if (targeting.ageMin || targeting.ageMax) tags.push({ icon: 'mdi-account-clock-outline', label: `${targeting.ageMin || 18}–${targeting.ageMax || '65+'}` })
-  if (targeting.genders?.length) tags.push({ icon: 'mdi-gender-male-female', label: targeting.genders.join(', ') })
-  for (const value of [...(targeting.countries || []), ...(targeting.regions || []), ...(targeting.cities || [])].slice(0, 6)) tags.push({ icon: 'mdi-map-marker-outline', label: value })
-  for (const value of (targeting.interests || []).slice(0, 6)) tags.push({ icon: 'mdi-heart-outline', label: value })
-  for (const value of (targeting.customAudiences || []).slice(0, 5)) tags.push({ icon: 'mdi-account-group-outline', label: value })
-  for (const value of (targeting.publisherPlatforms || []).slice(0, 4)) tags.push({ icon: 'mdi-cellphone-link', label: value })
-  return tags
-}
-
-async function changeStatus(item: MetaInsightItem, status: 'ACTIVE' | 'PAUSED', confirmed = false) {
-  if (status === 'PAUSED' && !confirmed && !confirm(l({ lo: `ປິດ “${item.entityName}”? ການສົ່ງໂຄສະນາຈະຢຸດຈົນກວ່າຈະເປີດຄືນ.`, th: `ปิด “${item.entityName}”? การส่งโฆษณาจะหยุดจนกว่าจะเปิดอีกครั้ง`, en: `Pause “${item.entityName}”? Delivery will stop until it is activated again.` }))) return false
-  updatingId.value = item.entityId
-  notice.value = ''
-  success.value = ''
-  try {
-    await $fetch(`/api/proxy/api/v1/meta/ads/${item.entityType}/${encodeURIComponent(item.entityId)}/status`, { method: 'PATCH', body: { status } })
-    const campaign = campaigns.value.find(value => value.id === item.entityId)
-    if (campaign) campaign.effectiveStatus = status
-    item.status = status
-    item.effectiveStatus = status
-    success.value = status === 'ACTIVE'
-      ? l({ lo: `ເປີດ “${item.entityName}” ສຳເລັດ.`, th: `เปิด “${item.entityName}” แล้ว`, en: `“${item.entityName}” is now active.` })
-      : l({ lo: `ປິດ “${item.entityName}” ສຳເລັດ.`, th: `ปิด “${item.entityName}” แล้ว`, en: `“${item.entityName}” is now paused.` })
-    return true
-  } catch (error: any) {
-    notice.value = error?.data?.error?.code === 'internal_error'
-      ? l({ lo: 'Meta ບໍ່ອະນຸຍາດໃຫ້ປ່ຽນສະຖານະ. Reconnect Facebook ແລະເລືອກ Manage ads (ads_management).', th: 'Meta ไม่อนุญาตให้เปลี่ยนสถานะ เชื่อม Facebook ใหม่และเลือก Manage ads (ads_management)', en: 'Meta denied the change. Reconnect Facebook and select Manage ads (ads_management).' })
-      : error?.data?.error?.message || error?.data?.message || error?.statusMessage || l({ lo: 'ປ່ຽນສະຖານະບໍ່ສຳເລັດ.', th: 'เปลี่ยนสถานะไม่สำเร็จ', en: 'Could not change status.' })
-    return false
-  } finally { updatingId.value = '' }
-}
-
-function openActionPlan() {
-  selectedActionIds.value = []
-  actionPlanAcknowledged.value = false
-  actionPlanOpen.value = true
-}
-
-async function applyActionPlan() {
-  if (!actionPlanAcknowledged.value || !selectedActionItems.value.length) return
-  applyingActionPlan.value = true
-  let completed = 0
-  for (const item of [...selectedActionItems.value]) {
-    if (await changeStatus(item, 'PAUSED', true)) completed += 1
-  }
-  applyingActionPlan.value = false
-  actionPlanOpen.value = false
-  selectedActionIds.value = []
-  actionPlanAcknowledged.value = false
-  if (completed) success.value = l({ lo: `ປິດໂຄສະນາ ${completed} ລາຍການຕາມແຜນທີ່ອະນຸມັດແລ້ວ.`, th: `หยุดโฆษณา ${completed} รายการตามแผนที่อนุมัติแล้ว`, en: `Paused ${completed} approved item${completed === 1 ? '' : 's'}.` })
-}
-
-watch(adAccountId, async () => { if (!ready.value) return; loadThresholds(); await loadPerformance() })
+watch(adAccountId, async () => { if (!ready.value) return; await loadPerformance() })
 watch(level, async () => { if (ready.value) await loadPerformance() })
-onMounted(async () => { await loadAccounts(); loadThresholds(); ready.value = true; if (adAccountId.value) await loadPerformance() })
+onMounted(async () => {
+  await loadAccounts()
+  ready.value = true
+  if (adAccountId.value) await loadPerformance()
+})
 </script>
 
 <template>
   <section class="page-head">
     <div>
-      <p>ADS PERFORMANCE</p>
-      <h1>{{ l({ lo: 'ສູນວິເຄາະໂຄສະນາ', th: 'ศูนย์วิเคราะห์โฆษณา', en: 'Ads performance center' }) }}</h1>
-      <span>{{ l({ lo: 'ເບິ່ງຜົນງານ, trend ແລະສັນຍານທີ່ຊ່ວຍຕັດສິນໃຈເປີດ ຫຼືປິດໂຄສະນາ.', th: 'ดูผลงาน แนวโน้ม และสัญญาณที่ช่วยตัดสินใจเปิดหรือปิดโฆษณา', en: 'Understand performance, trends, and signals before keeping or pausing ads.' }) }}</span>
+      <div class="d-flex align-center gap-2 mb-1">
+        <v-chip size="small" color="primary" variant="flat" class="font-weight-bold">LAOS CHAT COMMERCE</v-chip>
+        <span class="text-caption text-medium-emphasis">Decision Engine & Real CPA</span>
+      </div>
+      <h1>{{ l({ lo: 'ສູນວິເຄາະ & ຕັດສິນໃຈ Meta Ads', th: 'ศูนย์วิเคราะห์และตัดสินใจ Meta Ads', en: 'Meta Ads Decision & Profit Center' }) }}</h1>
+      <span class="head-sub">{{ l({ lo: 'ວິເຄາະ Real CPA, ກຳໄລຕົວຈິງຫຼັງຫັກຕົ້ນທຶນ ແລະ ຕິດຕາມຍອດໂອນກ່ອນ vs COD ປ້ອງກັນການປິດແອດຜິດພາດ.', th: 'วิเคราะห์ Real CPA กำไรจริงหลังหักต้นทุน และติดตามยอดโอนก่อน vs COD', en: 'Track Real CPA, net contribution profit, and COD vs prepaid cash flows.' }) }}</span>
     </div>
     <div class="head-actions">
-      <v-btn color="warning" variant="tonal" prepend-icon="mdi-shield-check-outline" :disabled="!report" @click="openActionPlan">{{ l({ lo: `ກວດແຜນປັບ Ads (${actionCandidates.length})`, th: `ตรวจแผนปรับ Ads (${actionCandidates.length})`, en: `Review action plan (${actionCandidates.length})` }) }}</v-btn>
-      <v-btn variant="outlined" prepend-icon="mdi-tune-variant" @click="settingsOpen = true">{{ l({ lo: 'ຕັ້ງຄ່າເກນ', th: 'ตั้งค่าเกณฑ์', en: 'Decision settings' }) }}</v-btn>
-      <v-btn color="primary" prepend-icon="mdi-refresh" :loading="loadingReport" :disabled="!adAccountId" @click="loadPerformance">{{ l({ lo: 'ອັບເດດຂໍ້ມູນ', th: 'อัปเดตข้อมูล', en: 'Refresh data' }) }}</v-btn>
+      <v-btn variant="outlined" prepend-icon="mdi-history" @click="openHistoryModal">{{ l({ lo: 'ປະຫວັດເກນຍຸດທະສາດ', th: 'ประวัติเกณฑ์', en: 'Strategy History' }) }}</v-btn>
+      <v-btn color="secondary" variant="tonal" prepend-icon="mdi-tune-variant" @click="strategyModalOpen = true">{{ l({ lo: 'ຕັ້ງຄ່າຍຸດທະສາດ (Setup)', th: 'ตั้งค่ายุทธศาสตร์', en: 'Setup Strategy' }) }}</v-btn>
+      <v-btn color="primary" prepend-icon="mdi-refresh" :loading="loadingReport" :disabled="!adAccountId" @click="loadPerformance">{{ l({ lo: 'ອັບເດດຂໍ້ມູນ', th: 'อัปเดตข้อมูล', en: 'Refresh' }) }}</v-btn>
     </div>
   </section>
 
@@ -368,6 +369,7 @@ onMounted(async () => { await loadAccounts(); loadThresholds(); ready.value = tr
   </v-alert>
   <v-alert v-if="success" type="success" variant="tonal" class="mb-4" closable @click:close="success = ''">{{ success }}</v-alert>
 
+  <!-- Filter Controls -->
   <section class="filter-bar" aria-label="Ads report filters">
     <v-select v-model="adAccountId" :items="adAccounts.map(account => ({ ...account, label: `${account.accountType === 'business' ? 'Business' : 'Personal'} · ${account.name}` }))" item-title="label" item-value="id" :label="l({ lo: 'ບັນຊີໂຄສະນາ', th: 'บัญชีโฆษณา', en: 'Ad account' })" variant="outlined" density="comfortable" hide-details :loading="loadingAccounts" />
     <v-select :model-value="datePreset" :items="[{title:l({lo:'7 ມື້ຫຼ້າສຸດ',th:'7 วันล่าสุด',en:'Last 7 days'}),value:'7'},{title:l({lo:'30 ມື້ຫຼ້າສຸດ',th:'30 วันล่าสุด',en:'Last 30 days'}),value:'30'},{title:l({lo:'ກຳນົດເອງ',th:'กำหนดเอง',en:'Custom'}),value:'custom'}]" item-title="title" item-value="value" :label="l({lo:'ໄລຍະເວລາ',th:'ช่วงเวลา',en:'Date range'})" variant="outlined" density="comfortable" hide-details @update:model-value="setPreset" />
@@ -376,60 +378,140 @@ onMounted(async () => { await loadAccounts(); loadThresholds(); ready.value = tr
     <v-btn color="primary" variant="tonal" height="48" :loading="loadingReport" @click="loadPerformance">{{ l({lo:'ນຳໃຊ້',th:'ใช้ช่วงเวลา',en:'Apply'}) }}</v-btn>
   </section>
 
-  <div v-if="loadingReport && !report" class="loading-grid" aria-live="polite"><v-skeleton-loader v-for="n in 6" :key="n" type="article" /></div>
+  <div v-if="loadingReport && !report" class="loading-grid"><v-skeleton-loader v-for="n in 6" :key="n" type="article" /></div>
 
   <template v-else-if="report">
-    <section class="summary-grid" aria-label="Ads summary">
-      <article class="summary-card"><span>{{ l({lo:'ໃຊ້ຈ່າຍ',th:'ยอดใช้จ่าย',en:'Amount spent'}) }}</span><strong>{{ money(summary?.spend) }}</strong><small>{{ report.dateStart }} – {{ report.dateStop }}</small></article>
-      <article class="summary-card"><span>{{ resultLabel(summary?.results.type) }}</span><strong>{{ fmt(summary?.results.value, 0) }}</strong><small>{{ summary?.results.type || l({lo:'Meta ບໍ່ມີຜົນລັບ',th:'Meta ไม่มีผลลัพธ์',en:'No result type returned'}) }}</small></article>
-      <article class="summary-card"><span>{{ l({lo:'ຕົ້ນທຶນ/ຜົນລັບ',th:'ต้นทุน/ผลลัพธ์',en:'Cost per result'}) }}</span><strong>{{ money(summary?.results.cost) }}</strong><small>{{ targetCost ? `${l({lo:'ເປົ້າ',th:'เป้า',en:'Target'})}: ${money(targetCost)}` : l({lo:'ກຳນົດຈຸດຄຸ້ມທຶນເພື່ອຮັບຄຳແນະນຳ',th:'กำหนดจุดคุ้มทุนเพื่อรับคำแนะนำ',en:'Set break-even cost for guidance'}) }}</small></article>
-      <article class="summary-card"><span>Link CTR</span><strong>{{ percent(summary?.linkCtr) }}</strong><small>{{ l({lo:'ອັດຕາຄລິກຕໍ່ການສະແດງ',th:'อัตราคลิกต่อการแสดงผล',en:'Clicks divided by impressions'}) }}</small></article>
-      <article class="summary-card"><span>Frequency</span><strong>{{ fmt(summary?.frequency, 2) }}</strong><small>{{ l({lo:'ຈຳນວນຄັ້ງສະເລ່ຍທີ່ 1 ຄົນເຫັນ',th:'จำนวนครั้งเฉลี่ยที่ 1 คนเห็น',en:'Average times each person saw an ad'}) }}</small></article>
-      <article class="summary-card"><span>{{ l({lo:'ເຂົ້າເຖິງ / ສະແດງ',th:'เข้าถึง / แสดงผล',en:'Reach / impressions'}) }}</span><strong>{{ fmt(summary?.reach, 0) }} / {{ fmt(summary?.impressions, 0) }}</strong><small>{{ report.timezone || 'Meta account timezone' }}</small></article>
-      <article class="summary-card finance"><span>{{ l({lo:'ມູນຄ່າ Conversion',th:'มูลค่า Conversion',en:'Conversion value'}) }}</span><strong>{{ money(summary?.conversionValue) }}</strong><small>{{ l({lo:'ມູນຄ່າທີ່ Meta attribution ໃຫ້ Ads',th:'มูลค่าที่ Meta attribution ให้โฆษณา',en:'Value attributed to ads by Meta'}) }}</small></article>
-      <article class="summary-card finance"><span>ROAS</span><strong>{{ summary?.roas==null?'—':`${fmt(summary.roas,2)}×` }}</strong><small>{{ breakEvenROAS ? `${l({lo:'Break-even',th:'จุดคุ้มทุน',en:'Break-even'})}: ${fmt(breakEvenROAS,2)}×` : l({lo:'ໃສ່ Gross margin ເພື່ອຄຳນວນຈຸດຄຸ້ມທຶນ',th:'ใส่ Gross margin เพื่อคำนวณจุดคุ้มทุน',en:'Set gross margin to calculate break-even'}) }}</small></article>
-      <article class="summary-card" :class="{finance:contribution(summary)!=null,loss:(contribution(summary) || 0)<0}"><span>{{ l({lo:'ກຳໄລສ່ວນປະກອບຫຼັງ Ads',th:'กำไรส่วนเพิ่มหลังค่าโฆษณา',en:'Contribution after ad spend'}) }}</span><strong>{{ money(contribution(summary)) }}</strong><small>{{ grossMargin!=null?l({lo:'ກ່ອນຄ່າດຳເນີນງານອື່ນ',th:'ก่อนค่าใช้จ่ายดำเนินงานอื่น',en:'Before other operating costs'}):l({lo:'ຕ້ອງກຳນົດ Gross margin',th:'ต้องกำหนด Gross margin',en:'Gross margin is required'}) }}</small></article>
-    </section>
+    <!-- Active Strategy Banner -->
+    <div class="strategy-banner mb-4">
+      <div class="d-flex align-center justify-between flex-wrap gap-3">
+        <div class="d-flex align-center gap-2">
+          <v-icon icon="mdi-shield-check" color="success" size="20" />
+          <span class="text-subtitle-2 font-weight-bold">
+            {{ l({ lo: 'ເກນຍຸດທະສາດທີ່ນຳໃຊ້ໃນໄລຍະນີ້:', th: 'เกณฑ์ยุทธศาสตร์ที่ใช้ในช่วงนี้:', en: 'Active Strategy Criteria:' }) }}
+          </span>
+          <v-chip size="x-small" color="primary" variant="tonal">
+            {{ strategy?.note || 'ເກນມາດຕະຖານ' }}
+          </v-chip>
+          <span class="text-caption text-medium-emphasis">
+            (ເລີ່ມ: {{ strategy?.effectiveFrom?.slice(0, 10) }})
+          </span>
+        </div>
+        <div class="strategy-metrics-pills">
+          <span class="pill">🎯 ເປົ້າກຳໄລ: <b>{{ money(strategy?.targetProfitPerOrder) }}</b>/ອໍເດີ</span>
+          <span class="pill">📦 ຄ່າແພັກ+ສົ່ງ: <b>{{ money((strategy?.avgPackagingCost || 0) + (strategy?.avgShippingCostStore || 0)) }}</b></span>
+          <span class="pill">🚚 ຕີກັບ COD: <b>{{ strategy?.codReturnRatePercent }}%</b></span>
+          <span class="pill">🛑 ເພດານງົບລອງ: <b>{{ money(strategy?.maxTestLossBudget) }}</b></span>
+          <v-btn size="x-small" variant="text" prepend-icon="mdi-pencil" color="primary" @click="strategyModalOpen = true">ປັບເກນ</v-btn>
+        </div>
+      </div>
+    </div>
 
-    <section class="analysis-grid">
-      <v-card class="trend-card" variant="outlined">
-        <div class="card-heading"><div><p>TREND</p><h2>{{ l({lo:'ຄ່າໃຊ້ຈ່າຍລາຍມື້',th:'ค่าใช้จ่ายรายวัน',en:'Daily spend trend'}) }}</h2></div><small>{{ l({lo:'ກົດໃສ່ແຕ່ລະແຖບເພື່ອເບິ່ງຄ່າ',th:'แตะแต่ละแท่งเพื่อดูค่า',en:'Hover or focus a bar for its value'}) }}</small></div>
-        <div v-if="report.trend.length" class="trend-chart">
-          <div v-for="point in report.trend" :key="point.date" class="trend-column" tabindex="0" :aria-label="`${point.date}: ${money(point.spend)}`">
-            <span class="trend-tooltip">{{ point.date }}<br><strong>{{ money(point.spend) }}</strong><br>CTR {{ percent(point.linkCtr) }}</span>
-            <div class="trend-bar" :style="{ height: `${Math.max(4, ((point.spend || 0) / maxTrendSpend) * 100)}%` }" />
-            <small>{{ point.date.slice(5) }}</small>
+    <!-- Action Plan Summary Banner -->
+    <v-card v-if="report.actionPlan" class="action-plan-card mb-4" variant="outlined">
+      <div class="card-heading">
+        <div class="d-flex align-center gap-2">
+          <v-icon icon="mdi-clipboard-check-outline" color="primary" />
+          <div>
+            <p>ACTION PLAN & RECOMMENDATIONS</p>
+            <h2>{{ l({ lo: 'ແຜນປະຕິບັດການ & ຄຳແນະນຳດ່ວນ', th: 'แผนปฏิบัติการและคำแนะนำด่วน', en: 'Action Plan & Next Steps' }) }}</h2>
           </div>
         </div>
-        <div v-else class="empty-inline">{{ l({lo:'ຍັງບໍ່ມີ trend ສຳລັບໄລຍະນີ້',th:'ยังไม่มีแนวโน้มสำหรับช่วงนี้',en:'No trend data for this period.'}) }}</div>
-      </v-card>
+        <v-chip color="info" size="small" variant="tonal">
+          📅 ວັນກວດຄືນຮອບຖັດໄປ: {{ report.actionPlan.nextReviewDate }}
+        </v-chip>
+      </div>
+      <div class="action-plan-grid">
+        <div class="plan-col scale">
+          <div class="plan-col-title text-success"><v-icon icon="mdi-trending-up" size="18" /> ສະເໜີ Scale +15-20% ({{ report.actionPlan.toScale.length }})</div>
+          <ul v-if="report.actionPlan.toScale.length"><li v-for="t in report.actionPlan.toScale" :key="t">{{ t }}</li></ul>
+          <small v-else class="text-muted">ຍັງບໍ່ມີ Campaign ທີ່ Real CPA ຜ່ານເກນ Scale</small>
+        </div>
+        <div class="plan-col hold">
+          <div class="plan-col-title text-info"><v-icon icon="mdi-timer-sand" size="18" /> ຄົງງົບ & ລໍຖ້າ COD ສົ່ງຮອດ ({{ report.actionPlan.toHold.length }})</div>
+          <ul v-if="report.actionPlan.toHold.length"><li v-for="t in report.actionPlan.toHold" :key="t">{{ t }}</li></ul>
+          <small v-else class="text-muted">ບໍ່ມີອໍເດີ COD ຄ້າງສົ່ງ</small>
+        </div>
+        <div class="plan-col pause">
+          <div class="plan-col-title text-error"><v-icon icon="mdi-pause-circle" size="18" /> ສະເໜີພັກ/ກວດສອບ ({{ report.actionPlan.toPause.length }})</div>
+          <ul v-if="report.actionPlan.toPause.length"><li v-for="t in report.actionPlan.toPause" :key="t">{{ t }}</li></ul>
+          <small v-else class="text-muted">ບໍ່ມີໂຄສະນາທີ່ສູນເສຍງົບຮົ່ວໄຫຼ</small>
+        </div>
+      </div>
+    </v-card>
 
-      <v-card class="decision-card" variant="outlined">
-        <div class="card-heading"><div><p>DECISION GUIDE</p><h2>{{ l({lo:'ອ່ານສັນຍານໃຫ້ງ່າຍ',th:'อ่านสัญญาณให้ง่าย',en:'Decision signals'}) }}</h2></div><v-btn icon="mdi-tune-variant" variant="text" :aria-label="l({lo:'ຕັ້ງຄ່າເກນ',th:'ตั้งค่าเกณฑ์',en:'Configure thresholds'})" @click="settingsOpen=true" /></div>
-        <div class="decision-summary"><div class="decision-count keep"><strong>{{ decisionCounts.keep }}</strong><span>{{ l({lo:'ເປີດຕໍ່',th:'เปิดต่อ',en:'Keep'}) }}</span></div><div class="decision-count review"><strong>{{ decisionCounts.review }}</strong><span>{{ l({lo:'ກວດສອບ',th:'ตรวจสอบ',en:'Review'}) }}</span></div><div class="decision-count pause"><strong>{{ decisionCounts.pause }}</strong><span>{{ l({lo:'ພິຈາລະນາປິດ',th:'พิจารณาปิด',en:'Pause candidates'}) }}</span></div></div>
-        <p class="guide-note"><v-icon icon="mdi-information-outline" /> {{ l({lo:'ຄຳແນະນຳໃຊ້ຫຼາຍ metric ຮ່ວມກັນ. ຢ່າປິດເພາະມື້ດຽວ ຫຼື metric ດຽວ.',th:'คำแนะนำใช้หลาย metric ร่วมกัน อย่าปิดเพราะวันเดียวหรือค่าเดียว',en:'Recommendations combine several metrics. Never pause from one day or one metric alone.'}) }}</p>
-        <ol class="decision-steps">
-          <li><strong>{{ l({lo:'1. ເບິ່ງຜົນທາງທຸລະກິດ',th:'1. ดูผลทางธุรกิจ',en:'1. Check business outcomes'}) }}</strong><span>{{ l({lo:'Cost/Result ຕ້ອງບໍ່ເກີນຈຸດຄຸ້ມທຶນ.',th:'Cost/Result ต้องไม่เกินจุดคุ้มทุน',en:'Cost/result should stay below your break-even point.'}) }}</span></li>
-          <li><strong>{{ l({lo:'2. ເບິ່ງຄຸນນະພາບ Creative',th:'2. ดูคุณภาพครีเอทีฟ',en:'2. Check creative quality'}) }}</strong><span>{{ l({lo:'CTR ລົງພ້ອມ Cost ສູງຂຶ້ນ ໝາຍເຖິງຄວນປ່ຽນ Creative.',th:'CTR ลดพร้อมต้นทุนสูงขึ้น หมายถึงควรเปลี่ยนครีเอทีฟ',en:'Falling CTR with rising cost suggests a creative refresh.'}) }}</span></li>
-          <li><strong>{{ l({lo:'3. ເບິ່ງ Audience saturation',th:'3. ดูความอิ่มตัวของกลุ่มเป้าหมาย',en:'3. Check audience saturation'}) }}</strong><span>{{ l({lo:'Coverage ແລະ Frequency ສູງພ້ອມຜົນງານຕົກ ຈຶ່ງຄ່ອຍພິຈາລະນາປິດ.',th:'Coverage และ Frequency สูงพร้อมผลงานตก จึงค่อยพิจารณาหยุด',en:'Consider pausing only when high coverage and frequency coincide with declining results.'}) }}</span></li>
-        </ol>
-      </v-card>
+    <!-- 9 Metric Summary Cards -->
+    <section class="summary-grid" aria-label="Performance summary">
+      <article class="summary-card">
+        <span>{{ l({ lo: 'ຄ່າໂຄສະນາທັງໝົດ (Spend)', th: 'ยอดใช้จ่ายโฆษณา', en: 'Total Ad Spend' }) }}</span>
+        <strong>{{ money(summary?.totalSpend) }}</strong>
+        <small>{{ report.dateStart }} – {{ report.dateStop }}</small>
+      </article>
+
+      <article class="summary-card">
+        <span>{{ l({ lo: 'ແຊັດ & ອັດຕາປິດການຂາຍ', th: 'แชท & อัตราปิดการขาย', en: 'Chats & Closing Rate' }) }}</span>
+        <strong>{{ fmt(summary?.totalChats) }} <small class="text-caption font-weight-normal">ແຊັດ</small></strong>
+        <small>ປິດການຂາຍໄດ້: {{ summary?.totalChats ? percent(((summary?.totalCompletedOrders || 0) / summary.totalChats) * 100) : '—' }}</small>
+      </article>
+
+      <article class="summary-card" :class="{ finance: (summary?.overallRealCpa || 0) <= (strategy?.targetProfitPerOrder || 30000) }">
+        <span>{{ l({ lo: 'Real CPA ສະເລ່ຍ (ຄ່າແອດ/ອໍເດີ)', th: 'Real CPA เฉลี่ย', en: 'Overall Real CPA' }) }}</span>
+        <strong>{{ money(summary?.overallRealCpa) }}</strong>
+        <small>ເປົ້າໝາຍ: {{ money(strategy?.targetProfitPerOrder) }} / ອໍເດີ</small>
+      </article>
+
+      <article class="summary-card finance">
+        <span>{{ l({ lo: 'ອໍເດີສຳເລັດ (ຮັບເງິນແລ້ວ)', th: 'ออเดอร์สำเร็จ', en: 'Completed Orders' }) }}</span>
+        <strong>{{ fmt(summary?.totalCompletedOrders) }} <small class="text-caption font-weight-normal">ອໍເດີ</small></strong>
+        <small>ຍອດຂາຍຕົວຈິງ: {{ money(summary?.totalCompletedRevenue) }}</small>
+      </article>
+
+      <article class="summary-card" :class="{ finance: (summary?.totalNetProfit || 0) > 0, loss: (summary?.totalNetProfit || 0) < 0 }">
+        <span>{{ l({ lo: 'ກຳໄລສຸດທິຫຼັງຫັກແອດ (Net Profit)', th: 'กำไรสุทธิหลังหักโฆษณา', en: 'Net Contribution Profit' }) }}</span>
+        <strong>{{ money(summary?.totalNetProfit) }}</strong>
+        <small>ກຳໄລຂັ້ນຕົ້ນກ່ອນແອດ: {{ money(summary?.totalGrossProfit) }}</small>
+      </article>
+
+      <article class="summary-card prepaid-track">
+        <span>{{ l({ lo: '💳 ໂອນກ່ອນ / ເງິນສົດ (Prepaid)', th: 'โอนก่อน / เงินสด', en: 'Prepaid Track' }) }}</span>
+        <strong>{{ money(summary?.totalPrepaidRevenue) }}</strong>
+        <small>{{ fmt(summary?.totalPrepaidOrders) }} ອໍເດີ ({{ summary?.prepaidPercentage }}% ຂອງຍອດ, ຄວາມສ່ຽງ 0%)</small>
+      </article>
+
+      <article class="summary-card cod-delivered-track">
+        <span>{{ l({ lo: '🚚 COD ສົ່ງສຳເລັດ (Delivered)', th: 'COD ส่งสำเร็จ', en: 'COD Delivered' }) }}</span>
+        <strong>{{ money(summary?.totalCODDeliveredRev) }}</strong>
+        <small>{{ fmt(summary?.totalCODDelivered) }} ອໍເດີ ຮັບເງິນຄົບແລ້ວ</small>
+      </article>
+
+      <article class="summary-card cod-pending-track">
+        <span>{{ l({ lo: '⏳ COD ກຳລັງສົ່ງ (Pending)', th: 'COD กำลังส่ง', en: 'COD In Transit' }) }}</span>
+        <strong>{{ money(summary?.totalCODPendingRev) }}</strong>
+        <small>{{ fmt(summary?.totalCODPending) }} ອໍເດີ (ກຳລັງເດີນທາງ ຫ້າມປິດແອດ)</small>
+      </article>
+
+      <article class="summary-card cod-returned-track">
+        <span>{{ l({ lo: '↩️ COD ຕີກັບ (Returned)', th: 'COD ตีกลับ', en: 'COD Returned' }) }}</span>
+        <strong>{{ fmt(summary?.totalCODReturned) }} <small class="text-caption font-weight-normal">ອໍເດີ</small></strong>
+        <small>ເສຍຄ່າສົ່ງກັບປະມານ {{ money((summary?.totalCODReturned || 0) * (strategy?.returnFeePerOrder || 15000)) }}</small>
+      </article>
     </section>
 
+    <!-- 8-Column Performance Table with 6 SOP Statuses -->
     <section class="performance-section">
       <div class="section-head">
         <div>
-          <p>PERFORMANCE DETAIL</p>
-          <h2>{{ l({lo:'ເຈາະເລິກເຖິງລະດັບ Ad',th:'เจาะลึกถึงระดับโฆษณา',en:'Drill down to individual ads'}) }}</h2>
+          <p>8-COLUMN PERFORMANCE & ACTION MATRIX</p>
+          <h2>{{ l({ lo: 'ຕາຕະລາງວິເຄາະ 8 ຖັນ & ລະບົບຕັດສິນໃຈ', th: 'ตารางวิเคราะห์ 8 คอลัมน์', en: '8-Column Performance & SOP Matrix' }) }}</h2>
         </div>
         <div class="report-meta">
-          <span>{{ l({lo:'ອັບເດດ',th:'อัปเดต',en:'Updated'}) }} {{ new Date(report.generatedAt).toLocaleString() }}</span>
           <v-select
             v-model="sortBy"
             :items="[
-              { title: l({ lo: '⚡ ໃຊ້ຈ່າຍສູງສຸດ', th: '⚡ ใช้จ่ายสูงสุด', en: 'Highest spend' }), value: 'spend' },
-              { title: l({ lo: '✨ ສ້າງໃໝ່ສຸດ', th: '✨ สร้างใหม่ล่าสุด', en: 'Newest created' }), value: 'newest' },
-              { title: l({ lo: '🔤 ຊື່ (A-Z)', th: '🔤 ชื่อ (A-Z)', en: 'Name (A-Z)' }), value: 'name' }
+              { title: '⚡ ຄ່າແອດສູງສຸດ (Spend)', value: 'spend' },
+              { title: '🎯 Real CPA ຕ່ຳສຸດ (ດີສຸດ)', value: 'cpa' },
+              { title: '💰 ກຳໄລສຸດທິສູງສຸດ', value: 'profit' },
+              { title: '📦 ຈຳນວນອໍເດີສູງສຸດ', value: 'orders' },
+              { title: '🔤 ຊື່ (A-Z)', value: 'name' }
             ]"
             item-title="title"
             item-value="value"
@@ -437,11 +519,13 @@ onMounted(async () => { await loadAccounts(); loadThresholds(); ready.value = tr
             variant="outlined"
             hide-details
             class="sort-select"
-            style="min-width: 160px; max-width: 195px;"
+            style="min-width: 190px;"
           />
           <v-text-field v-model="search" density="compact" variant="outlined" prepend-inner-icon="mdi-magnify" :placeholder="l({lo:'ຄົ້ນຫາ...',th:'ค้นหา...',en:'Search...'})" hide-details clearable />
         </div>
       </div>
+
+      <!-- Controls & Status Filter Chips -->
       <div class="detail-toolbar">
         <div class="toolbar-group">
           <small>{{ l({lo:'ລະດັບຂໍ້ມູນ',th:'ระดับข้อมูล',en:'View level'}) }}</small>
@@ -452,108 +536,473 @@ onMounted(async () => { await loadAccounts(); loadThresholds(); ready.value = tr
           </v-btn-toggle>
         </div>
         <div class="toolbar-group status-filter-group">
-          <small>{{ l({lo:'ກອງຕາມສະຖານະ',th:'กรองตามสถานะ',en:'Filter by status'}) }}</small>
+          <small>{{ l({lo:'ກອງຕາມການຕັດສິນໃຈ SOP',th:'กรองตามการตัดสินใจ',en:'SOP Decision Filter'}) }}</small>
           <v-btn-toggle v-model="statusFilter" mandatory color="primary" variant="outlined" class="status-tabs">
-            <v-btn value="all">{{ l({lo:'ທັງໝົດ',th:'ทั้งหมด',en:'All'}) }}</v-btn>
-            <v-btn value="active"><span class="status-dot active" />{{ l({lo:'ເປີດຢູ່',th:'ใช้งาน',en:'Active'}) }} <b>{{ statusCounts.active }}</b></v-btn>
-            <v-btn value="paused"><span class="status-dot paused" />{{ l({lo:'ປິດຢູ່',th:'หยุด',en:'Paused'}) }} <b>{{ statusCounts.paused }}</b></v-btn>
-            <v-btn value="issues"><span class="status-dot issues" />{{ l({lo:'ມີບັນຫາ',th:'มีปัญหา',en:'Issues'}) }} <b>{{ statusCounts.issues }}</b></v-btn>
+            <v-btn value="all">ທັງໝົດ ({{ report.items.length }})</v-btn>
+            <v-btn value="scale" color="success"><v-icon icon="mdi-trending-up" size="14" /> SCALE</v-btn>
+            <v-btn value="hold" color="info"><v-icon icon="mdi-timer-sand" size="14" /> HOLD</v-btn>
+            <v-btn value="improve" color="warning"><v-icon icon="mdi-wrench" size="14" /> IMPROVE</v-btn>
+            <v-btn value="pause" color="error"><v-icon icon="mdi-pause-circle" size="14" /> PAUSE</v-btn>
           </v-btn-toggle>
         </div>
       </div>
-      <p class="filter-help"><v-icon icon="mdi-information-outline" /> {{ l({lo:'ສະຖານະນີ້ແມ່ນຄ່າຈິງຈາກ Meta. Ad ອາດຖືກຢຸດເພາະ Campaign ຫຼື Ad Set ຊັ້ນເທິງຖືກປິດ.',th:'สถานะนี้มาจาก Meta โดยตรง โฆษณาอาจหยุดเพราะแคมเปญหรือชุดโฆษณาด้านบนถูกปิด',en:'Statuses come directly from Meta. An ad may stop because its parent campaign or ad set is paused.'}) }}</p>
 
-      <div v-if="loadingReport" class="table-loading"><v-progress-linear indeterminate color="primary" /></div>
-      <div v-else-if="!items.length" class="empty-state"><v-icon icon="mdi-filter-off-outline" size="44" /><h3>{{ l({lo:'ບໍ່ພົບລາຍການຕາມ filter',th:'ไม่พบรายการตามตัวกรอง',en:'No items match these filters'}) }}</h3><p>{{ l({lo:'ລອງເລືອກສະຖານະທັງໝົດ ຫຼືລຶບຄຳຄົ້ນຫາ.',th:'ลองเลือกสถานะทั้งหมดหรือล้างคำค้นหา',en:'Choose All statuses or clear the search.'}) }}</p><v-btn variant="tonal" color="primary" @click="statusFilter='all';search=''">{{ l({lo:'ລ້າງ filter',th:'ล้างตัวกรอง',en:'Clear filters'}) }}</v-btn></div>
+      <div v-if="!items.length" class="empty-state">
+        <v-icon icon="mdi-filter-off-outline" size="44" />
+        <h3>{{ l({lo:'ບໍ່ພົບລາຍການຕາມ filter',th:'ไม่พบรายการ',en:'No items match filters'}) }}</h3>
+        <p>{{ l({lo:'ລອງປ່ຽນຕົວກອງ ຫຼື ເລືອກຊ່ວງເວລາອື່ນ.',th:'ลองเปลี่ยนตัวกรอง',en:'Try selecting another filter or date range.'}) }}</p>
+      </div>
 
+      <!-- Matrix Rows -->
       <div v-else class="performance-list">
+        <!-- Table Header (Desktop) -->
+        <div class="matrix-header">
+          <div class="col col-entity">1. Campaign / Ad</div>
+          <div class="col col-status">2. ສະຖານະ & SOP</div>
+          <div class="col col-chats">3. ແຊັດ & ປິດຂາຍ</div>
+          <div class="col col-spend">4. ຄ່າແອດ (Spend)</div>
+          <div class="col col-orders">5. ອໍເດີສຳເລັດ</div>
+          <div class="col col-cpa">6. Real CPA</div>
+          <div class="col col-profit">7. ກຳໄລສຸດທິ</div>
+          <div class="col col-action">8. ຄຳແນະນຳ & ຈັດການ</div>
+        </div>
+
         <article v-for="item in items" :key="item.entityId" class="performance-row" :class="{ expanded: selectedId === item.entityId }">
-          <button class="row-main" type="button" :aria-expanded="selectedId === item.entityId" @click="toggleItem(item)">
-            <span class="entity-cell"><span class="entity-icon"><v-icon :icon="item.entityType==='campaign'?'mdi-bullhorn-outline':item.entityType==='adset'?'mdi-account-group-outline':'mdi-advertisements'" /></span><span><strong>{{ item.entityName || item.entityId }}</strong><small v-if="item.entityType!=='campaign'">{{ item.campaignName }}<template v-if="item.entityType==='ad'"> · {{ item.adSetName }}</template></small><code>{{ item.entityId }}</code></span></span>
-            <span class="delivery-chip" :class="statusClass(statusFor(item))"><span class="status-dot" :class="statusClass(statusFor(item))" />{{ statusLabel(statusFor(item)) }}</span>
-            <span class="metric metric-spend mobile-key"><small>{{ l({lo:'ໃຊ້ຈ່າຍ',th:'ใช้จ่าย',en:'Spend'}) }}</small><strong>{{ money(item.spend) }}</strong></span>
-            <span class="metric metric-results mobile-key"><small>{{ resultLabel(item.results.type) }}</small><strong>{{ fmt(item.results.value, 0) }}</strong></span>
-            <span class="metric metric-cost mobile-key"><small>{{ l({lo:'ຕົ້ນທຶນ/ຜົນ',th:'ต้นทุน/ผล',en:'Cost/result'}) }}</small><strong>{{ money(item.results.cost) }}</strong></span>
-            <span class="metric metric-ctr mobile-key"><small>CTR</small><strong>{{ percent(item.linkCtr) }}</strong></span>
-            <span class="metric metric-frequency"><small>Frequency</small><strong>{{ fmt(item.frequency, 2) }}</strong></span>
-            <span class="decision-chip" :class="decision(item).code"><v-icon :icon="decision(item).icon" /> <span><strong>{{ decision(item).title }}</strong><small>{{ decision(item).signals[0] || decision(item).detail }}</small></span></span>
-            <v-icon :icon="selectedId === item.entityId ? 'mdi-chevron-up' : 'mdi-chevron-down'" />
-          </button>
-          <div v-if="selectedId === item.entityId" class="row-detail">
-            <div class="explanation"><v-icon :icon="decision(item).icon" :color="decision(item).color" /><div><h3>{{ decision(item).title }}</h3><p>{{ decision(item).detail }}</p><ul v-if="decision(item).signals.length"><li v-for="signal in decision(item).signals" :key="signal">{{ signal }}</li></ul></div></div>
-            <section v-if="item.entityType==='campaign'" class="audience-callout"><v-icon icon="mdi-account-group-outline" /><div><strong>{{ l({lo:'Audience ກຳນົດຢູ່ລະດັບ Ad Set',th:'กลุ่มเป้าหมายกำหนดที่ระดับ Ad Set',en:'Audience is configured at Ad Set level'}) }}</strong><span>{{ l({lo:'ເລືອກແຖບ Ad Set ເພື່ອເບິ່ງ Targeting ແລະ Audience coverage ຂອງແຕ່ລະກຸ່ມ.',th:'เลือกแท็บ Ad Set เพื่อดู Targeting และ Audience coverage ของแต่ละกลุ่ม',en:'Open the Ad Set tab to inspect targeting and audience coverage for each audience.'}) }}</span></div></section>
-            <section v-else class="audience-panel">
-              <div class="audience-heading"><div><p>AUDIENCE SATURATION</p><h3>{{ l({lo:'ກຸ່ມເປົ້າໝາຍ ແລະການເຂົ້າເຖິງ',th:'กลุ่มเป้าหมายและการเข้าถึง',en:'Audience and delivery coverage'}) }}</h3></div><small>{{ l({lo:'ລະດັບ Ad Set',th:'ระดับ Ad Set',en:'Ad Set level'}) }}</small></div>
-              <v-skeleton-loader v-if="audienceLoading[adSetIDFor(item)]" type="list-item-three-line, actions" />
-              <v-alert v-else-if="audienceErrors[adSetIDFor(item)]" type="warning" variant="tonal" density="compact">{{ audienceErrors[adSetIDFor(item)] }} <v-btn size="small" variant="text" @click="loadAudience(item)">{{ l({lo:'ລອງໃໝ່',th:'ลองใหม่',en:'Retry'}) }}</v-btn></v-alert>
-              <template v-else-if="audienceFor(item)">
-                <div class="audience-metrics">
-                  <div><span>{{ l({lo:'ຂະໜາດ Audience ປະມານ',th:'ขนาดกลุ่มเป้าหมายโดยประมาณ',en:'Estimated audience'}) }}</span><strong>{{ fmt(estimatedAudienceSize(item), 0) }}</strong><small>{{ audienceFor(item)?.estimatedMonthlyUsers ? l({lo:'Monthly estimate ຈາກ Meta',th:'ค่าประมาณรายเดือนจาก Meta',en:'Meta monthly estimate'}) : l({lo:'ບໍ່ມີຄ່າທຽບສຳລັບໄລຍະນີ້',th:'ไม่มีค่าประมาณที่เทียบกับช่วงนี้',en:'No comparable estimate for this range'}) }}</small></div>
-                  <div><span>{{ l({lo:'Reach ໃນໄລຍະທີ່ເລືອກ',th:'Reach ในช่วงที่เลือก',en:'Reach in selected range'}) }}</span><strong>{{ fmt(item.reach, 0) }}</strong><small>{{ report.dateStart }} – {{ report.dateStop }}</small></div>
-                  <div class="coverage-metric"><span>{{ l({lo:'Estimated coverage',th:'Estimated coverage',en:'Estimated coverage'}) }}</span><strong>{{ percent(audienceCoverage(item)) }}</strong><small>{{ l({lo:'Reach ÷ Estimated audience; ບໍ່ແມ່ນ lifetime ratio',th:'Reach ÷ Estimated audience; ไม่ใช่ lifetime ratio',en:'Reach ÷ estimated audience; not lifetime ratio'}) }}</small></div>
-                  <div><span>Frequency</span><strong>{{ fmt(item.frequency, 2) }}</strong><small>{{ l({lo:'ຈຳນວນເທື່ອສະເລ່ຍທີ່ຄົນໜຶ່ງເຫັນ',th:'จำนวนครั้งเฉลี่ยที่หนึ่งคนเห็น',en:'Average views per reached person'}) }}</small></div>
-                </div>
-                <v-progress-linear v-if="audienceCoverage(item)!=null" :model-value="Math.min(100,audienceCoverage(item) || 0)" height="9" rounded color="primary" class="coverage-bar" />
-                <div class="audience-advice" :class="audienceAdvice(item).tone"><v-icon :icon="audienceAdvice(item).tone==='warning'?'mdi-alert-outline':audienceAdvice(item).tone==='success'?'mdi-check-circle-outline':'mdi-information-outline'" /><div><strong>{{ audienceAdvice(item).title }}</strong><span>{{ audienceAdvice(item).detail }}</span></div></div>
-                <div class="targeting-block"><strong>{{ l({lo:'Targeting ທີ່ຕັ້ງໄວ້',th:'Targeting ที่ตั้งไว้',en:'Configured targeting'}) }}</strong><div v-if="targetingTags(audienceFor(item)).length" class="targeting-tags"><span v-for="tag in targetingTags(audienceFor(item))" :key="`${tag.icon}:${tag.label}`"><v-icon :icon="tag.icon" size="15" />{{ tag.label }}</span></div><small v-else>{{ l({lo:'Meta ບໍ່ສົ່ງລາຍລະອຽດ Targeting ສຳລັບ Ad Set ນີ້.',th:'Meta ไม่ส่งรายละเอียด Targeting สำหรับ Ad Set นี้',en:'Meta did not return targeting details for this Ad Set.'}) }}</small></div>
-                <div class="native-metric-note"><v-icon icon="mdi-shield-check-outline" /><span>{{ l({lo:'First-time impression ratio, Auction overlap ແລະ Meta lifetime Audience Reached Ratio ຈະສະແດງສະເພາະເມື່ອ Meta ສົ່ງຄ່າຜ່ານ API. ລະບົບຈະບໍ່ສ້າງຄ່າປອມ.',th:'First-time impression ratio, Auction overlap และ Meta lifetime Audience Reached Ratio จะแสดงเมื่อ Meta ส่งค่าผ่าน API เท่านั้น ระบบจะไม่สร้างค่าจำลอง',en:'First-time impression ratio, auction overlap, and Meta lifetime audience reached ratio appear only when Meta exposes them through the API; this system does not fabricate them.'}) }}</span></div>
-              </template>
-            </section>
-            <div class="metric-detail-grid">
-              <div><span>{{ l({lo:'ການສະແດງ',th:'การแสดงผล',en:'Impressions'}) }}</span><strong>{{ fmt(item.impressions, 0) }}</strong><small>{{ l({lo:'ຈຳນວນຄັ້ງທີ່ໂຄສະນາສະແດງ',th:'จำนวนครั้งที่โฆษณาแสดง',en:'Total ad displays'}) }}</small></div>
-              <div><span>{{ l({lo:'ການເຂົ້າເຖິງ',th:'การเข้าถึง',en:'Reach'}) }}</span><strong>{{ fmt(item.reach, 0) }}</strong><small>{{ l({lo:'ຈຳນວນຄົນທີ່ເຫັນ',th:'จำนวนคนที่เห็น',en:'People who saw it'}) }}</small></div>
-              <div><span>Link clicks</span><strong>{{ fmt(item.linkClicks, 0) }}</strong><small>{{ l({lo:'ຄລິກໄປປາຍທາງ',th:'คลิกไปยังปลายทาง',en:'Clicks to destination'}) }}</small></div>
-              <div><span>CPC</span><strong>{{ money(item.linkCpc) }}</strong><small>{{ l({lo:'ຕົ້ນທຶນຕໍ່ຄລິກ',th:'ต้นทุนต่อคลิก',en:'Cost per link click'}) }}</small></div>
-              <div><span>CPM</span><strong>{{ money(item.cpm) }}</strong><small>{{ l({lo:'ຕົ້ນທຶນຕໍ່ 1,000 ການສະແດງ',th:'ต้นทุนต่อ 1,000 การแสดงผล',en:'Cost per 1,000 impressions'}) }}</small></div>
-              <div><span>{{ l({lo:'ມູນຄ່າ Conversion',th:'มูลค่า Conversion',en:'Conversion value'}) }}</span><strong>{{ money(item.conversionValue) }}</strong><small>{{ l({lo:'ລາຍຮັບທີ່ Meta attribution',th:'รายได้ที่ Meta attribution',en:'Meta-attributed value'}) }}</small></div>
-              <div><span>ROAS</span><strong>{{ item.roas==null?'—':`${fmt(item.roas,2)}×` }}</strong><small>{{ breakEvenROAS?`Break-even ${fmt(breakEvenROAS,2)}×`:'Set gross margin' }}</small></div>
-              <div><span>{{ l({lo:'ຫຼັງ Margin − Ads',th:'หลัง Margin − Ads',en:'Margin value − ads'}) }}</span><strong>{{ money(contribution(item)) }}</strong><small>{{ l({lo:'ບໍ່ລວມຄ່າດຳເນີນງານ',th:'ไม่รวมค่าใช้จ่ายดำเนินงาน',en:'Excludes operating costs'}) }}</small></div>
-              <div v-if="item.entityType==='ad'"><span>Quality ranking</span><strong>{{ item.qualityRanking || '—' }}</strong><small>{{ item.engagementRateRanking || '—' }} · {{ item.conversionRateRanking || '—' }}</small></div>
+          <div class="row-main" @click="toggleItem(item)">
+            <!-- Col 1: Entity Name & Meta Info -->
+            <div class="col col-entity">
+              <span class="entity-icon"><v-icon :icon="item.entityType==='campaign'?'mdi-bullhorn-outline':item.entityType==='adset'?'mdi-account-group-outline':'mdi-advertisements'" /></span>
+              <div class="entity-text">
+                <strong>{{ item.entityName || item.entityId }}</strong>
+                <small v-if="item.campaignName && item.entityType!=='campaign'">{{ item.campaignName }}</small>
+                <code>{{ item.entityId }}</code>
+              </div>
             </div>
-            <div class="status-actions"><div><strong>{{ l({lo:'ສະຖານະການສົ່ງ',th:'สถานะการส่ง',en:'Delivery status'}) }}</strong><span>{{ statusLabel(statusFor(item)) }}</span></div><v-btn color="success" variant="tonal" prepend-icon="mdi-play" :loading="updatingId===item.entityId" :disabled="statusFor(item)==='ACTIVE'" @click="changeStatus(item,'ACTIVE')">{{ l({lo:'ເປີດໃຊ້ງານ',th:'เปิดใช้งาน',en:'Activate'}) }}</v-btn><v-btn color="error" variant="outlined" prepend-icon="mdi-pause" :loading="updatingId===item.entityId" :disabled="statusFor(item)==='PAUSED'" @click="changeStatus(item,'PAUSED')">{{ l({lo:'ປິດຊົ່ວຄາວ',th:'หยุดชั่วคราว',en:'Pause'}) }}</v-btn></div>
+
+            <!-- Col 2: Status & SOP Badge -->
+            <div class="col col-status">
+              <div class="d-flex flex-column gap-1">
+                <span class="delivery-chip" :class="statusClass(item.effectiveStatus || item.status)">
+                  <span class="status-dot" :class="statusClass(item.effectiveStatus || item.status)" />
+                  {{ statusLabel(item.effectiveStatus || item.status) }}
+                </span>
+                <v-chip size="x-small" :color="decisionBadgeInfo(item.decisionCode).color" variant="flat" class="font-weight-bold">
+                  <v-icon :icon="decisionBadgeInfo(item.decisionCode).icon" start size="12" />
+                  {{ decisionBadgeInfo(item.decisionCode).label }}
+                </v-chip>
+              </div>
+            </div>
+
+            <!-- Col 3: Chats & Closing Rate -->
+            <div class="col col-chats">
+              <strong>{{ fmt(item.reportedResults) }} <small class="font-weight-normal text-caption">ແຊັດ</small></strong>
+              <small class="text-medium-emphasis">ປິດຂາຍ: {{ percent(item.closingRate ? item.closingRate * 100 : null) }}</small>
+            </div>
+
+            <!-- Col 4: Spend -->
+            <div class="col col-spend">
+              <strong>{{ money(item.spend) }}</strong>
+              <small class="text-caption text-medium-emphasis">CPM: {{ money(item.cpm) }}</small>
+            </div>
+
+            <!-- Col 5: Completed Orders & Payment Tracks -->
+            <div class="col col-orders">
+              <strong>{{ fmt(item.completedOrders) }} <small class="font-weight-normal text-caption">ອໍເດີ</small></strong>
+              <div class="order-sub-track">
+                <span class="text-success">💳 ໂອນ: {{ item.prepaidOrders }}</span>
+                <span class="text-info">🚚 COD: {{ item.codDeliveredOrders }}</span>
+                <span v-if="item.codPendingOrders > 0" class="text-warning">⏳ ສົ່ງຢູ່: {{ item.codPendingOrders }}</span>
+              </div>
+            </div>
+
+            <!-- Col 6: Real CPA vs Target -->
+            <div class="col col-cpa">
+              <strong :class="{ 'text-success': item.realCpa && item.realCpa <= item.targetCpa, 'text-error': item.realCpa && item.realCpa >= item.breakEvenCpa }">
+                {{ money(item.realCpa) }}
+              </strong>
+              <small class="text-caption text-medium-emphasis">
+                ເປົ້າ: {{ money(item.targetCpa) }}
+              </small>
+            </div>
+
+            <!-- Col 7: Net Contribution Profit -->
+            <div class="col col-profit">
+              <strong :class="item.netContribution >= 0 ? 'text-success' : 'text-error'">
+                {{ money(item.netContribution) }}
+              </strong>
+              <small class="text-caption text-medium-emphasis">
+                ຍອດຂາຍ: {{ money(item.completedRevenue) }}
+              </small>
+            </div>
+
+            <!-- Col 8: Action & Quick Control -->
+            <div class="col col-action" @click.stop>
+              <div class="d-flex align-center gap-1">
+                <v-btn
+                  v-if="item.decisionCode === 'SCALE'"
+                  size="x-small"
+                  color="success"
+                  variant="flat"
+                  prepend-icon="mdi-arrow-up-bold"
+                  class="font-weight-bold"
+                  @click="promptScaleBudget(item)"
+                >
+                  Scale +20%
+                </v-btn>
+                <v-btn
+                  size="x-small"
+                  :color="(item.effectiveStatus || item.status) === 'ACTIVE' ? 'error' : 'success'"
+                  variant="tonal"
+                  :loading="updatingId === item.entityId"
+                  @click="changeStatus(item, (item.effectiveStatus || item.status) === 'ACTIVE' ? 'PAUSED' : 'ACTIVE')"
+                >
+                  {{ (item.effectiveStatus || item.status) === 'ACTIVE' ? 'ພັກ' : 'ເປີດ' }}
+                </v-btn>
+                <v-btn size="x-small" variant="text" icon="mdi-chevron-down" :class="{ 'rotate-180': selectedId === item.entityId }" @click="toggleItem(item)" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Expanded Detail Section -->
+          <div v-if="selectedId === item.entityId" class="row-detail">
+            <!-- SOP Reason & Concrete Action Recommendation -->
+            <div class="sop-reason-box" :class="item.statusBadgeColor">
+              <div class="d-flex align-start gap-3">
+                <v-icon :icon="decisionBadgeInfo(item.decisionCode).icon" size="24" />
+                <div>
+                  <h4 class="mb-1 font-weight-bold">{{ decisionBadgeInfo(item.decisionCode).label }}: {{ item.reason }}</h4>
+                  <p class="mb-0 text-body-2">{{ item.recommendedAction }}</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Financial Breakdown Table for this Ad -->
+            <div class="metric-detail-grid">
+              <div><span>ລາຍຮັບຕົວຈິງ</span><strong>{{ money(item.completedRevenue) }}</strong><small>ໂອນກ່ອນ + COD ຮັບເງິນແລ້ວ</small></div>
+              <div><span>ຄ່າແອດ (Spend)</span><strong>{{ money(item.spend) }}</strong><small>ຈ່າຍໃຫ້ Meta</small></div>
+              <div><span>Real CPA</span><strong>{{ money(item.realCpa) }}</strong><small>ຕົ້ນທຶນແອດຕໍ່ອໍເດີຕົວຈິງ</small></div>
+              <div><span>Break-even CPA</span><strong>{{ money(item.breakEvenCpa) }}</strong><small>ຈຸດຄຸ້ມທຶນສູງສຸດ</small></div>
+              <div><span>Target CPA</span><strong>{{ money(item.targetCpa) }}</strong><small>ເປົ້າໝາຍກຳໄລທີ່ຕ້ອງການ</small></div>
+              <div><span>ກຳໄລສຸດທິ (Net Contribution)</span><strong :class="item.netContribution>=0?'text-success':'text-error'">{{ money(item.netContribution) }}</strong><small>ລາຍຮັບ − ຕົ້ນທຶນ − ຄ່າແອດ</small></div>
+            </div>
+
+            <!-- Audience Details (AdSet level) -->
+            <section v-if="item.entityType !== 'campaign'" class="audience-panel mt-3">
+              <div class="audience-heading">
+                <div><p>AUDIENCE & DELIVERY</p><h3>ກຸ່ມເປົ້າໝາຍ ແລະການເຂົ້າເຖິງ</h3></div>
+                <small>Ad Set Level</small>
+              </div>
+              <v-skeleton-loader v-if="audienceLoading[adSetIDFor(item)]" type="list-item-three-line" />
+              <div v-else-if="audienceFor(item)" class="audience-metrics">
+                <div><span>Audience ຂະໜາດປະມານ</span><strong>{{ fmt(audienceFor(item)?.estimatedMonthlyUsers || audienceFor(item)?.estimatedDailyUsers) }}</strong></div>
+                <div><span>Reach</span><strong>{{ fmt(item.reach) }}</strong></div>
+                <div><span>Frequency</span><strong>{{ fmt(item.frequency, 2) }}</strong></div>
+                <div><span>Link CTR</span><strong>{{ percent(item.linkCtr) }}</strong></div>
+              </div>
+            </section>
           </div>
         </article>
       </div>
     </section>
   </template>
 
-  <v-card v-else-if="!loadingAccounts" class="empty-state" variant="outlined"><v-icon icon="mdi-facebook" size="48" /><h2>{{ l({lo:'ຍັງບໍ່ມີບັນຊີໂຄສະນາ',th:'ยังไม่มีบัญชีโฆษณา',en:'No ad account connected'}) }}</h2><p>{{ l({lo:'ເຊື່ອມ Facebook ແລະອະນຸຍາດ ads_read ເພື່ອເລີ່ມຕົ້ນ.',th:'เชื่อม Facebook และอนุญาต ads_read เพื่อเริ่มต้น',en:'Connect Facebook and allow ads_read to get started.'}) }}</p><v-btn color="primary" to="/meta-pages">{{ l({lo:'ເຊື່ອມຕໍ່ Meta',th:'เชื่อมต่อ Meta',en:'Connect Meta'}) }}</v-btn></v-card>
-
-  <v-dialog v-model="actionPlanOpen" max-width="760" persistent>
+  <!-- Setup Strategy Settings Modal (1-minute prompt) -->
+  <v-dialog v-model="strategyModalOpen" max-width="640" persistent>
     <v-card rounded="xl">
-      <v-card-title class="dialog-title"><div><small>SAFE AUTOMATION</small><h2>{{ l({lo:'ກວດ ແລະອະນຸມັດແຜນປິດ Ads',th:'ตรวจและอนุมัติแผนหยุด Ads',en:'Review and approve pause plan'}) }}</h2></div><v-btn icon="mdi-close" variant="text" :disabled="applyingActionPlan" @click="actionPlanOpen=false" /></v-card-title>
-      <v-card-text class="settings-body">
-        <v-alert type="warning" variant="tonal" density="compact" class="mb-4"><strong>{{ l({lo:'Dry run:',th:'โหมดตรวจสอบ:',en:'Dry run:'}) }}</strong> {{ l({lo:'ຍັງບໍ່ມີ Ads ໃດຖືກປິດ. ເລືອກລາຍການ ແລະຢືນຢັນກ່ອນທຸກຄັ້ງ.',th:'ยังไม่มี Ads ใดถูกหยุด เลือกรายการและยืนยันก่อนทุกครั้ง',en:'Nothing has changed. Select items and explicitly approve before any ad is paused.'}) }}</v-alert>
-        <div v-if="actionCandidates.length" class="action-plan-list">
-          <label v-for="item in actionCandidates" :key="item.entityId" class="action-plan-item">
-            <v-checkbox v-model="selectedActionIds" :value="item.entityId" hide-details color="error" />
-            <span><strong>{{ item.entityName }}</strong><small>{{ statusLabel(statusFor(item)) }} · {{ money(item.spend) }} · {{ fmt(item.impressions,0) }} impressions</small><em>{{ decision(item).signals.join(' · ') }}</em></span>
-          </label>
+      <v-card-title class="dialog-title">
+        <div>
+          <small class="text-primary font-weight-bold">SETUP AD STRATEGY</small>
+          <h2>ຕັ້ງຄ່າຍຸດທະສາດໂຄສະນາ (Setup Strategy)</h2>
         </div>
-        <div v-else class="empty-inline compact"><v-icon icon="mdi-check-decagram-outline" size="38" color="success" /><h3>{{ l({lo:'ບໍ່ມີ Ads ທີ່ເຂົ້າເກນປິດ',th:'ไม่มี Ads ที่เข้าเกณฑ์หยุด',en:'No ads meet the pause criteria'}) }}</h3><p>{{ l({lo:'ລະບົບຈະພິຈາລະນາສະເພາະ Ads ທີ່ເປີດຢູ່, ມີຂໍ້ມູນພໍ ແລະມີຢ່າງໜ້ອຍ 2 ສັນຍານອ່ອນ.',th:'ระบบพิจารณาเฉพาะ Ads ที่ทำงานอยู่ มีข้อมูลพอ และมีสัญญาณอ่อนอย่างน้อย 2 ข้อ',en:'Only active ads with enough data and at least two weak signals are considered.'}) }}</p></div>
-        <v-checkbox v-if="actionCandidates.length" v-model="actionPlanAcknowledged" color="primary" :disabled="!selectedActionItems.length" :label="l({lo:`ຂ້ອຍໄດ້ກວດ ${selectedActionItems.length} ລາຍການ ແລະອະນຸມັດໃຫ້ປິດ`,th:`ฉันตรวจ ${selectedActionItems.length} รายการและอนุมัติให้หยุด`,en:`I reviewed ${selectedActionItems.length} item(s) and approve pausing them`})" />
+        <v-btn icon="mdi-close" variant="text" :disabled="savingStrategy" @click="strategyModalOpen = false" />
+      </v-card-title>
+      <v-card-text class="settings-body">
+        <v-alert type="info" variant="tonal" density="compact" class="mb-4">
+          ປ້ອນ 4 ຕົວເລກຫຼັກໆ ໃຊ້ເວລາພຽງ 1 ນາທີ. ລະບົບຈະບັນທຶກເປັນ <b>Version ຕາມວັນທີ (Point-in-Time)</b> ເພື່ອໃຫ້ລາຍງານຍ້ອນຫຼັງຖືກຕ້ອງຕະຫຼອດໄປ.
+        </v-alert>
+
+        <div class="settings-grid primary-settings mb-3">
+          <v-text-field
+            v-model.number="strategyForm.targetProfitPerOrder"
+            type="number"
+            label="1. ກຳໄລທີ່ຕ້ອງການຕໍ່ອໍເດີ (Target Profit)"
+            suffix="₭"
+            hint="ເຊັ່ນ: 30,000 ກີບ/ອໍເດີ"
+            persistent-hint
+            variant="outlined"
+          />
+          <v-text-field
+            v-model.number="strategyForm.maxTestLossBudget"
+            type="number"
+            label="2. ງົບທົດລອງ / ງົບຂາດທຶນສູງສຸດຕໍ່ມື້"
+            suffix="₭"
+            hint="ເຊັ່ນ: 200,000 ກີບ/ມື້ (ຖ້າ Spend ຮອດແລ້ວບໍ່ມີອໍເດີ ຈະສະເໜີພັກ)"
+            persistent-hint
+            variant="outlined"
+          />
+        </div>
+
+        <div class="settings-grid mb-3">
+          <v-text-field
+            v-model.number="strategyForm.avgPackagingCost"
+            type="number"
+            label="3.1 ຄ່າແພັກສະເລ່ຍ/ອໍເດີ"
+            suffix="₭"
+            variant="outlined"
+          />
+          <v-text-field
+            v-model.number="strategyForm.avgShippingCostStore"
+            type="number"
+            label="3.2 ຄ່າສົ່ງທີ່ຮ້ານຊ່ວຍອອກ/ອໍເດີ"
+            suffix="₭"
+            variant="outlined"
+          />
+          <v-text-field
+            v-model.number="strategyForm.codReturnRatePercent"
+            type="number"
+            label="4. ອັດຕາຕີກັບ COD ປະມານການ"
+            suffix="%"
+            hint="ເຊັ່ນ: 8%"
+            persistent-hint
+            variant="outlined"
+          />
+        </div>
+
+        <div class="settings-grid mb-3">
+          <v-text-field
+            v-model.number="strategyForm.returnFeePerOrder"
+            type="number"
+            label="ຄ່າສົ່ງຕີກັບຕໍ່ອໍເດີ (Return Fee)"
+            suffix="₭"
+            variant="outlined"
+          />
+          <v-text-field
+            v-model.number="strategyForm.dailyBudgetCap"
+            type="number"
+            label="ເພດານງົບຕໍ່ມື້ສູງສຸດ (Cap)"
+            suffix="₭"
+            variant="outlined"
+          />
+          <v-text-field
+            v-model="strategyForm.effectiveFrom"
+            type="date"
+            label="ມີຜົນເລີ່ມຕັ້ງແຕ່ວັນທີ"
+            variant="outlined"
+          />
+        </div>
+
+        <v-text-field
+          v-model="strategyForm.note"
+          label="ໝາຍເຫດການປ່ຽນແປງ (Note)"
+          placeholder="ເຊັ່ນ: ປັບເກນເດືອນ 10 ຍ້ອນຕົ້ນທຶນຄ່າສົ່ງເພີ່ມ"
+          variant="outlined"
+        />
       </v-card-text>
-      <v-card-actions class="dialog-actions"><v-btn variant="text" :disabled="applyingActionPlan" @click="actionPlanOpen=false">{{ l({lo:'ຍົກເລີກ',th:'ยกเลิก',en:'Cancel'}) }}</v-btn><v-spacer /><v-btn color="error" prepend-icon="mdi-pause" :loading="applyingActionPlan" :disabled="!actionPlanAcknowledged || !selectedActionItems.length" @click="applyActionPlan">{{ l({lo:`ຢືນຢັນປິດ ${selectedActionItems.length} ລາຍການ`,th:`ยืนยันหยุด ${selectedActionItems.length} รายการ`,en:`Approve ${selectedActionItems.length} pause(s)`}) }}</v-btn></v-card-actions>
+      <v-card-actions class="dialog-actions">
+        <v-btn variant="text" :disabled="savingStrategy" @click="strategyModalOpen = false">ຍົກເລີກ</v-btn>
+        <v-spacer />
+        <v-btn color="primary" :loading="savingStrategy" @click="saveStrategySettings">ບັນທຶກເກນຍຸດທະສາດ</v-btn>
+      </v-card-actions>
     </v-card>
   </v-dialog>
 
-  <v-dialog v-model="settingsOpen" max-width="620">
-    <v-card rounded="xl"><v-card-title class="dialog-title"><div><small>DECISION SETTINGS</small><h2>{{ l({lo:'ກຳນົດເກນຕາມຮ້ານ',th:'กำหนดเกณฑ์ตามร้าน',en:'Store-specific thresholds'}) }}</h2></div><v-btn icon="mdi-close" variant="text" @click="settingsOpen=false" /></v-card-title><v-card-text class="settings-body"><v-alert type="info" variant="tonal" density="compact" class="mb-4">{{ l({lo:'ແຕ່ລະຮ້ານມີກຳໄລ ແລະເປົ້າໝາຍບໍ່ຄືກັນ. ລະບົບຈະບໍ່ hard-code ຄຳຕັດສິນ.',th:'แต่ละร้านมีกำไรและเป้าหมายต่างกัน ระบบจะไม่ตัดสินด้วยค่าตายตัว',en:'Every store has different margins and goals; recommendations are not hard-coded.'}) }}</v-alert><div class="settings-grid primary-settings"><v-text-field v-model.number="targetCost" type="number" min="0" step="0.01" :label="l({lo:'ຕົ້ນທຶນ/ຜົນລັບສູງສຸດ',th:'ต้นทุน/ผลลัพธ์สูงสุด',en:'Maximum cost per result'})" :suffix="currency" variant="outlined" /><v-text-field v-model.number="grossMargin" type="number" min="0" max="100" step="1" :label="l({lo:'Gross margin ຂອງສິນຄ້າ',th:'Gross margin ของสินค้า',en:'Product gross margin'})" suffix="%" variant="outlined" :hint="breakEvenROAS?`Break-even ROAS ${fmt(breakEvenROAS,2)}×`:''" persistent-hint /></div><div class="settings-grid"><v-text-field v-model.number="weakCTR" type="number" min="0" step="0.1" label="Weak CTR below" suffix="%" variant="outlined" /><v-text-field v-model.number="goodCTR" type="number" min="0" step="0.1" label="Good CTR from" suffix="%" variant="outlined" /><v-text-field v-model.number="maxFrequency" type="number" min="1" step="0.1" label="Frequency warning from" variant="outlined" /><v-text-field v-model.number="minimumPlanImpressions" type="number" min="0" step="100" :label="l({lo:'Impressions ຕ່ຳສຸດສຳລັບແຜນ',th:'Impressions ขั้นต่ำสำหรับแผน',en:'Minimum plan impressions'})" variant="outlined" /><v-text-field v-model.number="minimumPlanSpend" type="number" min="0" step="0.01" :label="l({lo:'Spend ຕ່ຳສຸດສຳລັບແຜນ',th:'Spend ขั้นต่ำสำหรับแผน',en:'Minimum plan spend'})" :suffix="currency" variant="outlined" /></div></v-card-text><v-card-actions class="dialog-actions"><v-btn variant="text" @click="targetCost=null;grossMargin=null;goodCTR=3;weakCTR=1;maxFrequency=3;minimumPlanImpressions=1000;minimumPlanSpend=null">{{ l({lo:'ຄ່າເລີ່ມຕົ້ນ',th:'ค่าเริ่มต้น',en:'Reset'}) }}</v-btn><v-spacer /><v-btn color="primary" @click="saveThresholds">{{ l({lo:'ບັນທຶກ',th:'บันทึก',en:'Save settings'}) }}</v-btn></v-card-actions></v-card>
+  <!-- Strategy Settings Version History Modal -->
+  <v-dialog v-model="historyModalOpen" max-width="700">
+    <v-card rounded="xl">
+      <v-card-title class="dialog-title">
+        <div>
+          <small class="text-primary font-weight-bold">STRATEGY TIMELINE</small>
+          <h2>ປະຫວັດເກນຍຸດທະສາດ (Version History)</h2>
+        </div>
+        <v-btn icon="mdi-close" variant="text" @click="historyModalOpen = false" />
+      </v-card-title>
+      <v-card-text class="settings-body">
+        <v-skeleton-loader v-if="loadingHistory" type="list-item-three-line, list-item-three-line" />
+        <div v-else-if="strategyHistory.length" class="history-list">
+          <div v-for="item in strategyHistory" :key="item.id" class="history-card">
+            <div class="d-flex justify-between align-center mb-1">
+              <strong>{{ item.note || 'ເກນຍຸດທະສາດ' }}</strong>
+              <v-chip size="x-small" :color="!item.effectiveTo ? 'success' : 'default'">
+                {{ !item.effectiveTo ? 'Active ໃນປະຈຸບັນ' : 'Archived' }}
+              </v-chip>
+            </div>
+            <div class="text-caption text-medium-emphasis mb-2">
+              ມີຜົນ: {{ item.effectiveFrom?.slice(0, 10) }} ເຖິງ {{ item.effectiveTo ? item.effectiveTo.slice(0, 10) : 'ປະຈຸບັນ' }}
+            </div>
+            <div class="history-grid-pills">
+              <span>🎯 ເປົ້າກຳໄລ: {{ money(item.targetProfitPerOrder) }}</span>
+              <span>📦 ຄ່າແພັກ: {{ money(item.avgPackagingCost) }}</span>
+              <span>🚚 ຄ່າສົ່ງຮ້ານອອກ: {{ money(item.avgShippingCostStore) }}</span>
+              <span>🛑 ງົບທົດລອງ: {{ money(item.maxTestLossBudget) }}</span>
+              <span>↩️ COD Return: {{ item.codReturnRatePercent }}%</span>
+            </div>
+          </div>
+        </div>
+        <div v-else class="empty-inline">ຍັງບໍ່ມີປະຫວັດການປ່ຽນເກນ</div>
+      </v-card-text>
+      <v-card-actions class="dialog-actions">
+        <v-spacer />
+        <v-btn color="primary" @click="historyModalOpen = false">ປິດ</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
+
+  <!-- Scale Budget Modal -->
+  <v-dialog v-model="budgetModalOpen" max-width="500">
+    <v-card rounded="xl">
+      <v-card-title class="dialog-title">
+        <div>
+          <small class="text-success font-weight-bold">SCALE BUDGET</small>
+          <h2>ເພີ່ມງົບປະມານໂຄສະນາ (+20%)</h2>
+        </div>
+        <v-btn icon="mdi-close" variant="text" :disabled="updatingBudget" @click="budgetModalOpen = false" />
+      </v-card-title>
+      <v-card-text class="settings-body">
+        <v-alert type="success" variant="tonal" density="compact" class="mb-4">
+          ໂຄສະນາ “{{ targetBudgetItem?.entityName }}” ມີ Real CPA ດີກວ່າເປົ້າໝາຍ. ແນະນຳເພີ່ມງົບ 15-20% ເພື່ອຂະຫຍາຍຍອດຂາຍ.
+        </v-alert>
+
+        <div class="mb-3">
+          <small class="text-medium-emphasis">ຄ່າໃຊ້ຈ່າຍສະເລ່ຍໃນຊ່ວງນີ້: {{ money(targetBudgetItem?.spend) }}</small>
+        </div>
+
+        <v-text-field
+          v-model.number="newDailyBudget"
+          type="number"
+          label="ງົບປະມານຕໍ່ມື້ໃໝ່ (Daily Budget)"
+          suffix="₭"
+          variant="outlined"
+          hint="ແນະນຳເພີ່ມ 15-20% ເພື່ອບໍ່ໃຫ້ Algorithm ຕົກໃຈ (Learning Reset)"
+          persistent-hint
+        />
+      </v-card-text>
+      <v-card-actions class="dialog-actions">
+        <v-btn variant="text" :disabled="updatingBudget" @click="budgetModalOpen = false">ຍົກເລີກ</v-btn>
+        <v-spacer />
+        <v-btn color="success" :loading="updatingBudget" @click="applyBudgetChange">ຢືນຢັນເພີ່ມງົບ</v-btn>
+      </v-card-actions>
+    </v-card>
   </v-dialog>
 </template>
 
 <style scoped>
 .page-head,.filter-bar,.performance-section{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}
-.page-head{padding:24px;display:flex;justify-content:space-between;align-items:flex-start;gap:24px;margin-bottom:16px}.page-head p,.card-heading p,.section-head p{margin:0 0 6px;color:var(--color-primary);font-size:11px;font-weight:800;letter-spacing:.13em}.page-head h1{font-size:clamp(24px,3vw,34px);line-height:1.15;margin:0 0 8px}.page-head span{color:var(--color-text-secondary)}.head-actions{display:flex;gap:8px;flex-wrap:wrap}
+.page-head{padding:24px;display:flex;justify-content:space-between;align-items:flex-start;gap:24px;margin-bottom:16px}
+.page-head h1{font-size:clamp(22px,2.5vw,30px);line-height:1.2;margin:0 0 6px}
+.head-sub{color:var(--color-text-secondary);font-size:13px;line-height:1.5}
+.head-actions{display:flex;gap:8px;flex-wrap:wrap}
+
 .filter-bar{display:grid;grid-template-columns:minmax(240px,1.5fr) minmax(170px,.8fr) minmax(145px,.7fr) minmax(145px,.7fr) auto;align-items:center;gap:12px;padding:16px;margin-bottom:16px}
-.loading-grid,.summary-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:16px}.summary-card{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:18px;display:grid;gap:5px}.summary-card>span{color:var(--color-text-secondary);font-size:13px}.summary-card strong{font-size:clamp(22px,3vw,30px);line-height:1.1}.summary-card small{color:var(--color-text-muted);font-size:11px}.summary-card.finance{border-color:rgba(32,164,100,.28);background:linear-gradient(145deg,var(--color-surface),rgba(32,164,100,.045))}.summary-card.finance strong{color:#167a4b}.summary-card.loss{border-color:rgba(239,68,68,.3);background:linear-gradient(145deg,var(--color-surface),rgba(239,68,68,.04))}.summary-card.loss strong{color:var(--color-error)}
-.analysis-grid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(320px,.8fr);gap:16px;margin-bottom:16px}.trend-card,.decision-card{padding:20px;border-radius:var(--radius-lg)}.card-heading,.section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.card-heading h2,.section-head h2{margin:0;font-size:20px}.card-heading>small{color:var(--color-text-muted)}
-.trend-chart{height:220px;display:flex;align-items:flex-end;gap:clamp(4px,1vw,12px);padding:28px 4px 24px;margin-top:12px;border-bottom:1px solid var(--color-border);position:relative}.trend-column{height:100%;flex:1;min-width:8px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:7px;position:relative;outline:none}.trend-bar{width:min(34px,80%);min-height:4px;background:linear-gradient(180deg,var(--color-primary),#7c6cf1);border-radius:7px 7px 3px 3px;transition:transform .15s}.trend-column:is(:hover,:focus) .trend-bar{transform:scaleX(1.08)}.trend-column small{font-size:9px;color:var(--color-text-muted);white-space:nowrap}.trend-tooltip{display:none;position:absolute;bottom:calc(100% + 6px);z-index:2;background:#211d3f;color:#fff;padding:8px 10px;border-radius:8px;font-size:11px;white-space:nowrap;text-align:center}.trend-column:is(:hover,:focus) .trend-tooltip{display:block}
-.decision-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:18px 0}.decision-count{padding:14px 8px;border-radius:12px;display:grid;text-align:center}.decision-count strong{font-size:25px}.decision-count span{font-size:11px}.decision-count.keep{background:rgba(39,174,96,.1);color:var(--color-success)}.decision-count.review{background:rgba(245,158,11,.12);color:#a86700}.decision-count.pause{background:rgba(239,68,68,.1);color:var(--color-error)}.guide-note{display:flex;gap:8px;align-items:flex-start;color:var(--color-text-secondary);font-size:13px;line-height:1.55;margin:0}.decision-steps{display:grid;gap:9px;margin:15px 0 0;padding:0;list-style:none}.decision-steps li{display:grid;padding:10px 12px;border:1px solid var(--color-border);border-radius:10px}.decision-steps strong{font-size:11px}.decision-steps span{color:var(--color-text-secondary);font-size:10px;line-height:1.45}
-.performance-section{padding:20px}.section-head{margin-bottom:14px}.report-meta{display:flex;align-items:center;gap:12px}.report-meta>span{font-size:11px;color:var(--color-text-muted)}.report-meta .v-text-field{width:250px}.detail-toolbar{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;padding:14px;margin-bottom:8px;border:1px solid var(--color-border);border-radius:14px;background:var(--color-surface-soft)}.toolbar-group{display:grid;gap:6px;min-width:0}.toolbar-group>small{font-size:10px;font-weight:750;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:.08em}.level-tabs,.status-tabs{max-width:100%}.level-tabs .v-btn,.status-tabs .v-btn{min-height:40px}.level-tabs .v-icon{margin-right:5px}.status-tabs .v-btn{gap:6px}.status-tabs b{min-width:20px;padding:1px 6px;border-radius:999px;background:color-mix(in srgb,currentColor 12%,transparent);font-size:10px}.status-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:0 0 8px}.status-dot.active{background:#20a464}.status-dot.paused{background:#8991a5}.status-dot.issues{background:#e58a18}.filter-help{display:flex;align-items:flex-start;gap:7px;margin:0 2px 16px;color:var(--color-text-muted);font-size:11px;line-height:1.45}.table-loading{margin:-1px 0 16px}.performance-list{display:grid;border:1px solid var(--color-border);border-radius:14px;overflow:hidden}.performance-row+.performance-row{border-top:1px solid var(--color-border)}.performance-row.expanded{background:var(--color-surface-soft)}.row-main{width:100%;display:grid;grid-template-columns:minmax(230px,1.5fr) minmax(110px,.6fr) repeat(5,minmax(78px,.5fr)) minmax(175px,1fr) 28px;align-items:center;gap:10px;padding:14px 16px;text-align:left;color:inherit;background:transparent;border:0;cursor:pointer}.row-main:hover{background:var(--color-background)}.entity-cell{display:flex;align-items:center;gap:11px;min-width:0}.entity-cell>span:last-child{display:grid;min-width:0}.entity-cell strong,.entity-cell small,.entity-cell code{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.entity-cell small{color:var(--color-text-secondary);font-size:11px}.entity-cell code{color:var(--color-text-muted);font-size:9px}.entity-icon{width:42px;height:42px;display:grid;place-items:center;border-radius:11px;background:var(--color-primary-soft);color:var(--color-primary);flex:0 0 42px}.delivery-chip{display:inline-flex;align-items:center;gap:6px;width:max-content;max-width:100%;padding:6px 8px;border-radius:999px;font-size:10px;font-weight:750;white-space:nowrap}.delivery-chip.active{color:#167a4b;background:rgba(32,164,100,.1)}.delivery-chip.paused{color:#697184;background:rgba(137,145,165,.13)}.delivery-chip.issues{color:#a96000;background:rgba(229,138,24,.12)}.metric{display:grid;gap:3px}.metric small{font-size:10px;color:var(--color-text-muted)}.metric strong{font-size:14px}.decision-chip{display:flex;align-items:center;gap:8px;border-radius:11px;padding:9px 10px;min-width:0}.decision-chip>span{display:grid;min-width:0}.decision-chip strong{font-size:12px}.decision-chip small{font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.decision-chip.keep{background:rgba(39,174,96,.1);color:var(--color-success)}.decision-chip.review{background:rgba(245,158,11,.12);color:#a86700}.decision-chip.pause{background:rgba(239,68,68,.1);color:var(--color-error)}.decision-chip.no_data{background:var(--color-surface-soft);color:var(--color-text-secondary)}
-.row-detail{padding:20px;border-top:1px solid var(--color-border);display:grid;gap:18px}.explanation{display:flex;gap:12px;align-items:flex-start;max-width:850px}.explanation h3{margin:0 0 4px;font-size:17px}.explanation p{margin:0;color:var(--color-text-secondary)}.explanation ul{margin:8px 0 0;padding-left:20px;color:var(--color-text-secondary)}.audience-callout{display:flex;align-items:flex-start;gap:11px;padding:14px;color:var(--color-primary);background:var(--color-primary-soft);border-radius:12px}.audience-callout div{display:grid}.audience-callout strong{font-size:13px}.audience-callout span{color:var(--color-text-secondary);font-size:11px}.audience-panel{display:grid;gap:14px;padding:18px;border:1px solid color-mix(in srgb,var(--color-primary) 22%,var(--color-border));border-radius:14px;background:var(--color-surface)}.audience-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.audience-heading p{margin:0 0 3px;color:var(--color-primary);font-size:9px;font-weight:800;letter-spacing:.12em}.audience-heading h3{margin:0;font-size:17px}.audience-heading>small{padding:5px 8px;color:var(--color-primary);background:var(--color-primary-soft);border-radius:999px;font-size:9px}.audience-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}.audience-metrics>div{display:grid;gap:3px;padding:12px;background:var(--color-background);border-radius:11px}.audience-metrics span,.audience-metrics small{color:var(--color-text-muted);font-size:9px}.audience-metrics strong{font-size:19px}.coverage-metric strong{color:var(--color-primary)}.coverage-bar{margin-top:-5px}.audience-advice{display:flex;align-items:flex-start;gap:10px;padding:12px;border-radius:11px}.audience-advice>div{display:grid}.audience-advice strong{font-size:12px}.audience-advice span{font-size:10px;line-height:1.5}.audience-advice.success{color:#167a4b;background:rgba(32,164,100,.1)}.audience-advice.warning{color:#995c00;background:rgba(229,138,24,.12)}.audience-advice.info{color:var(--color-primary);background:var(--color-primary-soft)}.targeting-block{display:grid;gap:8px}.targeting-block>strong{font-size:12px}.targeting-block>small{color:var(--color-text-muted)}.targeting-tags{display:flex;flex-wrap:wrap;gap:6px}.targeting-tags span{display:inline-flex;align-items:center;gap:5px;padding:6px 8px;border:1px solid var(--color-border);border-radius:999px;color:var(--color-text-secondary);font-size:10px}.native-metric-note{display:flex;align-items:flex-start;gap:8px;padding-top:11px;border-top:1px solid var(--color-border);color:var(--color-text-muted);font-size:9px;line-height:1.5}.metric-detail-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}.metric-detail-grid>div{padding:12px;border:1px solid var(--color-border);border-radius:11px;display:grid;gap:3px}.metric-detail-grid span,.metric-detail-grid small{font-size:10px;color:var(--color-text-muted)}.metric-detail-grid strong{font-size:15px;overflow-wrap:anywhere}.status-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding-top:14px;border-top:1px solid var(--color-border)}.status-actions>div{display:grid;margin-right:auto}.status-actions>div span{font-size:12px;color:var(--color-text-secondary)}
-.empty-state,.empty-inline{text-align:center;padding:48px 20px;color:var(--color-text-secondary)}.empty-inline.compact{padding:24px 16px}.empty-state h2,.empty-state h3,.empty-inline h3{color:var(--color-text);margin:12px 0 6px}.empty-state p,.empty-inline p{margin:0 0 16px}.dialog-title{display:flex;justify-content:space-between;align-items:flex-start;padding:22px}.dialog-title small{color:var(--color-primary);font-size:10px;letter-spacing:.12em}.dialog-title h2{margin:3px 0 0;font-size:22px}.settings-body{padding:0 22px 12px}.settings-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px}.settings-grid.primary-settings{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:0}.dialog-actions{padding:12px 22px 22px}.action-plan-list{display:grid;gap:8px;max-height:420px;overflow:auto}.action-plan-item{display:grid;grid-template-columns:auto 1fr;align-items:flex-start;padding:10px 12px;border:1px solid var(--color-border);border-radius:12px;cursor:pointer}.action-plan-item:hover{background:var(--color-surface-soft)}.action-plan-item>span{display:grid;gap:3px;padding-top:8px;min-width:0}.action-plan-item small{color:var(--color-text-muted)}.action-plan-item em{color:var(--color-error);font-size:11px;font-style:normal;line-height:1.4}
-@media(max-width:1280px){.filter-bar{grid-template-columns:repeat(2,minmax(0,1fr))}.analysis-grid{grid-template-columns:1fr}.detail-toolbar{align-items:stretch;flex-direction:column}.row-main{grid-template-columns:minmax(220px,1.4fr) minmax(105px,.65fr) repeat(3,minmax(78px,.55fr)) minmax(170px,1fr) 28px}.metric-cost,.metric-frequency{display:none}.audience-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.metric-detail-grid{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:720px){.page-head{padding:18px;display:grid}.head-actions,.head-actions .v-btn{width:100%}.filter-bar{grid-template-columns:1fr;padding:12px}.loading-grid,.summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.summary-card{padding:14px;min-width:0}.summary-card strong{font-size:21px;overflow-wrap:anywhere}.performance-section{padding:12px}.section-head,.report-meta{display:grid}.report-meta .v-text-field{width:100%}.detail-toolbar{position:sticky;top:0;z-index:4;margin-inline:-12px;border-left:0;border-right:0;border-radius:0;padding:10px 12px;background:color-mix(in srgb,var(--color-surface) 94%,transparent);backdrop-filter:blur(10px)}.level-tabs{width:100%;display:grid;grid-template-columns:repeat(3,1fr)}.level-tabs .v-btn{min-width:0;padding-inline:8px}.status-filter-group{overflow:hidden}.status-tabs{display:flex;width:100%;overflow-x:auto;padding-bottom:3px;scrollbar-width:none}.status-tabs::-webkit-scrollbar{display:none}.status-tabs .v-btn{flex:0 0 auto;padding-inline:12px}.filter-help{margin-top:10px}.performance-list{border:0;gap:10px;overflow:visible;background:transparent}.performance-row,.performance-row+.performance-row{border:1px solid var(--color-border);border-radius:14px;overflow:hidden;background:var(--color-surface)}.row-main{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:14px}.entity-cell{grid-column:1/2}.delivery-chip{grid-column:1/2;grid-row:2}.row-main>.metric{display:none}.row-main>.mobile-key{display:grid;min-width:0;padding:9px;border-radius:10px;background:var(--color-background)}.metric-spend{grid-column:1;grid-row:3}.metric-results{grid-column:2;grid-row:3}.metric-cost{grid-column:1;grid-row:4}.metric-ctr{grid-column:2;grid-row:4}.decision-chip{grid-column:1/3;grid-row:5}.row-main>i{grid-column:2;grid-row:1/3;justify-self:end;align-self:start}.row-detail{padding:14px}.metric-detail-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.status-actions{display:grid;grid-template-columns:1fr 1fr;position:sticky;bottom:0;padding:12px;background:var(--color-surface);z-index:2}.status-actions>div{grid-column:1/-1}.status-actions .v-btn{width:100%}.settings-grid,.settings-grid.primary-settings{grid-template-columns:1fr}.trend-card,.decision-card{padding:16px}.trend-chart{overflow-x:auto;justify-content:flex-start}.trend-column{flex:0 0 28px}.card-heading{display:grid}}
-@media(max-width:420px){.summary-grid{grid-template-columns:1fr}.level-tabs .v-btn{font-size:11px}.level-tabs .v-icon{display:none}.audience-panel{padding:13px}.audience-heading{display:grid}.audience-metrics{grid-template-columns:1fr}.metric-detail-grid{grid-template-columns:1fr}.status-actions{grid-template-columns:1fr}.status-actions>div{grid-column:auto}.row-main>.mobile-key{padding:8px}.dialog-actions{display:grid;grid-template-columns:1fr}.dialog-actions .v-spacer{display:none}.dialog-actions .v-btn{width:100%;margin:0}}
+
+.strategy-banner{padding:14px 18px;background:color-mix(in srgb,var(--color-primary) 8%,var(--color-surface));border:1px solid color-mix(in srgb,var(--color-primary) 25%,var(--color-border));border-radius:var(--radius-lg)}
+.strategy-metrics-pills{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.strategy-metrics-pills .pill{background:var(--color-surface);padding:4px 8px;border-radius:8px;border:1px solid var(--color-border);font-size:11px}
+
+.action-plan-card{padding:18px;border-radius:var(--radius-lg);background:var(--color-surface)}
+.action-plan-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:14px}
+.plan-col{padding:14px;border-radius:12px;border:1px solid var(--color-border);background:var(--color-background)}
+.plan-col-title{font-size:12px;font-weight:750;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.plan-col ul{margin:0;padding-left:18px;font-size:12px;line-height:1.6}
+
+.summary-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:16px}
+.summary-card{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:16px;display:grid;gap:5px}
+.summary-card>span{color:var(--color-text-secondary);font-size:12px}
+.summary-card strong{font-size:clamp(20px,2.4vw,26px);line-height:1.1}
+.summary-card small{color:var(--color-text-muted);font-size:11px}
+.summary-card.finance{border-color:rgba(32,164,100,.3);background:linear-gradient(145deg,var(--color-surface),rgba(32,164,100,.04))}
+.summary-card.finance strong{color:#167a4b}
+.summary-card.loss{border-color:rgba(239,68,68,.3);background:linear-gradient(145deg,var(--color-surface),rgba(239,68,68,.04))}
+.summary-card.loss strong{color:var(--color-error)}
+.summary-card.prepaid-track{border-color:rgba(14,165,233,.3);background:linear-gradient(145deg,var(--color-surface),rgba(14,165,233,.04))}
+.summary-card.cod-delivered-track{border-color:rgba(16,185,129,.3)}
+.summary-card.cod-pending-track{border-color:rgba(245,158,11,.3);background:linear-gradient(145deg,var(--color-surface),rgba(245,158,11,.04))}
+.summary-card.cod-returned-track{border-color:rgba(239,68,68,.25)}
+
+.performance-section{padding:20px}
+.section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:14px}
+.section-head p{margin:0 0 4px;color:var(--color-primary);font-size:11px;font-weight:800;letter-spacing:.12em}
+.section-head h2{margin:0;font-size:20px}
+.report-meta{display:flex;align-items:center;gap:12px}
+
+.detail-toolbar{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;padding:12px 16px;margin-bottom:12px;border:1px solid var(--color-border);border-radius:12px;background:var(--color-surface-soft)}
+.toolbar-group{display:grid;gap:6px}
+.toolbar-group>small{font-size:10px;font-weight:750;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:.08em}
+
+.matrix-header{display:grid;grid-template-columns:minmax(220px,1.6fr) minmax(130px,.8fr) minmax(90px,.6fr) minmax(110px,.7fr) minmax(120px,.8fr) minmax(100px,.7fr) minmax(110px,.7fr) minmax(130px,.9fr);gap:10px;padding:10px 16px;background:var(--color-surface-soft);border:1px solid var(--color-border);border-radius:10px 10px 0 0;font-size:11px;font-weight:750;color:var(--color-text-secondary)}
+
+.performance-list{display:grid;border:1px solid var(--color-border);border-top:0;border-radius:0 0 14px 14px;overflow:hidden}
+.performance-row+.performance-row{border-top:1px solid var(--color-border)}
+.performance-row.expanded{background:var(--color-surface-soft)}
+
+.row-main{width:100%;display:grid;grid-template-columns:minmax(220px,1.6fr) minmax(130px,.8fr) minmax(90px,.6fr) minmax(110px,.7fr) minmax(120px,.8fr) minmax(100px,.7fr) minmax(110px,.7fr) minmax(130px,.9fr);align-items:center;gap:10px;padding:12px 16px;text-align:left;color:inherit;cursor:pointer}
+.row-main:hover{background:var(--color-background)}
+
+.col-entity{display:flex;align-items:center;gap:10px;min-width:0}
+.entity-icon{width:38px;height:38px;display:grid;place-items:center;border-radius:10px;background:var(--color-primary-soft);color:var(--color-primary);flex:0 0 38px}
+.entity-text{display:grid;min-width:0}
+.entity-text strong,.entity-text small,.entity-text code{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.entity-text small{color:var(--color-text-secondary);font-size:11px}
+.entity-text code{color:var(--color-text-muted);font-size:9px}
+
+.order-sub-track{display:flex;gap:6px;font-size:10px}
+.delivery-chip{display:inline-flex;align-items:center;gap:5px;padding:3px 7px;border-radius:999px;font-size:10px;font-weight:700}
+.delivery-chip.active{color:#167a4b;background:rgba(32,164,100,.1)}
+.delivery-chip.paused{color:#697184;background:rgba(137,145,165,.13)}
+.delivery-chip.issues{color:#a96000;background:rgba(229,138,24,.12)}
+.status-dot{width:7px;height:7px;border-radius:50%;display:inline-block}
+.status-dot.active{background:#20a464}
+.status-dot.paused{background:#8991a5}
+.status-dot.issues{background:#e58a18}
+
+.row-detail{padding:16px 20px;border-top:1px solid var(--color-border);display:grid;gap:14px;background:var(--color-surface)}
+.sop-reason-box{padding:14px 18px;border-radius:12px;border:1px solid var(--color-border)}
+.sop-reason-box.success{background:rgba(32,164,100,.08);border-color:rgba(32,164,100,.3);color:#167a4b}
+.sop-reason-box.info{background:rgba(2,132,199,.08);border-color:rgba(2,132,199,.3);color:#0369a1}
+.sop-reason-box.warning{background:rgba(217,119,6,.08);border-color:rgba(217,119,6,.3);color:#b45309}
+.sop-reason-box.error{background:rgba(220,38,38,.08);border-color:rgba(220,38,38,.3);color:#b91c1c}
+.sop-reason-box.secondary{background:var(--color-surface-soft);border-color:var(--color-border);color:var(--color-text-secondary)}
+
+.metric-detail-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+.metric-detail-grid>div{padding:10px 12px;border:1px solid var(--color-border);border-radius:10px;display:grid;gap:3px;background:var(--color-background)}
+.metric-detail-grid span,.metric-detail-grid small{font-size:10px;color:var(--color-text-muted)}
+.metric-detail-grid strong{font-size:14px}
+
+.audience-panel{padding:14px;border:1px solid var(--color-border);border-radius:12px;background:var(--color-surface)}
+.audience-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.audience-heading p{margin:0;font-size:9px;font-weight:800;color:var(--color-primary)}
+.audience-heading h3{margin:0;font-size:14px}
+.audience-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.audience-metrics>div{padding:8px 10px;border-radius:8px;background:var(--color-background);display:grid}
+.audience-metrics span{font-size:10px;color:var(--color-text-muted)}
+.audience-metrics strong{font-size:15px}
+
+.rotate-180{transform:rotate(180deg)}
+.dialog-title{display:flex;justify-content:space-between;align-items:flex-start;padding:20px}
+.dialog-title small{font-size:10px;letter-spacing:.1em}
+.dialog-title h2{margin:2px 0 0;font-size:20px}
+.settings-body{padding:0 20px 12px}
+.settings-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.settings-grid.primary-settings{grid-template-columns:repeat(2,1fr)}
+.dialog-actions{padding:12px 20px 20px}
+
+.history-list{display:grid;gap:10px;max-height:420px;overflow-y:auto}
+.history-card{padding:12px 14px;border:1px solid var(--color-border);border-radius:12px;background:var(--color-background)}
+.history-grid-pills{display:flex;flex-wrap:wrap;gap:6px;font-size:11px}
+.history-grid-pills span{background:var(--color-surface);padding:3px 6px;border-radius:6px;border:1px solid var(--color-border)}
+
+@media(max-width:1280px){
+  .filter-bar{grid-template-columns:repeat(2,1fr)}
+  .matrix-header{display:none}
+  .row-main{grid-template-columns:1fr 1fr;gap:12px;padding:14px}
+  .col-entity{grid-column:1/-1}
+  .action-plan-grid{grid-template-columns:1fr}
+  .metric-detail-grid{grid-template-columns:repeat(3,1fr)}
+}
+@media(max-width:720px){
+  .summary-grid{grid-template-columns:repeat(2,1fr)}
+  .row-main{grid-template-columns:1fr}
+  .metric-detail-grid{grid-template-columns:repeat(2,1fr)}
+  .settings-grid,.settings-grid.primary-settings{grid-template-columns:1fr}
+  .audience-metrics{grid-template-columns:repeat(2,1fr)}
+}
 </style>

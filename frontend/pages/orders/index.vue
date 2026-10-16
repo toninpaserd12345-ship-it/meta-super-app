@@ -25,7 +25,7 @@ function getPageName(pageId?: string) {
   return pages.value.find((p) => p.id === pageId)?.name || ''
 }
 
-const activeTab = ref<'all' | 'unpaid' | 'paid' | 'shipping' | 'delivered' | 'cancelled'>('all')
+const activeTab = ref<'all' | 'prepaid' | 'cod' | 'unpaid' | 'paid' | 'shipping' | 'delivered' | 'cancelled'>('all')
 const searchQuery = ref('')
 const selectedWarehouseFilter = ref<string>('all')
 
@@ -58,6 +58,8 @@ const orderForm = reactive<{
   currency: string
   paymentStatus: 'unpaid' | 'paid'
   paymentMethod: string
+  prepaidAmount: number
+  codAmount: number
   deliveryCourier: string
   deliveryTracking: string
   notes: string
@@ -72,7 +74,9 @@ const orderForm = reactive<{
   discount: 0,
   currency: 'LAK',
   paymentStatus: 'paid',
-  paymentMethod: 'BCEL One / Transfer',
+  paymentMethod: 'Bank Transfer',
+  prepaidAmount: 0,
+  codAmount: 0,
   deliveryCourier: 'Anousith Express',
   deliveryTracking: '',
   notes: '',
@@ -273,9 +277,9 @@ const couriers = [
 ]
 
 const paymentMethods = [
-  { value: 'BCEL One / Transfer', label: 'ໂອນຜ່ານ BCEL One / ທະນາຄານ' },
-  { value: 'Cash', label: 'ເງິນສົດ (Cash)' },
+  { value: 'Bank Transfer', label: 'ໂອນຜ່ານທະນາຄານ (Bank Transfer)' },
   { value: 'COD', label: 'ເກັບເງິນປາຍທາງ (Cash on Delivery)' },
+  { value: 'Cash', label: 'ເງິນສົດ (Cash)' },
   { value: 'PromptPay', label: 'PromptPay (THB)' },
   { value: 'Other', label: 'ອື່ນໆ' },
 ]
@@ -290,6 +294,15 @@ const formTotal = computed(() => {
   return Math.max(0, total)
 })
 
+watch(() => orderForm.paymentMethod, (method) => {
+  if (method === 'COD') {
+    orderForm.paymentStatus = 'unpaid'
+  } else if (method === 'Bank Transfer' || method === 'Cash' || method === 'PromptPay') {
+    orderForm.paymentStatus = 'paid'
+    orderForm.prepaidAmount = formTotal.value
+  }
+})
+
 // Metrics
 const stats = computed(() => {
   const list = orders.value
@@ -300,13 +313,17 @@ const stats = computed(() => {
   const totalRevenue = list
     .filter((o) => o.paymentStatus === 'paid')
     .reduce((sum, o) => sum + (o.totalAmount || 0), 0)
-  return { total, unpaid, inDelivery, delivered, totalRevenue }
+  const prepaidCount = list.filter((o) => !o.isCod && !o.paymentMethod?.toLowerCase().includes('cod')).length
+  const codCount = list.filter((o) => o.isCod || o.paymentMethod?.toLowerCase().includes('cod')).length
+  return { total, unpaid, inDelivery, delivered, totalRevenue, prepaidCount, codCount }
 })
 
 // Filtered Orders
 const filteredOrders = computed(() => {
   return orders.value.filter((order) => {
     // Tab filter
+    if (activeTab.value === 'prepaid' && (order.isCod || order.paymentMethod?.toLowerCase().includes('cod'))) return false
+    if (activeTab.value === 'cod' && (!order.isCod && !order.paymentMethod?.toLowerCase().includes('cod'))) return false
     if (activeTab.value === 'unpaid' && order.paymentStatus !== 'unpaid') return false
     if (activeTab.value === 'paid' && order.paymentStatus !== 'paid') return false
     if (activeTab.value === 'shipping' && order.fulfillmentStatus !== 'shipping') return false
@@ -358,7 +375,9 @@ function openCreateOrder() {
   orderForm.discount = 0
   orderForm.currency = 'LAK'
   orderForm.paymentStatus = 'paid'
-  orderForm.paymentMethod = 'BCEL One / Transfer'
+  orderForm.paymentMethod = 'Bank Transfer'
+  orderForm.prepaidAmount = 0
+  orderForm.codAmount = 0
   orderForm.deliveryCourier = 'Anousith Express'
   orderForm.deliveryTracking = ''
   orderForm.notes = ''
@@ -443,6 +462,9 @@ async function submitCreateOrder() {
       currency: orderForm.currency,
       paymentStatus: orderForm.paymentStatus,
       paymentMethod: orderForm.paymentMethod,
+      isCod: orderForm.paymentMethod === 'COD',
+      prepaidAmount: orderForm.paymentMethod === 'COD' ? Number(orderForm.prepaidAmount || 0) : formTotal.value,
+      codAmount: orderForm.paymentMethod === 'COD' ? Math.max(0, formTotal.value - Number(orderForm.prepaidAmount || 0)) : 0,
       fulfillmentStatus: orderForm.paymentStatus === 'paid' ? 'confirmed' : 'pending',
       deliveryCourier: orderForm.deliveryCourier,
       deliveryTracking: orderForm.deliveryTracking.trim(),
@@ -658,6 +680,20 @@ async function saveStatusUpdate() {
           @click="activeTab = 'all'"
         >
           {{ l({ lo: 'ທັງໝົດ', th: 'ทั้งหมด', en: 'All' }) }} ({{ orders.length }})
+        </button>
+        <button
+          type="button"
+          :class="['tab-pill', { active: activeTab === 'prepaid' }]"
+          @click="activeTab = 'prepaid'"
+        >
+          💳 {{ l({ lo: 'ໂອນກ່ອນ', th: 'โอนก่อน', en: 'Prepaid' }) }} ({{ stats.prepaidCount }})
+        </button>
+        <button
+          type="button"
+          :class="['tab-pill', { active: activeTab === 'cod' }]"
+          @click="activeTab = 'cod'"
+        >
+          🚚 {{ l({ lo: 'ເກັບປາຍທາງ (COD)', th: 'เก็บปลายทาง (COD)', en: 'COD' }) }} ({{ stats.codCount }})
         </button>
         <button
           type="button"
@@ -1105,6 +1141,28 @@ async function saveStatusUpdate() {
               :label="l({ lo: 'ວິທີຊຳລະເງິນ', th: 'วิธีชำระเงิน', en: 'Payment Method' })"
               density="compact"
               variant="outlined"
+            />
+          </div>
+
+          <!-- COD vs Prepaid Amount Breakdown -->
+          <div v-if="orderForm.paymentMethod === 'COD'" class="fields-2col mb-2">
+            <v-text-field
+              v-model.number="orderForm.prepaidAmount"
+              type="number"
+              min="0"
+              :label="l({ lo: 'ລູກຄ້າໂອນມາກ່ອນ (ມັດຈຳ/ຄ່າສົ່ງ)', th: 'ลูกค้าโอนมาก่อน (มัดจำ/ค่าส่ง)', en: 'Prepaid amount' })"
+              :suffix="orderForm.currency"
+              density="compact"
+              variant="outlined"
+              hide-details
+            />
+            <v-text-field
+              :model-value="formatMoney(Math.max(0, formTotal - (orderForm.prepaidAmount || 0)), orderForm.currency)"
+              readonly
+              :label="l({ lo: 'ຍອດເກັບປາຍທາງຕົວຈິງ (COD)', th: 'ยอดเก็บปลายทางจริง (COD)', en: 'Actual COD Amount' })"
+              density="compact"
+              variant="outlined"
+              hide-details
             />
           </div>
 
@@ -1580,7 +1638,7 @@ async function saveStatusUpdate() {
                 <span v-else class="cod-tag cod-alert-tag">
                   ⚠️ ເກັບເງິນປາຍທາງ (COD)
                 </span>
-                <small class="pay-method">({{ waybillOrder.paymentMethod || 'BCEL One / Transfer' }})</small>
+                <small class="pay-method">({{ waybillOrder.paymentMethod || 'Bank Transfer' }})</small>
               </div>
               <div class="an-cod-amount">
                 <span class="cod-amt-label">ຍອດເກັບປາຍທາງ:</span>
