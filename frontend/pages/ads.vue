@@ -176,6 +176,20 @@ const since = ref(iso(new Date(today.getFullYear(), today.getMonth(), today.getD
 const until = ref(iso(today))
 const datePreset = ref('7')
 
+export interface ProductAdStrategy {
+  productId: string
+  enabled?: boolean
+  targetCost?: number | null
+  grossMargin?: number | null
+  scaleMinPurchases?: number | null
+  scaleMaxCPA?: number | null
+  scaleMaxDailyBudgetCap?: number | null
+  stopMinSpend?: number | null
+}
+
+const productStrategies = ref<Record<string, ProductAdStrategy>>({})
+const strategyTab = ref<'products' | 'default'>('products')
+const selectedStrategyProductId = ref<string>('')
 const targetCost = ref<number | null>(null)
 const goodCTR = ref(3)
 const weakCTR = ref(1)
@@ -468,9 +482,13 @@ const statusCounts = computed(() => productFilteredItems.value.reduce((counts, i
 const fmt = (value?: number | null, digits = 2) => value == null ? '—' : new Intl.NumberFormat(undefined, { maximumFractionDigits: digits }).format(value)
 const money = (value?: number | null) => value == null ? '—' : new Intl.NumberFormat(undefined, { style: 'currency', currency: currency.value, maximumFractionDigits: 2 }).format(value)
 const percent = (value?: number | null) => value == null ? '—' : `${fmt(value, 2)}%`
-const contribution = (item?: MetaInsightItem) => item?.conversionValue != null && item?.spend != null && grossMargin.value != null
-  ? item.conversionValue * (grossMargin.value / 100) - item.spend
-  : undefined
+const contribution = (item?: MetaInsightItem) => {
+  if (item?.conversionValue == null || item?.spend == null) return undefined
+  const strat = getEffectiveStrategy(item)
+  const margin = strat.grossMargin ?? grossMargin.value
+  if (margin == null) return undefined
+  return item.conversionValue * (margin / 100) - item.spend
+}
 const breakEvenROAS = computed(() => grossMargin.value && grossMargin.value > 0 ? 100 / grossMargin.value : undefined)
 const adSetIDFor = (item: MetaInsightItem) => item.entityType === 'adset' ? item.entityId : item.adSetId || ''
 const audienceFor = (item: MetaInsightItem) => audienceByAdSet[adSetIDFor(item)]
@@ -582,7 +600,8 @@ function buyingOpportunity(item: MetaInsightItem) {
   const conversionRateText = conversionRate != null ? `${fmt(conversionRate, 1)}%` : '—'
 
   // 1. High Buying Opportunity (🔥) - Strict: requires at least 1 verified purchase with good metrics, or >= 3 purchases!
-  if (purchases >= 3 || (purchases >= 1 && (costRatio != null ? costRatio <= 25 : (cost == null || cost <= (targetCost.value || 1.8))))) {
+  const strat = getEffectiveStrategy(item)
+  if (purchases >= 3 || (purchases >= 1 && (costRatio != null ? costRatio <= 25 : (cost == null || cost <= (strat.targetCost || targetCost.value || 1.8))))) {
     return {
       level: 'high',
       label: l({ lo: '🔥 ໂອກາດຊື້ສູງ', th: '🔥 โอกาสซื้อสูง', en: '🔥 High Opportunity' }),
@@ -765,10 +784,23 @@ function decision(item: MetaInsightItem): { code: DecisionCode; color: string; i
     }
   }
 
-  // 3. Target Cost (if configured)
-  if (targetCost.value && cost != null) {
-    if (cost > targetCost.value) bad.push(l({ lo: 'ຕົ້ນທຶນ/ຜົນລັບສູງກວ່າຈຸດຄຸ້ມທຶນ', th: 'ต้นทุน/ผลลัพธ์สูงกว่าจุดคุ้มทุน', en: 'Cost/result is above break-even' }))
-    else good.push(l({ lo: 'ຕົ້ນທຶນ/ຜົນລັບຢູ່ໃນເປົ້າ', th: 'ต้นทุน/ผลลัพธ์อยู่ในเป้า', en: 'Cost/result is within target' }))
+  // 3. Target Cost (Product Strategy or Account Default)
+  const strat = getEffectiveStrategy(item)
+  const targetCpa = strat.targetCost
+  if (targetCpa && cost != null) {
+    if (cost > targetCpa) {
+      bad.push(l({
+        lo: `ຕົ້ນທຶນ/ຜົນລັບ ${money(cost)} ສູງກວ່າເກນ ${strat.isProductCustom ? `(${strat.product?.name}: ${money(targetCpa)})` : money(targetCpa)}`,
+        th: `ต้นทุน/ผลลัพธ์ ${money(cost)} สูงกว่าเกณฑ์ ${strat.isProductCustom ? `(${strat.product?.name}: ${money(targetCpa)})` : money(targetCpa)}`,
+        en: `Cost/result ${money(cost)} exceeds target ${strat.isProductCustom ? `(${strat.product?.name}: ${money(targetCpa)})` : money(targetCpa)}`
+      }))
+    } else {
+      good.push(l({
+        lo: `ຕົ້ນທຶນ/ຜົນລັບຢູ່ໃນເກນ ${strat.isProductCustom ? `(${strat.product?.name}: ${money(targetCpa)})` : money(targetCpa)}`,
+        th: `ต้นทุน/ผลลัพธ์อยู่ในเกณฑ์ ${strat.isProductCustom ? `(${strat.product?.name}: ${money(targetCpa)})` : money(targetCpa)}`,
+        en: `Cost/result is within target ${strat.isProductCustom ? `(${strat.product?.name}: ${money(targetCpa)})` : money(targetCpa)}`
+      }))
+    }
   }
 
   // 4. Contribution Margin (if configured)
@@ -929,6 +961,194 @@ const actionCandidates = computed(() => (report.value?.items || []).filter((item
 }))
 const selectedActionItems = computed(() => actionCandidates.value.filter(item => selectedActionIds.value.includes(item.entityId)))
 
+function convertPriceToAdCurrency(productPrice: number, prodCurrency?: string): number {
+  if (!productPrice) return 0
+  if (currency.value === 'USD' && (prodCurrency === 'LAK' || productPrice > 2000)) {
+    return Math.round((productPrice / 22000) * 100) / 100
+  }
+  if (currency.value === 'THB' && (prodCurrency === 'LAK' || productPrice > 2000)) {
+    return Math.round((productPrice / 620) * 100) / 100
+  }
+  if (currency.value === 'LAK' && productPrice < 200) {
+    return Math.round(productPrice * 22000)
+  }
+  return productPrice
+}
+
+function loadProductStrategies() {
+  if (!import.meta.client || !adAccountId.value) return
+  const saved = localStorage.getItem(`ads-product-strategies:${adAccountId.value}`)
+  if (saved) {
+    try {
+      productStrategies.value = JSON.parse(saved)
+    } catch {}
+  }
+}
+
+function saveProductStrategies() {
+  if (!import.meta.client || !adAccountId.value) return
+  localStorage.setItem(`ads-product-strategies:${adAccountId.value}`, JSON.stringify(productStrategies.value))
+}
+
+function getEffectiveStrategy(item?: MetaInsightItem) {
+  const linked = item ? getLinkedProduct(item) : undefined
+  const prodId = linked?.product?.id
+  const prodStrat = prodId && productStrategies.value[prodId]?.enabled ? productStrategies.value[prodId] : undefined
+
+  const effectiveTargetCost = prodStrat?.targetCost ?? targetCost.value
+  const effectiveGrossMargin = prodStrat?.grossMargin ?? grossMargin.value
+  const effectiveScaleMinPurchases = prodStrat?.scaleMinPurchases ?? autoPilotConfig.value.scaleMinPurchases ?? 3
+  const effectiveScaleMaxCPA = prodStrat?.scaleMaxCPA ?? autoPilotConfig.value.scaleMaxCPA ?? effectiveTargetCost ?? (currencyOffset.value === 1 ? 50000 : 2.5)
+  const effectiveMaxDailyBudgetCap = prodStrat?.scaleMaxDailyBudgetCap ?? autoPilotConfig.value.maxDailyBudgetCap ?? null
+  const effectiveStopMinSpend = prodStrat?.stopMinSpend ?? autoPilotConfig.value.stopMinSpend ?? (currencyOffset.value === 1 ? 50000 : 5)
+  const effectiveGoodCTR = goodCTR.value
+  const effectiveWeakCTR = weakCTR.value
+  const effectiveMaxFrequency = maxFrequency.value
+
+  return {
+    isProductCustom: !!prodStrat,
+    product: linked?.product,
+    flowName: linked?.flowName,
+    targetCost: effectiveTargetCost,
+    grossMargin: effectiveGrossMargin,
+    scaleMinPurchases: effectiveScaleMinPurchases,
+    scaleMaxCPA: effectiveScaleMaxCPA,
+    maxDailyBudgetCap: effectiveMaxDailyBudgetCap,
+    stopMinSpend: effectiveStopMinSpend,
+    goodCTR: effectiveGoodCTR,
+    weakCTR: effectiveWeakCTR,
+    maxFrequency: effectiveMaxFrequency,
+  }
+}
+
+function openProductStrategy(productId: string) {
+  selectedStrategyProductId.value = productId
+  strategyTab.value = 'products'
+  settingsOpen.value = true
+}
+
+function openStrategyModal() {
+  if (selectedProductId.value !== 'all' && selectedProductId.value !== 'unlinked') {
+    selectedStrategyProductId.value = selectedProductId.value
+    strategyTab.value = 'products'
+  } else if (!selectedStrategyProductId.value && products.value.length && products.value[0]) {
+    selectedStrategyProductId.value = products.value[0].id
+  }
+  settingsOpen.value = true
+}
+
+function autoCalculateProductStrategy(productId: string) {
+  const prod = products.value.find(p => p.id === productId)
+  if (!prod) return
+  const rawPrice = parseProductPrice(prod) || (currencyOffset.value === 1 ? 250000 : 10)
+  const price = convertPriceToAdCurrency(rawPrice, prod.currency)
+
+  const margin = 50
+  const isLak = currencyOffset.value === 1
+  const targetCpa = isLak ? Math.round(price * 0.20 / 1000) * 1000 : Math.round(price * 0.20 * 100) / 100
+  const scaleCpa = isLak ? Math.round(price * 0.25 / 1000) * 1000 : Math.round(price * 0.25 * 100) / 100
+  const stopSpend = isLak ? Math.round(price * 0.80 / 1000) * 1000 : Math.round(price * 0.80 * 100) / 100
+  const budgetCap = isLak ? Math.round(price * 3 / 1000) * 1000 : Math.round(price * 3 * 100) / 100
+
+  if (!productStrategies.value[productId]) {
+    productStrategies.value[productId] = {
+      productId,
+      enabled: true,
+      targetCost: targetCpa,
+      grossMargin: margin,
+      scaleMinPurchases: 3,
+      scaleMaxCPA: scaleCpa,
+      scaleMaxDailyBudgetCap: budgetCap,
+      stopMinSpend: stopSpend,
+    }
+  } else {
+    const s = productStrategies.value[productId]
+    s.enabled = true
+    s.targetCost = targetCpa
+    s.grossMargin = margin
+    s.scaleMinPurchases = 3
+    s.scaleMaxCPA = scaleCpa
+    s.scaleMaxDailyBudgetCap = budgetCap
+    s.stopMinSpend = stopSpend
+  }
+
+  saveProductStrategies()
+  success.value = l({
+    lo: `✨ ຄິດໄລ່ຍຸດທະສາດສຳເລັດ: ລາຄາ ${money(price)}, ເປົ້າ CPA ${money(targetCpa)}, Scale CPA <= ${money(scaleCpa)}, Stop Loss >= ${money(stopSpend)}`,
+    th: `✨ คำนวณยุทธศาสตร์สำเร็จ: ราคา ${money(price)}, เป้า CPA ${money(targetCpa)}, Scale CPA <= ${money(scaleCpa)}, Stop Loss >= ${money(stopSpend)}`,
+    en: `✨ Auto-calculated strategy: Price ${money(price)}, Target CPA ${money(targetCpa)}, Scale CPA <= ${money(scaleCpa)}, Stop Loss >= ${money(stopSpend)}`
+  })
+}
+
+const strategyProductSelectItems = computed(() => {
+  return products.value.map(p => {
+    const strat = productStrategies.value[p.id]
+    const isCustom = strat && strat.enabled
+    let adCount = 0
+    for (const it of (report.value?.items || [])) {
+      if (getLinkedProduct(it)?.product?.id === p.id) adCount++
+    }
+    const statusTag = isCustom ? '🟢 ກຳນົດເອງ' : '⚪ ໃຊ້ຄ່າເລີ່ມຕົ້ນ'
+    const rawPrice = parseProductPrice(p) || 0
+    const priceText = rawPrice > 0 ? money(convertPriceToAdCurrency(rawPrice, p.currency)) : '—'
+    return {
+      title: `${p.name} · ${priceText} [${statusTag}] (${adCount} ແອດ)`,
+      value: p.id,
+      product: p,
+      adCount,
+      isCustom,
+    }
+  })
+})
+
+const currentStrategyProduct = computed(() => {
+  if (!selectedStrategyProductId.value && products.value.length) {
+    return products.value[0]
+  }
+  return products.value.find(p => p.id === selectedStrategyProductId.value) || products.value[0]
+})
+
+const currentProductStrategy = computed<ProductAdStrategy>(() => {
+  const prod = currentStrategyProduct.value
+  if (!prod) return { productId: '' }
+  if (!productStrategies.value[prod.id]) {
+    productStrategies.value[prod.id] = {
+      productId: prod.id,
+      enabled: false,
+    }
+  }
+  return productStrategies.value[prod.id]!
+})
+
+const currentStrategyProductPriceInAdCurrency = computed(() => {
+  const prod = currentStrategyProduct.value
+  if (!prod) return 0
+  const rawPrice = parseProductPrice(prod) || (currencyOffset.value === 1 ? 250000 : 10)
+  return convertPriceToAdCurrency(rawPrice, prod.currency)
+})
+
+const currentProductBreakEvenROAS = computed(() => {
+  const margin = currentProductStrategy.value.grossMargin
+  return margin && margin > 0 ? 100 / margin : undefined
+})
+
+const currentProductLinkedFlowName = computed(() => {
+  const prod = currentStrategyProduct.value
+  if (!prod) return undefined
+  const flow = flows.value.find(f => f.productId === prod.id)
+  return flow?.name
+})
+
+const currentProductAdCount = computed(() => {
+  const prod = currentStrategyProduct.value
+  if (!prod) return 0
+  let count = 0
+  for (const it of (report.value?.items || [])) {
+    if (getLinkedProduct(it)?.product?.id === prod.id) count++
+  }
+  return count
+})
+
 function loadThresholds() {
   if (!import.meta.client || !adAccountId.value) return
   const saved = localStorage.getItem(`ads-thresholds:${adAccountId.value}`)
@@ -943,11 +1163,14 @@ function loadThresholds() {
     minimumPlanImpressions.value = value.minimumPlanImpressions ?? 1000
     minimumPlanSpend.value = value.minimumPlanSpend ?? null
   } catch {}
+  loadProductStrategies()
 }
 function saveThresholds() {
   if (!import.meta.client || !adAccountId.value) return
   localStorage.setItem(`ads-thresholds:${adAccountId.value}`, JSON.stringify({ targetCost: targetCost.value, goodCTR: goodCTR.value, weakCTR: weakCTR.value, maxFrequency: maxFrequency.value, grossMargin: grossMargin.value, minimumPlanImpressions: minimumPlanImpressions.value, minimumPlanSpend: minimumPlanSpend.value }))
+  saveProductStrategies()
   settingsOpen.value = false
+  success.value = l({ lo: 'ບັນທຶກການຕັ້ງຄ່າຍຸດທະສາດສຳເລັດແລ້ວ', th: 'บันทึกการตั้งค่ายุทธศาสตร์สำเร็จแล้ว', en: 'Ad strategy settings saved successfully.' })
 }
 
 async function loadAccounts() {
@@ -1306,16 +1529,17 @@ function isStopLossCandidate(item: MetaInsightItem): { eligible: boolean; reason
   if (statusFor(item).toUpperCase() !== 'ACTIVE') return { eligible: false, reason: '' }
   if (!autoPilotConfig.value.autoStopEnabled) return { eligible: false, reason: '' }
 
+  const strat = getEffectiveStrategy(item)
   const purchases = getPurchasesCount(item) || 0
   const spend = item.spend || 0
   const ctr = item.linkCtr ?? 0
-  const minSpend = autoPilotConfig.value.stopMinSpend ?? (currencyOffset.value === 1 ? 50000 : 5)
+  const minSpend = strat.stopMinSpend
   const maxCTR = autoPilotConfig.value.stopMaxCTR ?? 1.0
 
   if (purchases === 0 && spend >= minSpend && ctr < maxCTR) {
     return {
       eligible: true,
-      reason: `Spend ${money(spend)} >= ${money(minSpend)}, 0 ອໍເດີ, CTR ${percent(ctr)} < ${maxCTR}%`
+      reason: `Spend ${money(spend)} >= ${money(minSpend)}${strat.isProductCustom ? ` (ເກນ ${strat.product?.name})` : ''}, 0 ອໍເດີ, CTR ${percent(ctr)} < ${maxCTR}%`
     }
   }
   return { eligible: false, reason: '' }
@@ -1335,24 +1559,26 @@ function isScaleCandidate(item: MetaInsightItem): {
     return { eligible: false, inCooldown: cooldown.inCooldown, cooldownInfo: cooldown, reason: '' }
   }
 
+  const strat = getEffectiveStrategy(item)
   const purchases = getPurchasesCount(item) || 0
   const cost = getCostPerPurchase(item)
   const frequency = item.frequency || 1.0
-  const minPurchases = autoPilotConfig.value.scaleMinPurchases ?? 3
-  const maxCPA = autoPilotConfig.value.scaleMaxCPA ?? targetCost.value ?? (currencyOffset.value === 1 ? 50000 : 2.5)
-  const maxFreq = autoPilotConfig.value.scaleMaxFrequency ?? 2.5
+  const minPurchases = strat.scaleMinPurchases
+  const maxCPA = strat.scaleMaxCPA
+  const maxFreq = strat.maxFrequency
 
   // 1. Budget Cap Safety check: if already at or above cap, stop scaling
   const currentBudget = item.dailyBudget ? (item.dailyBudget / currencyOffset.value) : 0
-  if (autoPilotConfig.value.maxDailyBudgetCap && currentBudget >= autoPilotConfig.value.maxDailyBudgetCap) {
+  const budgetCap = strat.maxDailyBudgetCap
+  if (budgetCap && currentBudget >= budgetCap) {
     return {
       eligible: false,
       inCooldown: false,
       cooldownInfo: cooldown,
       reason: l({
-        lo: `ງົບຮອດເພດານສູງສຸດແລ້ວ (${money(currentBudget)} >= ${money(autoPilotConfig.value.maxDailyBudgetCap)}/ມື້)`,
-        th: `งบถึงเพดานสูงสุดแล้ว (${money(currentBudget)} >= ${money(autoPilotConfig.value.maxDailyBudgetCap)}/วัน)`,
-        en: `Current budget has reached max cap (${money(currentBudget)} >= ${money(autoPilotConfig.value.maxDailyBudgetCap)}/day)`,
+        lo: `ງົບຮອດເພດານສູງສຸດແລ້ວ (${money(currentBudget)} >= ${money(budgetCap)}/ມື້)${strat.isProductCustom ? ` [ເກນ ${strat.product?.name}]` : ''}`,
+        th: `งบถึงเพดานสูงสุดแล้ว (${money(currentBudget)} >= ${money(budgetCap)}/วัน)${strat.isProductCustom ? ` [เกณฑ์ ${strat.product?.name}]` : ''}`,
+        en: `Current budget has reached max cap (${money(currentBudget)} >= ${money(budgetCap)}/day)${strat.isProductCustom ? ` [${strat.product?.name}]` : ''}`,
       })
     }
   }
@@ -1383,7 +1609,7 @@ function isScaleCandidate(item: MetaInsightItem): {
       eligible: true,
       inCooldown: cooldown.inCooldown,
       cooldownInfo: cooldown,
-      reason: `${purchases} ອໍເດີ >= ${minPurchases}, CPA ${cost != null ? money(cost) : '—'} <= ${money(maxCPA)}, Freq ${fmt(frequency, 2)} <= ${maxFreq}`
+      reason: `${purchases} ອໍເດີ >= ${minPurchases}, CPA ${cost != null ? money(cost) : '—'} <= ${money(maxCPA)}${strat.isProductCustom ? ` (${strat.product?.name})` : ''}, Freq ${fmt(frequency, 2)} <= ${maxFreq}`
     }
   }
   return { eligible: false, inCooldown: cooldown.inCooldown, cooldownInfo: cooldown, reason: '' }
@@ -1712,8 +1938,8 @@ onMounted(async () => {
       <v-btn color="warning" variant="tonal" prepend-icon="mdi-shield-check-outline" :disabled="!report" @click="openActionPlan">
         {{ l({ lo: `ກວດແຜນປັບ Ads (${actionCandidates.length})`, th: `ตรวจแผนปรับ Ads (${actionCandidates.length})`, en: `Review action plan (${actionCandidates.length})` }) }}
       </v-btn>
-      <v-btn variant="outlined" prepend-icon="mdi-tune-variant" @click="settingsOpen = true">
-        {{ l({ lo: 'ຕັ້ງຄ່າເກນ', th: 'ตั้งค่าเกณฑ์', en: 'Thresholds' }) }}
+      <v-btn variant="outlined" prepend-icon="mdi-tune-variant" @click="openStrategyModal">
+        {{ l({ lo: '🎯 ຕັ້ງຄ່າຍຸດທະສາດ (Strategy)', th: '🎯 ตั้งค่ายุทธศาสตร์ (Strategy)', en: '🎯 Setup Strategy' }) }}
       </v-btn>
       <v-btn color="primary" variant="flat" prepend-icon="mdi-refresh" :loading="loadingReport" :disabled="!adAccountId" @click="loadPerformance">
         {{ l({ lo: 'ອັບເດດຂໍ້ມູນ', th: 'อัปเดตข้อมูล', en: 'Refresh' }) }}
@@ -1820,6 +2046,17 @@ onMounted(async () => {
         hide-details
         class="filter-product-select"
       />
+      <v-btn
+        v-if="selectedProductId !== 'all' && selectedProductId !== 'unlinked'"
+        size="small"
+        variant="tonal"
+        color="primary"
+        prepend-icon="mdi-tune"
+        class="font-weight-bold"
+        @click="openProductStrategy(selectedProductId)"
+      >
+        {{ l({ lo: 'ຍຸດທະສາດສິນຄ້ານີ້', th: 'ยุทธศาสตร์สินค้านี้', en: 'Product Strategy' }) }}
+      </v-btn>
       <div class="app-filter-divider" />
       <v-select
         :model-value="datePreset"
@@ -1962,7 +2199,7 @@ onMounted(async () => {
       </v-card>
 
       <v-card class="decision-card" variant="outlined">
-        <div class="card-heading"><div><p>DECISION GUIDE</p><h2>{{ l({lo:'ອ່ານສັນຍານໃຫ້ງ່າຍ',th:'อ่านสัญญาณให้ง่าย',en:'Decision signals'}) }}</h2></div><v-btn icon="mdi-tune-variant" variant="text" :aria-label="l({lo:'ຕັ້ງຄ່າເກນ',th:'ตั้งค่าเกณฑ์',en:'Configure thresholds'})" @click="settingsOpen=true" /></div>
+        <div class="card-heading"><div><p>DECISION GUIDE</p><h2>{{ l({lo:'ອ່ານສັນຍານໃຫ້ງ່າຍ',th:'อ่านสัญญาณให้ง่าย',en:'Decision signals'}) }}</h2></div><v-btn icon="mdi-tune-variant" variant="text" :aria-label="l({lo:'ຕັ້ງຄ່າຍຸດທະສາດ',th:'ตั้งค่ายุทธศาสตร์',en:'Setup strategy'})" @click="openStrategyModal" /></div>
         <div class="decision-summary"><div class="decision-count keep"><strong>{{ decisionCounts.keep }}</strong><span>{{ l({lo:'ເປີດຕໍ່',th:'เปิดต่อ',en:'Keep'}) }}</span></div><div class="decision-count review"><strong>{{ decisionCounts.review }}</strong><span>{{ l({lo:'ກວດສອບ',th:'ตรวจสอบ',en:'Review'}) }}</span></div><div class="decision-count pause"><strong>{{ decisionCounts.pause }}</strong><span>{{ l({lo:'ພິຈາລະນາປິດ',th:'พิจารณาปิด',en:'Pause candidates'}) }}</span></div></div>
         <p class="guide-note"><v-icon icon="mdi-information-outline" /> {{ l({lo:'ຄຳແນະນຳໃຊ້ຫຼາຍ metric ຮ່ວມກັນ. ຢ່າປິດເພາະມື້ດຽວ ຫຼື metric ດຽວ.',th:'คำแนะนำใช้หลาย metric ร่วมกัน อย่าปิดเพราะวันเดียวหรือค่าเดียว',en:'Recommendations combine several metrics. Never pause from one day or one metric alone.'}) }}</p>
         <ol class="decision-steps">
@@ -2041,6 +2278,16 @@ onMounted(async () => {
                     {{ getLinkedProduct(item)!.product.name }}
                   </v-chip>
                   <span class="text-caption text-medium-emphasis">({{ getLinkedProduct(item)!.flowName }})</span>
+                  <v-btn
+                    size="x-small"
+                    variant="text"
+                    color="primary"
+                    density="compact"
+                    icon="mdi-tune"
+                    :title="l({ lo: 'ຕັ້ງຄ່າຍຸດທະສາດສິນຄ້ານີ້', th: 'ตั้งค่ายุทธศาสตร์สินค้านี้', en: 'Configure product strategy' })"
+                    class="ml-1"
+                    @click.stop="openProductStrategy(getLinkedProduct(item)!.product.id)"
+                  />
                   <v-chip
                     v-if="buyingOpportunity(item).level !== 'neutral'"
                     size="x-small"
@@ -2244,8 +2491,274 @@ onMounted(async () => {
     </v-card>
   </v-dialog>
 
-  <v-dialog v-model="settingsOpen" max-width="620">
-    <v-card rounded="xl"><v-card-title class="dialog-title"><div><small>DECISION SETTINGS</small><h2>{{ l({lo:'ກຳນົດເກນຕາມຮ້ານ',th:'กำหนดเกณฑ์ตามร้าน',en:'Store-specific thresholds'}) }}</h2></div><v-btn icon="mdi-close" variant="text" @click="settingsOpen=false" /></v-card-title><v-card-text class="settings-body"><v-alert type="info" variant="tonal" density="compact" class="mb-4">{{ l({lo:'ແຕ່ລະຮ້ານມີກຳໄລ ແລະເປົ້າໝາຍບໍ່ຄືກັນ. ລະບົບຈະບໍ່ hard-code ຄຳຕັດສິນ.',th:'แต่ละร้านมีกำไรและเป้าหมายต่างกัน ระบบจะไม่ตัดสินด้วยค่าตายตัว',en:'Every store has different margins and goals; recommendations are not hard-coded.'}) }}</v-alert><div class="settings-grid primary-settings"><v-text-field v-model.number="targetCost" type="number" min="0" step="0.01" :label="l({lo:'ຕົ້ນທຶນ/ຜົນລັບສູງສຸດ',th:'ต้นทุน/ผลลัพธ์สูงสุด',en:'Maximum cost per result'})" :suffix="currency" variant="outlined" /><v-text-field v-model.number="grossMargin" type="number" min="0" max="100" step="1" :label="l({lo:'Gross margin ຂອງສິນຄ້າ',th:'Gross margin ของสินค้า',en:'Product gross margin'})" suffix="%" variant="outlined" :hint="breakEvenROAS?`Break-even ROAS ${fmt(breakEvenROAS,2)}×`:''" persistent-hint /></div><div class="settings-grid"><v-text-field v-model.number="weakCTR" type="number" min="0" step="0.1" label="Weak CTR below" suffix="%" variant="outlined" /><v-text-field v-model.number="goodCTR" type="number" min="0" step="0.1" label="Good CTR from" suffix="%" variant="outlined" /><v-text-field v-model.number="maxFrequency" type="number" min="1" step="0.1" label="Frequency warning from" variant="outlined" /><v-text-field v-model.number="minimumPlanImpressions" type="number" min="0" step="100" :label="l({lo:'Impressions ຕ່ຳສຸດສຳລັບແຜນ',th:'Impressions ขั้นต่ำสำหรับแผน',en:'Minimum plan impressions'})" variant="outlined" /><v-text-field v-model.number="minimumPlanSpend" type="number" min="0" step="0.01" :label="l({lo:'Spend ຕ່ຳສຸດສຳລັບແຜນ',th:'Spend ขั้นต่ำสำหรับแผน',en:'Minimum plan spend'})" :suffix="currency" variant="outlined" /></div></v-card-text><v-card-actions class="dialog-actions"><v-btn variant="text" @click="targetCost=null;grossMargin=null;goodCTR=3;weakCTR=1;maxFrequency=3;minimumPlanImpressions=1000;minimumPlanSpend=null">{{ l({lo:'ຄ່າເລີ່ມຕົ້ນ',th:'ค่าเริ่มต้น',en:'Reset'}) }}</v-btn><v-spacer /><v-btn color="primary" @click="saveThresholds">{{ l({lo:'ບັນທຶກ',th:'บันทึก',en:'Save settings'}) }}</v-btn></v-card-actions></v-card>
+  <v-dialog v-model="settingsOpen" max-width="820" scrollable>
+    <v-card rounded="xl" class="strategy-dialog-card">
+      <v-card-title class="dialog-title d-flex align-center justify-space-between pb-2">
+        <div class="d-flex align-center gap-2">
+          <v-avatar color="primary" variant="tonal" size="36">
+            <v-icon icon="mdi-target-variant" size="22" />
+          </v-avatar>
+          <div>
+            <small class="text-primary font-weight-bold letter-spacing-1">MARKETING STRATEGY & THRESHOLDS</small>
+            <h2 class="text-h6 font-weight-bold mb-0">
+              {{ l({ lo: 'ຕັ້ງຄ່າຍຸດທະສາດໂຄສະນາ (Setup Strategy)', th: 'ตั้งค่ายุทธศาสตร์โฆษณา (Setup Strategy)', en: 'Ad Strategy Setup' }) }}
+            </h2>
+          </div>
+        </div>
+        <v-btn icon="mdi-close" variant="text" @click="settingsOpen = false" />
+      </v-card-title>
+
+      <div class="px-4 pt-1 pb-1">
+        <v-alert type="info" variant="tonal" density="compact" class="mb-2 rounded-lg">
+          <div class="d-flex align-center gap-1 font-weight-bold">
+            <v-icon icon="mdi-information-outline" size="18" />
+            <span>{{ l({ lo: 'ຍຸດທະສາດແຍກຕາມສິນຄ້າ (Product Strategy)', th: 'ยุทธศาสตร์แยกตามสินค้า (Product Strategy)', en: 'Product-Level Strategy' }) }}</span>
+          </div>
+          <div class="text-caption mt-1">
+            {{ l({
+              lo: 'ແຕ່ລະສິນຄ້າ (ທີ່ຜູກກັບ Auto-Reply) ມີລາຄາ ແລະ ກຳໄລຕ່າງກັນ. ທ່ານສາມາດກຳນົດເປົ້າໝາຍ CPA, ເພດານງົບ ແລະ ເກນ Stop-Loss ແຍກສະເພາະແຕ່ລະສິນຄ້າໄດ້ເລີຍ.',
+              th: 'แต่ละสินค้า (ที่ผูกกับ Auto-Reply) มีราคาและกำไรต่างกัน คุณสามารถกำหนดเป้าหมาย CPA, เพดานงบ และเกณฑ์ Stop-Loss แยกเฉพาะแต่ละสินค้าได้',
+              en: 'Each product (linked via Auto-Reply) has different prices and margins. Configure custom target CPA, budget caps, and stop-loss per product.'
+            }) }}
+          </div>
+        </v-alert>
+      </div>
+
+      <v-tabs v-model="strategyTab" color="primary" class="px-4 mb-2 border-b">
+        <v-tab value="products" class="font-weight-bold">
+          <v-icon start icon="mdi-package-variant-closed" />
+          {{ l({ lo: '📦 ຍຸດທະສາດແຍກຕາມສິນຄ້າ', th: '📦 ยุทธศาสตร์แยกตามสินค้า', en: '📦 Per-Product Strategy' }) }}
+          <v-chip size="x-small" color="primary" variant="flat" class="ml-2 font-weight-bold">
+            {{ products.length }}
+          </v-chip>
+        </v-tab>
+        <v-tab value="default" class="font-weight-bold">
+          <v-icon start icon="mdi-earth" />
+          {{ l({ lo: '🌐 ຄ່າເລີ່ມຕົ້ນຂອງບັນຊີ (Account Default)', th: '🌐 ค่าเริ่มต้นของบัญชี (Account Default)', en: '🌐 Account Default' }) }}
+        </v-tab>
+      </v-tabs>
+
+      <v-card-text class="pa-4 strategy-body">
+        <v-window v-model="strategyTab">
+          <!-- Tab 1: Per-Product Strategy -->
+          <v-window-item value="products">
+            <div class="product-strategy-layout">
+              <div class="mb-3">
+                <v-select
+                  v-model="selectedStrategyProductId"
+                  :items="strategyProductSelectItems"
+                  item-title="title"
+                  item-value="value"
+                  :label="l({ lo: 'ເລືອກສິນຄ້າທີ່ຕ້ອງການຕັ້ງຄ່າຍຸດທະສາດ', th: 'เลือกสินค้าที่ต้องการตั้งค่ายุทธศาสตร์', en: 'Select Product to Configure' })"
+                  variant="outlined"
+                  density="comfortable"
+                  prepend-inner-icon="mdi-package-variant"
+                  hide-details
+                />
+              </div>
+
+              <div v-if="currentStrategyProduct" class="product-strategy-card">
+                <div class="prod-header-box mb-3 pa-3 rounded-lg border d-flex align-center justify-space-between flex-wrap gap-2 bg-surface-soft">
+                  <div class="d-flex align-center gap-3">
+                    <v-avatar size="44" rounded="lg" color="grey-lighten-4">
+                      <v-img v-if="currentStrategyProduct.imageUrl" :src="currentStrategyProduct.imageUrl" cover />
+                      <v-icon v-else icon="mdi-package-variant-closed" size="24" color="grey" />
+                    </v-avatar>
+                    <div>
+                      <h4 class="font-weight-bold text-subtitle-1 mb-0">{{ currentStrategyProduct.name }}</h4>
+                      <div class="d-flex align-center gap-2 text-caption">
+                        <span class="text-primary font-weight-bold">
+                          {{ l({ lo: 'ລາຄາ:', th: 'ราคา:', en: 'Price:' }) }} {{ money(currentStrategyProductPriceInAdCurrency) }}
+                        </span>
+                        <span v-if="currentProductLinkedFlowName" class="text-medium-emphasis">
+                          · Auto-Reply: {{ currentProductLinkedFlowName }}
+                        </span>
+                        <v-chip v-if="currentProductAdCount > 0" size="x-small" color="info" variant="tonal" class="font-weight-bold">
+                          {{ currentProductAdCount }} ແອດຜູກຢູ່
+                        </v-chip>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="d-flex align-center gap-2">
+                    <v-switch
+                      v-model="currentProductStrategy.enabled"
+                      color="success"
+                      hide-details
+                      density="compact"
+                      :label="currentProductStrategy.enabled ? l({ lo: 'ເປີດໃຊ້ເກນສະເພາະ', th: 'เปิดใช้เกณฑ์เฉพาะ', en: 'Custom Strategy ON' }) : l({ lo: 'ໃຊ້ຄ່າເລີ່ມຕົ້ນ', th: 'ใช้ค่าเริ่มต้น', en: 'Use Default' })"
+                    />
+                  </div>
+                </div>
+
+                <!-- If Custom Strategy is Enabled -->
+                <div v-if="currentProductStrategy.enabled" class="strategy-inputs-wrap">
+                  <div class="auto-calc-bar mb-3 pa-3 rounded-lg d-flex align-center justify-space-between flex-wrap gap-2 bg-primary-soft">
+                    <div class="d-flex align-center gap-2">
+                      <v-icon icon="mdi-calculator-variant-outline" color="primary" />
+                      <div>
+                        <strong class="text-caption font-weight-bold">{{ l({ lo: 'ຄິດໄລ່ເກນອັດຕະໂນມັດຈາກລາຄາສິນຄ້າ', th: 'คำนวณเกณฑ์อัตโนมัติจากราคาสินค้า', en: 'Auto-Calculate from Product Price' }) }}</strong>
+                        <div class="text-caption text-medium-emphasis">
+                          {{ l({
+                            lo: `ລາຄາ ${money(currentStrategyProductPriceInAdCurrency)} ➔ ແນະນຳ Target CPA 20% (${money(currentStrategyProductPriceInAdCurrency * 0.2)}), Stop-Loss 80% (${money(currentStrategyProductPriceInAdCurrency * 0.8)})`,
+                            th: `ราคา ${money(currentStrategyProductPriceInAdCurrency)} ➔ แนะนำ Target CPA 20% (${money(currentStrategyProductPriceInAdCurrency * 0.2)}), Stop-Loss 80% (${money(currentStrategyProductPriceInAdCurrency * 0.8)})`,
+                            en: `Price ${money(currentStrategyProductPriceInAdCurrency)} ➔ Suggested Target CPA 20% (${money(currentStrategyProductPriceInAdCurrency * 0.2)}), Stop-Loss 80% (${money(currentStrategyProductPriceInAdCurrency * 0.8)})`
+                          }) }}
+                        </div>
+                      </div>
+                    </div>
+                    <v-btn
+                      size="small"
+                      color="primary"
+                      variant="flat"
+                      prepend-icon="mdi-auto-fix"
+                      class="font-weight-bold"
+                      @click="autoCalculateProductStrategy(currentStrategyProduct.id)"
+                    >
+                      {{ l({ lo: '✨ ຄິດໄລ່ໃຫ້ທັນທີ', th: '✨ คำนวณให้ทันที', en: '✨ Auto-Fill' }) }}
+                    </v-btn>
+                  </div>
+
+                  <div class="settings-grid primary-settings mb-3">
+                    <v-text-field
+                      v-model.number="currentProductStrategy.targetCost"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      :label="l({ lo: 'CPA ສູງສຸດ / ຈຸດຄຸ້ມທຶນ (Target CPA)', th: 'CPA สูงสุด / จุดคุ้มทุน (Target CPA)', en: 'Max Target CPA' })"
+                      :suffix="currency"
+                      variant="outlined"
+                      density="comfortable"
+                      :hint="l({ lo: 'ຕົ້ນທຶນ/ຜົນລັບ ບໍ່ຄວນເກີນຄ່ານີ້ສຳລັບສິນຄ້ານີ້', th: 'ต้นทุน/ผลลัพธ์ ไม่ควรเกินค่านี้สำหรับสินค้านี้', en: 'Max allowed cost/result for this product' })"
+                      persistent-hint
+                    />
+                    <v-text-field
+                      v-model.number="currentProductStrategy.grossMargin"
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="1"
+                      :label="l({ lo: 'Gross Margin ຂອງສິນຄ້ານີ້ (%)', th: 'Gross Margin ของสินค้านี้ (%)', en: 'Product Gross Margin (%)' })"
+                      suffix="%"
+                      variant="outlined"
+                      density="comfortable"
+                      :hint="currentProductBreakEvenROAS ? `Break-even ROAS: ${fmt(currentProductBreakEvenROAS, 2)}×` : ''"
+                      persistent-hint
+                    />
+                  </div>
+
+                  <div class="settings-grid mb-3">
+                    <v-text-field
+                      v-model.number="currentProductStrategy.scaleMaxCPA"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      :label="l({ lo: 'CPA ສູງສຸດທີ່ອະນຸຍາດໃຫ້ Scale', th: 'CPA สูงสุดที่อนุญาตให้ Scale', en: 'Scale Max CPA' })"
+                      :suffix="currency"
+                      variant="outlined"
+                      density="comfortable"
+                    />
+                    <v-text-field
+                      v-model.number="currentProductStrategy.scaleMinPurchases"
+                      type="number"
+                      min="1"
+                      step="1"
+                      :label="l({ lo: 'ອໍເດີຂັ້ນຕ່ຳເພື່ອ Scale', th: 'ออเดอร์ขั้นต่ำเพื่อ Scale', en: 'Scale Min Purchases' })"
+                      variant="outlined"
+                      density="comfortable"
+                    />
+                    <v-text-field
+                      v-model.number="currentProductStrategy.scaleMaxDailyBudgetCap"
+                      type="number"
+                      min="0"
+                      step="1"
+                      :label="l({ lo: 'ເພດານງົບສູງສຸດຕໍ່ມື້ (Max Cap)', th: 'เพดานงบสูงสุดต่อวัน (Max Cap)', en: 'Max Daily Budget Cap' })"
+                      :suffix="currency"
+                      variant="outlined"
+                      density="comfortable"
+                      :hint="l({ lo: 'ຫາກຮອດເພດານນີ້ ບັອດຈະບໍ່ເພີ່ມງົບອີກ', th: 'หากถึงเพดานนี้ บอทจะไม่เพิ่มงบอีก', en: 'Stop scaling if budget reaches cap' })"
+                      persistent-hint
+                    />
+                    <v-text-field
+                      v-model.number="currentProductStrategy.stopMinSpend"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      :label="l({ lo: 'ເກນ Stop-Loss (Spend >=)', th: 'เกณฑ์ Stop-Loss (Spend >=)', en: 'Stop-Loss Spend (>=' })"
+                      :suffix="currency"
+                      variant="outlined"
+                      density="comfortable"
+                      :hint="l({ lo: 'ຖ້າໃຊ້ງົບຮອດນີ້ແລ້ວ 0 ອໍເດີ ຈະຖືກແນະນຳໃຫ້ປິດ', th: 'ถ้าใช้งบถึงนี้แล้ว 0 ออเดอร์ จะแนะนำให้หยุด', en: 'Pause ad if spent this much with 0 purchases' })"
+                      persistent-hint
+                    />
+                  </div>
+                </div>
+
+                <!-- If Custom Strategy is OFF -->
+                <div v-else class="pa-6 text-center text-medium-emphasis border rounded-lg">
+                  <v-icon icon="mdi-shield-outline" size="36" class="mb-2" />
+                  <p class="mb-2">
+                    {{ l({
+                      lo: `ສິນຄ້າ “${currentStrategyProduct.name}” ກຳລັງໃຊ້ຄ່າເລີ່ມຕົ້ນຂອງບັນຊີໂຄສະນາ (Account Default).`,
+                      th: `สินค้า “${currentStrategyProduct.name}” กำลังใช้ค่าเริ่มต้นของบัญชีโฆษณา (Account Default)`,
+                      en: `“${currentStrategyProduct.name}” is using Account Default strategy.`
+                    }) }}
+                  </p>
+                  <v-btn
+                    size="small"
+                    variant="tonal"
+                    color="primary"
+                    prepend-icon="mdi-plus"
+                    @click="currentProductStrategy.enabled = true; autoCalculateProductStrategy(currentStrategyProduct.id)"
+                  >
+                    {{ l({ lo: 'ກຳນົດຍຸດທະສາດສະເພາະໃຫ້ສິນຄ້ານີ້', th: 'กำหนดยุทธศาสตร์เฉพาะให้สินค้านี้', en: 'Configure custom strategy for this product' }) }}
+                  </v-btn>
+                </div>
+              </div>
+            </div>
+          </v-window-item>
+
+          <!-- Tab 2: Account Default Strategy -->
+          <v-window-item value="default">
+            <div>
+              <div class="mb-3">
+                <p class="text-caption text-medium-emphasis mb-2">
+                  {{ l({
+                    lo: 'ຄ່າເລີ່ມຕົ້ນນີ້ຈະຖືກນຳໃຊ້ກັບແອດທັງໝົດທີ່ຍັງບໍ່ໄດ້ກຳນົດຍຸດທະສາດສະເພາະສິນຄ້າ, ຫຼື ແອດທີ່ຍັງບໍ່ທັນຜູກກັບສິນຄ້າໃດໜຶ່ງ.',
+                    th: 'ค่าเริ่มต้นนี้จะใช้กับแอดทั้งหมดที่ยังไม่ได้กำหนดยุทธศาสตร์เฉพาะ หรือแอดที่ยังไม่ได้ผูกกับสินค้า',
+                    en: 'These defaults apply to all ads without a custom product strategy or unlinked ads.'
+                  }) }}
+                </p>
+              </div>
+              <div class="settings-grid primary-settings mb-3">
+                <v-text-field v-model.number="targetCost" type="number" min="0" step="0.01" :label="l({lo:'ຕົ້ນທຶນ/ຜົນລັບສູງສຸດ (Default CPA)',th:'ต้นทุน/ผลลัพธ์สูงสุด (Default CPA)',en:'Default maximum cost per result'})" :suffix="currency" variant="outlined" density="comfortable" />
+                <v-text-field v-model.number="grossMargin" type="number" min="0" max="100" step="1" :label="l({lo:'Gross margin ຂອງຮ້ານ (Default %)',th:'Gross margin ของร้าน (Default %)',en:'Default product gross margin'})" suffix="%" variant="outlined" density="comfortable" :hint="breakEvenROAS?`Break-even ROAS ${fmt(breakEvenROAS,2)}×`:''" persistent-hint />
+              </div>
+              <div class="settings-grid">
+                <v-text-field v-model.number="weakCTR" type="number" min="0" step="0.1" label="Weak CTR below" suffix="%" variant="outlined" density="comfortable" />
+                <v-text-field v-model.number="goodCTR" type="number" min="0" step="0.1" label="Good CTR from" suffix="%" variant="outlined" density="comfortable" />
+                <v-text-field v-model.number="maxFrequency" type="number" min="1" step="0.1" label="Frequency warning from" variant="outlined" density="comfortable" />
+                <v-text-field v-model.number="minimumPlanImpressions" type="number" min="0" step="100" :label="l({lo:'Impressions ຕ່ຳສຸດສຳລັບແຜນ',th:'Impressions ขั้นต่ำสำหรับแผน',en:'Minimum plan impressions'})" variant="outlined" density="comfortable" />
+                <v-text-field v-model.number="minimumPlanSpend" type="number" min="0" step="0.01" :label="l({lo:'Spend ຕ່ຳສຸດສຳລັບແຜນ',th:'Spend ขั้นต่ำสำหรับแผน',en:'Minimum plan spend'})" :suffix="currency" variant="outlined" density="comfortable" />
+              </div>
+            </div>
+          </v-window-item>
+        </v-window>
+      </v-card-text>
+
+      <v-card-actions class="dialog-actions border-t">
+        <v-btn variant="text" @click="targetCost=null;grossMargin=null;goodCTR=3;weakCTR=1;maxFrequency=3;minimumPlanImpressions=1000;minimumPlanSpend=null">
+          {{ l({lo:'ຄ່າເລີ່ມຕົ້ນ',th:'ค่าเริ่มต้น',en:'Reset Defaults'}) }}
+        </v-btn>
+        <v-spacer />
+        <v-btn variant="text" @click="settingsOpen=false">
+          {{ l({lo:'ປິດ',th:'ปิด',en:'Close'}) }}
+        </v-btn>
+        <v-btn color="primary" variant="flat" prepend-icon="mdi-content-save" class="font-weight-bold px-4" @click="saveThresholds">
+          {{ l({lo:'ບັນທຶກການຕັ້ງຄ່າ',th:'บันทึก',en:'Save Strategy'}) }}
+        </v-btn>
+      </v-card-actions>
+    </v-card>
   </v-dialog>
 
   <!-- Scale Budget Modal -->
