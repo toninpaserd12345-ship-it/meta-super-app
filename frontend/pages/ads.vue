@@ -45,6 +45,65 @@ const newDailyBudget = ref<number>(0)
 const selectedPercent = ref<number | null>(20)
 const updatingBudget = ref(false)
 
+// Dual-System Auto-Pilot & Scale Tracking Engine
+interface AutoPilotConfig {
+  enabled: boolean
+  autoScaleEnabled: boolean
+  scalePercent: number
+  scaleMinPurchases: number
+  scaleMaxCPA: number | null
+  scaleMaxFrequency: number
+  scaleCooldownHours: number
+  maxDailyBudgetCap: number | null
+  autoStopEnabled: boolean
+  stopMinSpend: number | null
+  stopMaxCTR: number
+}
+
+interface AutoPilotLog {
+  id: string
+  timestamp: string
+  action: 'SCALE' | 'PAUSE'
+  entityId: string
+  entityType: string
+  entityName: string
+  detail: string
+  beforeValue?: string
+  afterValue?: string
+  success: boolean
+}
+
+interface ScaleRecord {
+  entityId: string
+  entityName: string
+  entityType: string
+  scaledAt: number
+  oldBudget: number
+  newBudget: number
+  scalePercent: number
+  purchasesAtScale: number
+  scaledBy: 'AUTO' | 'MANUAL'
+}
+
+const autoPilotModalOpen = ref(false)
+const autoPilotTab = ref<'rules' | 'logs'>('rules')
+const runningAutoPilot = ref(false)
+const autoPilotLogs = ref<AutoPilotLog[]>([])
+const scaleHistory = ref<Record<string, ScaleRecord>>({})
+const autoPilotConfig = ref<AutoPilotConfig>({
+  enabled: false,
+  autoScaleEnabled: true,
+  scalePercent: 20,
+  scaleMinPurchases: 3,
+  scaleMaxCPA: null,
+  scaleMaxFrequency: 2.5,
+  scaleCooldownHours: 24,
+  maxDailyBudgetCap: null,
+  autoStopEnabled: true,
+  stopMinSpend: null,
+  stopMaxCTR: 1.0,
+})
+
 const zeroDecimalCurrencies = new Set(['LAK', 'VND', 'JPY', 'KRW', 'KHR', 'IDR', 'CLP', 'PYG'])
 const currencyOffset = computed(() => zeroDecimalCurrencies.has((currency.value || '').toUpperCase()) ? 1 : 100)
 
@@ -681,6 +740,9 @@ async function loadPerformance() {
     campaignsAccountId.value = adAccountId.value
     report.value = insightResult
     selectedId.value = ''
+    if (autoPilotConfig.value.enabled) {
+      runAutoPilot(false)
+    }
   } catch (error: any) {
     report.value = null
     notice.value = error?.data?.error?.message || error?.data?.message || error?.statusMessage || l({ lo: 'ດຶງຂໍ້ມູນ Insights ບໍ່ສຳເລັດ. ກວດສິດ ads_read ແລ້ວລອງໃໝ່.', th: 'โหลด Insights ไม่สำเร็จ ตรวจสิทธิ์ ads_read แล้วลองใหม่', en: 'Could not load Insights. Check ads_read permission and retry.' })
@@ -833,10 +895,28 @@ async function applyBudgetChange() {
       body: { dailyBudget: apiBudget },
     })
 
+    recordScaleEvent(item, baseDailyBudget.value, newDailyBudget.value, budgetDiffPercent.value, 'MANUAL')
+    addAutoPilotLog({
+      id: 'log-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+      timestamp: new Date().toISOString(),
+      action: 'SCALE',
+      entityId: item.entityId,
+      entityType: item.entityType,
+      entityName: targetName,
+      detail: l({
+        lo: `[Manual Scale] ປັບງົບໂດຍຜູ້ໃຊ້ (+${budgetDiffPercent.value}%): ຈາກ ${money(baseDailyBudget.value)} ➔ ${money(newDailyBudget.value)}/ມື້ (Cooldown ${autoPilotConfig.value.scaleCooldownHours}h ເລີ່ມຕົ້ນ)`,
+        th: `[Manual Scale] ปรับงบโดยผู้ใช้ (+${budgetDiffPercent.value}%): จาก ${money(baseDailyBudget.value)} ➔ ${money(newDailyBudget.value)}/วัน (Cooldown ${autoPilotConfig.value.scaleCooldownHours}h เริ่มต้น)`,
+        en: `[Manual Scale] Adjusted by user (+${budgetDiffPercent.value}%): from ${money(baseDailyBudget.value)} ➔ ${money(newDailyBudget.value)}/day (${autoPilotConfig.value.scaleCooldownHours}h cooldown started)`,
+      }),
+      beforeValue: money(baseDailyBudget.value) + '/ມື້',
+      afterValue: money(newDailyBudget.value) + '/ມື້',
+      success: true,
+    })
+
     success.value = l({
-      lo: `ປັບງົບປະມານໃຫ້ “${targetName}” ເປັນ ${money(newDailyBudget.value)}/ມື້ ສຳເລັດແລ້ວ!`,
-      th: `ปรับงบประมาณให้ “${targetName}” เป็น ${money(newDailyBudget.value)}/วัน เรียบร้อยแล้ว`,
-      en: `Updated budget for “${targetName}” to ${money(newDailyBudget.value)}/day successfully.`,
+      lo: `ປັບງົບປະມານໃຫ້ “${targetName}” ເປັນ ${money(newDailyBudget.value)}/ມື້ ສຳເລັດແລ້ວ! (ເຂົ້າສູ່ໄລຍະ Cooldown ${autoPilotConfig.value.scaleCooldownHours}h)`,
+      th: `ปรับงบประมาณให้ “${targetName}” เป็น ${money(newDailyBudget.value)}/วัน เรียบร้อยแล้ว (เข้าสู่ระยะ Cooldown ${autoPilotConfig.value.scaleCooldownHours}h)`,
+      en: `Updated budget for “${targetName}” to ${money(newDailyBudget.value)}/day successfully (${autoPilotConfig.value.scaleCooldownHours}h cooldown active).`,
     })
     budgetModalOpen.value = false
     await loadPerformance()
@@ -871,11 +951,421 @@ async function applyActionPlan() {
   if (completed) success.value = l({ lo: `ປິດໂຄສະນາ ${completed} ລາຍການຕາມແຜນທີ່ອະນຸມັດແລ້ວ.`, th: `หยุดโฆษณา ${completed} รายการตามแผนที่อนุมัติแล้ว`, en: `Paused ${completed} approved item${completed === 1 ? '' : 's'}.` })
 }
 
-watch(adAccountId, async () => { if (!ready.value) return; loadThresholds(); await loadPerformance() })
+// --- Auto-Pilot & Cooldown Scale Tracking Functions ---
+
+function loadScaleHistory() {
+  if (!import.meta.client || !adAccountId.value) return
+  const saved = localStorage.getItem(`ads-scale-history:${adAccountId.value}`)
+  if (saved) {
+    try {
+      scaleHistory.value = JSON.parse(saved)
+    } catch {}
+  } else {
+    scaleHistory.value = {}
+  }
+}
+
+function saveScaleHistory() {
+  if (!import.meta.client || !adAccountId.value) return
+  localStorage.setItem(`ads-scale-history:${adAccountId.value}`, JSON.stringify(scaleHistory.value))
+}
+
+function recordScaleEvent(item: MetaInsightItem, oldBudget: number, newBudget: number, pct: number, source: 'AUTO' | 'MANUAL') {
+  const record: ScaleRecord = {
+    entityId: item.entityId,
+    entityName: item.entityName,
+    entityType: item.entityType,
+    scaledAt: Date.now(),
+    oldBudget,
+    newBudget,
+    scalePercent: pct,
+    purchasesAtScale: item.results?.value || 0,
+    scaledBy: source,
+  }
+  scaleHistory.value[item.entityId] = record
+  if (item.adSetId) scaleHistory.value[item.adSetId] = record
+  if (item.campaignId) scaleHistory.value[item.campaignId] = record
+  saveScaleHistory()
+}
+
+function getCooldownInfo(item: MetaInsightItem): { inCooldown: boolean; hoursLeft: number; minutesLeft: number; record: ScaleRecord | null } {
+  if (!import.meta.client) return { inCooldown: false, hoursLeft: 0, minutesLeft: 0, record: null }
+  const ids = [item.entityId, item.adSetId, item.campaignId].filter(Boolean) as string[]
+  let latestRecord: ScaleRecord | null = null
+  for (const id of ids) {
+    const rec = scaleHistory.value[id]
+    if (rec && (!latestRecord || rec.scaledAt > latestRecord.scaledAt)) {
+      latestRecord = rec
+    }
+  }
+  if (!latestRecord) return { inCooldown: false, hoursLeft: 0, minutesLeft: 0, record: null }
+
+  const cooldownHours = autoPilotConfig.value.scaleCooldownHours || 24
+  const cooldownMs = cooldownHours * 3600 * 1000
+  const elapsed = Date.now() - latestRecord.scaledAt
+  const remaining = cooldownMs - elapsed
+
+  if (remaining <= 0) {
+    return { inCooldown: false, hoursLeft: 0, minutesLeft: 0, record: latestRecord }
+  }
+
+  const hoursLeft = Math.floor(remaining / (3600 * 1000))
+  const minutesLeft = Math.floor((remaining % (3600 * 1000)) / (60 * 1000))
+  return { inCooldown: true, hoursLeft, minutesLeft, record: latestRecord }
+}
+
+function loadAutoPilotConfig() {
+  if (!import.meta.client || !adAccountId.value) return
+  const saved = localStorage.getItem(`ads-autopilot-config:${adAccountId.value}`)
+  if (saved) {
+    try {
+      autoPilotConfig.value = { ...autoPilotConfig.value, ...JSON.parse(saved) }
+    } catch {}
+  }
+  const savedLogs = localStorage.getItem(`ads-autopilot-logs:${adAccountId.value}`)
+  if (savedLogs) {
+    try {
+      autoPilotLogs.value = JSON.parse(savedLogs)
+    } catch {}
+  }
+}
+
+function saveAutoPilotConfig() {
+  if (!import.meta.client || !adAccountId.value) return
+  localStorage.setItem(`ads-autopilot-config:${adAccountId.value}`, JSON.stringify(autoPilotConfig.value))
+}
+
+function saveAutoPilotLogs() {
+  if (!import.meta.client || !adAccountId.value) return
+  localStorage.setItem(`ads-autopilot-logs:${adAccountId.value}`, JSON.stringify(autoPilotLogs.value))
+}
+
+function clearAutoPilotLogs() {
+  autoPilotLogs.value = []
+  saveAutoPilotLogs()
+}
+
+function toggleAutoPilotMaster(val: boolean | null) {
+  const isEnabled = Boolean(val)
+  autoPilotConfig.value.enabled = isEnabled
+  saveAutoPilotConfig()
+  if (isEnabled) {
+    success.value = l({
+      lo: '🤖 ເປີດລະບົບ Auto-Pilot ແລ້ວ! ບັອດຈະເລີ່ມເຝົ້າແອດ, ສະເກວງົບ +20% ໃຫ້ແອດທີ່ຜ່ານເກນ, ແລະ ຢຸດແອດຂາດທຶນ.',
+      th: '🤖 เปิดระบบ Auto-Pilot แล้ว! บอทจะเริ่มเฝ้าแอด, Scale งบ +20% ให้แอดที่ผ่านเกณฑ์, และหยุดแอดขาดทุน',
+      en: '🤖 Auto-Pilot activated! The bot will now monitor ads, auto-scale winners (+20%), and stop loss on losers.'
+    })
+    runAutoPilot(false)
+  } else {
+    notice.value = l({
+      lo: '⏸️ ປິດລະບົບ Auto-Pilot ແລ້ວ. ລະບົບກັບສູ່ໂໝດ Manual (ທ່ານສາມາດກວດສອບ ແລະ ກົດເອງໄດ້ທຸກເວລາ).',
+      th: '⏸️ ปิดระบบ Auto-Pilot แล้ว ระบบกลับสู่โหมด Manual (คุณสามารถตรวจสอบและกดเองได้ตลอดเวลา)',
+      en: '⏸️ Auto-Pilot disabled. Returned to Manual Approval mode.'
+    })
+  }
+}
+
+function isStopLossCandidate(item: MetaInsightItem): { eligible: boolean; reason: string } {
+  if (statusFor(item).toUpperCase() !== 'ACTIVE') return { eligible: false, reason: '' }
+  if (!autoPilotConfig.value.autoStopEnabled) return { eligible: false, reason: '' }
+
+  const purchases = item.results?.value || 0
+  const spend = item.spend || 0
+  const ctr = item.linkCtr ?? 0
+  const minSpend = autoPilotConfig.value.stopMinSpend ?? (currencyOffset.value === 1 ? 50000 : 5)
+  const maxCTR = autoPilotConfig.value.stopMaxCTR ?? 1.0
+
+  if (purchases === 0 && spend >= minSpend && ctr < maxCTR) {
+    return {
+      eligible: true,
+      reason: `Spend ${money(spend)} >= ${money(minSpend)}, 0 ອໍເດີ, CTR ${percent(ctr)} < ${maxCTR}%`
+    }
+  }
+  return { eligible: false, reason: '' }
+}
+
+function isScaleCandidate(item: MetaInsightItem): {
+  eligible: boolean
+  inCooldown: boolean
+  cooldownInfo: { hoursLeft: number; minutesLeft: number; record: ScaleRecord | null }
+  reason: string
+} {
+  const cooldown = getCooldownInfo(item)
+  if (statusFor(item).toUpperCase() !== 'ACTIVE') {
+    return { eligible: false, inCooldown: cooldown.inCooldown, cooldownInfo: cooldown, reason: '' }
+  }
+  if (!autoPilotConfig.value.autoScaleEnabled) {
+    return { eligible: false, inCooldown: cooldown.inCooldown, cooldownInfo: cooldown, reason: '' }
+  }
+
+  const purchases = item.results?.value || 0
+  const cost = item.results?.cost
+  const frequency = item.frequency || 1.0
+  const minPurchases = autoPilotConfig.value.scaleMinPurchases ?? 3
+  const maxCPA = autoPilotConfig.value.scaleMaxCPA ?? targetCost.value ?? (currencyOffset.value === 1 ? 50000 : 2.5)
+  const maxFreq = autoPilotConfig.value.scaleMaxFrequency ?? 2.5
+
+  const meetsPurchases = purchases >= minPurchases
+  const meetsCPA = cost == null || cost <= maxCPA
+  const meetsFreq = frequency <= maxFreq
+
+  if (meetsPurchases && meetsCPA && meetsFreq) {
+    return {
+      eligible: true,
+      inCooldown: cooldown.inCooldown,
+      cooldownInfo: cooldown,
+      reason: `${purchases} ອໍເດີ >= ${minPurchases}, CPA ${cost != null ? money(cost) : '—'} <= ${money(maxCPA)}, Freq ${fmt(frequency, 2)} <= ${maxFreq}`
+    }
+  }
+  return { eligible: false, inCooldown: cooldown.inCooldown, cooldownInfo: cooldown, reason: '' }
+}
+
+function adScaleBadge(item: MetaInsightItem) {
+  const cooldown = getCooldownInfo(item)
+  if (cooldown.inCooldown && cooldown.record) {
+    return {
+      type: 'cooldown',
+      label: l({
+        lo: `⏳ ສະເກວແລ້ວ (Cooldown ${cooldown.hoursLeft}h ${cooldown.minutesLeft}m)`,
+        th: `⏳ Scale แล้ว (Cooldown ${cooldown.hoursLeft}h ${cooldown.minutesLeft}m)`,
+        en: `⏳ Scaled (Cooldown ${cooldown.hoursLeft}h ${cooldown.minutesLeft}m)`,
+      }),
+      detail: l({
+        lo: `ປັບເມື່ອ ${new Date(cooldown.record.scaledAt).toLocaleDateString()} ${new Date(cooldown.record.scaledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}: ${money(cooldown.record.oldBudget)} ➔ ${money(cooldown.record.newBudget)}/ມື້ (+${cooldown.record.scalePercent}%)`,
+        th: `ปรับเมื่อ ${new Date(cooldown.record.scaledAt).toLocaleDateString()} ${new Date(cooldown.record.scaledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}: ${money(cooldown.record.oldBudget)} ➔ ${money(cooldown.record.newBudget)}/วัน (+${cooldown.record.scalePercent}%)`,
+        en: `Scaled at ${new Date(cooldown.record.scaledAt).toLocaleDateString()} ${new Date(cooldown.record.scaledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}: ${money(cooldown.record.oldBudget)} ➔ ${money(cooldown.record.newBudget)}/day (+${cooldown.record.scalePercent}%)`,
+      }),
+      color: '#d97706',
+      bgColor: 'rgba(245, 158, 11, 0.12)',
+    }
+  }
+
+  const stop = isStopLossCandidate(item)
+  if (stop.eligible) {
+    return {
+      type: 'stop',
+      label: l({ lo: '🛑 ເຂົ້າເກນ Stop-Loss', th: '🛑 เข้าเกณฑ์ Stop-Loss', en: '🛑 Stop-Loss' }),
+      detail: stop.reason,
+      color: '#dc2626',
+      bgColor: 'rgba(239, 68, 68, 0.12)',
+    }
+  }
+
+  const scale = isScaleCandidate(item)
+  if (scale.eligible && !scale.inCooldown) {
+    return {
+      type: 'scale_ready',
+      label: l({ lo: `🚀 ພ້ອມ Scale (+${autoPilotConfig.value.scalePercent || 20}%)`, th: `🚀 พร้อม Scale (+${autoPilotConfig.value.scalePercent || 20}%)`, en: `🚀 Ready to Scale (+${autoPilotConfig.value.scalePercent || 20}%)` }),
+      detail: scale.reason,
+      color: '#16a34a',
+      bgColor: 'rgba(22, 163, 74, 0.12)',
+    }
+  }
+
+  return null
+}
+
+async function executeScaleItem(item: MetaInsightItem, scalePct: number): Promise<{ success: boolean; oldBudget: number; newBudget: number; error?: string }> {
+  let targetType: 'campaign' | 'adset' = 'campaign'
+  let targetId = item.entityId
+  let targetName = item.entityName
+
+  if (item.entityType === 'ad') {
+    if (item.adSetId) {
+      targetType = 'adset'
+      targetId = item.adSetId
+      targetName = item.adSetName || item.entityName
+    } else {
+      targetType = 'campaign'
+      targetId = item.campaignId || item.entityId
+      targetName = item.campaignName || item.entityName
+    }
+  } else if (item.entityType === 'adset') {
+    targetType = 'adset'
+    targetId = item.entityId
+  } else {
+    targetType = 'campaign'
+    targetId = item.entityId
+  }
+
+  const start = new Date(since.value).getTime()
+  const end = new Date(until.value).getTime()
+  const days = Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1)
+
+  let base = 0
+  if (item.dailyBudget && item.dailyBudget > 0) {
+    base = item.dailyBudget / currencyOffset.value
+  } else if (item.spend && item.spend > 0) {
+    base = item.spend / days
+  } else {
+    base = currencyOffset.value === 1 ? 100000 : 10
+  }
+
+  if (currencyOffset.value === 1) {
+    base = Math.max(20000, Math.round(base / 10000) * 10000)
+  } else {
+    base = Math.max(1, Math.round(base * 100) / 100)
+  }
+
+  let calculated = base * (1 + scalePct / 100)
+  if (currencyOffset.value === 1) {
+    calculated = Math.max(20000, Math.round(calculated / 10000) * 10000)
+  } else {
+    calculated = Math.max(1, Math.round(calculated * 100) / 100)
+  }
+
+  // Check safety cap
+  if (autoPilotConfig.value.maxDailyBudgetCap && autoPilotConfig.value.maxDailyBudgetCap > 0) {
+    if (base >= autoPilotConfig.value.maxDailyBudgetCap) {
+      return { success: false, oldBudget: base, newBudget: base, error: 'Reached max daily budget cap' }
+    }
+    if (calculated > autoPilotConfig.value.maxDailyBudgetCap) {
+      calculated = autoPilotConfig.value.maxDailyBudgetCap
+    }
+  }
+
+  const apiBudget = Math.round(calculated * currencyOffset.value)
+
+  try {
+    await $fetch(`/api/proxy/api/v1/meta/ads/${targetType}/${encodeURIComponent(targetId)}/budget`, {
+      method: 'PATCH',
+      body: { dailyBudget: apiBudget },
+    })
+    item.dailyBudget = apiBudget
+    recordScaleEvent(item, base, calculated, scalePct, 'AUTO')
+    return { success: true, oldBudget: base, newBudget: calculated }
+  } catch (err: any) {
+    return { success: false, oldBudget: base, newBudget: calculated, error: err?.data?.error?.message || err?.message }
+  }
+}
+
+async function executePauseItem(item: MetaInsightItem): Promise<{ success: boolean; error?: string }> {
+  try {
+    await $fetch(`/api/proxy/api/v1/meta/ads/${item.entityType}/${encodeURIComponent(item.entityId)}/status`, {
+      method: 'PATCH',
+      body: { status: 'PAUSED' }
+    })
+    const campaign = campaigns.value.find(value => value.id === item.entityId)
+    if (campaign) campaign.effectiveStatus = 'PAUSED'
+    item.status = 'PAUSED'
+    item.effectiveStatus = 'PAUSED'
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, error: err?.data?.error?.message || err?.message }
+  }
+}
+
+async function runAutoPilot(isManual = false) {
+  if (!report.value?.items?.length) return
+  if (!autoPilotConfig.value.enabled && !isManual) return
+  if (runningAutoPilot.value) return
+
+  runningAutoPilot.value = true
+  let scaledCount = 0
+  let pausedCount = 0
+  let cooldownCount = 0
+
+  const itemsToCheck = [...report.value.items]
+
+  for (const item of itemsToCheck) {
+    // 1. Stop-Loss Check
+    const stopCheck = isStopLossCandidate(item)
+    if (stopCheck.eligible) {
+      const res = await executePauseItem(item)
+      addAutoPilotLog({
+        id: 'log-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+        timestamp: new Date().toISOString(),
+        action: 'PAUSE',
+        entityId: item.entityId,
+        entityType: item.entityType,
+        entityName: item.entityName,
+        detail: l({
+          lo: `[Stop-Loss] ຢຸດແອດຂາດທຶນ: ${stopCheck.reason}`,
+          th: `[Stop-Loss] หยุดแอดขาดทุน: ${stopCheck.reason}`,
+          en: `[Stop-Loss] Paused losing ad: ${stopCheck.reason}`,
+        }),
+        success: res.success,
+      })
+      if (res.success) pausedCount++
+      continue
+    }
+
+    // 2. Auto-Scale Check
+    const scaleCheck = isScaleCandidate(item)
+    if (scaleCheck.eligible) {
+      if (scaleCheck.inCooldown) {
+        cooldownCount++
+        continue
+      }
+      const scalePct = autoPilotConfig.value.scalePercent || 20
+      const res = await executeScaleItem(item, scalePct)
+      addAutoPilotLog({
+        id: 'log-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+        timestamp: new Date().toISOString(),
+        action: 'SCALE',
+        entityId: item.entityId,
+        entityType: item.entityType,
+        entityName: item.entityName,
+        detail: l({
+          lo: `[Auto-Scale] ເພີ່ມງົບ +${scalePct}%: ${scaleCheck.reason} (ເລີ່ມ Cooldown ${autoPilotConfig.value.scaleCooldownHours}h)`,
+          th: `[Auto-Scale] เพิ่มงบ +${scalePct}%: ${scaleCheck.reason} (เริ่ม Cooldown ${autoPilotConfig.value.scaleCooldownHours}h)`,
+          en: `[Auto-Scale] Scaled budget +${scalePct}%: ${scaleCheck.reason} (${autoPilotConfig.value.scaleCooldownHours}h cooldown started)`,
+        }),
+        beforeValue: money(res.oldBudget) + '/ມື້',
+        afterValue: money(res.newBudget) + '/ມື້',
+        success: res.success,
+      })
+      if (res.success) {
+        scaledCount++
+      }
+    }
+  }
+
+  runningAutoPilot.value = false
+
+  if (isManual || scaledCount > 0 || pausedCount > 0) {
+    const parts: string[] = []
+    if (scaledCount > 0) parts.push(l({ lo: `ສະເກວ ${scaledCount} ແອດ`, th: `Scale ${scaledCount} แอด`, en: `Scaled ${scaledCount} ad(s)` }))
+    if (pausedCount > 0) parts.push(l({ lo: `ຢຸດ ${pausedCount} ແອດ`, th: `หยุด ${pausedCount} แอด`, en: `Paused ${pausedCount} ad(s)` }))
+    if (cooldownCount > 0) parts.push(l({ lo: `ຂ້າມ ${cooldownCount} ແອດທີ່ຕິດ Cooldown 24h`, th: `ข้าม ${cooldownCount} แอดที่ติด Cooldown 24h`, en: `Skipped ${cooldownCount} ad(s) in 24h cooldown` }))
+
+    if (parts.length > 0) {
+      success.value = l({
+        lo: `🤖 Auto-Pilot ປະມວນຜົນສຳເລັດ: ${parts.join(', ')}`,
+        th: `🤖 Auto-Pilot ประมวลผลเสร็จสิ้น: ${parts.join(', ')}`,
+        en: `🤖 Auto-Pilot execution finished: ${parts.join(', ')}`,
+      })
+    } else if (isManual) {
+      notice.value = l({
+        lo: '🤖 Auto-Pilot: ກວດສອບແລ້ວ ທຸກແອດຢູ່ໃນເກນປົກກະຕິ (ບໍ່ມີແອດທີ່ຕ້ອງສະເກວ ຫຼື ຢຸດຂາດທຶນໃນຕອນນີ້).',
+        th: '🤖 Auto-Pilot: ตรวจสอบแล้ว ทุกแอดอยู่ในเกณฑ์ปกติ (ไม่มีแอดที่ต้อง Scale หรือหยุดขาดทุนในขณะนี้)',
+        en: '🤖 Auto-Pilot: Checked. All ads are currently healthy (no ads meet scale or stop-loss criteria right now).',
+      })
+    }
+  }
+}
+
+function addAutoPilotLog(log: AutoPilotLog) {
+  autoPilotLogs.value.unshift(log)
+  if (autoPilotLogs.value.length > 60) {
+    autoPilotLogs.value = autoPilotLogs.value.slice(0, 60)
+  }
+  saveAutoPilotLogs()
+}
+
+watch(adAccountId, async () => {
+  if (!ready.value) return
+  loadThresholds()
+  loadAutoPilotConfig()
+  loadScaleHistory()
+  await loadPerformance()
+})
 watch(level, async () => { if (ready.value) await loadPerformance() })
 onMounted(async () => {
   await Promise.all([loadAccounts(), loadAutomationsAndProducts()])
   loadThresholds()
+  loadAutoPilotConfig()
+  loadScaleHistory()
   ready.value = true
   if (adAccountId.value) await loadPerformance()
 })
@@ -905,6 +1395,18 @@ onMounted(async () => {
       <p>{{ l({ lo: 'ຕິດຕາມຜົນງານການນຳສົ່ງ, CTR, Impressions, Frequency, ປະສິດທິພາບແອດ ແລະ ຄວບຄຸມສະຖານະ.', th: 'ติดตามผลการนำส่ง CTR, Impressions, Frequency, ประสิทธิภาพแอด และควบคุมสถานะ', en: 'Track ad delivery, CTR, impressions, frequency, creative metrics, and toggle campaign status.' }) }}</p>
     </div>
     <div class="head-actions">
+      <!-- Auto-Pilot Toggle & Modal Trigger Button -->
+      <v-btn
+        :color="autoPilotConfig.enabled ? 'success' : undefined"
+        :variant="autoPilotConfig.enabled ? 'flat' : 'outlined'"
+        :prepend-icon="autoPilotConfig.enabled ? 'mdi-robot' : 'mdi-robot-off-outline'"
+        class="autopilot-head-btn font-weight-bold"
+        @click="autoPilotModalOpen = true"
+      >
+        <span>{{ autoPilotConfig.enabled ? l({ lo: 'Auto-Pilot: ເປີດ (ON)', th: 'Auto-Pilot: เปิด (ON)', en: 'Auto-Pilot: ON' }) : l({ lo: 'Auto-Pilot: ປິດ (OFF)', th: 'Auto-Pilot: ปิด (OFF)', en: 'Auto-Pilot: OFF' }) }}</span>
+        <span v-if="autoPilotConfig.enabled" class="autopilot-dot-pulse" />
+      </v-btn>
+
       <v-btn color="warning" variant="tonal" prepend-icon="mdi-shield-check-outline" :disabled="!report" @click="openActionPlan">
         {{ l({ lo: `ກວດແຜນປັບ Ads (${actionCandidates.length})`, th: `ตรวจแผนปรับ Ads (${actionCandidates.length})`, en: `Review action plan (${actionCandidates.length})` }) }}
       </v-btn>
@@ -922,6 +1424,73 @@ onMounted(async () => {
     <template #append><v-btn size="small" variant="outlined" to="/meta-pages">{{ l({ lo: 'ກວດສິດ Meta', th: 'ตรวจสิทธิ์ Meta', en: 'Check Meta access' }) }}</v-btn></template>
   </v-alert>
   <v-alert v-if="success" type="success" variant="tonal" class="mb-4" closable @click:close="success = ''">{{ success }}</v-alert>
+
+  <!-- Dual-System Mode Banner -->
+  <section class="system-mode-banner" :class="{ 'autopilot-active': autoPilotConfig.enabled }">
+    <div class="mode-badge-wrap">
+      <span class="mode-pill" :class="autoPilotConfig.enabled ? 'autopilot' : 'manual'">
+        <v-icon :icon="autoPilotConfig.enabled ? 'mdi-robot' : 'mdi-hand-back-right-outline'" size="18" />
+        {{ autoPilotConfig.enabled
+          ? l({ lo: 'ໂໝດ 2: Auto-Pilot (ບັອດອັດຕະໂນມັດ)', th: 'โหมด 2: Auto-Pilot (บอทอัตโนมัติ)', en: 'Mode 2: Auto-Pilot (Active)' })
+          : l({ lo: 'ໂໝດ 1: Manual Approval (ກວດສອບ & ກົດເອງ)', th: 'โหมด 1: Manual Approval (ควบคุมเอง)', en: 'Mode 1: Manual Approval (Human)' })
+        }}
+      </span>
+      <div class="mode-desc">
+        <strong v-if="autoPilotConfig.enabled" class="mode-title-text text-success font-weight-bold">
+          {{ l({ lo: '🤖 ບັອດກຳລັງເຝົ້າແອດ: Auto-Scale ແອດຂາຍດີ (+20%), Lock Cooldown 24h ບໍ່ໃຫ້ຫຼຸດ Learning Phase, ແລະ Auto-Stop ແອດຂາດທຶນ', th: '🤖 บอทกำลังเฝ้าแอด: Auto-Scale แอดขายดี (+20%), ล็อก Cooldown 24h ไม่ให้หลุด Learning Phase, และ Auto-Stop แอดขาดทุน', en: '🤖 Bot is watching ads: Auto-scaling winners (+20%), locking 24h cooldown to protect learning phase, and auto-pausing losers' }) }}
+        </strong>
+        <strong v-else class="mode-title-text font-weight-bold">
+          {{ l({ lo: '👤 ໂໝດຄວບຄຸມດ້ວຍຕົນເອງ: ທ່ານສາມາດກົດປຸ່ມ Scale ຫຼື ອະນຸມັດແຜນປິດ Ads ຕາມຄວາມພໍໃຈ (ລະບົບຈະບໍ່ປັບປ່ຽນຫຍັງເອງ)', th: '👤 โหมดควบคุมด้วยตนเอง: คุณสามารถกดปุ่ม Scale หรืออนุมัติแผนหยุด Ads ตามความต้องการ (ระบบจะไม่ปรับอะไรเอง)', en: '👤 Manual mode: You review and approve budget scaling or ad pausing manually (no automatic changes)' }) }}
+        </strong>
+        <div class="mode-rules-summary">
+          <template v-if="autoPilotConfig.enabled">
+            <span class="rule-chip"><v-icon icon="mdi-rocket-launch-outline" size="12" /> Scale: ຊື້ >= {{ autoPilotConfig.scaleMinPurchases }}, CPA <= {{ autoPilotConfig.scaleMaxCPA ? money(autoPilotConfig.scaleMaxCPA) : (targetCost ? money(targetCost) : 'ເປົ້າໝາຍ') }}, Freq <= {{ autoPilotConfig.scaleMaxFrequency }} (+{{ autoPilotConfig.scalePercent }}%)</span>
+            <span class="rule-chip"><v-icon icon="mdi-pause-circle-outline" size="12" /> Stop-Loss: Spend >= {{ autoPilotConfig.stopMinSpend ? money(autoPilotConfig.stopMinSpend) : money(currencyOffset === 1 ? 50000 : 5) }}, 0 ອໍເດີ, CTR < {{ autoPilotConfig.stopMaxCTR }}%</span>
+            <span class="rule-chip"><v-icon icon="mdi-shield-lock-outline" size="12" /> Cooldown: 24h Lock</span>
+          </template>
+          <template v-else>
+            <span class="rule-chip-muted">{{ l({ lo: 'ຄຳແນະນຳທັງໝົດຍັງສະແດງໃນຕາຕະລາງ, ແຕ່ຈະບໍ່ມີການປ່ຽນງົບ ຫຼື ສະຖານະໂດຍບໍ່ໄດ້ຮັບອະນຸມັດຈາກທ່ານ.', th: 'คำแนะนำทั้งหมดยังแสดงในตาราง แต่จะไม่เปลี่ยนงบหรือสถานะโดยไม่ได้รับอนุมัติจากคุณ', en: 'Recommendations remain visible, but no budgets or statuses will change without your explicit click.' }) }}</span>
+          </template>
+        </div>
+      </div>
+    </div>
+
+    <div class="mode-controls">
+      <div class="mode-switch-box">
+        <span class="mode-switch-label">{{ l({ lo: 'ສະວິດ Auto-Pilot:', th: 'สวิตช์ Auto-Pilot:', en: 'Auto-Pilot Switch:' }) }}</span>
+        <v-switch
+          v-model="autoPilotConfig.enabled"
+          color="success"
+          hide-details
+          density="compact"
+          class="mode-v-switch"
+          @update:model-value="toggleAutoPilotMaster"
+        />
+      </div>
+      <v-btn
+        v-if="autoPilotConfig.enabled"
+        size="small"
+        color="success"
+        variant="flat"
+        prepend-icon="mdi-flash"
+        :loading="runningAutoPilot"
+        class="font-weight-bold"
+        @click="runAutoPilot(true)"
+      >
+        {{ l({ lo: '⚡ ປະມວນຜົນດຽວນີ້', th: '⚡ ประมวลผลตอนนี้', en: '⚡ Run Now' }) }}
+      </v-btn>
+      <v-btn
+        size="small"
+        variant="tonal"
+        color="primary"
+        prepend-icon="mdi-tune-vertical"
+        class="font-weight-bold"
+        @click="autoPilotModalOpen = true"
+      >
+        {{ l({ lo: 'ຕັ້ງຄ່າກົດ & Log', th: 'ตั้งค่ากฎ & Log', en: 'Rules & Logs' }) }}
+      </v-btn>
+    </div>
+  </section>
 
   <!-- Modern Standardized Command & Filter Bar -->
   <section class="app-filter-bar" aria-label="Ads report filters">
@@ -1184,31 +1753,48 @@ onMounted(async () => {
             <span class="metric metric-cost mobile-key"><small>{{ l({lo:'ຕົ້ນທຶນ/ຜົນ',th:'ต้นทุน/ผล',en:'Cost/result'}) }}</small><strong>{{ money(item.results.cost) }}</strong></span>
             <span class="metric metric-ctr mobile-key"><small>CTR</small><strong>{{ percent(item.linkCtr) }}</strong></span>
             <span class="metric metric-frequency"><small>Frequency</small><strong>{{ fmt(item.frequency, 2) }}</strong></span>
-            <span class="decision-chip" :class="decision(item).code"><v-icon :icon="decision(item).icon" /> <span><strong>{{ decision(item).title }}</strong><small>{{ decision(item).signals[0] || decision(item).detail }}</small></span></span>
+            <span class="decision-chip" :class="decision(item).code">
+              <v-icon :icon="decision(item).icon" />
+              <span>
+                <strong>{{ decision(item).title }}</strong>
+                <small>{{ decision(item).signals[0] || decision(item).detail }}</small>
+                <span
+                  v-if="adScaleBadge(item)"
+                  class="ad-scale-status-pill mt-1"
+                  :class="adScaleBadge(item)!.type"
+                  :title="adScaleBadge(item)!.detail"
+                >
+                  {{ adScaleBadge(item)!.label }}
+                </span>
+              </span>
+            </span>
             <div class="row-actions" @click.stop>
               <v-btn
                 size="x-small"
-                variant="tonal"
-                color="primary"
-                prepend-icon="mdi-cash-fast"
+                :variant="getCooldownInfo(item).inCooldown ? 'tonal' : 'flat'"
+                :color="getCooldownInfo(item).inCooldown ? 'warning' : 'primary'"
+                :prepend-icon="getCooldownInfo(item).inCooldown ? 'mdi-clock-outline' : 'mdi-cash-fast'"
                 class="quick-scale-btn font-weight-bold"
                 @click="openBudgetModal(item)"
               >
-                Scale
+                {{ getCooldownInfo(item).inCooldown ? `Cooldown (${getCooldownInfo(item).hoursLeft}h)` : 'Scale' }}
               </v-btn>
               <v-icon :icon="selectedId === item.entityId ? 'mdi-chevron-up' : 'mdi-chevron-down'" class="expand-chevron" />
             </div>
             <div class="mobile-scale-bar" @click.stop>
               <v-btn
                 size="small"
-                variant="tonal"
-                color="primary"
+                :variant="getCooldownInfo(item).inCooldown ? 'tonal' : 'flat'"
+                :color="getCooldownInfo(item).inCooldown ? 'warning' : 'primary'"
                 block
-                prepend-icon="mdi-cash-fast"
+                :prepend-icon="getCooldownInfo(item).inCooldown ? 'mdi-clock-outline' : 'mdi-cash-fast'"
                 class="font-weight-bold"
                 @click="openBudgetModal(item)"
               >
-                {{ l({ lo: '⚡ Scale ງົບປະມານ (+10% / +20%)', th: '⚡ Scale งบประมาณ (+10% / +20%)', en: '⚡ Scale Budget (+10% / +20%)' }) }}
+                {{ getCooldownInfo(item).inCooldown
+                  ? l({ lo: `⏳ ສະເກວແລ້ວ (Cooldown ອີກ ${getCooldownInfo(item).hoursLeft}h ${getCooldownInfo(item).minutesLeft}m)`, th: `⏳ Scale แล้ว (Cooldown อีก ${getCooldownInfo(item).hoursLeft}h ${getCooldownInfo(item).minutesLeft}m)`, en: `⏳ Scaled (Cooldown ${getCooldownInfo(item).hoursLeft}h ${getCooldownInfo(item).minutesLeft}m left)` })
+                  : l({ lo: '⚡ Scale ງົບປະມານ (+10% / +20%)', th: '⚡ Scale งบประมาณ (+10% / +20%)', en: '⚡ Scale Budget (+10% / +20%)' })
+                }}
               </v-btn>
             </div>
           </button>
@@ -1325,6 +1911,33 @@ onMounted(async () => {
           <div class="d-flex align-center gap-3 text-caption text-medium-emphasis mt-2">
             <span>{{ l({ lo: 'ໃຊ້ຈ່າຍສະເລ່ຍຊ່ວງນີ້:', th: 'ใช้จ่ายเฉลี่ยช่วงนี้:', en: 'Recent spend:' }) }} <b>{{ money(targetBudgetItem?.spend) }}</b></span>
           </div>
+
+          <!-- Cooldown Warning Alert -->
+          <v-alert
+            v-if="targetBudgetItem && getCooldownInfo(targetBudgetItem).inCooldown"
+            type="warning"
+            variant="tonal"
+            density="compact"
+            class="mt-3 mb-1 rounded-lg"
+          >
+            <div class="d-flex align-center gap-1 font-weight-bold">
+              <v-icon icon="mdi-clock-alert-outline" size="18" />
+              <span>
+                {{ l({
+                  lo: `ແອດນີ້ຫາກໍ່ຖືກສະເກວໄປ (ຍັງເຫຼືອ Cooldown ${getCooldownInfo(targetBudgetItem).hoursLeft}h ${getCooldownInfo(targetBudgetItem).minutesLeft}m)`,
+                  th: `แอดนี้เพิ่งถูก Scale ไป (เหลือ Cooldown ${getCooldownInfo(targetBudgetItem).hoursLeft}h ${getCooldownInfo(targetBudgetItem).minutesLeft}m)`,
+                  en: `This ad was scaled recently (${getCooldownInfo(targetBudgetItem).hoursLeft}h ${getCooldownInfo(targetBudgetItem).minutesLeft}m cooldown remaining)`
+                }) }}
+              </span>
+            </div>
+            <div class="text-caption mt-1">
+              {{ l({
+                lo: 'Meta ຕ້ອງການເວລາ 24 ຊົ່ວໂມງ ເພື່ອປັບຕົວໃນ Learning Phase ໃໝ່. ຖ້າບໍ່ຈຳເປັນ ຄວນລໍຖ້າໃຫ້ຄົບ Cooldown ກ່ອນສະເກວອີກຄັ້ງ.',
+                th: 'Meta ต้องการเวลา 24 ชั่วโมง เพื่อปรับตัวใน Learning Phase ใหม่ หากไม่จำเป็นควรรอให้ครบ Cooldown ก่อน Scale อีกครั้ง',
+                en: 'Meta requires 24 hours to adapt to budget changes. It is advised to wait until cooldown completes.'
+              }) }}
+            </div>
+          </v-alert>
         </div>
 
         <!-- Quick Percentage Buttons (Pills) -->
@@ -1460,6 +2073,314 @@ onMounted(async () => {
           @click="applyBudgetChange"
         >
           {{ l({ lo: 'ຢືນຢັນປັບງົບ', th: 'ยืนยันปรับงบ', en: 'Apply Budget' }) }}
+        </v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
+
+  <!-- Auto-Pilot Modal Dialog -->
+  <v-dialog v-model="autoPilotModalOpen" max-width="840" scrollable>
+    <v-card rounded="xl" class="autopilot-dialog-card">
+      <v-card-title class="dialog-title d-flex align-center justify-space-between">
+        <div class="d-flex align-center gap-2">
+          <v-avatar color="primary" variant="tonal" size="36">
+            <v-icon icon="mdi-robot" size="22" />
+          </v-avatar>
+          <div>
+            <small class="text-primary font-weight-bold letter-spacing-1">DUAL-SYSTEM AI ADS CONTROLLER</small>
+            <h2 class="text-h6 font-weight-bold mb-0">
+              {{ l({ lo: 'ຈັດການລະບົບ Auto-Pilot & Manual', th: 'จัดการระบบ Auto-Pilot & Manual', en: 'Auto-Pilot & Manual Controller' }) }}
+            </h2>
+          </div>
+        </div>
+        <v-btn icon="mdi-close" variant="text" @click="autoPilotModalOpen = false" />
+      </v-card-title>
+
+      <v-card-text class="pa-4 autopilot-body">
+        <!-- Master Switch Card -->
+        <v-card
+          variant="tonal"
+          :color="autoPilotConfig.enabled ? 'success' : undefined"
+          class="pa-4 mb-4 rounded-xl master-switch-card"
+          :class="{ 'is-active': autoPilotConfig.enabled }"
+        >
+          <div class="d-flex align-center justify-space-between flex-wrap gap-3">
+            <div class="d-flex align-center gap-3">
+              <v-icon
+                :icon="autoPilotConfig.enabled ? 'mdi-robot-excited-outline' : 'mdi-robot-off-outline'"
+                size="36"
+                :color="autoPilotConfig.enabled ? 'success' : 'grey'"
+              />
+              <div>
+                <h3 class="text-subtitle-1 font-weight-bold mb-0">
+                  {{ autoPilotConfig.enabled
+                    ? l({ lo: 'ສະຖານະ Auto-Pilot: ກຳລັງເປີດໃຊ້ງານ (ON)', th: 'สถานะ Auto-Pilot: กำลังเปิดใช้งาน (ON)', en: 'Auto-Pilot Status: ACTIVE (ON)' })
+                    : l({ lo: 'ສະຖານະ Auto-Pilot: ປິດຢູ່ (OFF - ໂໝດ Manual)', th: 'สถานะ Auto-Pilot: ปิดอยู่ (OFF - โหมด Manual)', en: 'Auto-Pilot Status: DISABLED (OFF - Manual Mode)' })
+                  }}
+                </h3>
+                <p class="text-caption mb-0 text-medium-emphasis">
+                  {{ autoPilotConfig.enabled
+                    ? l({ lo: 'ລະບົບຈະກວດສອບ ແລະ ປະມວນຜົນອັດຕະໂນມັດ: ສະເກວແອດຂາຍດີ +20% (ພ້ອມ Cooldown 24h) ແລະ ຢຸດແອດຂາດທຶນ.', th: 'ระบบจะตรวจสอบและประมวลผลอัตโนมัติ: Scale แอดขายดี +20% (พร้อม Cooldown 24h) และหยุดแอดขาดทุน', en: 'System will auto-scale winning ads (+20% with 24h cooldown) and auto-pause losing ads.' })
+                    : l({ lo: 'ປິດການເຮັດວຽກອັດຕະໂນມັດທັງໝົດ. ທ່ານຈະເປັນຜູ້ກວດ ແລະ ກົດປັບງົບ/ປິດແອດເອງ 100% ໂດຍບໍ່ມີການປ່ຽນແປງໃດໆ.', th: 'ปิดการทำงานอัตโนมัติทั้งหมด คุณเป็นผู้ตรวจสอบและกดปรับงบ/หยุดแอดเอง 100% โดยไม่มีการเปลี่ยนแปลงใดๆ', en: 'All automatic actions disabled. You manually review and trigger actions.' })
+                  }}
+                </p>
+              </div>
+            </div>
+            <v-switch
+              v-model="autoPilotConfig.enabled"
+              color="success"
+              hide-details
+              inset
+              @update:model-value="toggleAutoPilotMaster"
+            />
+          </div>
+        </v-card>
+
+        <!-- Tabs: Rules vs Activity Logs -->
+        <v-tabs v-model="autoPilotTab" color="primary" class="mb-4 autopilot-tabs">
+          <v-tab value="rules">
+            <v-icon start icon="mdi-tune" />
+            {{ l({ lo: 'ກົດລະບຽບ & ຄວາມປອດໄພ', th: 'กฎระเบียบ & ความปลอดภัย', en: 'Rules & Safety' }) }}
+          </v-tab>
+          <v-tab value="logs">
+            <v-icon start icon="mdi-history" />
+            {{ l({ lo: 'ປະຫວັດການເຮັດວຽກ (Audit Log)', th: 'ประวัติการทำงาน (Audit Log)', en: 'Activity Logs' }) }}
+            <v-chip size="x-small" class="ml-2 font-weight-bold" color="primary" variant="flat">{{ autoPilotLogs.length }}</v-chip>
+          </v-tab>
+        </v-tabs>
+
+        <v-window v-model="autoPilotTab">
+          <!-- Tab 1: Rules & Safety Settings -->
+          <v-window-item value="rules">
+            <div class="autopilot-rules-container">
+              <!-- Rule 1: Auto-Scale Winners -->
+              <v-card variant="outlined" class="rule-card pa-4 mb-4 rounded-lg">
+                <div class="d-flex align-center justify-space-between mb-3">
+                  <div class="d-flex align-center gap-2">
+                    <span class="rule-badge scale">🚀 ກົດທີ 1</span>
+                    <div>
+                      <h4 class="font-weight-bold mb-0">{{ l({ lo: 'ສະເກວງົບແອດຂາຍດີ (Auto-Scale Winners)', th: 'Scale งบแอดขายดี (Auto-Scale Winners)', en: 'Auto-Scale Winning Ads' }) }}</h4>
+                      <small class="text-medium-emphasis">{{ l({ lo: 'ເພີ່ມງົບອັດຕະໂນມັດໃຫ້ແອດທີ່ມີການຊື້ດີ ແລະ ຕົ້ນທຶນຢູ່ໃນເກນ', th: 'เพิ่มงบอัตโนมัติให้แอดที่มีการซื้อดีและต้นทุนอยู่ในเกณฑ์', en: 'Automatically increase budget for ads with strong purchases and low CPA' }) }}</small>
+                    </div>
+                  </div>
+                  <v-switch v-model="autoPilotConfig.autoScaleEnabled" color="success" hide-details density="compact" />
+                </div>
+
+                <div class="rule-inputs-grid" :class="{ 'opacity-50 pointer-events-none': !autoPilotConfig.autoScaleEnabled }">
+                  <v-text-field
+                    v-model.number="autoPilotConfig.scaleMinPurchases"
+                    type="number"
+                    min="1"
+                    step="1"
+                    :label="l({ lo: 'ຈຳນວນການຊື້ຢ່າງໜ້ອຍ (Purchases >=)', th: 'จำนวนการซื้อขั้นต่ำ (Purchases >=)', en: 'Min Purchases (>=' })"
+                    variant="outlined"
+                    density="compact"
+                    suffix="ອໍເດີ"
+                  />
+                  <v-text-field
+                    v-model.number="autoPilotConfig.scaleMaxCPA"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    :label="l({ lo: 'ຕົ້ນທຶນ/ຜົນລັບສູງສຸດ (CPA <=)', th: 'ต้นทุน/ผลลัพธ์สูงสุด (CPA <=)', en: 'Max CPA (<=' })"
+                    :placeholder="targetCost ? String(targetCost) : (currencyOffset === 1 ? '50,000' : '2.5')"
+                    :suffix="currency"
+                    variant="outlined"
+                    density="compact"
+                    :hint="l({ lo: 'ຖ້າປະວ່າງ ຈະໃຊ້ຄ່າເປົ້າໝາຍຮ້ານ', th: 'หากเว้นว่าง จะใช้เป้าหมายของร้าน', en: 'Leave empty to use store target CPA' })"
+                    persistent-hint
+                  />
+                  <v-text-field
+                    v-model.number="autoPilotConfig.scaleMaxFrequency"
+                    type="number"
+                    min="1"
+                    step="0.1"
+                    :label="l({ lo: 'Frequency ສູງສຸດ (<=)', th: 'Frequency สูงสุด (<=)', en: 'Max Frequency (<=' })"
+                    variant="outlined"
+                    density="compact"
+                  />
+                  <v-text-field
+                    v-model.number="autoPilotConfig.scalePercent"
+                    type="number"
+                    min="5"
+                    max="50"
+                    step="5"
+                    :label="l({ lo: 'ເປີເຊັນເພີ່ມງົບຕໍ່ຄັ້ງ', th: 'เปอร์เซ็นต์เพิ่มงบต่อครั้ง', en: 'Scale Percentage' })"
+                    suffix="%"
+                    variant="outlined"
+                    density="compact"
+                  />
+                  <v-text-field
+                    v-model.number="autoPilotConfig.scaleCooldownHours"
+                    type="number"
+                    min="1"
+                    max="72"
+                    step="1"
+                    :label="l({ lo: 'ໄລຍະ Cooldown ຕໍ່ແອດ', th: 'ระยะ Cooldown ต่อแอด', en: 'Cooldown Per Ad' })"
+                    suffix="ຊົ່ວໂມງ"
+                    variant="outlined"
+                    density="compact"
+                    :hint="l({ lo: 'ແນະນຳ 24h ເພື່ອບໍ່ໃຫ້ຫຼຸດ Meta Learning Phase', th: 'แนะนำ 24h เพื่อไม่ให้หลุด Learning Phase', en: 'Recommended 24h to protect learning phase' })"
+                    persistent-hint
+                  />
+                  <v-text-field
+                    v-model.number="autoPilotConfig.maxDailyBudgetCap"
+                    type="number"
+                    min="0"
+                    step="1"
+                    :label="l({ lo: 'ເພດານງົບສູງສຸດຕໍ່ມື້ (Budget Cap)', th: 'เพดานงบสูงสุดต่อวัน (Budget Cap)', en: 'Max Daily Budget Cap' })"
+                    :suffix="currency"
+                    variant="outlined"
+                    density="compact"
+                    :placeholder="currencyOffset === 1 ? '1,000,000' : '50'"
+                    :hint="l({ lo: 'ປ້ອງກັນງົບເກີນຄວບຄຸມ', th: 'ป้องกันงบเกินควบคุม', en: 'Safety limit against runaway budget' })"
+                    persistent-hint
+                  />
+                </div>
+              </v-card>
+
+              <!-- Rule 2: Auto-Stop Losers (Stop-Loss) -->
+              <v-card variant="outlined" class="rule-card pa-4 mb-4 rounded-lg">
+                <div class="d-flex align-center justify-space-between mb-3">
+                  <div class="d-flex align-center gap-2">
+                    <span class="rule-badge stop">🛑 ກົດທີ 2</span>
+                    <div>
+                      <h4 class="font-weight-bold mb-0">{{ l({ lo: 'ຢຸດແອດຂາດທຶນ (Auto-Stop Losers / Stop-Loss)', th: 'หยุดแอดขาดทุน (Auto-Stop Losers / Stop-Loss)', en: 'Auto-Stop Losing Ads (Stop-Loss)' }) }}</h4>
+                      <small class="text-medium-emphasis">{{ l({ lo: 'ປິດແອດອັດຕະໂນມັດເມື່ອໃຊ້ງົບເຖິງເກນ ແຕ່ບໍ່ມີການຊື້ ແລະ CTR ຕ່ຳ', th: 'หยุดแอดอัตโนมัติเมื่อใช้งบถึงเกณฑ์แต่ไม่มีการซื้อและ CTR ต่ำ', en: 'Automatically pause ads when spend hits threshold with 0 purchases and low CTR' }) }}</small>
+                    </div>
+                  </div>
+                  <v-switch v-model="autoPilotConfig.autoStopEnabled" color="error" hide-details density="compact" />
+                </div>
+
+                <div class="rule-inputs-grid" :class="{ 'opacity-50 pointer-events-none': !autoPilotConfig.autoStopEnabled }">
+                  <v-text-field
+                    v-model.number="autoPilotConfig.stopMinSpend"
+                    type="number"
+                    min="0"
+                    step="1"
+                    :label="l({ lo: 'ໃຊ້ງົບໄປແລ້ວຢ່າງໜ້ອຍ (Spend >=)', th: 'ใช้งบไปแล้วอย่างน้อย (Spend >=)', en: 'Spend Threshold (>=' })"
+                    :suffix="currency"
+                    :placeholder="currencyOffset === 1 ? '50,000' : '5.00'"
+                    variant="outlined"
+                    density="compact"
+                  />
+                  <v-text-field
+                    :model-value="0"
+                    readonly
+                    disabled
+                    :label="l({ lo: 'ຈຳນວນການຊື້ (Purchases == 0)', th: 'จำนวนการซื้อ (Purchases == 0)', en: 'Purchases (== 0)' })"
+                    suffix="ອໍເດີ"
+                    variant="outlined"
+                    density="compact"
+                    :hint="l({ lo: 'ຕ້ອງບໍ່ມີການຊື້ເລີຍ ຈຶ່ງເຂົ້າເກນຢຸດ', th: 'ต้องไม่มีการซื้อเลย จึงเข้าเกณฑ์หยุด', en: 'Must have 0 purchases to trigger' })"
+                    persistent-hint
+                  />
+                  <v-text-field
+                    v-model.number="autoPilotConfig.stopMaxCTR"
+                    type="number"
+                    min="0.1"
+                    max="5"
+                    step="0.1"
+                    :label="l({ lo: 'CTR ຕ່ຳກວ່າ (<)', th: 'CTR ต่ำกว่า (<)', en: 'CTR Below (<)' })"
+                    suffix="%"
+                    variant="outlined"
+                    density="compact"
+                    :hint="l({ lo: 'CTR ຕ່ຳສະແດງວ່າ Creative ບໍ່ດຶງດູດ', th: 'CTR ต่ำแสดงว่าครีเอทีฟไม่ดึงดูด', en: 'Low CTR indicates poor engagement' })"
+                    persistent-hint
+                  />
+                </div>
+              </v-card>
+
+              <!-- Safety Guarantee Callout -->
+              <v-alert type="info" variant="tonal" density="compact" class="rounded-lg">
+                <div class="d-flex align-center gap-2">
+                  <v-icon icon="mdi-shield-check" size="20" />
+                  <div>
+                    <strong>{{ l({ lo: 'ລະບົບຄວາມປອດໄພ 3 ຊັ້ນ (3-Layer Safety):', th: 'ระบบความปลอดภัย 3 ชั้น (3-Layer Safety):', en: '3-Layer Safety Protection:' }) }}</strong>
+                    <ul class="mb-0 mt-1 pl-4 text-caption">
+                      <li>{{ l({ lo: '1. Cooldown 24h: ປ້ອງກັນບໍ່ໃຫ້ແອດຖືກສະເກວຊ້ຳຊ້ອນໃນມື້ດຽວກັນ ຈົນເສຍ Learning Phase', th: '1. Cooldown 24h: ป้องกันการ Scale ซ้ำซ้อนในวันเดียวกัน จนหลุด Learning Phase', en: '1. 24h Cooldown: Prevents repeated scaling in a single day, protecting learning phase' }) }}</li>
+                      <li>{{ l({ lo: '2. Budget Cap: ຕັ້ງເພດານສູງສຸດຕໍ່ມື້ ປ້ອງກັນງົບເກີນຄວບຄຸມ', th: '2. Budget Cap: ตั้งเพดานสูงสุดต่อวัน ป้องกันงบไหลเกินควบคุม', en: '2. Daily Budget Cap: Limits maximum daily spend' }) }}</li>
+                      <li>{{ l({ lo: '3. Audit Log: ບັນທຶກທຸກການສະເກວ ແລະ ການປິດແອດ ໃຫ້ທ່ານກວດສອບຍ້ອນຫຼັງໄດ້ຕະຫຼອດເວລາ', th: '3. Audit Log: บันทึกทุกการ Scale และการหยุดแอด ให้คุณตรวจสอบย้อนหลังได้ตลอดเวลา', en: '3. Audit Log: Records every single action with timestamp and before/after values' }) }}</li>
+                    </ul>
+                  </div>
+                </div>
+              </v-alert>
+            </div>
+          </v-window-item>
+
+          <!-- Tab 2: Activity Audit Log -->
+          <v-window-item value="logs">
+            <div class="autopilot-logs-container">
+              <div class="d-flex align-center justify-space-between mb-3">
+                <span class="text-caption text-medium-emphasis">
+                  {{ l({ lo: `ທັງໝົດ ${autoPilotLogs.length} ລາຍການຫຼ້າສຸດ`, th: `ทั้งหมด ${autoPilotLogs.length} รายการล่าสุด`, en: `Total ${autoPilotLogs.length} recent event(s)` }) }}
+                </span>
+                <v-btn
+                  v-if="autoPilotLogs.length"
+                  size="small"
+                  variant="text"
+                  color="error"
+                  prepend-icon="mdi-trash-can-outline"
+                  @click="clearAutoPilotLogs"
+                >
+                  {{ l({ lo: 'ລຶບປະຫວັດທັງໝົດ', th: 'ล้างประวัติทั้งหมด', en: 'Clear logs' }) }}
+                </v-btn>
+              </div>
+
+              <div v-if="autoPilotLogs.length" class="autopilot-logs-list">
+                <div v-for="log in autoPilotLogs" :key="log.id" class="autopilot-log-entry" :class="log.action.toLowerCase()">
+                  <div class="log-icon-col">
+                    <v-avatar size="28" :color="log.action === 'SCALE' ? 'success' : 'error'" variant="tonal">
+                      <v-icon :icon="log.action === 'SCALE' ? 'mdi-rocket-launch' : 'mdi-pause'" size="16" />
+                    </v-avatar>
+                  </div>
+                  <div class="log-content-col">
+                    <div class="d-flex align-center justify-space-between flex-wrap gap-1">
+                      <strong class="log-entity-name">{{ log.entityName }}</strong>
+                      <span class="log-time">{{ new Date(log.timestamp).toLocaleString() }}</span>
+                    </div>
+                    <div class="log-detail">{{ log.detail }}</div>
+                    <div v-if="log.beforeValue && log.afterValue" class="log-values">
+                      <span class="text-medium-emphasis">{{ log.beforeValue }}</span>
+                      <v-icon icon="mdi-arrow-right" size="14" class="mx-1" />
+                      <strong class="text-success">{{ log.afterValue }}</strong>
+                    </div>
+                  </div>
+                  <div class="log-status-col">
+                    <v-icon :icon="log.success ? 'mdi-check-circle' : 'mdi-alert-circle'" :color="log.success ? 'success' : 'error'" size="18" />
+                  </div>
+                </div>
+              </div>
+
+              <div v-else class="empty-inline compact pa-8 text-center">
+                <v-icon icon="mdi-clipboard-text-clock-outline" size="48" color="grey" class="mb-2" />
+                <h4 class="font-weight-bold">{{ l({ lo: 'ຍັງບໍ່ມີປະຫວັດການເຮັດວຽກ', th: 'ยังไม่มีประวัติการทำงาน', en: 'No activity logs yet' }) }}</h4>
+                <p class="text-caption text-medium-emphasis mb-0">
+                  {{ l({ lo: 'ເມື່ອ Auto-Pilot ສະເກວງົບ ຫຼື ຢຸດແອດຂາດທຶນ ລະບົບຈະບັນທຶກລາຍລະອຽດໄວ້ທີ່ນີ້', th: 'เมื่อ Auto-Pilot ทำการ Scale งบ หรือหยุดแอดขาดทุน ระบบจะบันทึกรายละเอียดไว้ที่นี่', en: 'When Auto-Pilot scales budgets or pauses losing ads, entries will be recorded here.' }) }}
+                </p>
+              </div>
+            </div>
+          </v-window-item>
+        </v-window>
+      </v-card-text>
+
+      <v-card-actions class="dialog-actions pa-4 border-t">
+        <v-btn
+          color="success"
+          variant="flat"
+          prepend-icon="mdi-flash"
+          :loading="runningAutoPilot"
+          class="font-weight-bold px-4"
+          @click="runAutoPilot(true)"
+        >
+          {{ l({ lo: '⚡ ປະມວນຜົນດຽວນີ້ (Run Now)', th: '⚡ ประมวลผลตอนนี้ (Run Now)', en: '⚡ Run Now' }) }}
+        </v-btn>
+        <v-spacer />
+        <v-btn variant="text" @click="autoPilotModalOpen = false">
+          {{ l({ lo: 'ປິດ', th: 'ปิด', en: 'Close' }) }}
+        </v-btn>
+        <v-btn color="primary" variant="flat" prepend-icon="mdi-content-save" class="font-weight-bold px-4" @click="saveAutoPilotConfig(); autoPilotModalOpen = false; success = l({ lo: 'ບັນທຶກການຕັ້ງຄ່າ Auto-Pilot ສຳເລັດແລ້ວ', th: 'บันทึกการตั้งค่า Auto-Pilot สำเร็จแล้ว', en: 'Auto-Pilot settings saved successfully.' })">
+          {{ l({ lo: 'ບັນທຶກການຕັ້ງຄ່າ', th: 'บันทึกการตั้งค่า', en: 'Save Settings' }) }}
         </v-btn>
       </v-card-actions>
     </v-card>
@@ -1668,5 +2589,238 @@ onMounted(async () => {
   .dialog-actions{display:grid;grid-template-columns:1fr}
   .dialog-actions .v-spacer{display:none}
   .dialog-actions .v-btn{width:100%;margin:0}
+}
+
+/* --- Auto-Pilot & Dual-System Styles --- */
+.autopilot-head-btn {
+  position: relative;
+  letter-spacing: 0;
+}
+.autopilot-dot-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #22c55e;
+  box-shadow: 0 0 0 rgba(34, 197, 94, 0.4);
+  animation: pulse-dot 1.8s infinite;
+  margin-left: 6px;
+  display: inline-block;
+}
+@keyframes pulse-dot {
+  0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+  70% { box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+}
+
+.system-mode-banner {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 14px 18px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  transition: border-color 0.2s, background 0.2s;
+}
+.system-mode-banner.autopilot-active {
+  border-color: rgba(34, 197, 94, 0.38);
+  background: linear-gradient(135deg, var(--color-surface), rgba(34, 197, 94, 0.05));
+}
+.mode-badge-wrap {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 280px;
+}
+.mode-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.mode-pill.autopilot {
+  background: rgba(34, 197, 94, 0.15);
+  color: #16a34a;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+}
+.mode-pill.manual {
+  background: rgba(99, 102, 241, 0.12);
+  color: #6366f1;
+  border: 1px solid rgba(99, 102, 241, 0.25);
+}
+.mode-desc {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.mode-title-text {
+  font-size: 13px;
+  line-height: 1.4;
+}
+.mode-rules-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 3px;
+}
+.rule-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+.rule-chip-muted {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+.mode-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.mode-switch-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 10px;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+}
+.mode-switch-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+}
+
+.ad-scale-status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  width: max-content;
+}
+.ad-scale-status-pill.scale_ready {
+  background: rgba(34, 197, 94, 0.15);
+  color: #16a34a;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+.ad-scale-status-pill.stop {
+  background: rgba(239, 68, 68, 0.15);
+  color: #dc2626;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+.ad-scale-status-pill.cooldown {
+  background: rgba(245, 158, 11, 0.15);
+  color: #d97706;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.master-switch-card.is-active {
+  border-color: rgba(34, 197, 94, 0.35);
+  background: rgba(34, 197, 94, 0.05);
+}
+.rule-card {
+  border-color: var(--color-border);
+  background: var(--color-surface);
+}
+.rule-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 800;
+}
+.rule-badge.scale {
+  background: rgba(34, 197, 94, 0.15);
+  color: #16a34a;
+}
+.rule-badge.stop {
+  background: rgba(239, 68, 68, 0.15);
+  color: #dc2626;
+}
+.rule-inputs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+.autopilot-logs-list {
+  display: grid;
+  gap: 8px;
+}
+.autopilot-log-entry {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 11px 14px;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+}
+.autopilot-log-entry.scale {
+  border-left: 4px solid #22c55e;
+}
+.autopilot-log-entry.pause {
+  border-left: 4px solid #ef4444;
+}
+.log-content-col {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+.log-entity-name {
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.log-time {
+  font-size: 10px;
+  color: var(--color-text-muted);
+}
+.log-detail {
+  font-size: 11.5px;
+  color: var(--color-text-secondary);
+}
+.log-values {
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  margin-top: 2px;
+}
+
+@media (max-width: 768px) {
+  .system-mode-banner {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .mode-controls {
+    justify-content: space-between;
+  }
+  .mode-switch-box {
+    flex: 1;
+    justify-content: space-between;
+  }
 }
 </style>
