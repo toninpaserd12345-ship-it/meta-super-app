@@ -261,6 +261,10 @@ export interface MetaInsightItem {
   conversionValue?: number
   roas?: number
   results: MetaInsightResult
+  messagesCount?: number
+  costPerMessage?: number
+  purchasesCount?: number
+  costPerPurchase?: number
   qualityRanking?: string
   engagementRateRanking?: string
   conversionRateRanking?: string
@@ -275,6 +279,8 @@ export interface MetaInsightPoint {
   spend?: number
   results?: number
   costPerResult?: number
+  messagesCount?: number
+  costPerMessage?: number
   linkCtr?: number
   frequency?: number
 }

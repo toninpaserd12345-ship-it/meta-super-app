@@ -2746,16 +2746,99 @@ func firstROAS(groups ...[]graphInsightAction) *float64 {
 	return nil
 }
 
+func extractMessagingMetric(actions, costs []graphInsightAction) (*float64, *float64) {
+	patterns := []func(string) bool{
+		func(t string) bool { return strings.Contains(t, "messaging_conversation_started") },
+		func(t string) bool { return strings.Contains(t, "messaging_first_reply") },
+		func(t string) bool { return strings.Contains(t, "contact_total") },
+		func(t string) bool { return strings.Contains(t, "messaging") },
+	}
+
+	for _, matcher := range patterns {
+		for _, a := range actions {
+			if matcher(a.ActionType) {
+				count := numberPointer(a.Value)
+				var cost *float64
+				for _, c := range costs {
+					if c.ActionType == a.ActionType || matcher(c.ActionType) {
+						cost = numberPointer(c.Value)
+						break
+					}
+				}
+				if count != nil {
+					return count, cost
+				}
+			}
+		}
+	}
+	return nil, nil
+}
+
+func extractPurchaseMetric(actions, costs []graphInsightAction) (*float64, *float64) {
+	patterns := []func(string) bool{
+		func(t string) bool { return t == "purchase" || t == "omni_purchase" },
+		func(t string) bool { return strings.HasSuffix(t, "_purchase") || strings.Contains(t, ".purchase") },
+	}
+
+	for _, matcher := range patterns {
+		for _, a := range actions {
+			if matcher(a.ActionType) {
+				count := numberPointer(a.Value)
+				var cost *float64
+				for _, c := range costs {
+					if c.ActionType == a.ActionType || matcher(c.ActionType) {
+						cost = numberPointer(c.Value)
+						break
+					}
+				}
+				if count != nil {
+					return count, cost
+				}
+			}
+		}
+	}
+	return nil, nil
+}
+
 func insightItem(level string, row graphInsightRow) domain.MetaInsightItem {
 	result := selectedInsightResult(row.Actions, row.CostPerActionType)
+	msgCount, msgCost := extractMessagingMetric(row.Actions, row.CostPerActionType)
+	purchCount, purchCost := extractPurchaseMetric(row.Actions, row.CostPerActionType)
+
+	spend := numberPointer(row.Spend)
+	if msgCount == nil && (strings.Contains(result.Type, "messaging") || strings.Contains(result.Type, "conversation")) {
+		msgCount = result.Value
+		msgCost = result.Cost
+	}
+	if purchCount == nil && strings.Contains(result.Type, "purchase") {
+		purchCount = result.Value
+		purchCost = result.Cost
+	}
+
+	if msgCost == nil && msgCount != nil && *msgCount > 0 && spend != nil && *spend > 0 {
+		c := *spend / *msgCount
+		msgCost = &c
+	}
+	if purchCost == nil && purchCount != nil && *purchCount > 0 && spend != nil && *spend > 0 {
+		c := *spend / *purchCount
+		purchCost = &c
+	}
+
 	item := domain.MetaInsightItem{
 		EntityType: level, CampaignID: row.CampaignID, CampaignName: row.CampaignName,
 		AdSetID: row.AdSetID, AdSetName: row.AdSetName, AdID: row.AdID, AdName: row.AdName,
-		Spend: numberPointer(row.Spend), Impressions: numberPointer(row.Impressions), Reach: numberPointer(row.Reach),
+		Spend: spend, Impressions: numberPointer(row.Impressions), Reach: numberPointer(row.Reach),
 		Frequency: numberPointer(row.Frequency), LinkClicks: numberPointer(row.InlineLinkClicks), LinkCTR: numberPointer(row.InlineLinkClickCTR),
 		LinkCPC: numberPointer(row.CostPerInlineLinkClick), CPM: numberPointer(row.CPM), Results: result,
-		ConversionValue: selectedConversionValue(result.Type, row.ActionValues), ROAS: firstROAS(row.PurchaseROAS, row.WebsitePurchaseROAS),
-		QualityRanking: row.QualityRanking, EngagementRateRanking: row.EngagementRanking, ConversionRateRanking: row.ConversionRanking,
+		MessagesCount:         msgCount,
+		CostPerMessage:        msgCost,
+		PurchasesCount:        purchCount,
+		CostPerPurchase:       purchCost,
+		ConversionValue:       selectedConversionValue(result.Type, row.ActionValues),
+		ROAS:                  firstROAS(row.PurchaseROAS, row.WebsitePurchaseROAS),
+		QualityRanking:        row.QualityRanking,
+		EngagementRateRanking: row.EngagementRanking,
+		ConversionRateRanking: row.ConversionRanking,
 	}
 	if item.ROAS == nil && item.ConversionValue != nil && item.Spend != nil && *item.Spend > 0 {
 		value := *item.ConversionValue / *item.Spend
@@ -3034,7 +3117,27 @@ func (g *GraphConnector) AdsInsights(ctx context.Context, _ string, accountID, a
 	trend := make([]domain.MetaInsightPoint, 0, len(daily))
 	for _, row := range daily {
 		result := selectedInsightResult(row.Actions, row.CostPerActionType)
-		trend = append(trend, domain.MetaInsightPoint{Date: row.DateStart, Spend: numberPointer(row.Spend), Results: result.Value, Cost: result.Cost, LinkCTR: numberPointer(row.InlineLinkClickCTR), Frequency: numberPointer(row.Frequency)})
+		msgCount, msgCost := extractMessagingMetric(row.Actions, row.CostPerActionType)
+		if msgCount == nil && (strings.Contains(result.Type, "messaging") || strings.Contains(result.Type, "conversation")) {
+			msgCount = result.Value
+			msgCost = result.Cost
+		}
+		if msgCost == nil && msgCount != nil && *msgCount > 0 && row.Spend != "" {
+			if sp := numberPointer(row.Spend); sp != nil && *sp > 0 {
+				c := *sp / *msgCount
+				msgCost = &c
+			}
+		}
+		trend = append(trend, domain.MetaInsightPoint{
+			Date:           row.DateStart,
+			Spend:          numberPointer(row.Spend),
+			Results:        result.Value,
+			Cost:           result.Cost,
+			MessagesCount:  msgCount,
+			CostPerMessage: msgCost,
+			LinkCTR:        numberPointer(row.InlineLinkClickCTR),
+			Frequency:      numberPointer(row.Frequency),
+		})
 	}
 	warnings := []string{"Recommendations are decision support, not automatic proof of profitability. Compare cost per result with your store's real break-even cost."}
 	var summary *domain.MetaInsightItem

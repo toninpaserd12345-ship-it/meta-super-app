@@ -124,6 +124,10 @@ type MetaInsightItem struct {
 	ConversionValue       *float64          `json:"conversionValue,omitempty"`
 	ROAS                  *float64          `json:"roas,omitempty"`
 	Results               MetaInsightResult `json:"results"`
+	MessagesCount         *float64          `json:"messagesCount,omitempty"`
+	CostPerMessage        *float64          `json:"costPerMessage,omitempty"`
+	PurchasesCount        *float64          `json:"purchasesCount,omitempty"`
+	CostPerPurchase       *float64          `json:"costPerPurchase,omitempty"`
 	QualityRanking        string            `json:"qualityRanking,omitempty"`
 	EngagementRateRanking string            `json:"engagementRateRanking,omitempty"`
 	ConversionRateRanking string            `json:"conversionRateRanking,omitempty"`
@@ -134,12 +138,14 @@ type MetaInsightItem struct {
 }
 
 type MetaInsightPoint struct {
-	Date      string   `json:"date"`
-	Spend     *float64 `json:"spend,omitempty"`
-	Results   *float64 `json:"results,omitempty"`
-	Cost      *float64 `json:"costPerResult,omitempty"`
-	LinkCTR   *float64 `json:"linkCtr,omitempty"`
-	Frequency *float64 `json:"frequency,omitempty"`
+	Date           string   `json:"date"`
+	Spend          *float64 `json:"spend,omitempty"`
+	Results        *float64 `json:"results,omitempty"`
+	Cost           *float64 `json:"costPerResult,omitempty"`
+	MessagesCount  *float64 `json:"messagesCount,omitempty"`
+	CostPerMessage *float64 `json:"costPerMessage,omitempty"`
+	LinkCTR        *float64 `json:"linkCtr,omitempty"`
+	Frequency      *float64 `json:"frequency,omitempty"`
 }
 
 type MetaInsightsReport struct {

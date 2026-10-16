@@ -318,72 +318,141 @@ const isFiltered = computed(() => {
   return selectedProductId.value !== 'all' || statusFilter.value !== 'all' || !!search.value.trim()
 })
 
-const summary = computed<MetaInsightItem | undefined>(() => {
-  if (!isFiltered.value && report.value?.summary) {
-    return report.value.summary
-  }
+function isMessagingAction(type?: string): boolean {
+  if (!type) return false
+  const t = type.toLowerCase()
+  return t.includes('messaging') || t.includes('conversation') || t.includes('reply') || t.includes('contact')
+}
 
-  const list = items.value
-  if (!list.length) {
-    return {
+function getMessagesCount(item?: MetaInsightItem): number | undefined {
+  if (!item) return undefined
+  if (item.messagesCount != null && item.messagesCount > 0) return item.messagesCount
+  if (isMessagingAction(item.results?.type) && item.results?.value != null && item.results.value > 0) return item.results.value
+  return undefined
+}
+
+function getCostPerMessage(item?: MetaInsightItem): number | undefined {
+  if (!item) return undefined
+  if (item.costPerMessage != null && item.costPerMessage > 0) return item.costPerMessage
+  if (isMessagingAction(item.results?.type) && item.results?.cost != null && item.results.cost > 0) return item.results.cost
+  const count = getMessagesCount(item)
+  if (count && count > 0 && item.spend && item.spend > 0) return item.spend / count
+  return undefined
+}
+
+function getPurchasesCount(item?: MetaInsightItem): number | undefined {
+  if (!item) return undefined
+  if (item.purchasesCount != null && item.purchasesCount > 0) return item.purchasesCount
+  if (item.results?.type?.toLowerCase().includes('purchase') && item.results?.value != null && item.results.value > 0) return item.results.value
+  return undefined
+}
+
+function getCostPerPurchase(item?: MetaInsightItem): number | undefined {
+  if (!item) return undefined
+  if (item.costPerPurchase != null && item.costPerPurchase > 0) return item.costPerPurchase
+  if (item.results?.type?.toLowerCase().includes('purchase') && item.results?.cost != null && item.results.cost > 0) return item.results.cost
+  const count = getPurchasesCount(item)
+  if (count && count > 0 && item.spend && item.spend > 0) return item.spend / count
+  return undefined
+}
+
+const summary = computed<MetaInsightItem | undefined>(() => {
+  let base: MetaInsightItem | undefined
+  if (!isFiltered.value && report.value?.summary) {
+    base = { ...report.value.summary }
+  } else {
+    const list = items.value
+    if (!list.length) {
+      return {
+        entityType: 'account',
+        entityId: 'filtered',
+        entityName: 'Filtered',
+        spend: 0,
+        impressions: 0,
+        reach: 0,
+        frequency: 0,
+        linkClicks: 0,
+        linkCtr: 0,
+        conversionValue: 0,
+        roas: undefined,
+        results: { type: report.value?.summary?.results?.type || 'purchase', value: 0, cost: 0 },
+        messagesCount: 0,
+        costPerMessage: 0,
+        purchasesCount: 0,
+        costPerPurchase: 0,
+      }
+    }
+
+    let totalSpend = 0
+    let totalImpressions = 0
+    let totalReach = 0
+    let totalLinkClicks = 0
+    let totalResults = 0
+    let totalConversionValue = 0
+    let resultsType = report.value?.summary?.results?.type || 'purchase'
+
+    for (const item of list) {
+      if (item.spend) totalSpend += item.spend
+      if (item.impressions) totalImpressions += item.impressions
+      if (item.reach) totalReach += item.reach
+      if (item.linkClicks) totalLinkClicks += item.linkClicks
+      if (item.results?.value) {
+        totalResults += item.results.value
+        if (item.results.type) resultsType = item.results.type
+      }
+      if (item.conversionValue) totalConversionValue += item.conversionValue
+    }
+
+    const costPerResult = totalResults > 0 ? totalSpend / totalResults : (totalSpend > 0 ? 0 : undefined)
+    const linkCtr = totalImpressions > 0 ? (totalLinkClicks / totalImpressions) * 100 : undefined
+    const frequency = totalReach > 0 ? totalImpressions / totalReach : undefined
+    const roas = totalSpend > 0 && totalConversionValue > 0 ? totalConversionValue / totalSpend : undefined
+
+    base = {
       entityType: 'account',
       entityId: 'filtered',
-      entityName: 'Filtered',
-      spend: 0,
-      impressions: 0,
-      reach: 0,
-      frequency: 0,
-      linkClicks: 0,
-      linkCtr: 0,
-      conversionValue: 0,
-      roas: undefined,
-      results: { type: report.value?.summary?.results?.type || 'purchase', value: 0, cost: 0 },
+      entityName: 'Filtered Summary',
+      spend: totalSpend,
+      impressions: totalImpressions,
+      reach: totalReach,
+      frequency,
+      linkClicks: totalLinkClicks,
+      linkCtr,
+      conversionValue: totalConversionValue > 0 ? totalConversionValue : undefined,
+      roas,
+      results: {
+        type: resultsType,
+        value: totalResults,
+        cost: costPerResult,
+      },
     }
   }
 
-  let totalSpend = 0
-  let totalImpressions = 0
-  let totalReach = 0
-  let totalLinkClicks = 0
-  let totalResults = 0
-  let totalConversionValue = 0
-  let resultsType = report.value?.summary?.results?.type || 'purchase'
-
-  for (const item of list) {
-    if (item.spend) totalSpend += item.spend
-    if (item.impressions) totalImpressions += item.impressions
-    if (item.reach) totalReach += item.reach
-    if (item.linkClicks) totalLinkClicks += item.linkClicks
-    if (item.results?.value) {
-      totalResults += item.results.value
-      if (item.results.type) resultsType = item.results.type
-    }
-    if (item.conversionValue) totalConversionValue += item.conversionValue
+  // Calculate sum of messages and purchases across items
+  const targetList = isFiltered.value ? items.value : (report.value?.items || [])
+  let sumMessages = 0
+  let sumPurchases = 0
+  for (const item of targetList) {
+    const m = getMessagesCount(item)
+    if (m) sumMessages += m
+    const p = getPurchasesCount(item)
+    if (p) sumPurchases += p
   }
 
-  const costPerResult = totalResults > 0 ? totalSpend / totalResults : (totalSpend > 0 ? 0 : undefined)
-  const linkCtr = totalImpressions > 0 ? (totalLinkClicks / totalImpressions) * 100 : undefined
-  const frequency = totalReach > 0 ? totalImpressions / totalReach : undefined
-  const roas = totalSpend > 0 && totalConversionValue > 0 ? totalConversionValue / totalSpend : undefined
-
-  return {
-    entityType: 'account',
-    entityId: 'filtered',
-    entityName: 'Filtered Summary',
-    spend: totalSpend,
-    impressions: totalImpressions,
-    reach: totalReach,
-    frequency,
-    linkClicks: totalLinkClicks,
-    linkCtr,
-    conversionValue: totalConversionValue > 0 ? totalConversionValue : undefined,
-    roas,
-    results: {
-      type: resultsType,
-      value: totalResults,
-      cost: costPerResult,
-    },
+  if (base.messagesCount == null || base.messagesCount === 0) {
+    base.messagesCount = sumMessages > 0 ? sumMessages : undefined
   }
+  if (base.costPerMessage == null && base.messagesCount && base.spend) {
+    base.costPerMessage = base.messagesCount > 0 ? base.spend / base.messagesCount : undefined
+  }
+  if (base.purchasesCount == null || base.purchasesCount === 0) {
+    base.purchasesCount = sumPurchases > 0 ? sumPurchases : undefined
+  }
+  if (base.costPerPurchase == null && base.purchasesCount && base.spend) {
+    base.costPerPurchase = base.purchasesCount > 0 ? base.spend / base.purchasesCount : undefined
+  }
+
+  return base
 })
 
 const currency = computed(() => report.value?.currency || 'USD')
@@ -418,15 +487,16 @@ const audienceCoverage = (item: MetaInsightItem) => {
 }
 const resultLabel = (type?: string) => {
   const labels: Record<string, { lo: string; th: string; en: string }> = {
-    purchase: { lo: 'ການຊື້', th: 'การซื้อ', en: 'Purchases' },
-    lead: { lo: 'ລີດ', th: 'ลีด', en: 'Leads' },
-    'onsite_conversion.lead_grouped': { lo: 'ລີດ', th: 'ลีด', en: 'Leads' },
-    messaging_conversation_started_7d: { lo: 'ການສົນທະນາ', th: 'การสนทนา', en: 'Conversations' },
-    'onsite_conversion.messaging_first_reply': { lo: 'ຕອບຄັ້ງທຳອິດ', th: 'ตอบครั้งแรก', en: 'First replies' },
+    purchase: { lo: 'ການຊື້ (Orders)', th: 'การซื้อ (Orders)', en: 'Purchases' },
+    lead: { lo: 'ລີດ (Leads)', th: 'ลีด (Leads)', en: 'Leads' },
+    'onsite_conversion.lead_grouped': { lo: 'ລີດ (Leads)', th: 'ลีด (Leads)', en: 'Leads' },
+    messaging_conversation_started_7d: { lo: 'ຄົນສົ່ງຂໍ້ຄວາມ (Conversations)', th: 'คนทักข้อความ (Conversations)', en: 'Conversations' },
+    'onsite_conversion.messaging_first_reply': { lo: 'ຄົນສົ່ງຂໍ້ຄວາມ (Conversations)', th: 'คนทักข้อความ (Conversations)', en: 'Conversations' },
+    'onsite_conversion.messaging_conversation_started_7d': { lo: 'ຄົນສົ່ງຂໍ້ຄວາມ (Conversations)', th: 'คนทักข้อความ (Conversations)', en: 'Conversations' },
     landing_page_view: { lo: 'ເບິ່ງໜ້າເວັບ', th: 'ดูหน้าเว็บ', en: 'Landing-page views' },
     link_click: { lo: 'ຄລິກລິ້ງ', th: 'คลิกลิงก์', en: 'Link clicks' },
   }
-  return type && labels[type] ? l(labels[type]) : l({ lo: 'ຜົນລັບ', th: 'ผลลัพธ์', en: 'Results' })
+  return type && labels[type] ? l(labels[type]) : l({ lo: 'ຜົນລັບ (Results)', th: 'ผลลัพธ์ (Results)', en: 'Results' })
 }
 
 async function setPreset(value: string) {
@@ -1691,7 +1761,7 @@ onMounted(async () => {
       </v-btn>
     </div>
 
-    <!-- Modern 5-KPI Cards Grid with VAT Breakdown -->
+    <!-- Modern 6-KPI Cards Grid with VAT Breakdown and Messaging Conversations -->
     <section class="app-kpi-grid" id="tour-kpi-summary" :class="{ 'tour-spotlight-active': isLiveTourActive && liveTourStep === 3 }" aria-label="Ads summary">
       <article class="app-kpi-card accent-primary">
         <div class="kpi-header">
@@ -1705,17 +1775,36 @@ onMounted(async () => {
         </div>
       </article>
 
+      <!-- KPI Card 2: Messaging Conversations (ຄົນສົ່ງຂໍ້ຄວາມ) -->
       <article class="app-kpi-card accent-info">
         <div class="kpi-header">
-          <span class="kpi-label">{{ resultLabel(summary?.results.type) }}</span>
-          <span class="kpi-icon"><v-icon icon="mdi-bullseye-arrow" size="16" /></span>
+          <span class="kpi-label">{{ l({ lo: 'ຄົນສົ່ງຂໍ້ຄວາມ (Conversations)', th: 'คนทักข้อความ (Conversations)', en: 'Conversations Started' }) }}</span>
+          <span class="kpi-icon"><v-icon icon="mdi-message-text-outline" size="16" /></span>
         </div>
-        <strong class="kpi-value">{{ fmt(summary?.results.value, 0) }}</strong>
+        <strong class="kpi-value">
+          {{ getMessagesCount(summary) != null ? fmt(getMessagesCount(summary), 0) : (isMessagingAction(summary?.results?.type) && summary?.results?.value != null ? fmt(summary.results.value, 0) : '0') }}
+          <small class="text-body-2 font-weight-medium">ຄົນ</small>
+        </strong>
         <div class="kpi-sub">
-          <span>ຕົ້ນທຶນ/ຜົນລັບ: <b>{{ money(summary?.results.cost) }}</b></span>
+          <span>{{ l({ lo: 'ຕົ້ນທຶນ/ຂໍ້ຄວາມ:', th: 'ต้นทุน/ข้อความ:', en: 'Cost/Msg:' }) }} <b>{{ getCostPerMessage(summary) != null ? money(getCostPerMessage(summary)) : (isMessagingAction(summary?.results?.type) && summary?.results?.cost != null ? money(summary.results.cost) : '—') }}</b></span>
         </div>
       </article>
 
+      <!-- KPI Card 3: Purchases / Results (ການຊື້ / ຜົນລັບ) -->
+      <article class="app-kpi-card accent-success">
+        <div class="kpi-header">
+          <span class="kpi-label">{{ getPurchasesCount(summary) != null ? l({ lo: 'ການຊື້ (Purchases / Orders)', th: 'การซื้อ (Purchases / Orders)', en: 'Purchases / Orders' }) : resultLabel(summary?.results?.type) }}</span>
+          <span class="kpi-icon"><v-icon icon="mdi-cart-check" size="16" /></span>
+        </div>
+        <strong class="kpi-value">
+          {{ getPurchasesCount(summary) != null ? fmt(getPurchasesCount(summary), 0) + ' ອໍເດີ' : fmt(summary?.results?.value, 0) }}
+        </strong>
+        <div class="kpi-sub">
+          <span>{{ getPurchasesCount(summary) != null ? 'CPA: ' : l({ lo: 'ຕົ້ນທຶນ/ຜົນ:', th: 'ต้นทุน/ผล:', en: 'Cost/res:' }) }} <b>{{ getCostPerPurchase(summary) != null ? money(getCostPerPurchase(summary)) : money(summary?.results?.cost) }}</b></span>
+        </div>
+      </article>
+
+      <!-- KPI Card 4: CTR -->
       <article class="app-kpi-card accent-purple">
         <div class="kpi-header">
           <span class="kpi-label">Link CTR</span>
@@ -1727,6 +1816,7 @@ onMounted(async () => {
         </div>
       </article>
 
+      <!-- KPI Card 5: Frequency & Reach -->
       <article class="app-kpi-card accent-warning">
         <div class="kpi-header">
           <span class="kpi-label">Frequency / Reach</span>
@@ -1738,7 +1828,8 @@ onMounted(async () => {
         </div>
       </article>
 
-      <article class="app-kpi-card accent-success">
+      <!-- KPI Card 6: ROAS & Conversion Value -->
+      <article class="app-kpi-card accent-info">
         <div class="kpi-header">
           <span class="kpi-label">ROAS / Conversion</span>
           <span class="kpi-icon"><v-icon icon="mdi-chart-line" size="16" /></span>
@@ -1870,12 +1961,37 @@ onMounted(async () => {
                     {{ buyingOpportunity(item).badgeText }}
                   </v-chip>
                 </div>
+                <!-- Prominent Conversion Badges (Messages & Orders) -->
+                <div v-if="getMessagesCount(item) != null || getPurchasesCount(item) != null" class="d-flex align-center gap-1 mt-1 flex-wrap">
+                  <v-chip v-if="getMessagesCount(item) != null" size="x-small" color="info" variant="tonal" class="font-weight-bold">
+                    <v-icon icon="mdi-message-text-outline" start size="12" />
+                    {{ fmt(getMessagesCount(item), 0) }} ຂໍ້ຄວາມ
+                    <template v-if="getCostPerMessage(item)"> ({{ money(getCostPerMessage(item)) }})</template>
+                  </v-chip>
+                  <v-chip v-if="getPurchasesCount(item) != null" size="x-small" color="success" variant="tonal" class="font-weight-bold">
+                    <v-icon icon="mdi-cart-check" start size="12" />
+                    {{ fmt(getPurchasesCount(item), 0) }} ຊື້
+                    <template v-if="getCostPerPurchase(item)"> ({{ money(getCostPerPurchase(item)) }})</template>
+                  </v-chip>
+                </div>
               </span>
             </span>
             <span class="delivery-chip" :class="statusClass(statusFor(item))"><span class="status-dot" :class="statusClass(statusFor(item))" />{{ statusLabel(statusFor(item)) }}</span>
             <span class="metric metric-spend mobile-key"><small>{{ l({lo:'ໃຊ້ຈ່າຍ',th:'ใช้จ่าย',en:'Spend'}) }}</small><strong>{{ money(item.spend) }}</strong></span>
-            <span class="metric metric-results mobile-key"><small>{{ resultLabel(item.results.type) }}</small><strong>{{ fmt(item.results.value, 0) }}</strong></span>
-            <span class="metric metric-cost mobile-key"><small>{{ l({lo:'ຕົ້ນທຶນ/ຜົນ',th:'ต้นทุน/ผล',en:'Cost/result'}) }}</small><strong>{{ money(item.results.cost) }}</strong></span>
+            <span class="metric metric-results mobile-key">
+              <small>{{ resultLabel(item.results.type) }}</small>
+              <strong>{{ fmt(item.results.value, 0) }}</strong>
+              <small v-if="getMessagesCount(item) != null && !isMessagingAction(item.results?.type)" class="text-primary font-weight-bold">
+                💬 {{ fmt(getMessagesCount(item), 0) }} ຂໍ້ຄວາມ
+              </small>
+            </span>
+            <span class="metric metric-cost mobile-key">
+              <small>{{ l({lo:'ຕົ້ນທຶນ/ຜົນ',th:'ต้นทุน/ผล',en:'Cost/result'}) }}</small>
+              <strong>{{ money(item.results.cost) }}</strong>
+              <small v-if="getCostPerMessage(item) != null && !isMessagingAction(item.results?.type)" class="text-medium-emphasis">
+                {{ money(getCostPerMessage(item)) }}/ຂໍ້ຄວາມ
+              </small>
+            </span>
             <span class="metric metric-ctr mobile-key"><small>CTR</small><strong>{{ percent(item.linkCtr) }}</strong></span>
             <span class="metric metric-frequency"><small>Frequency</small><strong>{{ fmt(item.frequency, 2) }}</strong></span>
             <span class="decision-chip" :class="decision(item).code">
@@ -1911,7 +2027,6 @@ onMounted(async () => {
                 size="small"
                 :variant="getCooldownInfo(item).inCooldown ? 'tonal' : 'flat'"
                 :color="getCooldownInfo(item).inCooldown ? 'warning' : 'primary'"
-                block
                 :prepend-icon="getCooldownInfo(item).inCooldown ? 'mdi-clock-outline' : 'mdi-cash-fast'"
                 class="font-weight-bold"
                 @click="openBudgetModal(item)"
@@ -1944,6 +2059,21 @@ onMounted(async () => {
               </template>
             </section>
             <div class="metric-detail-grid">
+              <div class="border-primary" style="background: rgba(2, 132, 199, 0.04);">
+                <span class="text-primary font-weight-bold"><v-icon icon="mdi-message-text-outline" size="13" class="mr-1" />{{ l({lo:'ຄົນສົ່ງຂໍ້ຄວາມ (Conversations)',th:'คนทักข้อความ (Conversations)',en:'Messages (Conversations)'}) }}</span>
+                <strong class="text-primary">{{ getMessagesCount(item) != null ? fmt(getMessagesCount(item), 0) + ' ຄົນ' : '0' }}</strong>
+                <small>{{ getCostPerMessage(item) != null ? money(getCostPerMessage(item)) + '/ຂໍ້ຄວາມ' : l({lo:'ຕົ້ນທຶນ/ຂໍ້ຄວາມ',th:'ต้นทุน/ข้อความ',en:'Cost/msg'}) }}</small>
+              </div>
+              <div class="border-success" style="background: rgba(22, 163, 74, 0.04);">
+                <span class="text-success font-weight-bold"><v-icon icon="mdi-cart-check" size="13" class="mr-1" />{{ l({lo:'ການຊື້ (Purchases / Orders)',th:'การซื้อ (Purchases / Orders)',en:'Purchases / Orders'}) }}</span>
+                <strong class="text-success">{{ getPurchasesCount(item) != null ? fmt(getPurchasesCount(item), 0) + ' ອໍເດີ' : '0' }}</strong>
+                <small>{{ getCostPerPurchase(item) != null ? 'CPA: ' + money(getCostPerPurchase(item)) : l({lo:'ຕົ້ນທຶນ/ອໍເດີ',th:'ต้นทุน/ออเดอร์',en:'CPA'}) }}</small>
+              </div>
+              <div v-if="getMessagesCount(item) && getPurchasesCount(item)" class="border-info" style="background: rgba(6, 182, 212, 0.04);">
+                <span class="text-info font-weight-bold"><v-icon icon="mdi-percent" size="13" class="mr-1" />{{ l({lo:'ອັດຕາປິດການຂາຍ (Close Rate)',th:'อัตราปิดการขาย (Close Rate)',en:'Close Rate (Msg to Order)'}) }}</span>
+                <strong class="text-info">{{ percent((getPurchasesCount(item)! / getMessagesCount(item)!) * 100) }}</strong>
+                <small>{{ fmt(getPurchasesCount(item), 0) }} ຊື້ ÷ {{ fmt(getMessagesCount(item), 0) }} ຂໍ້ຄວາມ</small>
+              </div>
               <div><span>{{ l({lo:'ການສະແດງ',th:'การแสดงผล',en:'Impressions'}) }}</span><strong>{{ fmt(item.impressions, 0) }}</strong><small>{{ l({lo:'ຈຳນວນຄັ້ງທີ່ໂຄສະນາສະແດງ',th:'จำนวนครั้งที่โฆษณาแสดง',en:'Total ad displays'}) }}</small></div>
               <div><span>{{ l({lo:'ການເຂົ້າເຖິງ',th:'การเข้าถึง',en:'Reach'}) }}</span><strong>{{ fmt(item.reach, 0) }}</strong><small>{{ l({lo:'ຈຳນວນຄົນທີ່ເຫັນ',th:'จำนวนคนที่เห็น',en:'People who saw it'}) }}</small></div>
               <div><span>Link clicks</span><strong>{{ fmt(item.linkClicks, 0) }}</strong><small>{{ l({lo:'ຄລິກໄປປາຍທາງ',th:'คลิกไปยังปลายทาง',en:'Clicks to destination'}) }}</small></div>
@@ -2865,6 +2995,31 @@ onMounted(async () => {
               </div>
 
               <div class="mockup-content pa-4">
+                <!-- Mock Metric 0: Messaging Conversations -->
+                <div class="mockup-element-row mb-4">
+                  <div class="mockup-element-box flex-grow-1 position-relative kpi-card-mockup info">
+                    <div class="d-flex justify-space-between align-center">
+                      <span class="text-caption font-weight-bold">{{ l({ lo: 'ຄົນສົ່ງຂໍ້ຄວາມ (Conversations)', th: 'คนทักข้อความ (Conversations)', en: 'Conversations' }) }}</span>
+                      <v-chip size="x-small" color="info" class="font-weight-bold">CONVERSIONS</v-chip>
+                    </div>
+                    <div class="kpi-value text-info font-weight-bold text-h6 mt-1">28 {{ l({ lo: 'ຄົນ', th: 'คน', en: 'people' }) }}</div>
+                    <div class="kpi-sub text-caption">{{ l({ lo: 'ຕົ້ນທຶນ/ຂໍ້ຄວາມ: 12,000 ₭', th: 'ต้นทุน/ข้อความ: 12,000 ₭', en: 'Cost/msg: 12,000 ₭' }) }}</div>
+                    <div class="guide-pointer-anchor right-center">
+                      <span class="pointer-dot cyan"></span>
+                      <span class="pointer-line horizontal"></span>
+                    </div>
+                  </div>
+                  <div class="guide-callout-box">
+                    <h5 class="callout-title font-weight-bold text-info">
+                      <v-icon icon="mdi-message-text-outline" size="14" class="mr-1" />
+                      {{ l({ lo: 'Conversations: ຈຳນວນຄົນທັກແຊັດຕົວຈິງ', th: 'Conversations: จำนวนคนทักแชทจริง', en: 'Conversations: Real Inquiries' }) }}
+                    </h5>
+                    <p class="callout-desc mb-0">
+                      {{ l({ lo: 'ສະແດງຈຳນວນຄົນທີ່ກົດແອດແລ້ວສົ່ງຂໍ້ຄວາມເຂົ້າມາສອບຖາມ ພ້ອມຕົ້ນທຶນສະເລ່ຍຕໍ່ 1 ຄົນທັກແຊັດ.', th: 'แสดงจำนวนคนที่คลิกแอดแล้วส่งข้อความเข้ามาสอบถาม พร้อมต้นทุนเฉลี่ยต่อ 1 คนทักแชท', en: 'Tracks how many people messaged your page from ads, with average cost per conversation.' }) }}
+                    </p>
+                  </div>
+                </div>
+
                 <!-- Mock Metric 1: Purchases & CPA Winner -->
                 <div class="mockup-element-row mb-4">
                   <div class="mockup-element-box flex-grow-1 position-relative kpi-card-mockup winner">
@@ -3270,12 +3425,13 @@ onMounted(async () => {
           <div v-else-if="liveTourStep === 3">
             <div class="tour-spotlight-pointer-hint mb-2 text-primary font-weight-bold d-flex align-center gap-1">
               <v-icon icon="mdi-arrow-up-bold" size="16" class="bounce-up" />
-              {{ l({ lo: 'ສັງເກດ 5 ກ່ອງຕົວເລກ KPI ດ້ານເທິງ:', th: 'สังเกต 5 กล่องตัวเลข KPI ด้านบน:', en: 'Notice the 5 KPI Cards above:' }) }}
+              {{ l({ lo: 'ສັງເກດ 6 ກ່ອງຕົວເລກ KPI ດ້ານເທິງທີ່ກຳລັງເຫຼື້ອມ:', th: 'สังเกต 6 กล่องตัวเลข KPI ด้านบนที่กำลังเรืองแสง:', en: 'Notice the 6 KPI Cards above:' }) }}
             </div>
             <ul class="text-body-2 pl-4 mb-2">
-              <li><strong>{{ l({ lo: 'Purchases & CPA:', th: 'Purchases & CPA:', en: 'Purchases & CPA:' }) }}</strong> {{ l({ lo: 'ຖ້າຊື້ >= 3 ອໍເດີ ແລະ CPA ຕ່ຳ = Winner ພ້ອມສະເກວ', th: 'ถ้าซื้อ >= 3 ออเดอร์และ CPA ต่ำ = Winner พร้อมสเกล', en: 'Orders >= 3 and low CPA = Winner' }) }}</li>
-              <li><strong>{{ l({ lo: 'CTR:', th: 'CTR:', en: 'CTR:' }) }}</strong> {{ l({ lo: 'ຖ້າ CTR < 1.0% ແລະ 0 ອໍເດີ = ເຂົ້າເກນຕັດຂາດທຶນ (Stop-Loss)', th: 'ถ้า CTR < 1.0% และ 0 ออเดอร์ = เข้าเกณฑ์หยุดแอด', en: 'CTR < 1% with 0 orders = Stop-Loss' }) }}</li>
-              <li><strong>{{ l({ lo: 'Frequency:', th: 'Frequency:', en: 'Frequency:' }) }}</strong> {{ l({ lo: 'ບໍ່ຄວນເກີນ 2.5 ຄັ້ງ ເພື່ອປ້ອງກັນແອດອີ່ມໂຕ', th: 'ไม่ควรเกิน 2.5 ครั้ง เพื่อป้องกันแอดล้า', en: 'Must stay under 2.5' }) }}</li>
+              <li><strong>{{ l({ lo: '1. ຄົນສົ່ງຂໍ້ຄວາມ (Conversations):', th: '1. คนทักข้อความ (Conversations):', en: '1. Conversations:' }) }}</strong> {{ l({ lo: 'ຈຳນວນຄົນທີ່ສົ່ງຂໍ້ຄວາມມາຫາເພຈແທ້ ແລະ ຕົ້ນທຶນສະເລ່ຍ/ຂໍ້ຄວາມ', th: 'จำนวนคนที่ทักข้อความเข้ามา และต้นทุนเฉลี่ย/ข้อความ', en: 'People who messaged your page and cost per message' }) }}</li>
+              <li><strong>{{ l({ lo: '2. Purchases & CPA:', th: '2. Purchases & CPA:', en: '2. Purchases & CPA:' }) }}</strong> {{ l({ lo: 'ຈຳນວນອໍເດີຊື້ແທ້ຈິງ. ຖ້າຊື້ >= 3 ແລະ CPA ຕ່ຳ = Winner ພ້ອມສະເກວ', th: 'จำนวนออเดอร์ซื้อจริง ถ้าซื้อ >= 3 และ CPA ต่ำ = Winner พร้อมสเกล', en: 'Verified orders. If >= 3 and low CPA = Winner ready to scale' }) }}</li>
+              <li><strong>{{ l({ lo: '3. Spend (ລວມ VAT):', th: '3. Spend (รวม VAT):', en: '3. Spend (+VAT):' }) }}</strong> {{ l({ lo: 'ຍອດເງິນທີ່ຈ່າຍໃຫ້ Meta ຕົວຈິງບວກອາກອນ VAT ອັດຕະໂນມັດ', th: 'ยอดเงินจ่าย Meta จริงรวม VAT อัตโนมัติ', en: 'Actual gross ad spend with auto VAT breakdown' }) }}</li>
+              <li><strong>{{ l({ lo: '4. CTR & Frequency:', th: '4. CTR & Frequency:', en: '4. CTR & Frequency:' }) }}</strong> {{ l({ lo: 'CTR < 1% ແລະ 0 ອໍເດີ = ເຂົ້າເກນ Stop-Loss; Frequency ບໍ່ຄວນເກີນ 2.5', th: 'CTR < 1% และ 0 ออเดอร์ = เกณฑ์หยุดแอด; Frequency ไม่ควรเกิน 2.5', en: 'CTR < 1% with 0 orders = Stop-loss; Frequency <= 2.5' }) }}</li>
             </ul>
           </div>
 
@@ -3875,6 +4031,10 @@ onMounted(async () => {
 }
 .mockup-element-box.kpi-card-mockup {
   border-left-width: 5px;
+}
+.mockup-element-box.kpi-card-mockup.info {
+  border-left-color: #0284c7;
+  background: rgba(2, 132, 199, 0.05);
 }
 .mockup-element-box.kpi-card-mockup.winner {
   border-left-color: #10b981;
