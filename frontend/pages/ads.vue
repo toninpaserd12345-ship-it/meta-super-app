@@ -92,6 +92,8 @@ const autoPilotTab = ref<'rules' | 'logs'>('rules')
 const runningAutoPilot = ref(false)
 const autoPilotLogs = ref<AutoPilotLog[]>([])
 const scaleHistory = ref<Record<string, ScaleRecord>>({})
+const guideModalOpen = ref(false)
+const guideStep = ref(1)
 const autoPilotConfig = ref<AutoPilotConfig>({
   enabled: false,
   scope: 'all',
@@ -1442,6 +1444,17 @@ onMounted(async () => {
       <p>{{ l({ lo: 'ຕິດຕາມຜົນງານການນຳສົ່ງ, CTR, Impressions, Frequency, ປະສິດທິພາບແອດ ແລະ ຄວບຄຸມສະຖານະ.', th: 'ติดตามผลการนำส่ง CTR, Impressions, Frequency, ประสิทธิภาพแอด และควบคุมสถานะ', en: 'Track ad delivery, CTR, impressions, frequency, creative metrics, and toggle campaign status.' }) }}</p>
     </div>
     <div class="head-actions">
+      <!-- Interactive Visual Guide Dialog Button -->
+      <v-btn
+        color="info"
+        variant="tonal"
+        prepend-icon="mdi-book-open-page-variant-outline"
+        class="font-weight-bold"
+        @click="guideModalOpen = true; guideStep = 1"
+      >
+        {{ l({ lo: '📖 ຄູ່ມືເລີ່ມຕົ້ນ (Guide)', th: '📖 คู่มือเริ่มต้น (Guide)', en: '📖 Quick Guide' }) }}
+      </v-btn>
+
       <!-- Auto-Pilot Toggle & Modal Trigger Button -->
       <v-btn
         :color="autoPilotConfig.enabled ? 'success' : undefined"
@@ -2140,7 +2153,19 @@ onMounted(async () => {
             </h2>
           </div>
         </div>
-        <v-btn icon="mdi-close" variant="text" @click="autoPilotModalOpen = false" />
+        <div class="d-flex align-center gap-1">
+          <v-btn
+            size="small"
+            variant="tonal"
+            color="info"
+            prepend-icon="mdi-help-circle-outline"
+            class="font-weight-bold"
+            @click="guideModalOpen = true; guideStep = 3"
+          >
+            {{ l({ lo: '📖 ຄູ່ມືຕັ້ງຄ່າ', th: '📖 คู่มือตั้งค่า', en: '📖 Setup Guide' }) }}
+          </v-btn>
+          <v-btn icon="mdi-close" variant="text" @click="autoPilotModalOpen = false" />
+        </div>
       </v-card-title>
 
       <v-card-text class="pa-4 autopilot-body">
@@ -2472,6 +2497,520 @@ onMounted(async () => {
         <v-btn color="primary" variant="flat" prepend-icon="mdi-content-save" class="font-weight-bold px-4" @click="saveAutoPilotConfig(); autoPilotModalOpen = false; success = l({ lo: 'ບັນທຶກການຕັ້ງຄ່າ Auto-Pilot ສຳເລັດແລ້ວ', th: 'บันทึกการตั้งค่า Auto-Pilot สำเร็จแล้ว', en: 'Auto-Pilot settings saved successfully.' })">
           {{ l({ lo: 'ບັນທຶກການຕັ້ງຄ່າ', th: 'บันทึกการตั้งค่า', en: 'Save Settings' }) }}
         </v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
+
+  <!-- Interactive Visual Guide Dialog (Walkthrough with Pointer Callouts) -->
+  <v-dialog v-model="guideModalOpen" max-width="960" scrollable>
+    <v-card rounded="xl" class="guide-dialog-card">
+      <v-card-title class="dialog-title d-flex align-center justify-space-between pb-3 border-b">
+        <div class="d-flex align-center gap-2">
+          <v-avatar color="info" variant="tonal" size="36">
+            <v-icon icon="mdi-compass-outline" size="22" />
+          </v-avatar>
+          <div>
+            <div class="text-caption font-weight-bold text-info letter-spacing-1">ONBOARDING & VISUAL WALKTHROUGH</div>
+            <h2 class="text-h6 font-weight-bold mb-0">
+              {{ l({ lo: 'ຄູ່ມືເລີ່ມຕົ້ນ ແລະ ແນະນຳການໃຊ້ງານລະບົບໂຄສະນາ', th: 'คู่มือเริ่มต้นและแนะนำการใช้งานระบบโฆษณา', en: 'Getting Started & Visual Walkthrough' }) }}
+            </h2>
+          </div>
+        </div>
+        <v-btn icon="mdi-close" variant="text" @click="guideModalOpen = false" />
+      </v-card-title>
+
+      <!-- Stepper Header Navigation -->
+      <div class="guide-stepper-bar px-4 py-3 border-b d-flex align-center justify-space-between flex-wrap gap-2">
+        <div class="d-flex align-center flex-wrap gap-2">
+          <v-btn
+            v-for="s in [1, 2, 3, 4]"
+            :key="s"
+            size="small"
+            :variant="guideStep === s ? 'flat' : 'tonal'"
+            :color="guideStep === s ? 'primary' : undefined"
+            class="guide-step-chip font-weight-bold"
+            @click="guideStep = s"
+          >
+            <span class="step-num">{{ s }}</span>
+            <span class="ml-1">
+              {{ s === 1 ? l({ lo: '1. ເລືອກບັນຊີ & 7 ມື້', th: '1. เลือกบัญชี & 7 วัน', en: '1. Account & Range' })
+               : s === 2 ? l({ lo: '2. ອ່ານຄ່າຕົວເລກແທ້', th: '2. อ่านค่าตัวเลขแท้', en: '2. Real Metrics' })
+               : s === 3 ? l({ lo: '3. ຕັ້ງກົດ & Budget Cap', th: '3. ตั้งกฎ & Budget Cap', en: '3. Rules & Cap' })
+               : l({ lo: '4. ສະເກວ & Cooldown', th: '4. สเกล & Cooldown', en: '4. Scaling & Cooldown' }) }}
+            </span>
+          </v-btn>
+        </div>
+        <v-chip size="small" color="primary" variant="outlined" class="font-weight-bold">
+          {{ l({ lo: `ຂັ້ນຕອນ ${guideStep} / 4`, th: `ขั้นตอน ${guideStep} / 4`, en: `Step ${guideStep} of 4` }) }}
+        </v-chip>
+      </div>
+
+      <v-card-text class="pa-4 pa-md-6 guide-body-content">
+        <!-- Step 1: Account Selection, 7-Day Window & Product Filter -->
+        <div v-if="guideStep === 1" class="guide-step-container">
+          <div class="guide-step-header mb-4">
+            <div class="step-badge-pill mb-1 text-primary font-weight-bold">
+              <v-icon icon="mdi-numeric-1-circle" size="18" class="mr-1" />
+              {{ l({ lo: 'ສິ່ງທີ່ຕ້ອງເຮັດກ່ອນໝູ່ໝົດ (First Things First)', th: 'สิ่งที่ต้องทำก่อนเป็นอันดับแรก (First Things First)', en: 'First Things First' }) }}
+            </div>
+            <h3 class="text-h6 font-weight-bold mb-1">
+              {{ l({ lo: 'ເລືອກບັນຊີ ແລະ ຕັ້ງຄ່າຊ່ວງເວລາ (Select Account & Date Range)', th: 'เลือกบัญชี และตั้งค่าช่วงเวลา (Select Account & Date Range)', en: 'Select Account & Date Range' }) }}
+            </h3>
+            <p class="text-body-2 text-medium-emphasis mb-0">
+              {{ l({ lo: 'ກ່ອນຈະຕັດສິນໃຈສະເກວ ຫຼື ປິດແອດ ຕ້ອງໃຫ້ແນ່ໃຈວ່າທ່ານກຳລັງເບິ່ງຂໍ້ມູນທີ່ສະຖຽນ ແລະ ຖືກຕ້ອງຕາມສິນຄ້າຕົວຈິງ.', th: 'ก่อนตัดสินใจ Scale หรือหยุดแอด ต้องมั่นใจว่ากำลังดูข้อมูลที่นิ่งและถูกต้องตามสินค้าจริง', en: 'Before scaling or pausing ads, ensure you are looking at stable and accurate data for the actual product.' }) }}
+            </p>
+          </div>
+
+          <div class="guide-mockup-wrapper">
+            <div class="guide-mockup-card">
+              <div class="mockup-header-bar">
+                <span class="mockup-dot red"></span>
+                <span class="mockup-dot yellow"></span>
+                <span class="mockup-dot green"></span>
+                <span class="mockup-title">{{ l({ lo: 'ແຖບເລືອກຂໍ້ມູນ (Filter Bar)', th: 'แถบเลือกข้อมูล (Filter Bar)', en: 'Filter Bar Preview' }) }}</span>
+              </div>
+
+              <div class="mockup-content pa-4">
+                <!-- Mockup Item 1: Ad Account -->
+                <div class="mockup-element-row mb-4">
+                  <div class="mockup-element-box flex-grow-1 position-relative">
+                    <div class="mock-input-label">{{ l({ lo: 'ບັນຊີໂຄສະນາ (Ad Account)', th: 'บัญชีโฆษณา (Ad Account)', en: 'Ad Account' }) }}</div>
+                    <div class="mock-input-field">
+                      <v-icon icon="mdi-facebook" color="primary" size="18" class="mr-2" />
+                      <span>Facebook: ຮ້ານຂາຍເກີບ kito Official</span>
+                      <v-icon icon="mdi-chevron-down" size="18" class="ml-auto" />
+                    </div>
+                    <div class="guide-pointer-anchor right-center">
+                      <span class="pointer-dot"></span>
+                      <span class="pointer-line horizontal"></span>
+                    </div>
+                  </div>
+                  <div class="guide-callout-box">
+                    <h5 class="callout-title font-weight-bold text-info">
+                      <v-icon icon="mdi-cursor-default-click" size="14" class="mr-1" />
+                      {{ l({ lo: '1. ເລືອກບັນຊີທີ່ຕ້ອງການກວດ', th: '1. เลือกบัญชีที่ต้องการตรวจ', en: '1. Select target account' }) }}
+                    </h5>
+                    <p class="callout-desc mb-0">
+                      {{ l({ lo: 'ເລືອກບັນຊີ Facebook Ad Account ທີ່ຕ້ອງການວິເຄາະ ແລະ ຄວບຄຸມງົບປະມານ.', th: 'เลือกบัญชี Facebook Ad Account ที่ต้องการวิเคราะห์และจัดการงบประมาณ', en: 'Select the Facebook Ad Account to evaluate and manage.' }) }}
+                    </p>
+                  </div>
+                </div>
+
+                <!-- Mockup Item 2: Date Preset -->
+                <div class="mockup-element-row mb-4">
+                  <div class="mockup-element-box flex-grow-1 position-relative">
+                    <div class="mock-input-label">{{ l({ lo: 'ໄລຍະເວລາ (Date Preset)', th: 'ช่วงเวลา (Date Preset)', en: 'Date Preset' }) }}</div>
+                    <div class="mock-input-field active-highlight">
+                      <v-icon icon="mdi-calendar-range" color="primary" size="18" class="mr-2" />
+                      <strong class="text-primary font-weight-bold">{{ l({ lo: '7 ມື້ຫຼ້າສຸດ (Last 7 Days)', th: '7 วันล่าสุด (Last 7 Days)', en: 'Last 7 Days' }) }}</strong>
+                      <v-chip size="x-small" color="success" class="ml-2 font-weight-bold">{{ l({ lo: 'ແນະນຳ', th: 'แนะนำ', en: 'Recommended' }) }}</v-chip>
+                    </div>
+                    <div class="guide-pointer-anchor right-center">
+                      <span class="pointer-dot green"></span>
+                      <span class="pointer-line horizontal"></span>
+                    </div>
+                  </div>
+                  <div class="guide-callout-box highlight-tip">
+                    <h5 class="callout-title font-weight-bold text-success">
+                      <v-icon icon="mdi-star" size="14" class="mr-1 text-warning" />
+                      {{ l({ lo: '2. ເລືອກ 7 ມື້ຫຼ້າສຸດ (ສຳຄັນທີ່ສຸດ!)', th: '2. เลือก 7 วันล่าสุด (สำคัญที่สุด!)', en: '2. Select Last 7 Days (Crucial!)' }) }}
+                    </h5>
+                    <p class="callout-desc mb-0">
+                      {{ l({ lo: 'ຢ່າເບິ່ງສະເພາະມື້ນີ້ ເພາະຂໍ້ມູນຍັງບໍ່ສະຖຽນ. ໄລຍະ 7 ມື້ ຈະຊ່ວຍໃຫ້ເຫັນຕົ້ນທຶນຕໍ່ອໍເດີ (CPA) ແລະ ຈຳນວນການຊື້ທີ່ແທ້ຈິງ.', th: 'อย่าดูแค่วันนี้เพราะข้อมูลยังไม่นิ่ง ช่วง 7 วันจะช่วยให้เห็น CPA และยอดซื้อที่แท้จริง', en: 'Avoid single-day view as data fluctuates. 7-day window gives stable CPA and true order conversion.' }) }}
+                    </p>
+                  </div>
+                </div>
+
+                <!-- Mockup Item 3: Product Filter -->
+                <div class="mockup-element-row">
+                  <div class="mockup-element-box flex-grow-1 position-relative">
+                    <div class="mock-input-label">{{ l({ lo: 'ຟິວເຕີສິນຄ້າ (Product Scope Filter)', th: 'ฟิลเตอร์สินค้า (Product Scope Filter)', en: 'Product Scope Filter' }) }}</div>
+                    <div class="mock-input-field">
+                      <v-icon icon="mdi-package-variant-closed" color="warning" size="18" class="mr-2" />
+                      <span>{{ l({ lo: 'ເກີບ kito AG29 (ຮຸ່ນຂາຍດີ)', th: 'รองเท้า kito AG29 (รุ่นขายดี)', en: 'kito AG29 (Bestseller)' }) }}</span>
+                      <v-chip size="x-small" color="info" class="ml-2">{{ l({ lo: '12 ແອດ', th: '12 แอด', en: '12 ads' }) }}</v-chip>
+                    </div>
+                    <div class="guide-pointer-anchor right-center">
+                      <span class="pointer-dot"></span>
+                      <span class="pointer-line horizontal"></span>
+                    </div>
+                  </div>
+                  <div class="guide-callout-box">
+                    <h5 class="callout-title font-weight-bold text-info">
+                      <v-icon icon="mdi-filter" size="14" class="mr-1" />
+                      {{ l({ lo: '3. ເລືອກສິນຄ້າເພື່ອຄຸມສະເພາະກຸ່ມ', th: '3. เลือกสินค้าเพื่อคุมเฉพาะกลุ่ม', en: '3. Filter by product' }) }}
+                    </h5>
+                    <p class="callout-desc mb-0">
+                      {{ l({ lo: 'ຖ້າທ່ານເລືອກສິນຄ້າໃດໜຶ່ງ, ທັງຕາຕະລາງ ແລະ Auto-Pilot ຈະສະແດງ ແລະ ຈັດການສະເພາະແອດທີ່ຜູກກັບສິນຄ້ານັ້ນ!', th: 'หากคุณเลือกสินค้าใด ทั้งตารางและ Auto-Pilot จะแสดงและจัดการเฉพาะแอดของสินค้านั้น', en: 'If selected, dashboard metrics and Auto-Pilot will isolate actions specifically to this product.' }) }}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2: Understanding Real Metrics & Decision Signals -->
+        <div v-else-if="guideStep === 2" class="guide-step-container">
+          <div class="guide-step-header mb-4">
+            <div class="step-badge-pill mb-1 text-primary font-weight-bold">
+              <v-icon icon="mdi-numeric-2-circle" size="18" class="mr-1" />
+              {{ l({ lo: 'ວິທີອ່ານຄ່າຕົວເລກທີ່ແທ້ຈິງ', th: 'วิธีอ่านค่าตัวเลขที่แท้จริง', en: 'Understanding Real Metrics' }) }}
+            </div>
+            <h3 class="text-h6 font-weight-bold mb-1">
+              {{ l({ lo: 'ແຍກແອດທີ່ສ້າງກຳໄລ (Winners) ອອກຈາກແອດຂາດທຶນ (Losers)', th: 'แยกแอดที่สร้างกำไร (Winners) ออกจากแอดขาดทุน (Losers)', en: 'Distinguish Winners from Losing Ads' }) }}
+            </h3>
+            <p class="text-body-2 text-medium-emphasis mb-0">
+              {{ l({ lo: 'ລະບົບຈະຄິດໄລ່ຈາກຍອດຊື້ແທ້ຈິງທີ່ຜູກກັບອໍເດີ/Lead ໃນລະບົບ ບໍ່ແມ່ນຕົວເລກປະເມີນລອຍໆ.', th: 'ระบบจะคำนวณจากยอดซื้อแท้จริงที่ผูกกับออเดอร์/Lead ไม่ใช่ตัวเลขลอยๆ', en: 'The system computes real purchases matched with verified orders, not inflated estimates.' }) }}
+            </p>
+          </div>
+
+          <div class="guide-mockup-wrapper">
+            <div class="guide-mockup-card">
+              <div class="mockup-header-bar">
+                <span class="mockup-dot red"></span>
+                <span class="mockup-dot yellow"></span>
+                <span class="mockup-dot green"></span>
+                <span class="mockup-title">{{ l({ lo: 'ສັນຍານຕົວເລກ (Metric Signals & KPI Cards)', th: 'สัญญาณตัวเลข (Metric Signals & KPI Cards)', en: 'Metric Signals & KPI Cards' }) }}</span>
+              </div>
+
+              <div class="mockup-content pa-4">
+                <!-- Mock Metric 1: Purchases & CPA Winner -->
+                <div class="mockup-element-row mb-4">
+                  <div class="mockup-element-box flex-grow-1 position-relative kpi-card-mockup winner">
+                    <div class="d-flex justify-space-between align-center">
+                      <span class="text-caption font-weight-bold">{{ l({ lo: 'ການຊື້ (Purchases)', th: 'การซื้อ (Purchases)', en: 'Purchases' }) }}</span>
+                      <v-chip size="x-small" color="success" class="font-weight-bold">WINNER</v-chip>
+                    </div>
+                    <div class="kpi-value text-success font-weight-bold text-h6 mt-1">5 {{ l({ lo: 'ອໍເດີ', th: 'ออเดอร์', en: 'orders' }) }}</div>
+                    <div class="kpi-sub text-caption">CPA: 35,000 ₭ / ອໍເດີ ({{ l({ lo: 'ເປົ້າໝາຍ', th: 'เป้าหมาย', en: 'Target' }) }} 50,000 ₭)</div>
+                    <div class="guide-pointer-anchor right-center">
+                      <span class="pointer-dot green"></span>
+                      <span class="pointer-line horizontal"></span>
+                    </div>
+                  </div>
+                  <div class="guide-callout-box">
+                    <h5 class="callout-title font-weight-bold text-success">
+                      <v-icon icon="mdi-trophy-outline" size="14" class="mr-1" />
+                      {{ l({ lo: 'ແອດ Winner: ພ້ອມສະເກວງົບ (+20%)', th: 'แอด Winner: พร้อม Scale งบ (+20%)', en: 'Winner Ad: Ready to Scale (+20%)' }) }}
+                    </h5>
+                    <p class="callout-desc mb-0">
+                      {{ l({ lo: 'ຖ້າການຊື້ >= 3 ອໍເດີ ແລະ CPA ຕ່ຳກວ່າເກນ ແປວ່າແອດນີ້ມີກຳໄລດີ ລະບົບຈະແນະນຳໃຫ້ສະເກວເພີ່ມງົບ.', th: 'ถ้าการซื้อ >= 3 ออเดอร์และ CPA ต่ำกว่าเกณฑ์ แอดนี้มีกำไรดี ระบบจะแนะนำให้ Scale เพิ่มงบ', en: 'If purchases >= 3 orders and CPA is below target, the ad is profitable and ready to scale.' }) }}
+                    </p>
+                  </div>
+                </div>
+
+                <!-- Mock Metric 2: CTR Stop-Loss -->
+                <div class="mockup-element-row mb-4">
+                  <div class="mockup-element-box flex-grow-1 position-relative kpi-card-mockup loser">
+                    <div class="d-flex justify-space-between align-center">
+                      <span class="text-caption font-weight-bold">{{ l({ lo: 'CTR (Click-Through Rate)', th: 'CTR (Click-Through Rate)', en: 'CTR' }) }}</span>
+                      <v-chip size="x-small" color="error" class="font-weight-bold">LOSER SIGNAL</v-chip>
+                    </div>
+                    <div class="kpi-value text-error font-weight-bold text-h6 mt-1">0.45%</div>
+                    <div class="kpi-sub text-caption">{{ l({ lo: 'ໃຊ້ງົບ 85,000 ₭ • 0 ອໍເດີ', th: 'ใช้งบ 85,000 ₭ • 0 ออเดอร์', en: 'Spent 85,000 ₭ • 0 orders' }) }}</div>
+                    <div class="guide-pointer-anchor right-center">
+                      <span class="pointer-dot red"></span>
+                      <span class="pointer-line horizontal"></span>
+                    </div>
+                  </div>
+                  <div class="guide-callout-box">
+                    <h5 class="callout-title font-weight-bold text-error">
+                      <v-icon icon="mdi-alert-octagon-outline" size="14" class="mr-1" />
+                      {{ l({ lo: 'ສັນຍານແອດຂາດທຶນ (Stop-Loss)', th: 'สัญญาณแอดขาดทุน (Stop-Loss)', en: 'Losing Ad Signal (Stop-Loss)' }) }}
+                    </h5>
+                    <p class="callout-desc mb-0">
+                      {{ l({ lo: 'ຖ້າໃຊ້ງົບໄປແລ້ວ ແຕ່ຍັງ 0 ອໍເດີ ແລະ CTR ຕ່ຳກວ່າ 1.0% ແປວ່າຄົນບໍ່ສົນໃຈ ບັອດຈະສັ່ງປິດແອດເພື່ອຕັດຂາດທຶນ.', th: 'ถ้าใช้งบไปแล้วแต่ยัง 0 ออเดอร์ และ CTR ต่ำกว่า 1.0% บอทจะหยุดแอดเพื่อตัดขาดทุนทันที', en: 'If spend is spent with 0 purchases and CTR < 1.0%, bot triggers Stop-Loss to prevent money burn.' }) }}
+                    </p>
+                  </div>
+                </div>
+
+                <!-- Mock Metric 3: Frequency -->
+                <div class="mockup-element-row">
+                  <div class="mockup-element-box flex-grow-1 position-relative kpi-card-mockup warning">
+                    <div class="d-flex justify-space-between align-center">
+                      <span class="text-caption font-weight-bold">{{ l({ lo: 'Frequency (ຄວາມຖີ່)', th: 'Frequency (ความถี่)', en: 'Frequency' }) }}</span>
+                      <v-chip size="x-small" color="warning" class="font-weight-bold">AUDIENCE FATIGUE</v-chip>
+                    </div>
+                    <div class="kpi-value text-warning font-weight-bold text-h6 mt-1">2.75 {{ l({ lo: 'ຄັ້ງ', th: 'ครั้ง', en: 'times' }) }}</div>
+                    <div class="kpi-sub text-caption">{{ l({ lo: 'ກຸ່ມເປົ້າໝາຍເລີ່ມອີ່ມໂຕ (ເກີນ 2.5)', th: 'กลุ่มเป้าหมายเริ่มอิ่มตัว (เกิน 2.5)', en: 'Audience fatigue (exceeds 2.5)' }) }}</div>
+                    <div class="guide-pointer-anchor right-center">
+                      <span class="pointer-dot orange"></span>
+                      <span class="pointer-line horizontal"></span>
+                    </div>
+                  </div>
+                  <div class="guide-callout-box">
+                    <h5 class="callout-title font-weight-bold text-warning">
+                      <v-icon icon="mdi-account-multiple-check" size="14" class="mr-1" />
+                      {{ l({ lo: 'ຄວາມຖີ່ບໍ່ຄວນເກີນ 2.5', th: 'ความถี่ไม่ควรเกิน 2.5', en: 'Frequency must not exceed 2.5' }) }}
+                    </h5>
+                    <p class="callout-desc mb-0">
+                      {{ l({ lo: 'ຖ້າຄົນເຫັນຊ້ຳເກີນ 2.5 ຄັ້ງ, ລະບົບຈະລັອກບໍ່ໃຫ້ສະເກວເພີ່ມງົບ ເພາະກຸ່ມເປົ້າໝາຍອີ່ມໂຕ ອາດເຮັດໃຫ້ຕົ້ນທຶນແພງຂຶ້ນ.', th: 'ถ้าคนเห็นซ้ำเกิน 2.5 ครั้ง ระบบจะล็อคไม่ให้ Scale เพิ่มงบเพื่อไม่ให้ต้นทุนพุ่งสูง', en: 'When frequency > 2.5, scaling is blocked to prevent ad fatigue and sharp CPA spikes.' }) }}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 3: Auto-Pilot Rules, Global 20% Standard & Daily Budget Cap -->
+        <div v-else-if="guideStep === 3" class="guide-step-container">
+          <div class="guide-step-header mb-4">
+            <div class="step-badge-pill mb-1 text-primary font-weight-bold">
+              <v-icon icon="mdi-numeric-3-circle" size="18" class="mr-1" />
+              {{ l({ lo: 'ຕັ້ງຄ່າກົດ Auto-Pilot & ຄວາມປອດໄພ', th: 'ตั้งค่ากฎ Auto-Pilot & ความปลอดภัย', en: 'Rules & Safety Settings' }) }}
+            </div>
+            <h3 class="text-h6 font-weight-bold mb-1">
+              {{ l({ lo: 'ສູດສະເກວ +20% ມາດຕະຖານໂລກ ແລະ ເພດານງົບສູງສຸດ', th: 'สูตรสเกล +20% มาตรฐานโลก และเพดานงบสูงสุด', en: 'Global 20% Formula & Daily Budget Cap' }) }}
+            </h3>
+            <p class="text-body-2 text-medium-emphasis mb-0">
+              {{ l({ lo: 'ປັບແຕ່ງທຸກເງື່ອນໄຂໄດ້ຕາມໃຈ ແລະ ລັອກງົບສູງສຸດບໍ່ໃຫ້ໄຫຼເກີນຄວບຄຸມ.', th: 'ปรับแต่งทุกเงื่อนไขได้ตามใจ และล็อคงบสูงสุดไม่ให้ไหลเกินควบคุม', en: 'Customize rules freely and set hard budget ceiling to avoid runaway spend.' }) }}
+            </p>
+          </div>
+
+          <div class="guide-mockup-wrapper">
+            <div class="guide-mockup-card">
+              <div class="mockup-header-bar">
+                <span class="mockup-dot red"></span>
+                <span class="mockup-dot yellow"></span>
+                <span class="mockup-dot green"></span>
+                <span class="mockup-title">{{ l({ lo: 'ການຕັ້ງຄ່າກົດອັດຕະໂນມັດ (Auto-Pilot Config)', th: 'การตั้งค่ากฎอัตโนมัติ (Auto-Pilot Config)', en: 'Auto-Pilot Config' }) }}</span>
+              </div>
+
+              <div class="mockup-content pa-4">
+                <!-- Scale 20% Mockup -->
+                <div class="mockup-element-row mb-4">
+                  <div class="mockup-element-box flex-grow-1 position-relative">
+                    <div class="mock-input-label">{{ l({ lo: 'ເປີເຊັນເພີ່ມງົບຕໍ່ຄັ້ງ (Scale Percent)', th: 'เปอร์เซ็นต์เพิ่มงบต่อครั้ง (Scale Percent)', en: 'Scale Percentage' }) }}</div>
+                    <div class="mock-input-field active-highlight">
+                      <v-icon icon="mdi-rocket-launch" color="success" size="18" class="mr-2" />
+                      <strong class="text-success text-h6 font-weight-bold">+20%</strong>
+                      <span class="text-caption text-medium-emphasis ml-2">{{ l({ lo: '(ປ່ຽນເປັນ 10%, 15%, 25% ໄດ້)', th: '(เปลี่ยนเป็น 10%, 15%, 25% ได้)', en: '(Customizable: 10%, 15%, 25%)' }) }}</span>
+                    </div>
+                    <div class="guide-pointer-anchor right-center">
+                      <span class="pointer-dot green"></span>
+                      <span class="pointer-line horizontal"></span>
+                    </div>
+                  </div>
+                  <div class="guide-callout-box">
+                    <h5 class="callout-title font-weight-bold text-info">
+                      <v-icon icon="mdi-shield-check" size="14" class="mr-1" />
+                      {{ l({ lo: 'ເປັນຫຍັງຕ້ອງເພີ່ມເທື່ອລະ 20%?', th: 'ทำไมต้องเพิ่มทีละ 20%?', en: 'Why 20% scale increments?' }) }}
+                    </h5>
+                    <p class="callout-desc mb-0">
+                      {{ l({ lo: 'ເພາະ Meta Algorithm ຈະຣີເຊັດການຮຽນຮູ້ (Reset Learning Phase) ທັນທີຖ້າປັບງົບເກີນ 20%. ການເພີ່ມ 20% ແມ່ນມາດຕະຖານທີ່ປອດໄພທີ່ສຸດ!', th: 'เพราะ Meta AI จะรีเซ็ต Learning Phase ทันทีหากปรับงบเกิน 20% การเพิ่ม 20% ปลอดภัยที่สุด', en: 'Meta AI resets the learning phase if budget jumps >20%. 20% is the safest global standard.' }) }}
+                    </p>
+                  </div>
+                </div>
+
+                <!-- Budget Cap Mockup -->
+                <div class="mockup-element-row mb-4">
+                  <div class="mockup-element-box flex-grow-1 position-relative">
+                    <div class="mock-input-label">{{ l({ lo: 'ເພດານງົບສູງສຸດຕໍ່ມື້ (Max Daily Budget Cap)', th: 'เพดานงบสูงสุดต่อวัน (Max Daily Budget Cap)', en: 'Max Daily Budget Cap' }) }}</div>
+                    <div class="mock-input-field">
+                      <v-icon icon="mdi-cash-lock" color="warning" size="18" class="mr-2" />
+                      <strong class="font-weight-bold">500,000 ₭ / {{ l({ lo: 'ມື້', th: 'วัน', en: 'day' }) }}</strong>
+                      <v-chip size="x-small" color="warning" class="ml-2 font-weight-bold">HARD CAP</v-chip>
+                    </div>
+                    <div class="guide-pointer-anchor right-center">
+                      <span class="pointer-dot orange"></span>
+                      <span class="pointer-line horizontal"></span>
+                    </div>
+                  </div>
+                  <div class="guide-callout-box highlight-tip">
+                    <h5 class="callout-title font-weight-bold text-warning">
+                      <v-icon icon="mdi-lock" size="14" class="mr-1" />
+                      {{ l({ lo: 'ເບຣກລັອກງົບ (Circuit Breaker 1)', th: 'เบรคล็อคงบ (Circuit Breaker 1)', en: 'Safety Cap (Circuit Breaker 1)' }) }}
+                    </h5>
+                    <p class="callout-desc mb-0">
+                      {{ l({ lo: 'ເມື່ອງົບແອດສະເກວຂຶ້ນມາຮອດ 500,000 ກີບແລ້ວ ບັອດຈະຢຸດສະເກວທັນທີ ບໍ່ມີທາງໄຫຼເກີນເພດານນີ້ເດັດຂາດ.', th: 'เมื่องบแอดสเกลขึ้นมาถึง 500,000 กีบ บอทจะหยุดสเกลทันที ไม่มีทางไหลเกินเพดานนี้เด็ดขาด', en: 'Once daily budget reaches 500,000 ₭, scaling stops permanently to guarantee budget safety.' }) }}
+                    </p>
+                  </div>
+                </div>
+
+                <!-- Scope & Structure Mockup -->
+                <div class="mockup-element-row">
+                  <div class="mockup-element-box flex-grow-1 position-relative">
+                    <div class="mock-input-label">{{ l({ lo: 'ຂອບເຂດ & ປະເພດແອດ (Scope & Target Structure)', th: 'ขอบเขต & ประเภทแอด (Scope & Target Structure)', en: 'Scope & Target Structure' }) }}</div>
+                    <div class="mock-input-field">
+                      <v-icon icon="mdi-bullseye-arrow" color="primary" size="18" class="mr-2" />
+                      <span>{{ l({ lo: 'ສະເພາະສິນຄ້າທີ່ Filter • ສະເພາະ Campaign (CBO)', th: 'เฉพาะสินค้าที่ Filter • เฉพาะ Campaign (CBO)', en: 'Filter Product Only • Campaigns (CBO)' }) }}</span>
+                    </div>
+                    <div class="guide-pointer-anchor right-center">
+                      <span class="pointer-dot"></span>
+                      <span class="pointer-line horizontal"></span>
+                    </div>
+                  </div>
+                  <div class="guide-callout-box">
+                    <h5 class="callout-title font-weight-bold text-info">
+                      <v-icon icon="mdi-cog" size="14" class="mr-1" />
+                      {{ l({ lo: 'ເລືອກ CBO ຫຼື ABO ໄດ້ຕາມຕ້ອງການ', th: 'เลือก CBO หรือ ABO ได้ตามต้องการ', en: 'Target CBO or ABO' }) }}
+                    </h5>
+                    <p class="callout-desc mb-0">
+                      {{ l({ lo: 'ທ່ານສາມາດເລືອກໃຫ້ບັອດຄຸມສະເພາະ Campaign CBO, ຫຼື ສະເພາະ Ad Set ABO, ຫຼື ທຸກລະດັບໄດ້ຢ່າງອິດສະຫຼະ.', th: 'คุณสามารถเลือกให้บอทคุมเฉพาะ Campaign CBO หรือเฉพาะ Ad Set ABO ได้ตามโครงสร้างจริง', en: 'Isolate actions to Campaign CBO or Ad Set ABO according to your exact budget structure.' }) }}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 4: Scaling & 24h Cooldown Lock & Incremental Purchases -->
+        <div v-else-if="guideStep === 4" class="guide-step-container">
+          <div class="guide-step-header mb-4">
+            <div class="step-badge-pill mb-1 text-primary font-weight-bold">
+              <v-icon icon="mdi-numeric-4-circle" size="18" class="mr-1" />
+              {{ l({ lo: 'ວິທີສະເກວ & ລະບົບລັອກ Cooldown', th: 'วิธีสเกล & ระบบล็อค Cooldown', en: 'Scaling & 24h Cooldown Lock' }) }}
+            </div>
+            <h3 class="text-h6 font-weight-bold mb-1">
+              {{ l({ lo: 'ກົນໄກປ້ອງກັນບໍ່ໃຫ້ສະເກວໄປເລື້ອຍໆ ໂດຍບໍ່ມີອໍເດີໃໝ່', th: 'กลไกป้องกันไม่ให้สเกลไปเรื่อยๆ โดยไม่มีออเดอร์ใหม่', en: 'Safety Mechanism Preventing Runaway Scaling' }) }}
+            </h3>
+            <p class="text-body-2 text-medium-emphasis mb-0">
+              {{ l({ lo: 'ເລືອກໄດ້ທັງແບບ Auto-Pilot 24/7 ຫຼື ກົດອະນຸມັດດ້ວຍມືເອງ (Manual Mode).', th: 'เลือกได้ทั้งแบบ Auto-Pilot 24/7 หรือกดอนุมัติด้วยมือเอง (Manual Mode)', en: 'Choose between automated 24/7 Auto-Pilot or manual 1-click approvals.' }) }}
+            </p>
+          </div>
+
+          <div class="guide-mockup-wrapper">
+            <div class="guide-mockup-card">
+              <div class="mockup-header-bar">
+                <span class="mockup-dot red"></span>
+                <span class="mockup-dot yellow"></span>
+                <span class="mockup-dot green"></span>
+                <span class="mockup-title">{{ l({ lo: 'ແຖວລາຍການແອດ (Ad Row Controls & Safety Status)', th: 'แถวรายการแอด (Ad Row Controls & Safety Status)', en: 'Ad Row Controls & Safety Status' }) }}</span>
+              </div>
+
+              <div class="mockup-content pa-4">
+                <!-- Mock Row 1: Ready to Scale -->
+                <div class="mockup-element-row mb-4">
+                  <div class="mockup-element-box flex-grow-1 position-relative ad-row-mockup">
+                    <div class="d-flex align-center justify-space-between flex-wrap gap-2">
+                      <div>
+                        <strong class="d-block font-weight-bold">kito AG29 - Scaling Ad Set 01</strong>
+                        <small class="text-medium-emphasis">{{ l({ lo: 'ງົບປະຈຸບັນ: 100,000 ₭/ມື້ • 4 ອໍເດີ', th: 'งบปัจจุบัน: 100,000 ₭/วัน • 4 ออเดอร์', en: 'Current: 100,000 ₭/day • 4 orders' }) }}</small>
+                      </div>
+                      <v-btn size="small" color="primary" variant="flat" prepend-icon="mdi-rocket-launch" class="font-weight-bold">
+                        🚀 {{ l({ lo: 'ສະເກວ (+20%)', th: 'สเกล (+20%)', en: 'Scale (+20%)' }) }}
+                      </v-btn>
+                    </div>
+                    <div class="guide-pointer-anchor right-center">
+                      <span class="pointer-dot"></span>
+                      <span class="pointer-line horizontal"></span>
+                    </div>
+                  </div>
+                  <div class="guide-callout-box">
+                    <h5 class="callout-title font-weight-bold text-info">
+                      <v-icon icon="mdi-gesture-tap" size="14" class="mr-1" />
+                      {{ l({ lo: 'ໂໝດ Manual: ກົດສະເກວດ້ວຍຕົນເອງ', th: 'โหมด Manual: กดสเกลด้วยตนเอง', en: 'Manual Mode: 1-Click Scale' }) }}
+                    </h5>
+                    <p class="callout-desc mb-0">
+                      {{ l({ lo: 'ຖ້າທ່ານປິດ Auto-Pilot, ທ່ານສາມາດກົດປຸ່ມ “🚀 ສະເກວ (+20%)” ຢູ່ແຕ່ລະແຖວເພື່ອອະນຸມັດປັບງົບດ້ວຍມືເອງໄດ້.', th: 'ถ้าปิด Auto-Pilot คุณสามารถกดปุ่ม “🚀 สเกล (+20%)” แต่ละแถวเพื่อปรับงบด้วยมือได้ตลอดเวลา', en: 'In manual mode, click the Scale button on any row to approve a +20% bump on your terms.' }) }}
+                    </p>
+                  </div>
+                </div>
+
+                <!-- Mock Row 2: In Cooldown -->
+                <div class="mockup-element-row mb-4">
+                  <div class="mockup-element-box flex-grow-1 position-relative ad-row-mockup cooldown">
+                    <div class="d-flex align-center justify-space-between flex-wrap gap-2">
+                      <div>
+                        <strong class="d-block font-weight-bold">kito AG29 - Winner Campaign</strong>
+                        <small class="text-medium-emphasis">{{ l({ lo: 'ປັບແລ້ວ: 100,000 ₭ ➔ 120,000 ₭/ມື້', th: 'ปรับแล้ว: 100,000 ₭ ➔ 120,000 ₭/วัน', en: 'Scaled: 100,000 ₭ ➔ 120,000 ₭/day' }) }}</small>
+                      </div>
+                      <v-chip size="small" color="info" variant="tonal" class="font-weight-bold">
+                        ⏳ {{ l({ lo: 'ສະເກວແລ້ວ (Cooldown ອີກ 21h 30m)', th: 'สเกลแล้ว (Cooldown อีก 21h 30m)', en: 'Scaled (Cooldown 21h 30m)' }) }}
+                      </v-chip>
+                    </div>
+                    <div class="guide-pointer-anchor right-center">
+                      <span class="pointer-dot cyan"></span>
+                      <span class="pointer-line horizontal"></span>
+                    </div>
+                  </div>
+                  <div class="guide-callout-box highlight-tip">
+                    <h5 class="callout-title font-weight-bold text-info">
+                      <v-icon icon="mdi-timer-sand" size="14" class="mr-1" />
+                      {{ l({ lo: 'ລັອກ Cooldown 24 ຊົ່ວໂມງ', th: 'ล็อค Cooldown 24 ชั่วโมง', en: '24h Cooldown Lock' }) }}
+                    </h5>
+                    <p class="callout-desc mb-0">
+                      {{ l({ lo: 'ລະບົບຈະລັອກບໍ່ໃຫ້ສະເກວຊ້ຳໃນມື້ດຽວກັນ ເພື່ອໃຫ້ເວລາ Meta AI ກະຈາຍງົບ ແລະ ປົກປ້ອງ Learning Phase.', th: 'ระบบจะล็อคไม่ให้สเกลซ้ำในวันเดียวกัน เพื่อให้เวลา Meta กระจายงบและปกป้อง Learning Phase', en: 'Ad is locked for 24h to prevent multi-scaling within the same day and safeguard learning stability.' }) }}
+                    </p>
+                  </div>
+                </div>
+
+                <!-- Mock Row 3: Incremental sales requirement -->
+                <div class="mockup-element-row">
+                  <div class="mockup-element-box flex-grow-1 position-relative ad-row-mockup info-state">
+                    <div class="d-flex align-center justify-space-between flex-wrap gap-2">
+                      <div>
+                        <strong class="d-block font-weight-bold">{{ l({ lo: 'ເງື່ອນໄຂອໍເດີໃໝ່ (Incremental Sales)', th: 'เงื่อนไขออเดอร์ใหม่ (Incremental Sales)', en: 'Incremental Sales Requirement' }) }}</strong>
+                        <small class="text-medium-emphasis">{{ l({ lo: 'ອໍເດີປັດຈຸບັນ: 4/4 ອໍເດີ (ຍັງບໍ່ມີອໍເດີໃໝ່ເພີ່ມ)', th: 'ออเดอร์ปัจจุบัน: 4/4 ออเดอร์ (ยังไม่มีออเดอร์ใหม่)', en: 'Orders: 4/4 (no new orders yet)' }) }}</small>
+                      </div>
+                      <v-chip size="small" color="secondary" variant="outlined">
+                        🛑 {{ l({ lo: 'ລໍຖ້າອໍເດີໃໝ່', th: 'รอออเดอร์ใหม่', en: 'Awaiting new sales' }) }}
+                      </v-chip>
+                    </div>
+                    <div class="guide-pointer-anchor right-center">
+                      <span class="pointer-dot orange"></span>
+                      <span class="pointer-line horizontal"></span>
+                    </div>
+                  </div>
+                  <div class="guide-callout-box">
+                    <h5 class="callout-title font-weight-bold text-warning">
+                      <v-icon icon="mdi-shield-alert" size="14" class="mr-1" />
+                      {{ l({ lo: 'ຈະບໍ່ສະເກວຕໍ່ ຖ້າບໍ່ມີອໍເດີໃໝ່!', th: 'จะไม่สเกลต่อถ้าไม่มีออเดอร์ใหม่!', en: 'No further scale without new sales!' }) }}
+                    </h5>
+                    <p class="callout-desc mb-0">
+                      {{ l({ lo: 'ຫຼັງຈາກໝົດ 24h, ຖ້າແອດຍັງມີ 4 ອໍເດີເທົ່າເກົ່າ ບັອດຈະປະຕິເສດການສະເກວທັນທີ! ຕ້ອງມີອໍເດີໃໝ່ເພີ່ມຂຶ້ນແທ້ຈຶ່ງຈະສະເກວຕໍ່ໄດ້.', th: 'หลังหมด 24h ถ้าแอดยังมี 4 ออเดอร์เท่าเดิม บอทจะไม่สเกลต่อ ต้องมีออเดอร์ใหม่เข้ามาเพิ่มจึงจะสเกลได้', en: 'After 24h, if sales remain unchanged at 4 orders, Auto-Pilot refuses further scaling until new sales arrive.' }) }}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </v-card-text>
+
+      <v-card-actions class="dialog-actions pa-4 border-t d-flex align-center justify-space-between">
+        <v-btn
+          variant="outlined"
+          :disabled="guideStep === 1"
+          prepend-icon="mdi-arrow-left"
+          @click="guideStep--"
+        >
+          {{ l({ lo: 'ຍ້ອນກັບ', th: 'ย้อนกลับ', en: 'Back' }) }}
+        </v-btn>
+
+        <div class="d-flex align-center gap-2">
+          <v-btn
+            variant="text"
+            @click="guideModalOpen = false"
+          >
+            {{ l({ lo: 'ປິດ', th: 'ปิด', en: 'Close' }) }}
+          </v-btn>
+
+          <v-btn
+            v-if="guideStep < 4"
+            color="primary"
+            variant="flat"
+            append-icon="mdi-arrow-right"
+            class="font-weight-bold px-4"
+            @click="guideStep++"
+          >
+            {{ l({ lo: 'ຂັ້ນຕອນຕໍ່ໄປ', th: 'ขั้นตอนถัดไป', en: 'Next Step' }) }}
+          </v-btn>
+
+          <v-btn
+            v-else
+            color="success"
+            variant="flat"
+            prepend-icon="mdi-robot"
+            class="font-weight-bold px-4"
+            @click="guideModalOpen = false; autoPilotModalOpen = true"
+          >
+            {{ l({ lo: '🚀 ເຂົ້າສູ່ການຕັ້ງຄ່າ Auto-Pilot', th: '🚀 เข้าสู่การตั้งค่า Auto-Pilot', en: '🚀 Open Auto-Pilot' }) }}
+          </v-btn>
+        </div>
       </v-card-actions>
     </v-card>
   </v-dialog>
@@ -2912,5 +3451,209 @@ onMounted(async () => {
     flex: 1;
     justify-content: space-between;
   }
+}
+
+/* Interactive Guide Walkthrough Styles */
+.guide-dialog-card {
+  background: var(--color-surface, #ffffff);
+  border: 1px solid var(--color-border, #e2e8f0);
+}
+.guide-stepper-bar {
+  background: rgba(0, 0, 0, 0.02);
+}
+.guide-step-chip {
+  border-radius: 20px !important;
+  text-transform: none !important;
+  font-size: 12px !important;
+}
+.guide-step-chip .step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.12);
+  font-weight: 800;
+  font-size: 11px;
+}
+.guide-step-header .step-badge-pill {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.guide-mockup-wrapper {
+  background: rgba(0, 0, 0, 0.02);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 14px;
+  padding: 16px;
+}
+.guide-mockup-card {
+  background: var(--color-surface, #ffffff);
+  border: 1px solid var(--color-border, #cbd5e1);
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+}
+.mockup-header-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  background: rgba(0, 0, 0, 0.03);
+  border-bottom: 1px solid var(--color-border, #e2e8f0);
+}
+.mockup-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.mockup-dot.red { background: #ef4444; }
+.mockup-dot.yellow { background: #f59e0b; }
+.mockup-dot.green { background: #10b981; }
+.mockup-title {
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-text-secondary, #64748b);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.mockup-element-row {
+  display: grid;
+  grid-template-columns: minmax(280px, 1.15fr) minmax(260px, 1fr);
+  gap: 24px;
+  align-items: center;
+  position: relative;
+}
+@media (max-width: 860px) {
+  .mockup-element-row {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+.mockup-element-box {
+  background: var(--color-background, #f8fafc);
+  border: 1.5px solid var(--color-border, #cbd5e1);
+  border-radius: 10px;
+  padding: 12px 14px;
+  transition: all 0.2s ease;
+}
+.mockup-element-box.kpi-card-mockup {
+  border-left-width: 5px;
+}
+.mockup-element-box.kpi-card-mockup.winner {
+  border-left-color: #10b981;
+  background: rgba(16, 185, 129, 0.05);
+}
+.mockup-element-box.kpi-card-mockup.loser {
+  border-left-color: #ef4444;
+  background: rgba(239, 68, 68, 0.05);
+}
+.mockup-element-box.kpi-card-mockup.warning {
+  border-left-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.05);
+}
+.mock-input-label {
+  font-size: 11px;
+  color: var(--color-text-secondary, #64748b);
+  margin-bottom: 5px;
+  font-weight: 700;
+}
+.mock-input-field {
+  display: flex;
+  align-items: center;
+  font-size: 13.5px;
+  color: var(--color-text, #1e293b);
+}
+.mock-input-field.active-highlight {
+  color: var(--color-primary, #0284c7);
+}
+.guide-pointer-anchor {
+  position: absolute;
+  right: -20px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+  z-index: 2;
+}
+@media (max-width: 860px) {
+  .guide-pointer-anchor {
+    display: none;
+  }
+}
+.pointer-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #0284c7;
+  border: 2.5px solid #ffffff;
+  box-shadow: 0 0 0 2px #0284c7;
+  display: inline-block;
+  flex-shrink: 0;
+  animation: guide-dot-pulse 2s infinite ease-in-out;
+}
+.pointer-dot.green {
+  background: #10b981;
+  box-shadow: 0 0 0 2px #10b981;
+}
+.pointer-dot.red {
+  background: #ef4444;
+  box-shadow: 0 0 0 2px #ef4444;
+}
+.pointer-dot.orange {
+  background: #f59e0b;
+  box-shadow: 0 0 0 2px #f59e0b;
+}
+.pointer-dot.cyan {
+  background: #06b6d4;
+  box-shadow: 0 0 0 2px #06b6d4;
+}
+.pointer-line {
+  height: 2px;
+  width: 28px;
+  background: #0284c7;
+  display: inline-block;
+}
+@keyframes guide-dot-pulse {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.25); opacity: 0.85; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.guide-callout-box {
+  background: rgba(2, 132, 199, 0.05);
+  border: 1px dashed rgba(2, 132, 199, 0.4);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.guide-callout-box.highlight-tip {
+  background: rgba(245, 158, 11, 0.07);
+  border: 1px dashed rgba(245, 158, 11, 0.5);
+}
+.callout-title {
+  font-size: 13px;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+}
+.callout-desc {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--color-text-secondary, #475569);
+}
+.ad-row-mockup {
+  background: var(--color-surface, #ffffff);
+  border: 1px solid var(--color-border, #e2e8f0);
+}
+.ad-row-mockup.cooldown {
+  background: rgba(2, 132, 199, 0.04);
+  border-color: rgba(2, 132, 199, 0.3);
+}
+.ad-row-mockup.info-state {
+  background: rgba(100, 116, 139, 0.03);
 }
 </style>
