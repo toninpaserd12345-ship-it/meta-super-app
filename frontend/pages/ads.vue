@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { AutomationFlow, ItemsResponse, MetaAdAccount, MetaAudienceAnalysis, MetaCampaign, MetaInsightItem, MetaInsightsReport, Product } from '~/types/automation'
+import { useAdVat } from '~/composables/useAdVat'
 
 definePageMeta({ middleware: 'auth' })
 const { l } = useLocale()
@@ -55,6 +56,9 @@ const minimumPlanSpend = ref<number | null>(null)
 const sortBy = ref<'spend' | 'newest' | 'name'>('spend')
 
 const selectedAccount = computed(() => adAccounts.value.find(item => item.id === adAccountId.value))
+const { detectVatRate, computeVat } = useAdVat()
+const vatDetails = computed(() => detectVatRate(selectedAccount.value))
+const vatComputation = computed(() => computeVat(summary.value?.spend, vatDetails.value.rate))
 
 async function loadAutomationsAndProducts() {
   loadingAutomations.value = true
@@ -447,42 +451,40 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section class="page-head">
-    <div>
-      <div class="d-flex align-center gap-2 mb-1">
-        <v-chip size="small" color="primary" variant="outlined" class="font-weight-bold">META ADS MANAGER</v-chip>
-        <span class="text-caption text-medium-emphasis">{{ l({ lo: 'ຕິດຕາມການນຳສົ່ງ & ປະສິດທິພາບໂຄສະນາ', th: 'ติดตามการนำส่งและประสิทธิภาพโฆษณา', en: 'Delivery & Creative Performance' }) }}</span>
-      </div>
+  <!-- Shared Ads Suite Navigation -->
+  <nav class="app-sub-nav" aria-label="Ads suite navigation">
+    <NuxtLink to="/ads" class="app-sub-nav-item active">
+      <v-icon icon="mdi-bullhorn-outline" size="18" />
+      <span>{{ l({ lo: '1. Ads Manager (ນຳສົ່ງ & ຄ່າແອດ)', th: '1. Ads Manager (นำส่ง & ค่าแอด)', en: '1. Ads Manager (Delivery & Creatives)' }) }}</span>
+    </NuxtLink>
+    <NuxtLink to="/ads-intelligence" class="app-sub-nav-item">
+      <v-icon icon="mdi-chart-timeline-variant-shimmer" size="18" />
+      <span>{{ l({ lo: '2. Ads Intelligence (ກຳໄລ, Real CPA & SOP)', th: '2. Ads Intelligence (กำไร, Real CPA & SOP)', en: '2. Ads Intelligence (Real CPA & SOP)' }) }}</span>
+    </NuxtLink>
+  </nav>
+
+  <!-- Modern Page Head -->
+  <section class="app-page-head">
+    <div class="head-content">
+      <span class="head-badge">
+        <v-icon icon="mdi-bullhorn-outline" size="14" />
+        Meta Ads Suite · Delivery & Performance
+      </span>
       <h1>{{ l({ lo: 'ຈັດການໂຄສະນາ (Ads Manager)', th: 'จัดการโฆษณา (Ads Manager)', en: 'Meta Ads Manager' }) }}</h1>
-      <span>{{ l({ lo: 'ເບິ່ງຜົນງານການນຳສົ່ງໂຄສະນາ, CTR, Impressions, Frequency ແລະ ຄວບຄຸມສະຖານະ ເປີດ/ປິດ.', th: 'ดูผลการนำส่งโฆษณา CTR, Impressions, Frequency และควบคุมสถานะ เปิด/ปิด', en: 'Manage ad delivery, track CTR, impressions, frequency, and toggle campaign status.' }) }}</span>
+      <p>{{ l({ lo: 'ຕິດຕາມຜົນງານການນຳສົ່ງ, CTR, Impressions, Frequency, ປະສິດທິພາບແອດ ແລະ ຄວບຄຸມສະຖານະ.', th: 'ติดตามผลการนำส่ง CTR, Impressions, Frequency, ประสิทธิภาพแอด และควบคุมสถานะ', en: 'Track ad delivery, CTR, impressions, frequency, creative metrics, and toggle campaign status.' }) }}</p>
     </div>
     <div class="head-actions">
-      <v-btn color="purple-darken-1" variant="flat" prepend-icon="mdi-chart-timeline-variant-shimmer" to="/ads-intelligence">
-        {{ l({ lo: 'ສູນຍຸດທະສາດ (Real CPA)', th: 'ศูนย์ยุทธศาสตร์ (Real CPA)', en: 'Strategy & Real CPA' }) }}
+      <v-btn color="warning" variant="tonal" prepend-icon="mdi-shield-check-outline" :disabled="!report" @click="openActionPlan">
+        {{ l({ lo: `ກວດແຜນປັບ Ads (${actionCandidates.length})`, th: `ตรวจแผนปรับ Ads (${actionCandidates.length})`, en: `Review action plan (${actionCandidates.length})` }) }}
       </v-btn>
-      <v-btn color="warning" variant="tonal" prepend-icon="mdi-shield-check-outline" :disabled="!report" @click="openActionPlan">{{ l({ lo: `ກວດແຜນປັບ Ads (${actionCandidates.length})`, th: `ตรวจแผนปรับ Ads (${actionCandidates.length})`, en: `Review action plan (${actionCandidates.length})` }) }}</v-btn>
-      <v-btn variant="outlined" prepend-icon="mdi-tune-variant" @click="settingsOpen = true">{{ l({ lo: 'ຕັ້ງຄ່າເກນ', th: 'ตั้งค่าเกณฑ์', en: 'Decision settings' }) }}</v-btn>
-      <v-btn color="primary" prepend-icon="mdi-refresh" :loading="loadingReport" :disabled="!adAccountId" @click="loadPerformance">{{ l({ lo: 'ອັບເດດຂໍ້ມູນ', th: 'อัปเดตข้อมูล', en: 'Refresh data' }) }}</v-btn>
+      <v-btn variant="outlined" prepend-icon="mdi-tune-variant" @click="settingsOpen = true">
+        {{ l({ lo: 'ຕັ້ງຄ່າເກນ', th: 'ตั้งค่าเกณฑ์', en: 'Thresholds' }) }}
+      </v-btn>
+      <v-btn color="primary" variant="flat" prepend-icon="mdi-refresh" :loading="loadingReport" :disabled="!adAccountId" @click="loadPerformance">
+        {{ l({ lo: 'ອັບເດດຂໍ້ມູນ', th: 'อัปเดตข้อมูล', en: 'Refresh' }) }}
+      </v-btn>
     </div>
   </section>
-
-  <v-banner lines="one" color="purple-lighten-5" class="rounded-lg mb-4 border" density="comfortable">
-    <template #prepend>
-      <v-icon icon="mdi-lightbulb-on-outline" color="purple-darken-2" />
-    </template>
-    <div class="d-flex align-center justify-space-between w-100 flex-wrap gap-2">
-      <span class="text-caption text-purple-darken-4 font-weight-medium">
-        {{ l({
-          lo: '💡 ຕ້ອງການເບິ່ງກຳໄລຕົວຈິງຫຼັງຫັກຄ່າແພັກ/ສົ່ງ, ຍອດເກັບ COD vs ໂອນກ່ອນ, ແລະ ຄຳແນະນຳເພີ່ມ/ຫຼຸດງົບຕາມ SOP ບໍ່?',
-          th: '💡 ต้องการดูกำไรจริงหลังหักค่าแพ็ก/ส่ง, ยอดเก็บ COD vs โอนก่อน, และคำแนะนำเพิ่ม/ลดงบตาม SOP หรือไม่?',
-          en: '💡 Looking for Real CPA, net profit after packaging/shipping, COD vs prepaid cash, and SOP scaling decisions?'
-        }) }}
-      </span>
-      <v-btn size="small" color="purple-darken-2" variant="tonal" to="/ads-intelligence" prepend-icon="mdi-arrow-right">
-        {{ l({ lo: 'ໄປທີ່ ສູນວິເຄາະຍຸດທະສາດ', th: 'ไปที่ ศูนย์วิเคราะห์ยุทธศาสตร์', en: 'Go to Strategy Center' }) }}
-      </v-btn>
-    </div>
-  </v-banner>
 
   <v-alert v-if="notice" type="error" variant="tonal" class="mb-4" closable @click:close="notice = ''">
     {{ notice }}
@@ -490,28 +492,125 @@ onMounted(async () => {
   </v-alert>
   <v-alert v-if="success" type="success" variant="tonal" class="mb-4" closable @click:close="success = ''">{{ success }}</v-alert>
 
-  <section class="filter-bar" aria-label="Ads report filters">
-    <v-select v-model="adAccountId" :items="adAccounts.map(account => ({ ...account, label: `${account.accountType === 'business' ? 'Business' : 'Personal'} · ${account.name}` }))" item-title="label" item-value="id" :label="l({ lo: 'ບັນຊີໂຄສະນາ', th: 'บัญชีโฆษณา', en: 'Ad account' })" variant="outlined" density="comfortable" hide-details :loading="loadingAccounts" />
-    <v-select v-model="selectedProductId" :items="productOptions" item-title="title" item-value="value" :label="l({ lo: 'ສິນຄ້າ (Auto Reply)', th: 'สินค้า (Auto Reply)', en: 'Product (Auto Reply)' })" variant="outlined" density="comfortable" hide-details style="min-width: 210px;" />
-    <v-select :model-value="datePreset" :items="[{title:l({lo:'7 ມື້ຫຼ້າສຸດ',th:'7 วันล่าสุด',en:'Last 7 days'}),value:'7'},{title:l({lo:'30 ມື້ຫຼ້າສຸດ',th:'30 วันล่าสุด',en:'Last 30 days'}),value:'30'},{title:l({lo:'ກຳນົດເອງ',th:'กำหนดเอง',en:'Custom'}),value:'custom'}]" item-title="title" item-value="value" :label="l({lo:'ໄລຍະເວລາ',th:'ช่วงเวลา',en:'Date range'})" variant="outlined" density="comfortable" hide-details @update:model-value="setPreset" />
-    <v-text-field v-model="since" type="date" label="From" variant="outlined" density="comfortable" hide-details @update:model-value="datePreset='custom'" />
-    <v-text-field v-model="until" type="date" label="To" variant="outlined" density="comfortable" hide-details @update:model-value="datePreset='custom'" />
-    <v-btn color="primary" variant="tonal" height="48" :loading="loadingReport" @click="loadPerformance">{{ l({lo:'ນຳໃຊ້',th:'ใช้ช่วงเวลา',en:'Apply'}) }}</v-btn>
+  <!-- Modern Standardized Command & Filter Bar -->
+  <section class="app-filter-bar" aria-label="Ads report filters">
+    <div class="app-filter-group">
+      <v-select
+        v-model="adAccountId"
+        :items="adAccounts.map(account => ({ ...account, label: `${account.accountType === 'business' ? 'Business' : 'Personal'} · ${account.name}` }))"
+        item-title="label"
+        item-value="id"
+        :label="l({ lo: 'ບັນຊີໂຄສະນາ', th: 'บัญชีโฆษณา', en: 'Ad account' })"
+        variant="outlined"
+        density="compact"
+        hide-details
+        :loading="loadingAccounts"
+        style="min-width: 220px;"
+      />
+      <v-select
+        v-model="selectedProductId"
+        :items="productOptions"
+        item-title="title"
+        item-value="value"
+        :label="l({ lo: 'ສິນຄ້າ (Auto Reply)', th: 'สินค้า (Auto Reply)', en: 'Product' })"
+        variant="outlined"
+        density="compact"
+        hide-details
+        style="min-width: 200px;"
+      />
+      <div class="app-filter-divider" />
+      <v-select
+        :model-value="datePreset"
+        :items="[
+          { title: l({ lo: '7 ມື້ຫຼ້າສຸດ', th: '7 วันล่าสุด', en: 'Last 7 days' }), value: '7' },
+          { title: l({ lo: '30 ມື້ຫຼ້າສຸດ', th: '30 วันล่าสุด', en: 'Last 30 days' }), value: '30' },
+          { title: l({ lo: 'ກຳນົດເອງ', th: 'กำหนดเอง', en: 'Custom' }), value: 'custom' }
+        ]"
+        item-title="title"
+        item-value="value"
+        :label="l({ lo: 'ໄລຍະເວລາ', th: 'ช่วงเวลา', en: 'Date range' })"
+        variant="outlined"
+        density="compact"
+        hide-details
+        style="min-width: 140px;"
+        @update:model-value="setPreset"
+      />
+      <v-text-field v-if="datePreset === 'custom'" v-model="since" type="date" label="From" variant="outlined" density="compact" hide-details style="max-width: 130px;" />
+      <v-text-field v-if="datePreset === 'custom'" v-model="until" type="date" label="To" variant="outlined" density="compact" hide-details style="max-width: 130px;" />
+    </div>
+
+    <div class="app-filter-group">
+      <!-- Auto VAT indicator pill -->
+      <v-chip size="small" variant="tonal" color="primary" class="font-weight-medium">
+        <v-icon icon="mdi-receipt-text-outline" start size="14" />
+        VAT {{ vatDetails.flag }} {{ vatDetails.rate }}% (Auto)
+      </v-chip>
+      <v-btn color="primary" variant="tonal" height="40" :loading="loadingReport" @click="loadPerformance">
+        {{ l({ lo: 'ນຳໃຊ້', th: 'ใช้ช่วงเวลา', en: 'Apply' }) }}
+      </v-btn>
+    </div>
   </section>
 
   <div v-if="loadingReport && !report" class="loading-grid" aria-live="polite"><v-skeleton-loader v-for="n in 6" :key="n" type="article" /></div>
 
   <template v-else-if="report">
-    <section class="summary-grid" aria-label="Ads summary">
-      <article class="summary-card"><span>{{ l({lo:'ໃຊ້ຈ່າຍ',th:'ยอดใช้จ่าย',en:'Amount spent'}) }}</span><strong>{{ money(summary?.spend) }}</strong><small>{{ report.dateStart }} – {{ report.dateStop }}</small></article>
-      <article class="summary-card"><span>{{ resultLabel(summary?.results.type) }}</span><strong>{{ fmt(summary?.results.value, 0) }}</strong><small>{{ summary?.results.type || l({lo:'Meta ບໍ່ມີຜົນລັບ',th:'Meta ไม่มีผลลัพธ์',en:'No result type returned'}) }}</small></article>
-      <article class="summary-card"><span>{{ l({lo:'ຕົ້ນທຶນ/ຜົນລັບ',th:'ต้นทุน/ผลลัพธ์',en:'Cost per result'}) }}</span><strong>{{ money(summary?.results.cost) }}</strong><small>{{ targetCost ? `${l({lo:'ເປົ້າ',th:'เป้า',en:'Target'})}: ${money(targetCost)}` : l({lo:'ກຳນົດຈຸດຄຸ້ມທຶນເພື່ອຮັບຄຳແນະນຳ',th:'กำหนดจุดคุ้มทุนเพื่อรับคำแนะนำ',en:'Set break-even cost for guidance'}) }}</small></article>
-      <article class="summary-card"><span>Link CTR</span><strong>{{ percent(summary?.linkCtr) }}</strong><small>{{ l({lo:'ອັດຕາຄລິກຕໍ່ການສະແດງ',th:'อัตราคลิกต่อการแสดงผล',en:'Clicks divided by impressions'}) }}</small></article>
-      <article class="summary-card"><span>Frequency</span><strong>{{ fmt(summary?.frequency, 2) }}</strong><small>{{ l({lo:'ຈຳນວນຄັ້ງສະເລ່ຍທີ່ 1 ຄົນເຫັນ',th:'จำนวนครั้งเฉลี่ยที่ 1 คนเห็น',en:'Average times each person saw an ad'}) }}</small></article>
-      <article class="summary-card"><span>{{ l({lo:'ເຂົ້າເຖິງ / ສະແດງ',th:'เข้าถึง / แสดงผล',en:'Reach / impressions'}) }}</span><strong>{{ fmt(summary?.reach, 0) }} / {{ fmt(summary?.impressions, 0) }}</strong><small>{{ report.timezone || 'Meta account timezone' }}</small></article>
-      <article class="summary-card finance"><span>{{ l({lo:'ມູນຄ່າ Conversion',th:'มูลค่า Conversion',en:'Conversion value'}) }}</span><strong>{{ money(summary?.conversionValue) }}</strong><small>{{ l({lo:'ມູນຄ່າທີ່ Meta attribution ໃຫ້ Ads',th:'มูลค่าที่ Meta attribution ให้โฆษณา',en:'Value attributed to ads by Meta'}) }}</small></article>
-      <article class="summary-card finance"><span>ROAS</span><strong>{{ summary?.roas==null?'—':`${fmt(summary.roas,2)}×` }}</strong><small>{{ breakEvenROAS ? `${l({lo:'Break-even',th:'จุดคุ้มทุน',en:'Break-even'})}: ${fmt(breakEvenROAS,2)}×` : l({lo:'ໃສ່ Gross margin ເພື່ອຄຳນວນຈຸດຄຸ້ມທຶນ',th:'ใส่ Gross margin เพื่อคำนวณจุดคุ้มทุน',en:'Set gross margin to calculate break-even'}) }}</small></article>
-      <article class="summary-card" :class="{finance:contribution(summary)!=null,loss:(contribution(summary) || 0)<0}"><span>{{ l({lo:'ກຳໄລສ່ວນປະກອບຫຼັງ Ads',th:'กำไรส่วนเพิ่มหลังค่าโฆษณา',en:'Contribution after ad spend'}) }}</span><strong>{{ money(contribution(summary)) }}</strong><small>{{ grossMargin!=null?l({lo:'ກ່ອນຄ່າດຳເນີນງານອື່ນ',th:'ก่อนค่าใช้จ่ายดำเนินงานอื่น',en:'Before other operating costs'}):l({lo:'ຕ້ອງກຳນົດ Gross margin',th:'ต้องกำหนด Gross margin',en:'Gross margin is required'}) }}</small></article>
+    <!-- Modern 5-KPI Cards Grid with VAT Breakdown -->
+    <section class="app-kpi-grid" aria-label="Ads summary">
+      <article class="app-kpi-card accent-primary">
+        <div class="kpi-header">
+          <span class="kpi-label">{{ l({ lo: 'ຍອດຈ່າຍຄ່າແອດຕົວຈິງ (Gross)', th: 'ยอดใช้จ่ายจริงรวม VAT', en: 'Total Gross Spend' }) }}</span>
+          <span class="kpi-icon"><v-icon icon="mdi-cash" size="16" /></span>
+        </div>
+        <strong class="kpi-value">{{ money(vatComputation.grossSpend) }}</strong>
+        <div class="kpi-sub">
+          <span>Net: {{ money(vatComputation.netSpend) }}</span>
+          <span class="text-primary font-weight-bold">+ VAT {{ vatDetails.rate }}% ({{ money(vatComputation.vatAmount) }})</span>
+        </div>
+      </article>
+
+      <article class="app-kpi-card accent-info">
+        <div class="kpi-header">
+          <span class="kpi-label">{{ resultLabel(summary?.results.type) }}</span>
+          <span class="kpi-icon"><v-icon icon="mdi-bullseye-arrow" size="16" /></span>
+        </div>
+        <strong class="kpi-value">{{ fmt(summary?.results.value, 0) }}</strong>
+        <div class="kpi-sub">
+          <span>ຕົ້ນທຶນ/ຜົນລັບ: <b>{{ money(summary?.results.cost) }}</b></span>
+        </div>
+      </article>
+
+      <article class="app-kpi-card accent-purple">
+        <div class="kpi-header">
+          <span class="kpi-label">Link CTR</span>
+          <span class="kpi-icon"><v-icon icon="mdi-cursor-default-click" size="16" /></span>
+        </div>
+        <strong class="kpi-value">{{ percent(summary?.linkCtr) }}</strong>
+        <div class="kpi-sub">
+          <span>{{ (summary?.linkCtr || 0) >= goodCTR ? '🟢 CTR ດີ' : (summary?.linkCtr || 0) < weakCTR ? '🔴 CTR ຕ່ຳ' : '🟡 CTR ປານກາງ' }}</span>
+        </div>
+      </article>
+
+      <article class="app-kpi-card accent-warning">
+        <div class="kpi-header">
+          <span class="kpi-label">Frequency / Reach</span>
+          <span class="kpi-icon"><v-icon icon="mdi-account-group-outline" size="16" /></span>
+        </div>
+        <strong class="kpi-value">{{ fmt(summary?.frequency, 2) }}x</strong>
+        <div class="kpi-sub">
+          <span>Reach: {{ fmt(summary?.reach, 0) }} ຄົນ</span>
+        </div>
+      </article>
+
+      <article class="app-kpi-card accent-success">
+        <div class="kpi-header">
+          <span class="kpi-label">ROAS / Conversion</span>
+          <span class="kpi-icon"><v-icon icon="mdi-chart-line" size="16" /></span>
+        </div>
+        <strong class="kpi-value">{{ summary?.roas == null ? '—' : `${fmt(summary.roas, 2)}×` }}</strong>
+        <div class="kpi-sub">
+          <span>ມູນຄ່າ: {{ money(summary?.conversionValue) }}</span>
+        </div>
+      </article>
     </section>
 
     <section class="analysis-grid">

@@ -270,14 +270,51 @@ watch(adAccountId, loadCampaigns)
 </script>
 
 <template>
-  <section class="page-head">
-    <div><p>{{ t('auto.eyebrow') }}</p><h2>{{ view === 'dashboard' ? t('auto.title') : editingId ? t('auto.editTitle') : t('auto.newTitle') }}</h2><span>{{ t('auto.subtitle') }}</span></div>
-    <div class="head-actions"><v-btn variant="text" to="/automation-guide" prepend-icon="mdi-book-open-page-variant-outline">{{ t('auto.guide') }}</v-btn><v-btn v-if="view==='dashboard'" color="primary" prepend-icon="mdi-plus" :disabled="!can('pages:connect')" @click="startWizard">{{ t('auto.new') }}</v-btn></div>
+  <section class="app-page-head">
+    <div class="head-content">
+      <span class="head-badge">
+        <v-icon icon="mdi-robot-happy-outline" size="14" />
+        {{ t('auto.eyebrow') }}
+      </span>
+      <h1>{{ view === 'dashboard' ? t('auto.title') : editingId ? t('auto.editTitle') : t('auto.newTitle') }}</h1>
+      <p>{{ t('auto.subtitle') }}</p>
+    </div>
+    <div class="head-actions">
+      <v-btn variant="outlined" to="/automation-guide" prepend-icon="mdi-book-open-page-variant-outline">{{ t('auto.guide') }}</v-btn>
+      <v-btn v-if="view==='dashboard'" color="primary" variant="flat" prepend-icon="mdi-plus" :disabled="!can('pages:connect')" @click="startWizard">{{ t('auto.new') }}</v-btn>
+    </div>
   </section>
   <v-alert v-if="notice" :type="noticeType" variant="tonal" closable class="mb-4" @click:close="notice=''">{{ notice }}</v-alert>
 
   <template v-if="view==='dashboard'">
-    <section class="summary-grid"><article><v-icon icon="mdi-robot-happy-outline"/><div><strong>{{ flows.length }}</strong><span>{{ t('auto.list') }}</span></div></article><article><v-icon icon="mdi-target"/><div><strong>{{ flows.reduce((sum,item)=>sum+item.targets.length,0) }}</strong><span>{{ t('auto.connected') }}</span></div></article><article><v-icon icon="mdi-check-circle-outline"/><div><strong>{{ flows.filter(item=>item.isActive).length }}</strong><span>{{ t('common.active') }}</span></div></article></section>
+    <section class="app-kpi-grid mb-4">
+      <article class="app-kpi-card accent-primary">
+        <div class="kpi-header">
+          <span class="kpi-label">{{ t('auto.list') }}</span>
+          <span class="kpi-icon"><v-icon icon="mdi-robot-happy-outline" size="16"/></span>
+        </div>
+        <strong class="kpi-value">{{ flows.length }}</strong>
+        <div class="kpi-sub"><span>Flows ທັງໝົດ</span></div>
+      </article>
+
+      <article class="app-kpi-card accent-info">
+        <div class="kpi-header">
+          <span class="kpi-label">{{ t('auto.connected') }}</span>
+          <span class="kpi-icon"><v-icon icon="mdi-target" size="16"/></span>
+        </div>
+        <strong class="kpi-value">{{ flows.reduce((sum,item)=>sum+item.targets.length,0) }}</strong>
+        <div class="kpi-sub"><span>ໂພສ / Campaign ທີ່ຜູກແລ້ວ</span></div>
+      </article>
+
+      <article class="app-kpi-card accent-success">
+        <div class="kpi-header">
+          <span class="kpi-label">{{ t('common.active') }}</span>
+          <span class="kpi-icon"><v-icon icon="mdi-check-circle-outline" size="16"/></span>
+        </div>
+        <strong class="kpi-value text-success">{{ flows.filter(item=>item.isActive).length }}</strong>
+        <div class="kpi-sub"><span>ພ້ອມຕອບກັບລູກຄ້າ</span></div>
+      </article>
+    </section>
     <v-alert v-if="!products.length || !usableSets.length || !pages.length" type="info" variant="tonal" class="mb-4">{{ t('auto.setupNeeded') }}</v-alert>
     <section class="rules-panel">
       <div class="panel-head flex-wrap gap-2">

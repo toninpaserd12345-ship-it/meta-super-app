@@ -274,17 +274,20 @@ onUnmounted(() => {
 <template>
   <div class="leads-page">
     <!-- Header Hero Banner -->
-    <section class="leads-hero">
-      <div class="hero-text">
-        <small class="hero-tag">PANCAKE CRM & SALES PIPELINE</small>
-        <h2>{{ l({ lo: 'ຈັດການລູກຄ້າ & Leads', th: 'จัดการลูกค้า & Leads', en: 'Lead & Customer Management' }) }}</h2>
+    <section class="app-page-head">
+      <div class="head-content">
+        <span class="head-badge">
+          <v-icon icon="mdi-account-multiple-plus-outline" size="14" />
+          CRM & Sales Pipeline
+        </span>
+        <h1>{{ l({ lo: 'ຈັດການລູກຄ້າ & Leads', th: 'จัดการลูกค้า & Leads', en: 'Lead & Customer Management' }) }}</h1>
         <p>{{ l({ lo: 'ຕິດຕາມລູກຄ້າທຸກຊ່ອງທາງ, ປິດການຂາຍ, ແບ່ງງານໃນທີມ ແລະ ສົ່ງ Meta Conversions API (CAPI) ໃນບ່ອນດຽວ', th: 'ติดตามลูกค้าทุกช่องทาง ปิดการขาย มอบหมายทีม และส่ง Meta Conversions API (CAPI) ครบจบในที่เดียว', en: 'Track customers, close deals, assign team members and report Meta Conversions API in one place.' }) }}</p>
       </div>
-      <div class="hero-actions">
-        <v-btn prepend-icon="mdi-chat-processing-outline" color="primary" class="hero-btn" to="/live-chat">
+      <div class="head-actions">
+        <v-btn prepend-icon="mdi-chat-processing-outline" color="primary" variant="flat" to="/live-chat">
           {{ l({ lo: 'ໄປທີ່ Live Chat', th: 'ไปที่ Live Chat', en: 'Open Live Chat' }) }}
         </v-btn>
-        <v-btn prepend-icon="mdi-cog-outline" variant="outlined" class="hero-btn" @click="settingsDialog = true">
+        <v-btn prepend-icon="mdi-cog-outline" variant="outlined" @click="settingsDialog = true">
           {{ l({ lo: 'ຕັ້ງຄ່າ Automation / CAPI', th: 'ตั้งค่า Automation / CAPI', en: 'Settings & CAPI' }) }}
         </v-btn>
         <v-btn icon="mdi-refresh" variant="text" :loading="pending" @click="refresh()" :title="l({lo:'ໂຫຼດໃໝ່',th:'รีเฟรช',en:'Refresh'})"/>

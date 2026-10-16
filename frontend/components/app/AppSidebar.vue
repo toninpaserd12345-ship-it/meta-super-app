@@ -1,11 +1,18 @@
 <script setup lang="ts">
-import { appNavigation } from '~/config/navigation'
+import { appNavigation, navigationSections } from '~/config/navigation'
 import { useNavDrawer } from '~/composables/useNavDrawer'
 const route = useRoute()
 const { can, logout } = useAuth()
 const { locale, setLocale, t } = useLocale()
 const { isOpen, close } = useNavDrawer()
 const items = computed(() => appNavigation.filter(item => !item.claim || can(item.claim)))
+
+const groupedItems = computed(() => {
+  return navigationSections.map(section => ({
+    ...section,
+    items: items.value.filter(it => it.sectionKey === section.key)
+  })).filter(group => group.items.length > 0)
+})
 
 // Close drawer on route navigation
 watch(() => route.path, () => {
@@ -26,7 +33,11 @@ watch(() => route.path, () => {
     <aside class="app-sidebar" :class="{ 'drawer-open': isOpen }">
       <div class="sidebar-top">
         <NuxtLink to="/" class="brand" @click="close">
-          <span>M</span><strong>Meta</strong>
+          <span>M</span>
+          <div class="brand-text">
+            <strong>Meta Super App</strong>
+            <small>Commerce & AI Ads</small>
+          </div>
         </NuxtLink>
         <button class="drawer-close-btn" :aria-label="t('common.close')" @click="close">
           <v-icon icon="mdi-close" size="20"/>
@@ -34,17 +45,20 @@ watch(() => route.path, () => {
       </div>
 
       <nav aria-label="Main navigation">
-        <NuxtLink 
-          v-for="item in items" 
-          :key="item.to" 
-          :to="item.to" 
-          :class="{ active: item.to === '/' ? route.path === '/' : route.path.startsWith(item.to) }" 
-          :title="t(item.labelKey)"
-          @click="close"
-        >
-          <v-icon :icon="item.icon" size="21"/>
-          <span>{{ t(item.labelKey) }}</span>
-        </NuxtLink>
+        <div v-for="group in groupedItems" :key="group.key" class="nav-group">
+          <div class="nav-group-title">{{ t(group.titleKey) }}</div>
+          <NuxtLink 
+            v-for="item in group.items" 
+            :key="item.to" 
+            :to="item.to" 
+            :class="{ active: item.to === '/' ? route.path === '/' : route.path.startsWith(item.to) }" 
+            :title="t(item.labelKey)"
+            @click="close"
+          >
+            <v-icon :icon="item.icon" size="19"/>
+            <span>{{ t(item.labelKey) }}</span>
+          </NuxtLink>
+        </div>
       </nav>
 
       <div class="sidebar-bottom">
@@ -53,9 +67,9 @@ watch(() => route.path, () => {
           <button :class="{ active: locale === 'th' }" @click="setLocale('th')">ไทย</button>
           <button :class="{ active: locale === 'en' }" @click="setLocale('en')">EN</button>
         </div>
-        <div class="version-badge">Version 1.0.6 (Campaign & Ads)</div>
+        <div class="version-badge">Version 1.1.0 · Pro</div>
         <button class="signout" @click="logout">
-          <v-icon icon="mdi-logout" size="20"/>
+          <v-icon icon="mdi-logout" size="18"/>
           <span>{{ t('common.signOut') }}</span>
         </button>
       </div>
@@ -100,18 +114,19 @@ watch(() => route.path, () => {
 .sidebar-top {
   display: flex;
   align-items: center;
-  padding-bottom: 8px;
+  padding-bottom: 12px;
   flex-shrink: 0;
+  border-bottom: 1px solid var(--color-border-subtle);
 }
 
 .app-sidebar {
-  width: 236px;
+  width: 242px;
   height: 100dvh;
   max-height: 100dvh;
   position: fixed;
   inset: 0 auto 0 0;
   z-index: 90;
-  padding: 20px 16px 16px;
+  padding: 16px 14px 14px;
   background: var(--color-surface);
   border-right: 1px solid var(--color-border);
   display: flex;
@@ -122,65 +137,94 @@ watch(() => route.path, () => {
 .brand {
   display: flex;
   align-items: center;
-  gap: 11px;
-  padding: 0 4px;
+  gap: 10px;
+  padding: 2px 4px;
   color: var(--color-text);
   text-decoration: none;
-  font-size: 20px;
 }
 .brand span {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
   display: grid;
   place-items: center;
-  color: var(--color-surface);
-  background: var(--color-primary);
-  font-weight: 800;
+  color: #fff;
+  background: var(--gradient-brand);
+  font-weight: 850;
+  font-size: 17px;
   flex-shrink: 0;
+  box-shadow: 0 4px 10px rgba(79, 70, 229, 0.28);
+}
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+.brand-text strong {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.brand-text small {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  font-weight: 600;
 }
 
 /* Nav scroll area: crucial flex shrink and scrolling */
 .app-sidebar nav {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding-right: 2px;
-  margin: 10px 0;
+  margin: 12px 0;
+}
+
+.nav-group {
+  margin-bottom: 8px;
+}
+.nav-group-title {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-faint);
+  padding: 6px 10px 4px;
 }
 
 .app-sidebar nav a {
-  min-height: 42px;
-  border-radius: 12px;
+  min-height: 36px;
+  border-radius: 9px;
   display: flex;
   align-items: center;
-  gap: 13px;
-  padding: 8px 13px;
+  gap: 10px;
+  padding: 6px 10px;
   color: var(--color-text-secondary);
   text-decoration: none;
-  font-size: 13px;
-  font-weight: 650;
-  transition: .2s ease;
+  font-size: 12.5px;
+  font-weight: 600;
+  transition: all 0.14s ease;
   flex-shrink: 0;
 }
 .app-sidebar nav a:hover {
-  color: var(--color-primary);
-  background: var(--color-primary-soft);
+  color: var(--color-text);
+  background: var(--color-surface-soft);
 }
 .app-sidebar nav a.active {
   color: var(--color-primary);
   background: var(--color-primary-soft);
+  font-weight: 750;
 }
 
 .sidebar-bottom {
   margin-top: auto;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   padding-top: 10px;
   border-top: 1px solid var(--color-border-subtle);
   flex-shrink: 0;
@@ -189,67 +233,69 @@ watch(() => route.path, () => {
 .language {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 4px;
-  padding: 4px;
+  gap: 3px;
+  padding: 3px;
   background: var(--color-background);
-  border-radius: 12px;
+  border-radius: 9px;
 }
 .language button {
-  min-height: 34px;
+  min-height: 28px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 6px;
   background: transparent;
   color: var(--color-text-secondary);
   font-size: 11px;
-  font-weight: 750;
+  font-weight: 700;
   cursor: pointer;
+  transition: all 0.12s ease;
 }
 .language button.active {
   color: var(--color-primary);
   background: var(--color-surface);
-  box-shadow: 0 2px 8px rgba(31,35,75,.08);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
 }
 
 .version-badge {
   text-align: center;
-  font-size: 10px;
-  color: var(--color-text-muted);
+  font-size: 9.5px;
+  color: var(--color-text-faint);
   font-weight: 600;
 }
 
 .signout {
   border: 0;
-  border-radius: 10px;
+  border-radius: 9px;
   background: none;
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 11px;
-  padding: 8px 12px;
+  gap: 10px;
+  padding: 6px 10px;
   color: var(--color-text-secondary);
-  font-size: 13px;
-  font-weight: 650;
-  transition: .2s ease;
+  font-size: 12.5px;
+  font-weight: 600;
+  transition: all 0.14s ease;
 }
 .signout:hover {
   color: var(--color-error);
-  background: color-mix(in srgb, var(--color-error) 8%, transparent);
+  background: var(--color-error-soft);
 }
 
 /* Tablet compact view (641px to 1023px) */
 @media(max-width:1023px) and (min-width:641px){
   .app-sidebar {
-    width: 78px;
-    padding: 20px 10px 14px;
+    width: 74px;
+    padding: 16px 8px 12px;
   }
   .sidebar-top {
     justify-content: center;
-    padding-bottom: 4px;
+    padding-bottom: 8px;
   }
   .brand {
     padding: 0;
   }
-  .brand strong,
+  .brand-text,
+  .nav-group-title,
   .app-sidebar nav span,
   .signout span,
   .version-badge {
@@ -257,11 +303,11 @@ watch(() => route.path, () => {
   }
   .app-sidebar nav a {
     justify-content: center;
-    padding: 9px 0;
+    padding: 8px 0;
   }
   .sidebar-bottom {
     padding-top: 8px;
-    gap: 6px;
+    gap: 4px;
   }
   .language {
     grid-template-columns: 1fr;
@@ -269,7 +315,7 @@ watch(() => route.path, () => {
     padding: 2px;
   }
   .language button {
-    min-height: 26px;
+    min-height: 24px;
     font-size: 9px;
   }
   .signout {
@@ -281,12 +327,12 @@ watch(() => route.path, () => {
 /* Mobile responsive drawer (<= 640px) */
 @media(max-width:640px){
   .app-sidebar {
-    width: 280px;
+    width: 270px;
     max-width: 86vw;
     transform: translateX(-100%);
     transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
     box-shadow: 0 20px 60px rgba(15, 23, 42, 0.25);
-    padding: calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));
+    padding: calc(16px + env(safe-area-inset-top)) 14px calc(16px + env(safe-area-inset-bottom));
   }
   .app-sidebar.drawer-open {
     transform: translateX(0);

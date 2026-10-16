@@ -205,6 +205,10 @@ export interface MetaAdAccount {
   accountType: 'personal' | 'business'
   businessId?: string
   businessName?: string
+  currency?: string
+  businessCountryCode?: string
+  taxId?: string
+  taxIdStatus?: number
 }
 
 export interface MetaCampaign {

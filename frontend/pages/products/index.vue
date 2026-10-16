@@ -437,11 +437,14 @@ const unitProfit = (product: Product) =>
 
 <template>
   <div class="products-page">
-    <section class="page-head">
-      <div>
-        <p>PRODUCT CATALOG</p>
-        <h2>{{ l({ lo: 'ຈັດການສິນຄ້າ', th: 'จัดการสินค้า', en: 'Products' }) }}</h2>
-        <span>{{ l({ lo: 'ເກັບຊື່, ລາຄາ, ຮູບ, ບາໂຄ້ດ ແລະ ລາຍລະອຽດສະຕ໋ອກແຍກສາງ', th: 'เก็บชื่อ ราคา รูปภาพ บาร์โค้ด และรายละเอียดสต็อกแยกคลัง', en: 'Manage product details, barcodes, categories and warehouse stock balances.' }) }}</span>
+    <section class="app-page-head">
+      <div class="head-content">
+        <span class="head-badge">
+          <v-icon icon="mdi-package-variant-closed" size="14" />
+          Product Catalog & Inventory
+        </span>
+        <h1>{{ l({ lo: 'ຈັດການສິນຄ້າ (Products)', th: 'จัดการสินค้า (Products)', en: 'Product Catalog' }) }}</h1>
+        <p>{{ l({ lo: 'ເກັບຊື່, ລາຄາ, ຮູບ, ບາໂຄ້ດ ແລະ ລາຍລະອຽດສະຕ໋ອກແຍກສາງ', th: 'เก็บชื่อ ราคา รูปภาพ บาร์โค้ด และรายละเอียดสต็อกแยกคลัง', en: 'Manage product details, barcodes, categories and warehouse stock balances.' }) }}</p>
       </div>
       <div class="head-actions">
         <v-btn variant="outlined" prepend-icon="mdi-warehouse" to="/warehouses">
@@ -451,9 +454,9 @@ const unitProfit = (product: Product) =>
           {{ l({ lo: 'ຈັດການອໍເດີ', th: 'จัดการออเดอร์', en: 'Orders' }) }}
         </v-btn>
         <v-btn variant="outlined" prepend-icon="mdi-robot-happy-outline" to="/auto-replies">
-          {{ l({ lo: 'ຈັດການ Automation', th: 'จัดการ Automation', en: 'Manage Automations' }) }}
+          {{ l({ lo: 'ຈັດການ Automation', th: 'จัดการ Automation', en: 'Automations' }) }}
         </v-btn>
-        <v-btn color="primary" prepend-icon="mdi-plus" :disabled="!can('pages:connect')" @click="openCreate">
+        <v-btn color="primary" variant="flat" prepend-icon="mdi-plus" :disabled="!can('pages:connect')" @click="openCreate">
           {{ l({ lo: 'ເພີ່ມສິນຄ້າ', th: 'เพิ่มสินค้า', en: 'Add product' }) }}
         </v-btn>
       </div>

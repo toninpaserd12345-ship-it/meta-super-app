@@ -158,11 +158,14 @@ async function deleteWarehouse() {
 
 <template>
   <div class="warehouses-page">
-    <section class="page-head">
-      <div>
-        <p>INVENTORY & LOCATIONS</p>
-        <h2>{{ l({ lo: 'ສາງ ແລະ ໜ້າຮ້ານ', th: 'คลังสินค้าและหน้าร้าน', en: 'Warehouses & Shops' }) }}</h2>
-        <span>{{ l({ lo: 'ຈັດການສາງເກັບສິນຄ້າ ແລະ ສາຂາໜ້າຮ້ານ, ຕັດສະຕ໋ອກແຍກຕາມສະຖານທີ່', th: 'จัดการคลังสินค้าและสาขาหน้าร้าน พร้อมตัดสต็อกแยกตามสถานที่', en: 'Manage inventory warehouses and branch shops with location-based stock deduction.' }) }}</span>
+    <section class="app-page-head">
+      <div class="head-content">
+        <span class="head-badge">
+          <v-icon icon="mdi-warehouse" size="14" />
+          Inventory & Locations
+        </span>
+        <h1>{{ l({ lo: 'ສາງ ແລະ ໜ້າຮ້ານ (Warehouses & Shops)', th: 'คลังสินค้าและหน้าร้าน', en: 'Warehouses & Locations' }) }}</h1>
+        <p>{{ l({ lo: 'ຈັດການສາງເກັບສິນຄ້າ ແລະ ສາຂາໜ້າຮ້ານ, ຕັດສະຕ໋ອກແຍກຕາມສະຖານທີ່', th: 'จัดการคลังสินค้าและสาขาหน้าร้าน พร้อมตัดสต็อกแยกตามสถานที่', en: 'Manage inventory warehouses and branch shops with location-based stock deduction.' }) }}</p>
       </div>
       <div class="head-actions">
         <v-btn variant="outlined" prepend-icon="mdi-package-variant-closed" to="/products">
@@ -171,49 +174,48 @@ async function deleteWarehouse() {
         <v-btn variant="outlined" prepend-icon="mdi-cart-outline" to="/orders">
           {{ l({ lo: 'ຈັດການອໍເດີ', th: 'จัดการออเดอร์', en: 'Orders' }) }}
         </v-btn>
-        <v-btn color="primary" prepend-icon="mdi-plus" @click="openCreate">
+        <v-btn color="primary" variant="flat" prepend-icon="mdi-plus" @click="openCreate">
           {{ l({ lo: 'ເພີ່ມສາງ / ຮ້ານຄ້າ', th: 'เพิ่มคลัง / หน้าร้าน', en: 'Add Location' }) }}
         </v-btn>
       </div>
     </section>
 
-    <!-- Stats Summary Row -->
-    <div class="stats-row mb-4">
-      <div class="stat-card">
-        <div class="stat-icon-wrapper bg-blue-light">
-          <v-icon icon="mdi-map-marker-multiple" color="primary" size="22"/>
+    <!-- Metrics Stats Cards -->
+    <div class="app-kpi-grid mb-4">
+      <div class="app-kpi-card accent-primary">
+        <div class="kpi-header">
+          <span class="kpi-label">{{ l({ lo: 'ສະຖານທີ່ທັງໝົດ', th: 'สถานที่ทั้งหมด', en: 'Total Locations' }) }}</span>
+          <span class="kpi-icon"><v-icon icon="mdi-map-marker-multiple" size="16"/></span>
         </div>
-        <div class="stat-text">
-          <small>{{ l({ lo: 'ສະຖານທີ່ທັງໝົດ', th: 'สถานที่ทั้งหมด', en: 'Total Locations' }) }}</small>
-          <strong>{{ stats.total }}</strong>
-        </div>
+        <strong class="kpi-value">{{ stats.total }}</strong>
+        <div class="kpi-sub"><span>ສາງ + ໜ້າຮ້ານທັງໝົດ</span></div>
       </div>
-      <div class="stat-card">
-        <div class="stat-icon-wrapper bg-indigo-light">
-          <v-icon icon="mdi-warehouse" color="indigo" size="22"/>
+
+      <div class="app-kpi-card accent-info">
+        <div class="kpi-header">
+          <span class="kpi-label">{{ l({ lo: 'ສາງເກັບສິນຄ້າ', th: 'คลังสินค้า', en: 'Warehouses' }) }}</span>
+          <span class="kpi-icon"><v-icon icon="mdi-warehouse" size="16"/></span>
         </div>
-        <div class="stat-text">
-          <small>{{ l({ lo: 'ສາງເກັບສິນຄ້າ', th: 'คลังสินค้า', en: 'Warehouses' }) }}</small>
-          <strong>{{ stats.totalWarehouses }}</strong>
-        </div>
+        <strong class="kpi-value text-info">{{ stats.totalWarehouses }}</strong>
+        <div class="kpi-sub"><span>ສາງຫຼັກ & ສາງຍ່ອຍ</span></div>
       </div>
-      <div class="stat-card">
-        <div class="stat-icon-wrapper bg-purple-light">
-          <v-icon icon="mdi-storefront" color="purple" size="22"/>
+
+      <div class="app-kpi-card accent-purple">
+        <div class="kpi-header">
+          <span class="kpi-label">{{ l({ lo: 'ສາຂາໜ້າຮ້ານ', th: 'สาขาหน้าร้าน', en: 'Branch Shops' }) }}</span>
+          <span class="kpi-icon"><v-icon icon="mdi-storefront" size="16"/></span>
         </div>
-        <div class="stat-text">
-          <small>{{ l({ lo: 'ສາຂາໜ້າຮ້ານ', th: 'สาขาหน้าร้าน', en: 'Branch Shops' }) }}</small>
-          <strong>{{ stats.totalShops }}</strong>
-        </div>
+        <strong class="kpi-value text-purple">{{ stats.totalShops }}</strong>
+        <div class="kpi-sub"><span>ຈຸດຂາຍໜ້າຮ້ານ</span></div>
       </div>
-      <div class="stat-card">
-        <div class="stat-icon-wrapper bg-amber-light">
-          <v-icon icon="mdi-star-circle" color="amber-darken-2" size="22"/>
+
+      <div class="app-kpi-card accent-warning">
+        <div class="kpi-header">
+          <span class="kpi-label">{{ l({ lo: 'ສາງຫຼັກເລີ່ມຕົ້ນ', th: 'คลังหลักเริ่มต้น', en: 'Default Location' }) }}</span>
+          <span class="kpi-icon"><v-icon icon="mdi-star-circle" size="16"/></span>
         </div>
-        <div class="stat-text">
-          <small>{{ l({ lo: 'ສາງຫຼັກເລີ່ມຕົ້ນ', th: 'คลังหลักเริ่มต้น', en: 'Default Location' }) }}</small>
-          <strong class="truncate-text" :title="stats.defaultName">{{ stats.defaultName }}</strong>
-        </div>
+        <strong class="kpi-value truncate-text" :title="stats.defaultName">{{ stats.defaultName }}</strong>
+        <div class="kpi-sub"><span>ສຳລັບຕັດສະຕ໋ອກເລີ່ມຕົ້ນ</span></div>
       </div>
     </div>
 

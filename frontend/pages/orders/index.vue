@@ -606,58 +606,68 @@ async function saveStatusUpdate() {
 
 <template>
   <div class="orders-page">
-    <section class="page-head">
-      <div>
-        <p>ORDER MANAGEMENT & FULFILLMENT</p>
-        <h2>{{ l({ lo: 'ຈັດການຄຳສັ່ງຊື້', th: 'จัดการคำสั่งซื้อ', en: 'Orders' }) }}</h2>
-        <span>{{ l({ lo: 'ຕິດຕາມອໍເດີ, ຕັດສະຕ໋ອກອັດຕະໂນມັດ, ຈັດສົ່ງສິນຄ້າ ແລະ ສົ່ງ Lead ໄປຍັງ Facebook Meta CAPI', th: 'ติดตามออเดอร์ ตัดสต็อกอัตโนมัติ ขนส่งสินค้า และส่ง Lead ไปยัง Facebook Meta CAPI', en: 'Track orders, auto-deduct warehouse stock, manage delivery and dispatch Meta CAPI Purchase events.' }) }}</span>
+    <section class="app-page-head">
+      <div class="head-content">
+        <span class="head-badge">
+          <v-icon icon="mdi-clipboard-list-outline" size="14" />
+          Commerce & Fulfillment
+        </span>
+        <h1>{{ l({ lo: 'ຈັດການຄຳສັ່ງຊື້ (Orders)', th: 'จัดการคำสั่งซื้อ (Orders)', en: 'Orders & Fulfillment' }) }}</h1>
+        <p>{{ l({ lo: 'ຕິດຕາມອໍເດີ, ຕັດສະຕ໋ອກອັດຕະໂນມັດ, ຈັດສົ່ງສິນຄ້າ ແລະ ສົ່ງ Lead ໄປຍັງ Facebook Meta CAPI', th: 'ติดตามออเดอร์ ตัดสต็อกอัตโนมัติ ขนส่งสินค้า และส่ง Lead ไปยัง Facebook Meta CAPI', en: 'Track orders, auto-deduct warehouse stock, manage delivery and dispatch Meta CAPI Purchase events.' }) }}</p>
       </div>
       <div class="head-actions">
         <v-btn variant="outlined" prepend-icon="mdi-warehouse" to="/warehouses">
           {{ l({ lo: 'ສາງ ແລະ ໜ້າຮ້ານ', th: 'คลังและหน้าร้าน', en: 'Warehouses' }) }}
         </v-btn>
-        <v-btn color="primary" prepend-icon="mdi-plus" @click="openCreateOrder">
+        <v-btn color="primary" variant="flat" prepend-icon="mdi-plus" @click="openCreateOrder">
           {{ l({ lo: 'ສ້າງອໍເດີໃໝ່', th: 'สร้างออเดอร์ใหม่', en: 'New Order' }) }}
         </v-btn>
       </div>
     </section>
 
     <!-- Metrics Stats Cards -->
-    <div class="stats-row mb-4">
-      <div class="stat-card">
-        <div class="stat-icon-wrapper bg-blue-light">
-          <v-icon icon="mdi-cart-check" color="primary" size="22"/>
+    <div class="app-kpi-grid mb-4">
+      <div class="app-kpi-card accent-primary">
+        <div class="kpi-header">
+          <span class="kpi-label">{{ l({ lo: 'ອໍເດີທັງໝົດ', th: 'ออเดอร์ทั้งหมด', en: 'Total Orders' }) }}</span>
+          <span class="kpi-icon"><v-icon icon="mdi-cart-check" size="16" /></span>
         </div>
-        <div class="stat-text">
-          <small>{{ l({ lo: 'ອໍເດີທັງໝົດ', th: 'ออเดอร์ทั้งหมด', en: 'Total Orders' }) }}</small>
-          <strong>{{ stats.total }}</strong>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon-wrapper bg-amber-light">
-          <v-icon icon="mdi-clock-outline" color="amber-darken-2" size="22"/>
-        </div>
-        <div class="stat-text">
-          <small>{{ l({ lo: 'ລໍຖ້າຊຳລະເງິນ', th: 'รอชำระเงิน', en: 'Unpaid' }) }}</small>
-          <strong class="text-amber">{{ stats.unpaid }}</strong>
+        <strong class="kpi-value">{{ stats.total }}</strong>
+        <div class="kpi-sub">
+          <span>ໂອນ: {{ stats.prepaidCount }} | COD: {{ stats.codCount }}</span>
         </div>
       </div>
-      <div class="stat-card">
-        <div class="stat-icon-wrapper bg-purple-light">
-          <v-icon icon="mdi-truck-fast-outline" color="purple" size="22"/>
+
+      <div class="app-kpi-card accent-warning">
+        <div class="kpi-header">
+          <span class="kpi-label">{{ l({ lo: 'ລໍຖ້າຊຳລະເງິນ', th: 'รอชำระเงิน', en: 'Unpaid' }) }}</span>
+          <span class="kpi-icon"><v-icon icon="mdi-clock-outline" size="16" /></span>
         </div>
-        <div class="stat-text">
-          <small>{{ l({ lo: 'ກຳລັງຈັດສົ່ງ', th: 'กำลังจัดส่ง', en: 'In Delivery' }) }}</small>
-          <strong>{{ stats.inDelivery }}</strong>
+        <strong class="kpi-value text-warning">{{ stats.unpaid }}</strong>
+        <div class="kpi-sub">
+          <span>ລໍຖ້າລູກຄ້າໂອນ/ຢືນຢັນ</span>
         </div>
       </div>
-      <div class="stat-card">
-        <div class="stat-icon-wrapper bg-green-light">
-          <v-icon icon="mdi-cash-multiple" color="green-darken-2" size="22"/>
+
+      <div class="app-kpi-card accent-info">
+        <div class="kpi-header">
+          <span class="kpi-label">{{ l({ lo: 'ກຳລັງຈັດສົ່ງ', th: 'กำลังจัดส่ง', en: 'In Delivery' }) }}</span>
+          <span class="kpi-icon"><v-icon icon="mdi-truck-fast-outline" size="16" /></span>
         </div>
-        <div class="stat-text">
-          <small>{{ l({ lo: 'ຍອດຂາຍທີ່ຮັບເງິນແລ້ວ', th: 'ยอดขายที่รับเงินแล้ว', en: 'Paid Sales' }) }}</small>
-          <strong class="text-green">{{ formatMoney(stats.totalRevenue) }}</strong>
+        <strong class="kpi-value text-info">{{ stats.inDelivery }}</strong>
+        <div class="kpi-sub">
+          <span>ກຳລັງເດີນທາງຫາລູກຄ້າ</span>
+        </div>
+      </div>
+
+      <div class="app-kpi-card accent-success">
+        <div class="kpi-header">
+          <span class="kpi-label">{{ l({ lo: 'ຍອດຂາຍທີ່ຮັບເງິນແລ້ວ', th: 'ยอดขายที่รับเงินแล้ว', en: 'Paid Sales' }) }}</span>
+          <span class="kpi-icon"><v-icon icon="mdi-cash-multiple" size="16" /></span>
+        </div>
+        <strong class="kpi-value text-success">{{ formatMoney(stats.totalRevenue) }}</strong>
+        <div class="kpi-sub">
+          <span>ສຳເລັດແລ້ວ: {{ stats.delivered }} ອໍເດີ</span>
         </div>
       </div>
     </div>

@@ -8,6 +8,7 @@ interface OAuthStart { authorizationUrl:string }
 interface WhatsAppSignupConfig { appId:string;configId:string;version:string;enabled:boolean }
 interface WhatsAppSignupSession { businessId?:string;wabaId?:string;phoneNumberId?:string }
 const { can } = useAuth()
+const { l } = useLocale()
 const route = useRoute()
 if (!can('pages:read')) throw createError({statusCode:403,statusMessage:'You do not have permission to view Meta Pages.'})
 const { data, pending, error, refresh } = await useApi<PageList>('/proxy/api/v1/meta/pages')
@@ -199,7 +200,27 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
 </script>
 
 <template>
-  <section class="intro"><div><p>META CHANNELS</p><h2>Facebook</h2><span>ຈັດການບັນຊີ, ການຕອບກັບ ແລະ ຕັ້ງຄ່າຂໍ້ຄວາມອັດຕະໂນມັດ (Automation) ໃນບ່ອນດຽວ</span></div><div class="intro-actions"><v-chip :color="error?'error':'success'" variant="tonal" :prepend-icon="error?'mdi-alert-circle-outline':'mdi-access-point'">{{error?'ການເຊື່ອມຕໍ່ຕ້ອງກວດສອບ':'ພ້ອມໃຊ້ງານ'}}</v-chip><v-btn v-if="inactivePages.length" variant="outlined" prepend-icon="mdi-checkbox-multiple-marked-outline" @click="search='';pickerOpen=true">ເລືອກບັນຊີ</v-btn><v-btn v-if="false" color="success" :prepend-icon="whatsAppConnecting?'mdi-loading':'mdi-whatsapp'" :disabled="authorizing||whatsAppConnecting" @click="connectWhatsApp">{{whatsAppConnecting?'ກຳລັງລໍຖ້າ Meta…':'ເຊື່ອມຕໍ່ WhatsApp'}}</v-btn><v-btn color="primary" prepend-icon="mdi-facebook" :loading="authorizing" :disabled="whatsAppConnecting" @click="permissionsOpen=true">{{needsReconnect?'ເຊື່ອມ Facebook ໃໝ່':'ເຊື່ອມຕໍ່ Facebook'}}</v-btn></div></section>
+  <section class="app-page-head">
+    <div class="head-content">
+      <span class="head-badge">
+        <v-icon icon="mdi-facebook" size="14" />
+        Meta Channels & Connectivity
+      </span>
+      <h1>{{ l({ lo: 'ເພຈ Facebook & ຊ່ອງທາງ Meta', th: 'เพจ Facebook & ช่องทาง Meta', en: 'Facebook Pages & Channels' }) }}</h1>
+      <p>{{ l({ lo: 'ຈັດການບັນຊີເພຈ, ການເຊື່ອມຕໍ່ Webhook, ການຕອບກັບ ແລະ ຕັ້ງຄ່າ Automation ໃນບ່ອນດຽວ', th: 'จัดการบัญชีเพจ การเชื่อมต่อ Webhook และการตอบกลับอัตโนมัติ', en: 'Manage connected pages, webhooks, auto reply access, and Meta tokens.' }) }}</p>
+    </div>
+    <div class="head-actions">
+      <v-chip :color="error ? 'error' : 'success'" variant="tonal" :prepend-icon="error ? 'mdi-alert-circle-outline' : 'mdi-access-point'">
+        {{ error ? 'ການເຊື່ອມຕໍ່ຕ້ອງກວດສອບ' : 'ພ້ອມໃຊ້ງານ' }}
+      </v-chip>
+      <v-btn v-if="inactivePages.length" variant="outlined" prepend-icon="mdi-checkbox-multiple-marked-outline" @click="search='';pickerOpen=true">
+        {{ l({ lo: 'ເລືອກບັນຊີ', th: 'เลือกบัญชี', en: 'Select accounts' }) }}
+      </v-btn>
+      <v-btn color="primary" variant="flat" prepend-icon="mdi-facebook" :loading="authorizing" :disabled="whatsAppConnecting" @click="permissionsOpen=true">
+        {{ needsReconnect ? 'ເຊື່ອມ Facebook ໃໝ່' : 'ເຊື່ອມຕໍ່ Facebook' }}
+      </v-btn>
+    </div>
+  </section>
   <v-alert v-if="message" :type="messageType" variant="tonal" closable class="mb-4" @click:close="message=''">{{message}}</v-alert>
   <v-alert v-if="error" type="error" variant="tonal" class="mb-4">
     <strong>{{loadErrorMessage}}</strong><br>

@@ -7,6 +7,7 @@ import type {
   AdPerformanceItem,
   AdStrategySettings,
 } from '~/types/automation'
+import { useAdVat } from '~/composables/useAdVat'
 
 definePageMeta({ middleware: 'auth' })
 const { l } = useLocale()
@@ -72,6 +73,9 @@ const datePreset = ref('7')
 const sortBy = ref<'spend' | 'cpa' | 'profit' | 'orders' | 'name'>('spend')
 
 const selectedAccount = computed(() => adAccounts.value.find(item => item.id === adAccountId.value))
+const { detectVatRate, computeVat } = useAdVat()
+const vatDetails = computed(() => detectVatRate(selectedAccount.value))
+const vatComputation = computed(() => computeVat(summary.value?.totalSpend, vatDetails.value.rate))
 
 const items = computed(() => {
   const query = search.value.trim().toLowerCase()
@@ -455,22 +459,38 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section class="page-head">
-    <div>
-      <div class="d-flex align-center gap-2 mb-1">
-        <v-chip size="small" color="primary" variant="flat" class="font-weight-bold">LAOS CHAT COMMERCE</v-chip>
-        <span class="text-caption text-medium-emphasis">Decision Engine & Real CPA</span>
-      </div>
-      <h1>{{ l({ lo: 'ສູນວິເຄາະ & ຕັດສິນໃຈ Meta Ads', th: 'ศูนย์วิเคราะห์และตัดสินใจ Meta Ads', en: 'Meta Ads Decision & Profit Center' }) }}</h1>
-      <span class="head-sub">{{ l({ lo: 'ວິເຄາະ Real CPA, ກຳໄລຕົວຈິງຫຼັງຫັກຕົ້ນທຶນ ແລະ ຕິດຕາມຍອດໂອນກ່ອນ vs COD ປ້ອງກັນການປິດແອດຜິດພາດ.', th: 'วิเคราะห์ Real CPA กำไรจริงหลังหักต้นทุน และติดตามยอดโอนก่อน vs COD', en: 'Track Real CPA, net contribution profit, and COD vs prepaid cash flows.' }) }}</span>
+  <!-- Shared Ads Suite Navigation -->
+  <nav class="app-sub-nav" aria-label="Ads suite navigation">
+    <NuxtLink to="/ads" class="app-sub-nav-item">
+      <v-icon icon="mdi-bullhorn-outline" size="18" />
+      <span>{{ l({ lo: '1. Ads Manager (ນຳສົ່ງ & ຄ່າແອດ)', th: '1. Ads Manager (นำส่ง & ค่าแอด)', en: '1. Ads Manager (Delivery & Creatives)' }) }}</span>
+    </NuxtLink>
+    <NuxtLink to="/ads-intelligence" class="app-sub-nav-item active">
+      <v-icon icon="mdi-chart-timeline-variant-shimmer" size="18" />
+      <span>{{ l({ lo: '2. Ads Intelligence (ກຳໄລ, Real CPA & SOP)', th: '2. Ads Intelligence (กำไร, Real CPA & SOP)', en: '2. Ads Intelligence (Real CPA & SOP)' }) }}</span>
+    </NuxtLink>
+  </nav>
+
+  <!-- Modern Page Head -->
+  <section class="app-page-head">
+    <div class="head-content">
+      <span class="head-badge">
+        <v-icon icon="mdi-chart-timeline-variant-shimmer" size="14" />
+        Meta Ads Suite · Chat Commerce Decision Engine
+      </span>
+      <h1>{{ l({ lo: 'ສູນວິເຄາະ & ຕັດສິນໃຈ Meta Ads (Ads Intelligence)', th: 'ศูนย์วิเคราะห์และตัดสินใจ Meta Ads', en: 'Meta Ads Decision & Profit Center' }) }}</h1>
+      <p>{{ l({ lo: 'ວິເຄາະ Real CPA, ກຳໄລຕົວຈິງຫຼັງຫັກຕົ້ນທຶນ ແລະ ຕິດຕາມຍອດໂອນກ່ອນ vs COD ປ້ອງກັນການປິດແອດຜິດພາດ.', th: 'วิเคราะห์ Real CPA กำไรจริงหลังหักต้นทุน และติดตามยอดโอนก่อน vs COD', en: 'Track Real CPA, net contribution profit, and COD vs prepaid cash flows.' }) }}</p>
     </div>
     <div class="head-actions">
-      <v-btn variant="outlined" prepend-icon="mdi-bullhorn-outline" to="/ads">
-        {{ l({ lo: 'ຈັດການໂຄສະນາ (Ads Manager)', th: 'จัดการโฆษณา (Ads Manager)', en: 'Ads Manager' }) }}
+      <v-btn variant="outlined" prepend-icon="mdi-history" @click="openHistoryModal">
+        {{ l({ lo: 'ປະຫວັດເກນ', th: 'ประวัติเกณฑ์', en: 'History' }) }}
       </v-btn>
-      <v-btn variant="outlined" prepend-icon="mdi-history" @click="openHistoryModal">{{ l({ lo: 'ປະຫວັດເກນຍຸດທະສາດ', th: 'ประวัติเกณฑ์', en: 'Strategy History' }) }}</v-btn>
-      <v-btn color="secondary" variant="tonal" prepend-icon="mdi-tune-variant" @click="strategyModalOpen = true">{{ l({ lo: 'ຕັ້ງຄ່າຍຸດທະສາດ (Setup)', th: 'ตั้งค่ายุทธศาสตร์', en: 'Setup Strategy' }) }}</v-btn>
-      <v-btn color="primary" prepend-icon="mdi-refresh" :loading="loadingReport" :disabled="!adAccountId" @click="loadPerformance">{{ l({ lo: 'ອັບເດດຂໍ້ມູນ', th: 'อัปเดตข้อมูล', en: 'Refresh' }) }}</v-btn>
+      <v-btn color="secondary" variant="tonal" prepend-icon="mdi-tune-variant" @click="strategyModalOpen = true">
+        {{ l({ lo: 'ຕັ້ງຄ່າຍຸດທະສາດ (Setup)', th: 'ตั้งค่ายุทธศาสตร์', en: 'Setup Strategy' }) }}
+      </v-btn>
+      <v-btn color="primary" variant="flat" prepend-icon="mdi-refresh" :loading="loadingReport" :disabled="!adAccountId" @click="loadPerformance">
+        {{ l({ lo: 'ອັບເດດຂໍ້ມູນ', th: 'อัปเดตข้อมูล', en: 'Refresh' }) }}
+      </v-btn>
     </div>
   </section>
 
@@ -480,14 +500,67 @@ onMounted(async () => {
   </v-alert>
   <v-alert v-if="success" type="success" variant="tonal" class="mb-4" closable @click:close="success = ''">{{ success }}</v-alert>
 
-  <!-- Filter Controls -->
-  <section class="filter-bar" aria-label="Ads report filters">
-    <v-select v-model="adAccountId" :items="adAccounts.map(account => ({ ...account, label: `${account.accountType === 'business' ? 'Business' : 'Personal'} · ${account.name}` }))" item-title="label" item-value="id" :label="l({ lo: 'ບັນຊີໂຄສະນາ', th: 'บัญชีโฆษณา', en: 'Ad account' })" variant="outlined" density="comfortable" hide-details :loading="loadingAccounts" />
-    <v-select v-model="selectedProductId" :items="productOptions" item-title="title" item-value="value" :label="l({ lo: 'ສິນຄ້າ (Auto Reply)', th: 'สินค้า (Auto Reply)', en: 'Product (Auto Reply)' })" variant="outlined" density="comfortable" hide-details style="min-width: 210px;" />
-    <v-select :model-value="datePreset" :items="[{title:l({lo:'7 ມື້ຫຼ້າສຸດ',th:'7 วันล่าสุด',en:'Last 7 days'}),value:'7'},{title:l({lo:'30 ມື້ຫຼ້າສຸດ',th:'30 วันล่าสุด',en:'Last 30 days'}),value:'30'},{title:l({lo:'ກຳນົດເອງ',th:'กำหนดเอง',en:'Custom'}),value:'custom'}]" item-title="title" item-value="value" :label="l({lo:'ໄລຍະເວລາ',th:'ช่วงเวลา',en:'Date range'})" variant="outlined" density="comfortable" hide-details @update:model-value="setPreset" />
-    <v-text-field v-model="since" type="date" label="From" variant="outlined" density="comfortable" hide-details @update:model-value="datePreset='custom'" />
-    <v-text-field v-model="until" type="date" label="To" variant="outlined" density="comfortable" hide-details @update:model-value="datePreset='custom'" />
-    <v-btn color="primary" variant="tonal" height="48" :loading="loadingReport" @click="loadPerformance">{{ l({lo:'ນຳໃຊ້',th:'ใช้ช่วงเวลา',en:'Apply'}) }}</v-btn>
+  <!-- Modern Standardized Command & Filter Bar -->
+  <section class="app-filter-bar" aria-label="Ads report filters">
+    <div class="app-filter-group">
+      <v-select
+        v-model="adAccountId"
+        :items="adAccounts.map(account => ({ ...account, label: `${account.accountType === 'business' ? 'Business' : 'Personal'} · ${account.name}` }))"
+        item-title="label"
+        item-value="id"
+        :label="l({ lo: 'ບັນຊີໂຄສະນາ', th: 'บัญชีโฆษณา', en: 'Ad account' })"
+        variant="outlined"
+        density="compact"
+        hide-details
+        :loading="loadingAccounts"
+        style="min-width: 220px;"
+      />
+      <v-select
+        v-model="selectedProductId"
+        :items="productOptions"
+        item-title="title"
+        item-value="value"
+        :label="l({ lo: 'ສິນຄ້າ (Auto Reply)', th: 'สินค้า (Auto Reply)', en: 'Product' })"
+        variant="outlined"
+        density="compact"
+        hide-details
+        style="min-width: 200px;"
+      />
+      <div class="app-filter-divider" />
+      <v-select
+        :model-value="datePreset"
+        :items="[
+          { title: l({ lo: '7 ມື້ຫຼ້າສຸດ', th: '7 วันล่าสุด', en: 'Last 7 days' }), value: '7' },
+          { title: l({ lo: '30 ມື້ຫຼ້າສຸດ', th: '30 วันล่าสุด', en: 'Last 30 days' }), value: '30' },
+          { title: l({ lo: 'ກຳນົດເອງ', th: 'กำหนดเอง', en: 'Custom' }), value: 'custom' }
+        ]"
+        item-title="title"
+        item-value="value"
+        :label="l({ lo: 'ໄລຍະເວລາ', th: 'ช่วงเวลา', en: 'Date range' })"
+        variant="outlined"
+        density="compact"
+        hide-details
+        style="min-width: 140px;"
+        @update:model-value="setPreset"
+      />
+      <v-text-field v-if="datePreset === 'custom'" v-model="since" type="date" label="From" variant="outlined" density="compact" hide-details style="max-width: 130px;" />
+      <v-text-field v-if="datePreset === 'custom'" v-model="until" type="date" label="To" variant="outlined" density="compact" hide-details style="max-width: 130px;" />
+    </div>
+
+    <div class="app-filter-group">
+      <!-- Auto VAT indicator pill -->
+      <v-chip size="small" variant="tonal" color="primary" class="font-weight-medium">
+        <v-icon icon="mdi-receipt-text-outline" start size="14" />
+        VAT {{ vatDetails.flag }} {{ vatDetails.rate }}% (Auto)
+      </v-chip>
+      <v-btn-toggle v-model="viewMode" mandatory color="primary" variant="outlined" density="compact">
+        <v-btn value="table" size="small"><v-icon icon="mdi-table-large" start size="14" /> <span>{{ l({lo:'ຕາຕະລາງ',th:'ตาราง',en:'Table'}) }}</span></v-btn>
+        <v-btn value="grouped" size="small"><v-icon icon="mdi-package-variant-closed" start size="14" /> <span>{{ l({lo:'ແຍກຕາມສິນຄ້າ',th:'แยกสินค้า',en:'Grouped'}) }}</span></v-btn>
+      </v-btn-toggle>
+      <v-btn color="primary" variant="tonal" height="40" :loading="loadingReport" @click="loadPerformance">
+        {{ l({ lo: 'ນຳໃຊ້', th: 'ใช้ช่วงเวลา', en: 'Apply' }) }}
+      </v-btn>
+    </div>
   </section>
 
   <div v-if="loadingReport && !report" class="loading-grid"><v-skeleton-loader v-for="n in 6" :key="n" type="article" /></div>
@@ -497,22 +570,19 @@ onMounted(async () => {
     <div class="strategy-banner mb-4">
       <div class="d-flex align-center justify-between flex-wrap gap-3">
         <div class="d-flex align-center gap-2">
-          <v-icon icon="mdi-shield-check" color="success" size="20" />
-          <span class="text-subtitle-2 font-weight-bold">
-            {{ l({ lo: 'ເກນຍຸດທະສາດທີ່ນຳໃຊ້ໃນໄລຍະນີ້:', th: 'เกณฑ์ยุทธศาสตร์ที่ใช้ในช่วงนี้:', en: 'Active Strategy Criteria:' }) }}
+          <v-icon icon="mdi-shield-check" color="success" size="18" />
+          <span class="text-caption font-weight-bold">
+            {{ l({ lo: 'ເກນຍຸດທະສາດ:', th: 'เกณฑ์ยุทธศาสตร์:', en: 'Strategy:' }) }}
           </span>
           <v-chip size="x-small" color="primary" variant="tonal">
             {{ strategy?.note || 'ເກນມາດຕະຖານ' }}
           </v-chip>
-          <span class="text-caption text-medium-emphasis">
-            (ເລີ່ມ: {{ strategy?.effectiveFrom?.slice(0, 10) }})
-          </span>
         </div>
         <div class="strategy-metrics-pills">
           <span class="pill">🎯 ເປົ້າກຳໄລ: <b>{{ money(strategy?.targetProfitPerOrder) }}</b>/ອໍເດີ</span>
           <span class="pill">📦 ຄ່າແພັກ+ສົ່ງ: <b>{{ money((strategy?.avgPackagingCost || 0) + (strategy?.avgShippingCostStore || 0)) }}</b></span>
           <span class="pill">🚚 ຕີກັບ COD: <b>{{ strategy?.codReturnRatePercent }}%</b></span>
-          <span class="pill">🛑 ເພດານງົບລອງ: <b>{{ money(strategy?.maxTestLossBudget) }}</b></span>
+          <span class="pill">🛑 ງົບລອງແອດ: <b>{{ money(strategy?.maxTestLossBudget) }}</b></span>
           <v-btn size="x-small" variant="text" prepend-icon="mdi-pencil" color="primary" @click="strategyModalOpen = true">ປັບເກນ</v-btn>
         </div>
       </div>
@@ -522,7 +592,7 @@ onMounted(async () => {
     <v-card v-if="report.actionPlan" class="action-plan-card mb-4" variant="outlined">
       <div class="card-heading">
         <div class="d-flex align-center gap-2">
-          <v-icon icon="mdi-clipboard-check-outline" color="primary" />
+          <v-icon icon="mdi-clipboard-check-outline" color="primary" size="20" />
           <div>
             <p>ACTION PLAN & RECOMMENDATIONS</p>
             <h2>{{ l({ lo: 'ແຜນປະຕິບັດການ & ຄຳແນະນຳດ່ວນ', th: 'แผนปฏิบัติการและคำแนะนำด่วน', en: 'Action Plan & Next Steps' }) }}</h2>
@@ -534,77 +604,143 @@ onMounted(async () => {
       </div>
       <div class="action-plan-grid">
         <div class="plan-col scale">
-          <div class="plan-col-title text-success"><v-icon icon="mdi-trending-up" size="18" /> ສະເໜີ Scale +15-20% ({{ report.actionPlan.toScale.length }})</div>
+          <div class="plan-col-title text-success"><v-icon icon="mdi-trending-up" size="16" /> ສະເໜີ Scale +15-20% ({{ report.actionPlan.toScale.length }})</div>
           <ul v-if="report.actionPlan.toScale.length"><li v-for="t in report.actionPlan.toScale" :key="t">{{ t }}</li></ul>
           <small v-else class="text-muted">ຍັງບໍ່ມີ Campaign ທີ່ Real CPA ຜ່ານເກນ Scale</small>
         </div>
         <div class="plan-col hold">
-          <div class="plan-col-title text-info"><v-icon icon="mdi-timer-sand" size="18" /> ຄົງງົບ & ລໍຖ້າ COD ສົ່ງຮອດ ({{ report.actionPlan.toHold.length }})</div>
+          <div class="plan-col-title text-info"><v-icon icon="mdi-timer-sand" size="16" /> ຄົງງົບ & ລໍຖ້າ COD ສົ່ງຮອດ ({{ report.actionPlan.toHold.length }})</div>
           <ul v-if="report.actionPlan.toHold.length"><li v-for="t in report.actionPlan.toHold" :key="t">{{ t }}</li></ul>
           <small v-else class="text-muted">ບໍ່ມີອໍເດີ COD ຄ້າງສົ່ງ</small>
         </div>
         <div class="plan-col pause">
-          <div class="plan-col-title text-error"><v-icon icon="mdi-pause-circle" size="18" /> ສະເໜີພັກ/ກວດສອບ ({{ report.actionPlan.toPause.length }})</div>
+          <div class="plan-col-title text-error"><v-icon icon="mdi-pause-circle" size="16" /> ສະເໜີພັກ/ກວດສອບ ({{ report.actionPlan.toPause.length }})</div>
           <ul v-if="report.actionPlan.toPause.length"><li v-for="t in report.actionPlan.toPause" :key="t">{{ t }}</li></ul>
           <small v-else class="text-muted">ບໍ່ມີໂຄສະນາທີ່ສູນເສຍງົບຮົ່ວໄຫຼ</small>
         </div>
       </div>
     </v-card>
 
-    <!-- 9 Metric Summary Cards -->
-    <section class="summary-grid" aria-label="Performance summary">
-      <article class="summary-card">
-        <span>{{ l({ lo: 'ຄ່າໂຄສະນາທັງໝົດ (Spend)', th: 'ยอดใช้จ่ายโฆษณา', en: 'Total Ad Spend' }) }}</span>
-        <strong>{{ money(summary?.totalSpend) }}</strong>
-        <small>{{ report.dateStart }} – {{ report.dateStop }}</small>
+    <!-- Zone 1: Financials & Cash Flow Metrics -->
+    <div class="text-caption font-weight-bold text-uppercase text-medium-emphasis mb-2">
+      💰 {{ l({ lo: 'ການເງິນ & ກະແສເງິນສົດ (Financials & Cash Flow)', th: 'การเงิน & กระแสเงินสด', en: 'Financials & Cash Flow' }) }}
+    </div>
+    <section class="app-kpi-grid mb-4" aria-label="Financials summary">
+      <!-- Total Spend with Gross + VAT -->
+      <article class="app-kpi-card accent-primary">
+        <div class="kpi-header">
+          <span class="kpi-label">{{ l({ lo: 'ຄ່າແອດຕົວຈິງ (Gross Spend)', th: 'ยอดใช้จ่ายจริงรวม VAT', en: 'Gross Spend (with VAT)' }) }}</span>
+          <span class="kpi-icon"><v-icon icon="mdi-cash" size="16" /></span>
+        </div>
+        <strong class="kpi-value">{{ money(vatComputation.grossSpend) }}</strong>
+        <div class="kpi-sub">
+          <span>Net: {{ money(vatComputation.netSpend) }}</span>
+          <span class="text-primary font-weight-bold">+ VAT {{ vatDetails.rate }}% ({{ money(vatComputation.vatAmount) }})</span>
+        </div>
       </article>
 
-      <article class="summary-card">
-        <span>{{ l({ lo: 'ແຊັດ & ອັດຕາປິດການຂາຍ', th: 'แชท & อัตราปิดการขาย', en: 'Chats & Closing Rate' }) }}</span>
-        <strong>{{ fmt(summary?.totalChats) }} <small class="text-caption font-weight-normal">ແຊັດ</small></strong>
-        <small>ປິດການຂາຍໄດ້: {{ summary?.totalChats ? percent(((summary?.totalCompletedOrders || 0) / summary.totalChats) * 100) : '—' }}</small>
+      <!-- Real CPA -->
+      <article class="app-kpi-card" :class="((summary?.overallRealCpa || 0) <= (strategy?.targetProfitPerOrder || 30000)) ? 'accent-success' : 'accent-error'">
+        <div class="kpi-header">
+          <span class="kpi-label">{{ l({ lo: 'Real CPA ສະເລ່ຍ', th: 'Real CPA เฉลี่ย', en: 'Overall Real CPA' }) }}</span>
+          <span class="kpi-icon"><v-icon icon="mdi-target" size="16" /></span>
+        </div>
+        <strong class="kpi-value">{{ money(summary?.overallRealCpa) }}</strong>
+        <div class="kpi-sub">
+          <span>ເປົ້າໝາຍ: <b>{{ money(strategy?.targetProfitPerOrder) }}</b> / ອໍເດີ</span>
+        </div>
       </article>
 
-      <article class="summary-card" :class="{ finance: (summary?.overallRealCpa || 0) <= (strategy?.targetProfitPerOrder || 30000) }">
-        <span>{{ l({ lo: 'Real CPA ສະເລ່ຍ (ຄ່າແອດ/ອໍເດີ)', th: 'Real CPA เฉลี่ย', en: 'Overall Real CPA' }) }}</span>
-        <strong>{{ money(summary?.overallRealCpa) }}</strong>
-        <small>ເປົ້າໝາຍ: {{ money(strategy?.targetProfitPerOrder) }} / ອໍເດີ</small>
+      <!-- Net Profit -->
+      <article class="app-kpi-card" :class="(summary?.totalNetProfit || 0) >= 0 ? 'accent-success' : 'accent-error'">
+        <div class="kpi-header">
+          <span class="kpi-label">{{ l({ lo: 'ກຳໄລສຸດທິຫຼັງຫັກແອດ', th: 'กำไรสุทธิหลังหักโฆษณา', en: 'Net Contribution Profit' }) }}</span>
+          <span class="kpi-icon"><v-icon icon="mdi-finance" size="16" /></span>
+        </div>
+        <strong class="kpi-value" :class="(summary?.totalNetProfit || 0) >= 0 ? 'text-success' : 'text-error'">
+          {{ money(summary?.totalNetProfit) }}
+        </strong>
+        <div class="kpi-sub">
+          <span>ກຳໄລຂັ້ນຕົ້ນກ່ອນແອດ: {{ money(summary?.totalGrossProfit) }}</span>
+        </div>
       </article>
 
-      <article class="summary-card finance">
-        <span>{{ l({ lo: 'ອໍເດີສຳເລັດ (ຮັບເງິນແລ້ວ)', th: 'ออเดอร์สำเร็จ', en: 'Completed Orders' }) }}</span>
-        <strong>{{ fmt(summary?.totalCompletedOrders) }} <small class="text-caption font-weight-normal">ອໍເດີ</small></strong>
-        <small>ຍອດຂາຍຕົວຈິງ: {{ money(summary?.totalCompletedRevenue) }}</small>
+      <!-- Prepaid Track -->
+      <article class="app-kpi-card accent-info">
+        <div class="kpi-header">
+          <span class="kpi-label">💳 {{ l({ lo: 'ໂອນກ່ອນ (Prepaid)', th: 'โอนก่อน', en: 'Prepaid Cash' }) }}</span>
+          <span class="kpi-icon"><v-icon icon="mdi-credit-card-check-outline" size="16" /></span>
+        </div>
+        <strong class="kpi-value">{{ money(summary?.totalPrepaidRevenue) }}</strong>
+        <div class="kpi-sub">
+          <span>{{ fmt(summary?.totalPrepaidOrders) }} ອໍເດີ ({{ summary?.prepaidPercentage }}% ຄວາມສ່ຽງ 0%)</span>
+        </div>
       </article>
 
-      <article class="summary-card" :class="{ finance: (summary?.totalNetProfit || 0) > 0, loss: (summary?.totalNetProfit || 0) < 0 }">
-        <span>{{ l({ lo: 'ກຳໄລສຸດທິຫຼັງຫັກແອດ (Net Profit)', th: 'กำไรสุทธิหลังหักโฆษณา', en: 'Net Contribution Profit' }) }}</span>
-        <strong>{{ money(summary?.totalNetProfit) }}</strong>
-        <small>ກຳໄລຂັ້ນຕົ້ນກ່ອນແອດ: {{ money(summary?.totalGrossProfit) }}</small>
+      <!-- COD Delivered Track -->
+      <article class="app-kpi-card accent-success">
+        <div class="kpi-header">
+          <span class="kpi-label">🚚 {{ l({ lo: 'COD ສົ່ງສຳເລັດ (Delivered)', th: 'COD ส่งสำเร็จ', en: 'COD Delivered' }) }}</span>
+          <span class="kpi-icon"><v-icon icon="mdi-truck-check-outline" size="16" /></span>
+        </div>
+        <strong class="kpi-value">{{ money(summary?.totalCODDeliveredRev) }}</strong>
+        <div class="kpi-sub">
+          <span>{{ fmt(summary?.totalCODDelivered) }} ອໍເດີ ຮັບເງິນຄົບແລ້ວ</span>
+        </div>
+      </article>
+    </section>
+
+    <!-- Zone 2: Operations, Orders & Risk Control -->
+    <div class="text-caption font-weight-bold text-uppercase text-medium-emphasis mb-2">
+      🎯 {{ l({ lo: 'ປະສິດທິພາບແອດ & ຄວບຄຸມຄວາມສ່ຽງ (Operations & Risk Control)', th: 'ประสิทธิภาพแอด & ควบคุมความเสี่ยง', en: 'Operations & Risk Control' }) }}
+    </div>
+    <section class="app-kpi-grid mb-6" aria-label="Operations summary">
+      <!-- Completed Orders -->
+      <article class="app-kpi-card accent-success">
+        <div class="kpi-header">
+          <span class="kpi-label">{{ l({ lo: 'ອໍເດີສຳເລັດ (ຮັບເງິນແລ້ວ)', th: 'ออเดอร์สำเร็จ', en: 'Completed Orders' }) }}</span>
+          <span class="kpi-icon"><v-icon icon="mdi-check-decagram" size="16" /></span>
+        </div>
+        <strong class="kpi-value">{{ fmt(summary?.totalCompletedOrders) }} ອໍເດີ</strong>
+        <div class="kpi-sub">
+          <span>ຍອດຂາຍຕົວຈິງ: {{ money(summary?.totalCompletedRevenue) }}</span>
+        </div>
       </article>
 
-      <article class="summary-card prepaid-track">
-        <span>{{ l({ lo: '💳 ໂອນກ່ອນ / ເງິນສົດ (Prepaid)', th: 'โอนก่อน / เงินสด', en: 'Prepaid Track' }) }}</span>
-        <strong>{{ money(summary?.totalPrepaidRevenue) }}</strong>
-        <small>{{ fmt(summary?.totalPrepaidOrders) }} ອໍເດີ ({{ summary?.prepaidPercentage }}% ຂອງຍອດ, ຄວາມສ່ຽງ 0%)</small>
+      <!-- Chats & Closing Rate -->
+      <article class="app-kpi-card accent-info">
+        <div class="kpi-header">
+          <span class="kpi-label">{{ l({ lo: 'ແຊັດ & ອັດຕາປິດການຂາຍ', th: 'แชท & อัตราปิดการขาย', en: 'Chats & Closing Rate' }) }}</span>
+          <span class="kpi-icon"><v-icon icon="mdi-message-text-outline" size="16" /></span>
+        </div>
+        <strong class="kpi-value">{{ fmt(summary?.totalChats) }} ແຊັດ</strong>
+        <div class="kpi-sub">
+          <span>ປິດຂາຍ: <b>{{ summary?.totalChats ? percent(((summary?.totalCompletedOrders || 0) / summary.totalChats) * 100) : '—' }}</b></span>
+        </div>
       </article>
 
-      <article class="summary-card cod-delivered-track">
-        <span>{{ l({ lo: '🚚 COD ສົ່ງສຳເລັດ (Delivered)', th: 'COD ส่งสำเร็จ', en: 'COD Delivered' }) }}</span>
-        <strong>{{ money(summary?.totalCODDeliveredRev) }}</strong>
-        <small>{{ fmt(summary?.totalCODDelivered) }} ອໍເດີ ຮັບເງິນຄົບແລ້ວ</small>
+      <!-- COD Pending in Transit -->
+      <article class="app-kpi-card accent-warning">
+        <div class="kpi-header">
+          <span class="kpi-label">⏳ {{ l({ lo: 'COD ກຳລັງສົ່ງ (Pending)', th: 'COD กำลังส่ง', en: 'COD In Transit' }) }}</span>
+          <span class="kpi-icon"><v-icon icon="mdi-timer-sand" size="16" /></span>
+        </div>
+        <strong class="kpi-value">{{ money(summary?.totalCODPendingRev) }}</strong>
+        <div class="kpi-sub">
+          <span>{{ fmt(summary?.totalCODPending) }} ອໍເດີ (ກຳລັງເດີນທາງ ຫ້າມປິດແອດ)</span>
+        </div>
       </article>
 
-      <article class="summary-card cod-pending-track">
-        <span>{{ l({ lo: '⏳ COD ກຳລັງສົ່ງ (Pending)', th: 'COD กำลังส่ง', en: 'COD In Transit' }) }}</span>
-        <strong>{{ money(summary?.totalCODPendingRev) }}</strong>
-        <small>{{ fmt(summary?.totalCODPending) }} ອໍເດີ (ກຳລັງເດີນທາງ ຫ້າມປິດແອດ)</small>
-      </article>
-
-      <article class="summary-card cod-returned-track">
-        <span>{{ l({ lo: '↩️ COD ຕີກັບ (Returned)', th: 'COD ตีกลับ', en: 'COD Returned' }) }}</span>
-        <strong>{{ fmt(summary?.totalCODReturned) }} <small class="text-caption font-weight-normal">ອໍເດີ</small></strong>
-        <small>ເສຍຄ່າສົ່ງກັບປະມານ {{ money((summary?.totalCODReturned || 0) * (strategy?.returnFeePerOrder || 15000)) }}</small>
+      <!-- COD Returned -->
+      <article class="app-kpi-card accent-error">
+        <div class="kpi-header">
+          <span class="kpi-label">↩️ {{ l({ lo: 'COD ຕີກັບ (Returned)', th: 'COD ตีกลับ', en: 'COD Returned' }) }}</span>
+          <span class="kpi-icon"><v-icon icon="mdi-keyboard-return" size="16" /></span>
+        </div>
+        <strong class="kpi-value">{{ fmt(summary?.totalCODReturned) }} ອໍເດີ</strong>
+        <div class="kpi-sub">
+          <span>ເສຍຄ່າສົ່ງກັບປະມານ {{ money((summary?.totalCODReturned || 0) * (strategy?.returnFeePerOrder || 15000)) }}</span>
+        </div>
       </article>
     </section>
 
