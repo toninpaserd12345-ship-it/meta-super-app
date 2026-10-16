@@ -153,10 +153,19 @@ const productOptions = computed(() => {
   return list
 })
 
+const productFilteredItems = computed(() => {
+  const list = report.value?.items || []
+  if (selectedProductId.value === 'all') return list
+  return list.filter((item) => {
+    const linked = getLinkedProduct(item)
+    if (selectedProductId.value === 'unlinked') return !linked
+    return linked?.product.id === selectedProductId.value
+  })
+})
+
 const items = computed(() => {
   const query = search.value.trim().toLowerCase()
-  const list = report.value?.items || []
-  return list
+  return productFilteredItems.value
     .filter(item => !query || [item.entityName, item.campaignName, item.adSetName, item.adName, item.entityId].some(value => value?.toLowerCase().includes(query)))
     .filter((item) => {
       const status = (item.effectiveStatus || item.status || '').toUpperCase()
@@ -164,12 +173,6 @@ const items = computed(() => {
       if (statusFilter.value === 'paused') return status === 'PAUSED' || status === 'CAMPAIGN_PAUSED' || status === 'ADSET_PAUSED'
       if (statusFilter.value === 'issues') return !!status && status !== 'ACTIVE' && status !== 'IN_PROCESS' && status !== 'PENDING_REVIEW' && status !== 'PAUSED' && status !== 'CAMPAIGN_PAUSED' && status !== 'ADSET_PAUSED'
       return true
-    })
-    .filter((item) => {
-      if (selectedProductId.value === 'all') return true
-      const linked = getLinkedProduct(item)
-      if (selectedProductId.value === 'unlinked') return !linked
-      return linked?.product.id === selectedProductId.value
     })
     .sort((a, b) => {
       if (sortBy.value === 'newest') {
@@ -191,10 +194,82 @@ const items = computed(() => {
       return (a.entityName || '').localeCompare(b.entityName || '')
     })
 })
-const summary = computed(() => report.value?.summary)
+
+const isFiltered = computed(() => {
+  return selectedProductId.value !== 'all' || statusFilter.value !== 'all' || !!search.value.trim()
+})
+
+const summary = computed<MetaInsightItem | undefined>(() => {
+  if (!isFiltered.value && report.value?.summary) {
+    return report.value.summary
+  }
+
+  const list = items.value
+  if (!list.length) {
+    return {
+      entityType: 'account',
+      entityId: 'filtered',
+      entityName: 'Filtered',
+      spend: 0,
+      impressions: 0,
+      reach: 0,
+      frequency: 0,
+      linkClicks: 0,
+      linkCtr: 0,
+      conversionValue: 0,
+      roas: undefined,
+      results: { type: report.value?.summary?.results?.type || 'purchase', value: 0, cost: 0 },
+    }
+  }
+
+  let totalSpend = 0
+  let totalImpressions = 0
+  let totalReach = 0
+  let totalLinkClicks = 0
+  let totalResults = 0
+  let totalConversionValue = 0
+  let resultsType = report.value?.summary?.results?.type || 'purchase'
+
+  for (const item of list) {
+    if (item.spend) totalSpend += item.spend
+    if (item.impressions) totalImpressions += item.impressions
+    if (item.reach) totalReach += item.reach
+    if (item.linkClicks) totalLinkClicks += item.linkClicks
+    if (item.results?.value) {
+      totalResults += item.results.value
+      if (item.results.type) resultsType = item.results.type
+    }
+    if (item.conversionValue) totalConversionValue += item.conversionValue
+  }
+
+  const costPerResult = totalResults > 0 ? totalSpend / totalResults : (totalSpend > 0 ? 0 : undefined)
+  const linkCtr = totalImpressions > 0 ? (totalLinkClicks / totalImpressions) * 100 : undefined
+  const frequency = totalReach > 0 ? totalImpressions / totalReach : undefined
+  const roas = totalSpend > 0 && totalConversionValue > 0 ? totalConversionValue / totalSpend : undefined
+
+  return {
+    entityType: 'account',
+    entityId: 'filtered',
+    entityName: 'Filtered Summary',
+    spend: totalSpend,
+    impressions: totalImpressions,
+    reach: totalReach,
+    frequency,
+    linkClicks: totalLinkClicks,
+    linkCtr,
+    conversionValue: totalConversionValue > 0 ? totalConversionValue : undefined,
+    roas,
+    results: {
+      type: resultsType,
+      value: totalResults,
+      cost: costPerResult,
+    },
+  }
+})
+
 const currency = computed(() => report.value?.currency || 'USD')
 const maxTrendSpend = computed(() => Math.max(1, ...(report.value?.trend || []).map(point => point.spend || 0)))
-const statusCounts = computed(() => (report.value?.items || []).reduce((counts, item) => {
+const statusCounts = computed(() => productFilteredItems.value.reduce((counts, item) => {
   const status = (item.effectiveStatus || item.status || '').toUpperCase()
   if (status === 'ACTIVE' || status === 'IN_PROCESS' || status === 'PENDING_REVIEW') counts.active += 1
   else if (status === 'PAUSED' || status === 'CAMPAIGN_PAUSED' || status === 'ADSET_PAUSED') counts.paused += 1
@@ -910,6 +985,18 @@ onMounted(async () => {
   <div v-if="loadingReport && !report" class="loading-grid" aria-live="polite"><v-skeleton-loader v-for="n in 6" :key="n" type="article" /></div>
 
   <template v-else-if="report">
+    <!-- Active Filter Feedback Pill -->
+    <div v-if="isFiltered" class="d-flex align-center justify-space-between mb-3 px-1 flex-wrap gap-2">
+      <div class="d-flex align-center gap-2">
+        <v-chip size="small" color="primary" variant="tonal" prepend-icon="mdi-filter-check" class="font-weight-bold">
+          {{ l({ lo: `ສະຫຼຸບຕົວເລກສະເພາະ Filter (${items.length} ລາຍການ)`, th: `สรุปตัวเลขเฉพาะ Filter (${items.length} รายการ)`, en: `Filtered metrics (${items.length} items)` }) }}
+        </v-chip>
+      </div>
+      <v-btn size="x-small" variant="text" color="primary" prepend-icon="mdi-refresh" @click="selectedProductId='all';statusFilter='all';search=''">
+        {{ l({ lo: 'ເບິ່ງລວມທັງໝົດບັນຊີ', th: 'ดูรวมทั้งบัญชี', en: 'View full account' }) }}
+      </v-btn>
+    </div>
+
     <!-- Modern 5-KPI Cards Grid with VAT Breakdown -->
     <section class="app-kpi-grid" aria-label="Ads summary">
       <article class="app-kpi-card accent-primary">
