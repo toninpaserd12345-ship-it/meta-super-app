@@ -3609,11 +3609,6 @@ func (g *GraphConnector) sendPrivateGenericTemplate(ctx context.Context, page gr
 				"title":   truncateRunes(buttonTitle, 20),
 				"payload": buttonPayload,
 			},
-			{
-				"type":    "postback",
-				"title":   "🛒 ສັ່ງຊື້ / ຮັບໂປຣ",
-				"payload": buttonPayload,
-			},
 		}
 	}
 
