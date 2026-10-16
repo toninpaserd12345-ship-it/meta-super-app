@@ -48,6 +48,8 @@ const updatingBudget = ref(false)
 // Dual-System Auto-Pilot & Scale Tracking Engine
 interface AutoPilotConfig {
   enabled: boolean
+  scope: 'all' | 'filtered_product'
+  targetType: 'all' | 'campaign' | 'adset'
   autoScaleEnabled: boolean
   scalePercent: number
   scaleMinPurchases: number
@@ -92,6 +94,8 @@ const autoPilotLogs = ref<AutoPilotLog[]>([])
 const scaleHistory = ref<Record<string, ScaleRecord>>({})
 const autoPilotConfig = ref<AutoPilotConfig>({
   enabled: false,
+  scope: 'all',
+  targetType: 'all',
   autoScaleEnabled: true,
   scalePercent: 20,
   scaleMinPurchases: 3,
@@ -1105,6 +1109,38 @@ function isScaleCandidate(item: MetaInsightItem): {
   const maxCPA = autoPilotConfig.value.scaleMaxCPA ?? targetCost.value ?? (currencyOffset.value === 1 ? 50000 : 2.5)
   const maxFreq = autoPilotConfig.value.scaleMaxFrequency ?? 2.5
 
+  // 1. Budget Cap Safety check: if already at or above cap, stop scaling
+  const currentBudget = item.dailyBudget ? (item.dailyBudget / currencyOffset.value) : 0
+  if (autoPilotConfig.value.maxDailyBudgetCap && currentBudget >= autoPilotConfig.value.maxDailyBudgetCap) {
+    return {
+      eligible: false,
+      inCooldown: false,
+      cooldownInfo: cooldown,
+      reason: l({
+        lo: `ງົບຮອດເພດານສູງສຸດແລ້ວ (${money(currentBudget)} >= ${money(autoPilotConfig.value.maxDailyBudgetCap)}/ມື້)`,
+        th: `งบถึงเพดานสูงสุดแล้ว (${money(currentBudget)} >= ${money(autoPilotConfig.value.maxDailyBudgetCap)}/วัน)`,
+        en: `Current budget has reached max cap (${money(currentBudget)} >= ${money(autoPilotConfig.value.maxDailyBudgetCap)}/day)`,
+      })
+    }
+  }
+
+  // 2. Incremental Purchase Requirement: if previously scaled and cooldown ended, require NEW purchases under the new budget!
+  if (cooldown.record && !cooldown.inCooldown) {
+    const lastPurchases = cooldown.record.purchasesAtScale || 0
+    if (purchases <= lastPurchases) {
+      return {
+        eligible: false,
+        inCooldown: false,
+        cooldownInfo: cooldown,
+        reason: l({
+          lo: `ຍັງບໍ່ມີອໍເດີໃໝ່ເພີ່ມຂຶ້ນຫຼັງຈາກສະເກວຄັ້ງກ່ອນ (${purchases}/${lastPurchases} ອໍເດີ). ຕ້ອງມີອໍເດີໃໝ່ເຂົ້າມາຈຶ່ງຈະສະເກວຕໍ່ໄດ້`,
+          th: `ยังไม่มีออเดอร์ใหม่เพิ่มขึ้นหลังจาก Scale ครั้งก่อน (${purchases}/${lastPurchases} ออเดอร์) ต้องมีออเดอร์ใหม่เข้ามาจึงจะ Scale ต่อได้`,
+          en: `No new purchases since last scale (${purchases}/${lastPurchases} orders). Requires new purchases to scale again`,
+        })
+      }
+    }
+  }
+
   const meetsPurchases = purchases >= minPurchases
   const meetsCPA = cost == null || cost <= maxCPA
   const meetsFreq = frequency <= maxFreq
@@ -1265,7 +1301,18 @@ async function runAutoPilot(isManual = false) {
   let pausedCount = 0
   let cooldownCount = 0
 
-  const itemsToCheck = [...report.value.items]
+  const itemsToCheck = (report.value?.items || []).filter(item => {
+    // 1. Target Structure check (All vs Campaign CBO vs AdSet ABO)
+    if (autoPilotConfig.value.targetType !== 'all') {
+      if (item.entityType !== autoPilotConfig.value.targetType) return false
+    }
+    // 2. Product Scope check (All vs Only currently filtered product e.g. kito AG29)
+    if (autoPilotConfig.value.scope === 'filtered_product' && selectedProductId.value !== 'all') {
+      const linked = getLinkedProduct(item)
+      if (linked?.product.id !== selectedProductId.value) return false
+    }
+    return true
+  })
 
   for (const item of itemsToCheck) {
     // 1. Stop-Loss Check
@@ -2153,6 +2200,49 @@ onMounted(async () => {
           <!-- Tab 1: Rules & Safety Settings -->
           <v-window-item value="rules">
             <div class="autopilot-rules-container">
+              <!-- Scope & Target Selection Card -->
+              <v-card variant="outlined" class="rule-card pa-4 mb-4 rounded-lg">
+                <div class="d-flex align-center gap-2 mb-3">
+                  <v-avatar color="primary" size="28" variant="tonal">
+                    <v-icon icon="mdi-target" size="16" />
+                  </v-avatar>
+                  <div>
+                    <h4 class="font-weight-bold mb-0">{{ l({ lo: 'ຂອບເຂດ ແລະ ປະເພດໂຄສະນາທີ່ໃຫ້ Auto-Pilot ຄຸມ', th: 'ขอบเขตและประเภทโฆษณาที่ให้ Auto-Pilot คุม', en: 'Scope & Target Structure' }) }}</h4>
+                    <small class="text-medium-emphasis">{{ l({ lo: 'ເລືອກວ່າຈະໃຫ້ບັອດເຮັດວຽກກັບທຸກແອດ ຫຼື ເລືອກສະເພາະ Campaign / Ad Set / ສິນຄ້າ', th: 'เลือกว่าจะให้บอททำงานกับทุกแอด หรือเลือกเฉพาะ Campaign / Ad Set / สินค้า', en: 'Choose whether Auto-Pilot evaluates all ads or targets specific campaigns, ad sets, or products' }) }}</small>
+                  </div>
+                </div>
+
+                <div class="rule-inputs-grid mb-1">
+                  <v-select
+                    v-model="autoPilotConfig.scope"
+                    :items="[
+                      { title: l({ lo: '🌐 ທຸກແອດທີ່ເປີດຢູ່ (All Active Ads)', th: '🌐 ทุกแอดที่เปิดอยู่ (All Active Ads)', en: '🌐 All Active Ads' }), value: 'all' },
+                      { title: l({ lo: '📦 ສະເພາະສິນຄ້າທີ່ເລືອກໃນ Filter (e.g. kito AG29)', th: '📦 เฉพาะสินค้าที่เลือกใน Filter (e.g. kito AG29)', en: '📦 Current Filter Product Only' }), value: 'filtered_product' }
+                    ]"
+                    item-title="title"
+                    item-value="value"
+                    :label="l({ lo: 'ຂອບເຂດສິນຄ້າ', th: 'ขอบเขตสินค้า', en: 'Product Scope' })"
+                    variant="outlined"
+                    density="compact"
+                    hide-details
+                  />
+                  <v-select
+                    v-model="autoPilotConfig.targetType"
+                    :items="[
+                      { title: l({ lo: '⚡ ທຸກລະດັບ (CBO Campaign & ABO Ad Set)', th: '⚡ ทุกระดับ (CBO Campaign & ABO Ad Set)', en: '⚡ All (CBO & ABO)' }), value: 'all' },
+                      { title: l({ lo: '📢 ສະເພາະ Campaign (CBO - Advantage Budget)', th: '📢 เฉพาะ Campaign (CBO - Advantage Budget)', en: '📢 Campaigns Only (CBO)' }), value: 'campaign' },
+                      { title: l({ lo: '🎯 ສະເພາະ Ad Set (ABO - Ad Set Budget)', th: '🎯 เฉพาะ Ad Set (ABO - Ad Set Budget)', en: '🎯 Ad Sets Only (ABO)' }), value: 'adset' }
+                    ]"
+                    item-title="title"
+                    item-value="value"
+                    :label="l({ lo: 'ລະດັບໂຄງສ້າງງົບປະມານ', th: 'ระดับโครงสร้างงบประมาณ', en: 'Budget Structure Level' })"
+                    variant="outlined"
+                    density="compact"
+                    hide-details
+                  />
+                </div>
+              </v-card>
+
               <!-- Rule 1: Auto-Scale Winners -->
               <v-card variant="outlined" class="rule-card pa-4 mb-4 rounded-lg">
                 <div class="d-flex align-center justify-space-between mb-3">
