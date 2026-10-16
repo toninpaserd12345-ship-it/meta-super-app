@@ -2160,7 +2160,7 @@ onMounted(async () => {
             color="info"
             prepend-icon="mdi-help-circle-outline"
             class="font-weight-bold"
-            @click="guideModalOpen = true; guideStep = 3"
+            @click="guideModalOpen = true; guideStep = 4"
           >
             {{ l({ lo: '📖 ຄູ່ມືຕັ້ງຄ່າ', th: '📖 คู่มือตั้งค่า', en: '📖 Setup Guide' }) }}
           </v-btn>
@@ -2523,7 +2523,7 @@ onMounted(async () => {
       <div class="guide-stepper-bar px-4 py-3 border-b d-flex align-center justify-space-between flex-wrap gap-2">
         <div class="d-flex align-center flex-wrap gap-2">
           <v-btn
-            v-for="s in [1, 2, 3, 4]"
+            v-for="s in [1, 2, 3, 4, 5]"
             :key="s"
             size="small"
             :variant="guideStep === s ? 'flat' : 'tonal'"
@@ -2533,24 +2533,129 @@ onMounted(async () => {
           >
             <span class="step-num">{{ s }}</span>
             <span class="ml-1">
-              {{ s === 1 ? l({ lo: '1. ເລືອກບັນຊີ & 7 ມື້', th: '1. เลือกบัญชี & 7 วัน', en: '1. Account & Range' })
-               : s === 2 ? l({ lo: '2. ອ່ານຄ່າຕົວເລກແທ້', th: '2. อ่านค่าตัวเลขแท้', en: '2. Real Metrics' })
-               : s === 3 ? l({ lo: '3. ຕັ້ງກົດ & Budget Cap', th: '3. ตั้งกฎ & Budget Cap', en: '3. Rules & Cap' })
-               : l({ lo: '4. ສະເກວ & Cooldown', th: '4. สเกล & Cooldown', en: '4. Scaling & Cooldown' }) }}
+              {{ s === 1 ? l({ lo: '1. ສ້າງສິນຄ້າ & ຜູກບັອດ', th: '1. สร้างสินค้า & ผูกบอท', en: '1. Product & Bot' })
+               : s === 2 ? l({ lo: '2. ເລືອກບັນຊີ & 7 ມື້', th: '2. เลือกบัญชี & 7 วัน', en: '2. Account & Range' })
+               : s === 3 ? l({ lo: '3. ອ່ານຄ່າຕົວເລກແທ້', th: '3. อ่านค่าตัวเลขแท้', en: '3. Real Metrics' })
+               : s === 4 ? l({ lo: '4. ຕັ້ງກົດ & Budget Cap', th: '4. ตั้งกฎ & Budget Cap', en: '4. Rules & Cap' })
+               : l({ lo: '5. ສະເກວ & Cooldown', th: '5. สเกล & Cooldown', en: '5. Scaling & Cooldown' }) }}
             </span>
           </v-btn>
         </div>
         <v-chip size="small" color="primary" variant="outlined" class="font-weight-bold">
-          {{ l({ lo: `ຂັ້ນຕອນ ${guideStep} / 4`, th: `ขั้นตอน ${guideStep} / 4`, en: `Step ${guideStep} of 4` }) }}
+          {{ l({ lo: `ຂັ້ນຕອນ ${guideStep} / 5`, th: `ขั้นตอน ${guideStep} / 5`, en: `Step ${guideStep} of 5` }) }}
         </v-chip>
       </div>
 
       <v-card-text class="pa-4 pa-md-6 guide-body-content">
-        <!-- Step 1: Account Selection, 7-Day Window & Product Filter -->
+        <!-- Step 1: Product Creation & Linking Auto-Reply Flow to Ads -->
         <div v-if="guideStep === 1" class="guide-step-container">
           <div class="guide-step-header mb-4">
             <div class="step-badge-pill mb-1 text-primary font-weight-bold">
               <v-icon icon="mdi-numeric-1-circle" size="18" class="mr-1" />
+              {{ l({ lo: 'ຂັ້ນຕອນພື້ນຖານສຳຄັນທີ່ສຸດ (Foundation Setup)', th: 'ขั้นตอนพื้นฐานสำคัญที่สุด (Foundation Setup)', en: 'Foundation Setup' }) }}
+            </div>
+            <h3 class="text-h6 font-weight-bold mb-1">
+              {{ l({ lo: 'ສ້າງສິນຄ້າ ແລະ ຜູກບັອດຕອບແຊັດ Auto-Reply ເຂົ້າກັບໂຄສະນາ (Ads)', th: 'สร้างสินค้า และผูกบอทตอบแชท Auto-Reply เข้ากับโฆษณา (Ads)', en: 'Create Product & Link Auto-Reply to Ads' }) }}
+            </h3>
+            <p class="text-body-2 text-medium-emphasis mb-0">
+              {{ l({ lo: 'ຈຸດເລີ່ມຕົ້ນຂອງທຸກຢ່າງ: ຖ້າບໍ່ຜູກສິນຄ້າ ແລະ ບັອດຕອບແຊັດເຂົ້າກັບແອດ ລະບົບຈະບໍ່ສາມາດຕິດຕາມຍອດຊື້ (Purchases) ທີ່ແທ້ຈິງມາສະເກວໄດ້.', th: 'จุดเริ่มต้นของทุกอย่าง: หากไม่ผูกสินค้าและบอทเข้ากับแอด ระบบจะไม่สามารถติดตามยอดซื้อ (Purchases) ที่แท้จริงมา Scale ได้', en: 'The vital first step: linking product and auto-reply to ads allows true order tracking and scaling.' }) }}
+            </p>
+          </div>
+
+          <div class="guide-mockup-wrapper">
+            <div class="guide-mockup-card">
+              <div class="mockup-header-bar">
+                <span class="mockup-dot red"></span>
+                <span class="mockup-dot yellow"></span>
+                <span class="mockup-dot green"></span>
+                <span class="mockup-title">{{ l({ lo: 'ຂະບວນການຜູກລະບົບ (Product & Auto-Reply Linking Flow)', th: 'กระบวนการผูกระบบ (Product & Auto-Reply Linking Flow)', en: 'Product & Auto-Reply Linking Flow' }) }}</span>
+              </div>
+
+              <div class="mockup-content pa-4">
+                <!-- Item 1: Create Product -->
+                <div class="mockup-element-row mb-4">
+                  <div class="mockup-element-box flex-grow-1 position-relative">
+                    <div class="mock-input-label">{{ l({ lo: '1. ສິນຄ້າໃນລະບົບ (Product)', th: '1. สินค้าในระบบ (Product)', en: '1. System Product' }) }}</div>
+                    <div class="mock-input-field">
+                      <v-icon icon="mdi-package-variant-closed" color="primary" size="18" class="mr-2" />
+                      <strong>{{ l({ lo: 'ເກີບ kito AG29 (ລະຫັດ: AG29-BLK)', th: 'รองเท้า kito AG29 (รหัส: AG29-BLK)', en: 'kito AG29 (SKU: AG29-BLK)' }) }}</strong>
+                      <span class="text-caption text-medium-emphasis ml-2">129,000 ₭</span>
+                    </div>
+                    <div class="guide-pointer-anchor right-center">
+                      <span class="pointer-dot"></span>
+                      <span class="pointer-line horizontal"></span>
+                    </div>
+                  </div>
+                  <div class="guide-callout-box">
+                    <h5 class="callout-title font-weight-bold text-info">
+                      <v-icon icon="mdi-plus-box-outline" size="14" class="mr-1" />
+                      {{ l({ lo: '1. ສ້າງສິນຄ້າໃນເມນູ Products', th: '1. สร้างสินค้าในเมนู Products', en: '1. Create Product in Products menu' }) }}
+                    </h5>
+                    <p class="callout-desc mb-0">
+                      {{ l({ lo: 'ໃສ່ຊື່ສິນຄ້າ, ລະຫັດ SKU, ລາຄາຂາຍ, ແລະ ສະຕັອກ ໃຫ້ຄົບຖ້ວນເພື່ອໃຫ້ລະບົບຮູ້ຕົ້ນທຶນ ແລະ ຕັດສະຕັອກໄດ້.', th: 'ใส่ชื่อสินค้า, รหัส SKU, ราคาขาย และสต็อกให้ครบถ้วน เพื่อให้ระบบรู้ต้นทุนและตัดสต็อกได้', en: 'Set up product name, SKU, price, and stock so the system can calculate margins and stock.' }) }}
+                    </p>
+                  </div>
+                </div>
+
+                <!-- Item 2: Auto-Reply Flow & Reply Set -->
+                <div class="mockup-element-row mb-4">
+                  <div class="mockup-element-box flex-grow-1 position-relative">
+                    <div class="mock-input-label">{{ l({ lo: '2. ບັອດຕອບແຊັດອັດຕະໂນມັດ (Auto-Reply Flow)', th: '2. บอทตอบแชทอัตโนมัติ (Auto-Reply Flow)', en: '2. Auto-Reply Flow' }) }}</div>
+                    <div class="mock-input-field active-highlight">
+                      <v-icon icon="mdi-robot-outline" color="success" size="18" class="mr-2" />
+                      <strong class="text-success">{{ l({ lo: 'Flow: ຕອບປິດການຂາຍ kito AG29', th: 'Flow: ตอบปิดการขาย kito AG29', en: 'Flow: Sales Closing kito AG29' }) }}</strong>
+                      <v-chip size="x-small" color="success" class="ml-2 font-weight-bold">{{ l({ lo: 'ຜູກກັບ kito AG29', th: 'ผูกกับ kito AG29', en: 'Linked to kito AG29' }) }}</v-chip>
+                    </div>
+                    <div class="guide-pointer-anchor right-center">
+                      <span class="pointer-dot green"></span>
+                      <span class="pointer-line horizontal"></span>
+                    </div>
+                  </div>
+                  <div class="guide-callout-box highlight-tip">
+                    <h5 class="callout-title font-weight-bold text-success">
+                      <v-icon icon="mdi-link-variant" size="14" class="mr-1" />
+                      {{ l({ lo: '2. ຜູກ Flow ເຂົ້າກັບສິນຄ້ານັ້ນ (ເມນູ Auto Replies)', th: '2. ผูก Flow เข้ากับสินค้านั้น (เมนู Auto Replies)', en: '2. Link Flow to that product' }) }}
+                    </h5>
+                    <p class="callout-desc mb-0">
+                      {{ l({ lo: 'ໃນໜ້າ Auto Replies ຕອນສ້າງ Flow ໃຫ້ເລືອກ Product ເປັນ kito AG29 ເພື່ອໃຫ້ເວລາລູກຄ້າທັກມາ ບັອດຈະສົ່ງລາຄາ ແລະ ເອົາອໍເດີສິນຄ້ານັ້ນ.', th: 'ในหน้า Auto Replies ตอนสร้าง Flow ให้เลือก Product เป็น kito AG29 เพื่อให้บอทส่งราคาและรับออเดอร์สินค้านั้นได้ทันที', en: 'When creating the Flow, link it to the product so the bot automatically serves details and takes orders.' }) }}
+                    </p>
+                  </div>
+                </div>
+
+                <!-- Item 3: Link Target to Meta Ads / Campaign -->
+                <div class="mockup-element-row">
+                  <div class="mockup-element-box flex-grow-1 position-relative">
+                    <div class="mock-input-label">{{ l({ lo: '3. ເປົ້າໝາຍໂຄສະນາ (Target: Meta Ad / Campaign)', th: '3. เป้าหมายโฆษณา (Target: Meta Ad / Campaign)', en: '3. Ad Target' }) }}</div>
+                    <div class="mock-input-field">
+                      <v-icon icon="mdi-bullseye-arrow" color="warning" size="18" class="mr-2" />
+                      <span>Target: Ad "kito AG29 - Video Review 01"</span>
+                      <v-chip size="x-small" color="primary" class="ml-2 font-weight-bold">TRACKING ACTIVE</v-chip>
+                    </div>
+                    <div class="guide-pointer-anchor right-center">
+                      <span class="pointer-dot orange"></span>
+                      <span class="pointer-line horizontal"></span>
+                    </div>
+                  </div>
+                  <div class="guide-callout-box">
+                    <h5 class="callout-title font-weight-bold text-warning">
+                      <v-icon icon="mdi-target" size="14" class="mr-1" />
+                      {{ l({ lo: '3. ຜູກ Target ກັບແອດ (ສຳຄັນທີ່ສຸດ!)', th: '3. ผูก Target กับแอด (สำคัญที่สุด!)', en: '3. Connect Target to Ad (Vital!)' }) }}
+                    </h5>
+                    <p class="callout-desc mb-0">
+                      {{ l({ lo: 'ເລືອກ Target ເປັນ Ad ຫຼື Campaign ທີ່ເຈົ້າຍິງ. ເວລາລູກຄ້າສັ່ງຊື້ ລະບົບຈະຮູ້ທັນທີວ່າເປັນຍອດຂາຍຂອງແອດນີ້ ແລະ ນັບເປັນ Purchases ໃນໜ້າ Ads Manager ນີ້ທັນທີ!', th: 'เลือก Target เป็น Ad หรือ Campaign ที่คุณยิง เมื่อลูกค้าสั่งซื้อ ระบบจะรู้ทันทีว่ายอดขายมาจากแอดนี้ และส่งข้อมูลมาสะเกวที่หน้านี้', en: 'Target the ad running on Meta. When a lead orders, the system attributes it directly to this ad for scaling!' }) }}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2: Account Selection, 7-Day Window & Product Filter -->
+        <div v-else-if="guideStep === 2" class="guide-step-container">
+          <div class="guide-step-header mb-4">
+            <div class="step-badge-pill mb-1 text-primary font-weight-bold">
+              <v-icon icon="mdi-numeric-2-circle" size="18" class="mr-1" />
               {{ l({ lo: 'ສິ່ງທີ່ຕ້ອງເຮັດກ່ອນໝູ່ໝົດ (First Things First)', th: 'สิ่งที่ต้องทำก่อนเป็นอันดับแรก (First Things First)', en: 'First Things First' }) }}
             </div>
             <h3 class="text-h6 font-weight-bold mb-1">
@@ -2650,11 +2755,11 @@ onMounted(async () => {
           </div>
         </div>
 
-        <!-- Step 2: Understanding Real Metrics & Decision Signals -->
-        <div v-else-if="guideStep === 2" class="guide-step-container">
+        <!-- Step 3: Understanding Real Metrics & Decision Signals -->
+        <div v-else-if="guideStep === 3" class="guide-step-container">
           <div class="guide-step-header mb-4">
             <div class="step-badge-pill mb-1 text-primary font-weight-bold">
-              <v-icon icon="mdi-numeric-2-circle" size="18" class="mr-1" />
+              <v-icon icon="mdi-numeric-3-circle" size="18" class="mr-1" />
               {{ l({ lo: 'ວິທີອ່ານຄ່າຕົວເລກທີ່ແທ້ຈິງ', th: 'วิธีอ่านค่าตัวเลขที่แท้จริง', en: 'Understanding Real Metrics' }) }}
             </div>
             <h3 class="text-h6 font-weight-bold mb-1">
@@ -2754,11 +2859,11 @@ onMounted(async () => {
           </div>
         </div>
 
-        <!-- Step 3: Auto-Pilot Rules, Global 20% Standard & Daily Budget Cap -->
-        <div v-else-if="guideStep === 3" class="guide-step-container">
+        <!-- Step 4: Auto-Pilot Rules, Global 20% Standard & Daily Budget Cap -->
+        <div v-else-if="guideStep === 4" class="guide-step-container">
           <div class="guide-step-header mb-4">
             <div class="step-badge-pill mb-1 text-primary font-weight-bold">
-              <v-icon icon="mdi-numeric-3-circle" size="18" class="mr-1" />
+              <v-icon icon="mdi-numeric-4-circle" size="18" class="mr-1" />
               {{ l({ lo: 'ຕັ້ງຄ່າກົດ Auto-Pilot & ຄວາມປອດໄພ', th: 'ตั้งค่ากฎ Auto-Pilot & ความปลอดภัย', en: 'Rules & Safety Settings' }) }}
             </div>
             <h3 class="text-h6 font-weight-bold mb-1">
@@ -2857,11 +2962,11 @@ onMounted(async () => {
           </div>
         </div>
 
-        <!-- Step 4: Scaling & 24h Cooldown Lock & Incremental Purchases -->
-        <div v-else-if="guideStep === 4" class="guide-step-container">
+        <!-- Step 5: Scaling & 24h Cooldown Lock & Incremental Purchases -->
+        <div v-else-if="guideStep === 5" class="guide-step-container">
           <div class="guide-step-header mb-4">
             <div class="step-badge-pill mb-1 text-primary font-weight-bold">
-              <v-icon icon="mdi-numeric-4-circle" size="18" class="mr-1" />
+              <v-icon icon="mdi-numeric-5-circle" size="18" class="mr-1" />
               {{ l({ lo: 'ວິທີສະເກວ & ລະບົບລັອກ Cooldown', th: 'วิธีสเกล & ระบบล็อค Cooldown', en: 'Scaling & 24h Cooldown Lock' }) }}
             </div>
             <h3 class="text-h6 font-weight-bold mb-1">
@@ -2990,7 +3095,7 @@ onMounted(async () => {
           </v-btn>
 
           <v-btn
-            v-if="guideStep < 4"
+            v-if="guideStep < 5"
             color="primary"
             variant="flat"
             append-icon="mdi-arrow-right"
