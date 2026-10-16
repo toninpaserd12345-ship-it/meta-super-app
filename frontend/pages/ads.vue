@@ -202,9 +202,9 @@ const statusCounts = computed(() => (report.value?.items || []).reduce((counts, 
   return counts
 }, { active: 0, paused: 0, issues: 0 } as Record<'active' | 'paused' | 'issues', number>))
 
-const fmt = (value?: number, digits = 2) => value == null ? '—' : new Intl.NumberFormat(undefined, { maximumFractionDigits: digits }).format(value)
-const money = (value?: number) => value == null ? '—' : new Intl.NumberFormat(undefined, { style: 'currency', currency: currency.value, maximumFractionDigits: 2 }).format(value)
-const percent = (value?: number) => value == null ? '—' : `${fmt(value, 2)}%`
+const fmt = (value?: number | null, digits = 2) => value == null ? '—' : new Intl.NumberFormat(undefined, { maximumFractionDigits: digits }).format(value)
+const money = (value?: number | null) => value == null ? '—' : new Intl.NumberFormat(undefined, { style: 'currency', currency: currency.value, maximumFractionDigits: 2 }).format(value)
+const percent = (value?: number | null) => value == null ? '—' : `${fmt(value, 2)}%`
 const contribution = (item?: MetaInsightItem) => item?.conversionValue != null && item?.spend != null && grossMargin.value != null
   ? item.conversionValue * (grossMargin.value / 100) - item.spend
   : undefined
@@ -268,25 +268,222 @@ const statusClass = (status?: string) => {
   return 'issues'
 }
 
+function parseProductPrice(product?: Product): number | null {
+  if (!product) return null
+  if (product.salePrice != null && product.salePrice > 0) return product.salePrice
+  if (product.price) {
+    const cleaned = String(product.price).replace(/[^0-9.]/g, '')
+    const num = parseFloat(cleaned)
+    if (!isNaN(num) && num > 0) return num
+  }
+  return null
+}
+
+function calculateCostRatio(adCost: number, productPrice: number, adCurrency: string, prodCurrency?: string): number | null {
+  if (!adCost || !productPrice || productPrice <= 0) return null
+  let normalizedCost = adCost
+  if (adCurrency === 'USD' && (prodCurrency === 'LAK' || productPrice > 2000)) {
+    normalizedCost = adCost * 22000
+  } else if (adCurrency === 'THB' && (prodCurrency === 'LAK' || productPrice > 2000)) {
+    normalizedCost = adCost * 620
+  } else if (adCurrency === 'LAK' && productPrice < 200) {
+    normalizedCost = adCost / 22000
+  }
+  const ratio = Math.round((normalizedCost / productPrice) * 100)
+  return isFinite(ratio) ? ratio : null
+}
+
+function buyingOpportunity(item: MetaInsightItem) {
+  const purchases = item.results?.value || 0
+  const cost = item.results?.cost
+  const clicks = item.linkClicks || 0
+  const spend = item.spend || 0
+  const ctr = item.linkCtr || 0
+  const linked = getLinkedProduct(item)
+  const productPrice = parseProductPrice(linked?.product)
+  const costRatio = cost != null && productPrice != null
+    ? calculateCostRatio(cost, productPrice, currency.value, linked?.product.currency)
+    : null
+
+  let conversionRate: number | null = null
+  if (clicks > 0 && purchases > 0) {
+    conversionRate = Math.min(100, Math.round((purchases / clicks) * 1000) / 10)
+  }
+
+  const costRatioText = costRatio != null ? percent(costRatio) : '—'
+  const costRatioIsGood = costRatio != null && costRatio <= 20
+  const costRatioIsHigh = costRatio != null && costRatio > 50
+  const conversionRateText = conversionRate != null ? `${fmt(conversionRate, 1)}%` : '—'
+
+  // 1. High Buying Opportunity (🔥)
+  if (purchases >= 3 || (purchases >= 1 && (costRatio != null ? costRatio <= 25 : (cost == null || cost <= (targetCost.value || 1.8)))) || (conversionRate != null && conversionRate >= 3.5)) {
+    return {
+      level: 'high',
+      label: l({ lo: '🔥 ໂອກາດຊື້ສູງ', th: '🔥 โอกาสซื้อสูง', en: '🔥 High Opportunity' }),
+      shortLabel: l({ lo: '🔥 ໂອກາດຊື້ສູງ', th: '🔥 โอกาสซื้อสูง', en: '🔥 High' }),
+      badgeText: conversionRate != null
+        ? l({ lo: `🔥 ໂອກາດຊື້ສູງ (${purchases} ອໍເດີ · CR ${conversionRate}%)`, th: `🔥 โอกาสซื้อสูง (${purchases} ออเดอร์ · CR ${conversionRate}%)`, en: `🔥 High Opportunity (${purchases} orders · CR ${conversionRate}%)` })
+        : l({ lo: `🔥 ໂອກາດຊື້ສູງ (${purchases} ອໍເດີ)`, th: `🔥 โอกาสซื้อสูง (${purchases} ออเดอร์)`, en: `🔥 High Opportunity (${purchases} orders)` }),
+      color: '#167a4b',
+      chipColor: 'success',
+      bgColor: 'rgba(32,164,100,.12)',
+      conversionRate,
+      conversionRateText,
+      purchases,
+      costRatio,
+      costRatioText,
+      costRatioIsGood,
+      costRatioIsHigh,
+    }
+  }
+
+  // 2. Moderate Buying Opportunity (⚡)
+  if (purchases >= 1 || (ctr >= 1.5 && spend > 0)) {
+    return {
+      level: 'medium',
+      label: l({ lo: '⚡ ໂອກາດຊື້ປານກາງ', th: '⚡ โอกาสซื้อปานกลาง', en: '⚡ Moderate Opportunity' }),
+      shortLabel: l({ lo: '⚡ ໂອກາດປານກາງ', th: '⚡ โอกาสปานกลาง', en: '⚡ Moderate' }),
+      badgeText: purchases > 0
+        ? l({ lo: `⚡ ໂອກາດຊື້ດີ (${purchases} ອໍເດີ${conversionRate != null ? ` · CR ${conversionRate}%` : ''})`, th: `⚡ โอกาสซื้อดี (${purchases} ออเดอร์)`, en: `⚡ Moderate (${purchases} orders)` })
+        : l({ lo: `⚡ ມີຄົນສົນໃຈຄລິກ (CTR ${percent(ctr)})`, th: `⚡ มีคนสนใจคลิก (CTR ${percent(ctr)})`, en: `⚡ Good traffic (CTR ${percent(ctr)})` }),
+      color: '#0284c7',
+      chipColor: 'info',
+      bgColor: 'rgba(2,132,199,.12)',
+      conversionRate,
+      conversionRateText,
+      purchases,
+      costRatio,
+      costRatioText,
+      costRatioIsGood,
+      costRatioIsHigh,
+    }
+  }
+
+  // 3. Low Buying Opportunity (💤)
+  const thresholdSpend = currencyOffset.value === 1 ? 50000 : 5
+  if (spend > thresholdSpend && purchases === 0) {
+    return {
+      level: 'low',
+      label: l({ lo: '💤 ໂອກາດຊື້ຕ່ຳ', th: '💤 โอกาสซื้อต่ำ', en: '💤 Low Opportunity' }),
+      shortLabel: l({ lo: '💤 ໂອກາດຕ່ຳ', th: '💤 โอกาสต่ำ', en: '💤 Low' }),
+      badgeText: l({ lo: `💤 ໂອກາດຊື້ຕ່ຳ (ຍັງບໍ່ມີອໍເດີ)`, th: `💤 โอกาสซื้อต่ำ (ยังไม่มีออเดอร์)`, en: `💤 Low Opportunity (0 Orders)` }),
+      color: '#dc2626',
+      chipColor: 'error',
+      bgColor: 'rgba(239,68,68,.12)',
+      conversionRate: 0,
+      conversionRateText: '0%',
+      purchases: 0,
+      costRatio,
+      costRatioText,
+      costRatioIsGood,
+      costRatioIsHigh,
+    }
+  }
+
+  // 4. Neutral / Testing (🌱)
+  return {
+    level: 'neutral',
+    label: l({ lo: '🌱 ກຳລັງທົດສອບ', th: '🌱 กำลังทดสอบ', en: '🌱 Testing' }),
+    shortLabel: l({ lo: '🌱 ທົດສອບ', th: '🌱 ทดสอบ', en: '🌱 Testing' }),
+    badgeText: l({ lo: '🌱 ກຳລັງທົດສອບແອດ', th: '🌱 กำลังทดสอบแอด', en: '🌱 Testing phase' }),
+    color: '#6b7280',
+    chipColor: 'default',
+    bgColor: 'rgba(107,114,128,.12)',
+    conversionRate,
+    conversionRateText,
+    purchases,
+    costRatio,
+    costRatioText,
+    costRatioIsGood,
+    costRatioIsHigh,
+  }
+}
+
 function decision(item: MetaInsightItem): { code: DecisionCode; color: string; icon: string; title: string; detail: string; signals: string[] } {
   if (!item.impressions && !item.spend) {
     return { code: 'no_data', color: 'default', icon: 'mdi-minus-circle-outline', title: l({ lo: 'ສ້າງໃໝ່ / ຍັງບໍ່ມີຂໍ້ມູນ', th: 'เพิ่งสร้าง / ยังไม่มีข้อมูล', en: 'New / No delivery data' }), detail: l({ lo: 'ໂຄສະນາຫາກໍ່ສ້າງໃໝ່ ຫຼື ຍັງບໍ່ທັນມີຄ່າໃຊ້ຈ່າຍ ແລະການສະແດງຜົນໃນຊ່ວງເວລານີ້.', th: 'โฆษณาเพิ่งสร้างหรือยังไม่มีค่าใช้จ่ายและการแสดงผลในช่วงเวลานี้', en: 'Newly created ad or no delivery/spend in selected date range.' }), signals: [] }
   }
   const bad: string[] = []
   const good: string[] = []
-  if (targetCost.value && item.results.cost != null) {
-    if (item.results.cost > targetCost.value) bad.push(l({ lo: 'ຕົ້ນທຶນ/ຜົນລັບສູງກວ່າຈຸດຄຸ້ມທຶນ', th: 'ต้นทุน/ผลลัพธ์สูงกว่าจุดคุ้มทุน', en: 'Cost/result is above break-even' }))
+  const opp = buyingOpportunity(item)
+  const purchases = item.results?.value || 0
+  const cost = item.results?.cost
+
+  // 1. Core Conversion & Purchase Outcome
+  if (purchases >= 3) {
+    good.push(l({
+      lo: `ປິດການຊື້ດີ: ${purchases} ອໍເດີ${cost != null ? ` (ຕົ້ນທຶນ ${money(cost)}/ອໍເດີ)` : ''}`,
+      th: `ปิดการซื้อดี: ${purchases} ออเดอร์${cost != null ? ` (ต้นทุน ${money(cost)}/ออเดอร์)` : ''}`,
+      en: `Strong purchases: ${purchases} orders${cost != null ? ` (Cost ${money(cost)}/order)` : ''}`
+    }))
+  } else if (purchases >= 1) {
+    good.push(l({
+      lo: `ມີການຊື້ເກີດຂຶ້ນ: ${purchases} ອໍເດີ${cost != null ? ` (${money(cost)}/ອໍເດີ)` : ''}`,
+      th: `มีคำสั่งซื้อเกิดขึ้น: ${purchases} ออเดอร์${cost != null ? ` (${money(cost)}/ออเดอร์)` : ''}`,
+      en: `Has purchases: ${purchases} orders${cost != null ? ` (${money(cost)}/order)` : ''}`
+    }))
+  } else if (item.spend != null && item.spend > (currencyOffset.value === 1 ? 50000 : 5)) {
+    bad.push(l({
+      lo: `ໃຊ້ງົບແລ້ວແຕ່ຍັງບໍ່ມີການຊື້ (${money(item.spend)})`,
+      th: `ใช้งบแล้วแต่ยังไม่มีการซื้อ (${money(item.spend)})`,
+      en: `Spent budget with 0 purchases (${money(item.spend)})`
+    }))
+  }
+
+  // 2. Linked Product Cost-to-Price Evaluation
+  if (opp.costRatio != null) {
+    if (opp.costRatio <= 20) {
+      good.push(l({
+        lo: `ຕົ້ນທຶນແອດພຽງ ${opp.costRatio}% ຂອງລາຄາສິນຄ້າ`,
+        th: `ต้นทุนแอดเพียง ${opp.costRatio}% ของราคาสินค้า`,
+        en: `Ad cost is only ${opp.costRatio}% of product price`
+      }))
+    } else if (opp.costRatio > 50) {
+      bad.push(l({
+        lo: `ຕົ້ນທຶນແອດສູງເຖິງ ${opp.costRatio}% ຂອງລາຄາສິນຄ້າ`,
+        th: `ต้นทุนแอดสูงถึง ${opp.costRatio}% ของราคาสินค้า`,
+        en: `Ad cost consumes ${opp.costRatio}% of product price`
+      }))
+    }
+  }
+
+  // 3. Target Cost (if configured)
+  if (targetCost.value && cost != null) {
+    if (cost > targetCost.value) bad.push(l({ lo: 'ຕົ້ນທຶນ/ຜົນລັບສູງກວ່າຈຸດຄຸ້ມທຶນ', th: 'ต้นทุน/ผลลัพธ์สูงกว่าจุดคุ้มทุน', en: 'Cost/result is above break-even' }))
     else good.push(l({ lo: 'ຕົ້ນທຶນ/ຜົນລັບຢູ່ໃນເປົ້າ', th: 'ต้นทุน/ผลลัพธ์อยู่ในเป้า', en: 'Cost/result is within target' }))
   }
+
+  // 4. Contribution Margin (if configured)
   const estimatedContribution = contribution(item)
   if (estimatedContribution != null) {
     if (estimatedContribution < 0) bad.push(l({ lo: 'ມູນຄ່າຂາຍຫຼັງຫັກ Margin ບໍ່ພໍຄ່າ Ads', th: 'มูลค่าขายหลังหัก Margin ไม่พอค่าโฆษณา', en: 'Margin-adjusted conversion value does not cover ad spend' }))
     else good.push(l({ lo: 'ມູນຄ່າຂາຍຫຼັງຫັກ Margin ຍັງຄຸ້ມຄ່າ Ads', th: 'มูลค่าขายหลังหัก Margin ยังคุ้มค่าโฆษณา', en: 'Margin-adjusted conversion value covers ad spend' }))
   }
+
+  // 5. CTR Analysis (Always evaluated and visible!)
   if (item.linkCtr != null) {
-    if (item.linkCtr < weakCTR.value) bad.push(l({ lo: 'CTR ຕ່ຳ—Creative ອາດບໍ່ດຶງດູດ', th: 'CTR ต่ำ—ครีเอทีฟอาจไม่น่าสนใจ', en: 'Low CTR—creative may not attract clicks' }))
-    else if (item.linkCtr >= goodCTR.value) good.push(l({ lo: 'CTR ດີ', th: 'CTR ดี', en: 'Strong CTR' }))
+    if (item.linkCtr >= goodCTR.value) {
+      good.push(l({ lo: `CTR ດີ (${percent(item.linkCtr)})—Creative ໜ້າສົນໃຈ`, th: `CTR ดี (${percent(item.linkCtr)})—ครีเอทีฟน่าสนใจ`, en: `Strong CTR (${percent(item.linkCtr)})—creative is engaging` }))
+    } else if (item.linkCtr < weakCTR.value) {
+      if (purchases >= 1) {
+        good.push(l({
+          lo: `CTR ${percent(item.linkCtr)} ແຕ່ປິດການຊື້ດີ (ລູກຄ້າຊື້ກົງກຸ່ມ)`,
+          th: `CTR ${percent(item.linkCtr)} แต่ปิดการซื้อดี (ตรงกลุ่มผู้ซื้อ)`,
+          en: `CTR is ${percent(item.linkCtr)} with positive purchase intent`
+        }))
+      } else {
+        bad.push(l({
+          lo: `CTR ຕ່ຳ (${percent(item.linkCtr)})—Creative ອາດບໍ່ດຶງດູດ`,
+          th: `CTR ต่ำ (${percent(item.linkCtr)})—ครีเอทีฟอาจไม่น่าสนใจ`,
+          en: `Low CTR (${percent(item.linkCtr)})—creative may not attract clicks`
+        }))
+      }
+    } else {
+      good.push(l({ lo: `CTR ປານກາງ (${percent(item.linkCtr)})`, th: `CTR ปานกลาง (${percent(item.linkCtr)})`, en: `Moderate CTR (${percent(item.linkCtr)})` }))
+    }
   }
+
+  // 6. Frequency & Audience Saturation
   if (item.frequency != null) {
     if (item.frequency >= maxFrequency.value) bad.push(l({ lo: 'Frequency ສູງ—Audience ເລີ່ມເຫັນຊ້ຳ', th: 'Frequency สูง—กลุ่มเป้าหมายเริ่มเห็นซ้ำ', en: 'High frequency—audience is seeing repeats' }))
     else if (item.frequency < maxFrequency.value - 0.5) good.push(l({ lo: 'Frequency ຍັງປົກກະຕິ', th: 'Frequency ยังปกติ', en: 'Frequency is still healthy' }))
@@ -297,11 +494,57 @@ function decision(item: MetaInsightItem): { code: DecisionCode; color: string; i
   } else if (coverage != null && coverage < 30) {
     good.push(l({ lo: 'Audience ຍັງມີພື້ນທີ່ໃຫ້ຂະຫຍາຍ', th: 'กลุ่มเป้าหมายยังมีพื้นที่ให้ขยาย', en: 'The audience still has room to scale' }))
   }
+
+  // 7. Rankings
   const rankings = [item.qualityRanking, item.engagementRateRanking, item.conversionRateRanking].filter(Boolean)
   if (rankings.some(value => value?.includes('BELOW_AVERAGE'))) bad.push(l({ lo: 'Ranking ຕ່ຳກວ່າຄ່າສະເລ່ຍ', th: 'อันดับต่ำกว่าค่าเฉลี่ย', en: 'Ranking is below average' }))
-  if (bad.length >= 2) return { code: 'pause', color: 'error', icon: 'mdi-pause-circle-outline', title: l({ lo: 'ຄວນພິຈາລະນາປິດ', th: 'ควรพิจารณาปิด', en: 'Pause candidate' }), detail: l({ lo: 'ມີຫຼາຍສັນຍານອ່ອນ. ກວດ 3–7 ມື້ ແລະກຳໄລກ່ອນປິດ.', th: 'มีหลายสัญญาณอ่อน ตรวจแนวโน้ม 3–7 วันและกำไรก่อนปิด', en: 'Several weak signals. Check the 3–7 day trend and profit before pausing.' }), signals: bad }
-  if (bad.length === 1) return { code: 'review', color: 'warning', icon: 'mdi-alert-circle-outline', title: l({ lo: 'ຄວນກວດສອບ', th: 'ควรตรวจสอบ', en: 'Review' }), detail: l({ lo: 'ຍັງບໍ່ຄວນປິດທັນທີ. ປັບ Creative, Audience ຫຼືລໍຖ້າເບິ່ງ trend.', th: 'ยังไม่ควรปิดทันที ลองปรับครีเอทีฟ กลุ่มเป้าหมาย หรือดูแนวโน้มต่อ', en: 'Do not pause yet. Review creative, audience, and the trend.' }), signals: bad }
-  return { code: 'keep', color: 'success', icon: 'mdi-check-circle-outline', title: l({ lo: 'ຄວນເປີດຕໍ່', th: 'ควรเปิดต่อ', en: 'Keep running' }), detail: l({ lo: 'ສັນຍານຫຼັກຍັງດີ. ຕິດຕາມຕົ້ນທຶນ ແລະ trend ຕໍ່ໄປ.', th: 'สัญญาณหลักยังดี ติดตามต้นทุนและแนวโน้มต่อไป', en: 'Core signals look healthy. Continue monitoring cost and trend.' }), signals: good }
+
+  // Final Decision Synthesis
+  if (purchases >= 3 && bad.length <= 1) {
+    return {
+      code: 'keep',
+      color: 'success',
+      icon: 'mdi-rocket-launch-outline',
+      title: l({ lo: 'ຄວນເປີດຕໍ່ / Scale', th: 'ควรเปิดต่อ / Scale', en: 'Keep Running / Scale' }),
+      detail: l({
+        lo: `ປິດໄດ້ ${purchases} ອໍເດີ, ໂອກາດຊື້ສູງ. ສາມາດເພີ່ມງົບ +10% ຫາ +20% ໄດ້.`,
+        th: `ปิดได้ ${purchases} ออเดอร์ โอกาสซื้อสูง สามารถเพิ่มงบ +10% ถึง +20% ได้`,
+        en: `${purchases} orders closed, high buying opportunity. Ready for +10% to +20% scaling.`
+      }),
+      signals: [...good, ...bad]
+    }
+  }
+
+  if (bad.length >= 2) {
+    return {
+      code: 'pause',
+      color: 'error',
+      icon: 'mdi-pause-circle-outline',
+      title: l({ lo: 'ຄວນພິຈາລະນາປິດ', th: 'ควรพิจารณาปิด', en: 'Pause candidate' }),
+      detail: l({ lo: 'ມີຫຼາຍສັນຍານອ່ອນ. ກວດ 3–7 ມື້ ແລະກຳໄລກ່ອນປິດ.', th: 'มีหลายสัญญาณอ่อน ตรวจแนวโน้ม 3–7 วันและกำไรก่อนปิด', en: 'Several weak signals. Check the 3–7 day trend and profit before pausing.' }),
+      signals: bad
+    }
+  }
+
+  if (bad.length === 1 && purchases === 0) {
+    return {
+      code: 'review',
+      color: 'warning',
+      icon: 'mdi-alert-circle-outline',
+      title: l({ lo: 'ຄວນກວດສອບ', th: 'ควรตรวจสอบ', en: 'Review' }),
+      detail: l({ lo: 'ຍັງບໍ່ຄວນປິດທັນທີ. ປັບ Creative, Audience ຫຼືລໍຖ້າເບິ່ງ trend.', th: 'ยังไม่ควรปิดทันที ลองปรับครีเอทีฟ กลุ่มเป้าหมาย หรือดูแนวโน้มต่อ', en: 'Do not pause yet. Review creative, audience, and the trend.' }),
+      signals: bad
+    }
+  }
+
+  return {
+    code: 'keep',
+    color: 'success',
+    icon: 'mdi-check-circle-outline',
+    title: l({ lo: 'ຄວນເປີດຕໍ່', th: 'ควรเปิดต่อ', en: 'Keep running' }),
+    detail: l({ lo: 'ສັນຍານຫຼັກຍັງດີ. ຕິດຕາມຕົ້ນທຶນ ແລະ trend ຕໍ່ໄປ.', th: 'สัญญาณหลักยังดี ติดตามต้นทุนและแนวโน้มต่อไป', en: 'Core signals look healthy. Continue monitoring cost and trend.' }),
+    signals: [...good, ...bad]
+  }
 }
 
 const decisionCounts = computed(() => items.value.reduce((result, item) => {
@@ -819,14 +1062,32 @@ onMounted(async () => {
                     {{ getLinkedProduct(item)!.product.name }}
                   </v-chip>
                   <span class="text-caption text-medium-emphasis">({{ getLinkedProduct(item)!.flowName }})</span>
+                  <v-chip
+                    v-if="buyingOpportunity(item).level !== 'neutral'"
+                    size="x-small"
+                    :color="buyingOpportunity(item).chipColor"
+                    variant="tonal"
+                    class="font-weight-bold"
+                  >
+                    {{ buyingOpportunity(item).badgeText }}
+                  </v-chip>
                 </div>
-                <div v-else class="d-flex align-center gap-1 mt-1">
+                <div v-else class="d-flex align-center gap-1 mt-1 flex-wrap">
                   <v-chip size="x-small" color="grey" variant="text" class="text-caption">
                     {{ l({ lo: '⚠️ ຍັງບໍ່ຜູກ Auto Reply', th: '⚠️ ยังไม่ผูก Auto Reply', en: '⚠️ Unlinked' }) }}
                   </v-chip>
                   <NuxtLink to="/auto-replies" class="text-caption text-primary text-decoration-none font-weight-medium" @click.stop>
                     + ຜູກແອດນີ້
                   </NuxtLink>
+                  <v-chip
+                    v-if="buyingOpportunity(item).level !== 'neutral'"
+                    size="x-small"
+                    :color="buyingOpportunity(item).chipColor"
+                    variant="tonal"
+                    class="font-weight-bold"
+                  >
+                    {{ buyingOpportunity(item).badgeText }}
+                  </v-chip>
                 </div>
               </span>
             </span>
@@ -890,6 +1151,8 @@ onMounted(async () => {
               <div><span>Link clicks</span><strong>{{ fmt(item.linkClicks, 0) }}</strong><small>{{ l({lo:'ຄລິກໄປປາຍທາງ',th:'คลิกไปยังปลายทาง',en:'Clicks to destination'}) }}</small></div>
               <div><span>CPC</span><strong>{{ money(item.linkCpc) }}</strong><small>{{ l({lo:'ຕົ້ນທຶນຕໍ່ຄລິກ',th:'ต้นทุนต่อคลิก',en:'Cost per link click'}) }}</small></div>
               <div><span>CPM</span><strong>{{ money(item.cpm) }}</strong><small>{{ l({lo:'ຕົ້ນທຶນຕໍ່ 1,000 ການສະແດງ',th:'ต้นทุนต่อ 1,000 การแสดงผล',en:'Cost per 1,000 impressions'}) }}</small></div>
+              <div><span>{{ l({lo:'ໂອກາດຊື້ (CR)',th:'โอกาสซื้อ (CR)',en:'Conversion rate'}) }}</span><strong :style="{ color: buyingOpportunity(item).color }">{{ buyingOpportunity(item).conversionRateText }}</strong><small>{{ l({lo:'ການຊື້ ÷ ຄລິກ',th:'การซื้อ ÷ คลิก',en:'Purchases ÷ clicks'}) }}</small></div>
+              <div v-if="buyingOpportunity(item).costRatio != null"><span>{{ l({lo:'ສັດສ່ວນຄ່າແອດ/ສິນຄ້າ',th:'สัดส่วนค่าแอด/สินค้า',en:'Ad cost/product'}) }}</span><strong :style="{ color: buyingOpportunity(item).costRatioIsGood ? '#167a4b' : buyingOpportunity(item).costRatioIsHigh ? '#dc2626' : 'inherit' }">{{ buyingOpportunity(item).costRatioText }}</strong><small>{{ buyingOpportunity(item).costRatioIsGood ? l({lo:'ກຳໄລສູງຫຼາຍ',th:'กำไรสูงมาก',en:'High margin'}) : l({lo:'ທຽບລາຄາສິນຄ້າ',th:'เทียบราคาสินค้า',en:'vs product price'}) }}</small></div>
               <div><span>{{ l({lo:'ມູນຄ່າ Conversion',th:'มูลค่า Conversion',en:'Conversion value'}) }}</span><strong>{{ money(item.conversionValue) }}</strong><small>{{ l({lo:'ລາຍຮັບທີ່ Meta attribution',th:'รายได้ที่ Meta attribution',en:'Meta-attributed value'}) }}</small></div>
               <div><span>ROAS</span><strong>{{ item.roas==null?'—':`${fmt(item.roas,2)}×` }}</strong><small>{{ breakEvenROAS?`Break-even ${fmt(breakEvenROAS,2)}×`:'Set gross margin' }}</small></div>
               <div><span>{{ l({lo:'ຫຼັງ Margin − Ads',th:'หลัง Margin − Ads',en:'Margin value − ads'}) }}</span><strong>{{ money(contribution(item)) }}</strong><small>{{ l({lo:'ບໍ່ລວມຄ່າດຳເນີນງານ',th:'ไม่รวมค่าใช้จ่ายดำเนินงาน',en:'Excludes operating costs'}) }}</small></div>
