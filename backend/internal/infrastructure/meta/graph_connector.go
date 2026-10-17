@@ -1026,76 +1026,84 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 						g.mu.Lock()
 						g.conversations[seenKey] = resolvedKey
 						g.mu.Unlock()
+					} else {
+						// STRICT SAFETY GUARD: The customer clicked an Ad from a Campaign that is NOT LINKED
+						// to any auto-reply flow in the database. Never fall through to keywords or other products!
+						slog.Info("ad referral has no linked automation flow, suppressing automated reply",
+							"page_id", entry.ID, "customer_id", customerID, "ad_id", adID, "campaign_id", ref.CampaignID)
 					}
-				} else if sourceID != "" && !hasRepliedCustomer {
-					// 2. Existing active conversation context
-					rule = findRuleFor(sourceType, sourceID)
-					if rule == nil {
-						altType := "ad"
-						if sourceType == "ad" {
-							altType = "post"
+				} else {
+					// 2. NON-AD TRAFFIC ONLY (Organic messages, manual chat):
+					if sourceID != "" && !hasRepliedCustomer {
+						// Existing active conversation context
+						rule = findRuleFor(sourceType, sourceID)
+						if rule == nil {
+							altType := "ad"
+							if sourceType == "ad" {
+								altType = "post"
+							}
+							rule = findRuleFor(altType, sourceID)
 						}
-						rule = findRuleFor(altType, sourceID)
+					} else if directSet != nil && !hasRepliedCustomer {
+						// Exact Reply Set name or command trigger
+						sourceType, sourceID = "reply_set_name", directSet.Name
+						resolvedKey = bindingKey(entry.ID, sourceType, directSet.ID)
+						rule = &domain.AutomationRule{
+							AccountID:        accountID,
+							PageID:           entry.ID,
+							TriggerType:      sourceType,
+							TriggerValue:     directSet.Name,
+							ReplySetID:       directSet.ID,
+							FlowID:           "reply-set-name:" + directSet.ID,
+							FlowName:         directSet.Name,
+							CooldownSeconds:  86400,
+							FirstMessageOnly: true,
+							IsActive:         true,
+						}
 					}
-				} else if directSet != nil && !hasRepliedCustomer {
-					// 3. Exact Reply Set name or command trigger
-					sourceType, sourceID = "reply_set_name", directSet.Name
-					resolvedKey = bindingKey(entry.ID, sourceType, directSet.ID)
-					rule = &domain.AutomationRule{
-						AccountID:        accountID,
-						PageID:           entry.ID,
-						TriggerType:      sourceType,
-						TriggerValue:     directSet.Name,
-						ReplySetID:       directSet.ID,
-						FlowID:           "reply-set-name:" + directSet.ID,
-						FlowName:         directSet.Name,
-						CooldownSeconds:  86400,
-						FirstMessageOnly: true,
-						IsActive:         true,
-					}
-				}
 
-				// 4. Keyword match
-				if rule == nil {
-					msgText := strings.TrimSpace(message.Message.Text)
-					if msgText != "" {
-						keywordRules, _ := g.automation.GetKeywordRules(ctx, entry.ID)
-						for _, kr := range keywordRules {
-							if matchesKeywords(msgText, []string{kr.TriggerValue}) {
-								r := kr
-								rule = &r
-								break
+					// Keyword match (organic chats only)
+					if rule == nil {
+						msgText := strings.TrimSpace(message.Message.Text)
+						if msgText != "" {
+							keywordRules, _ := g.automation.GetKeywordRules(ctx, entry.ID)
+							for _, kr := range keywordRules {
+								if matchesKeywords(msgText, []string{kr.TriggerValue}) {
+									r := kr
+									rule = &r
+									break
+								}
 							}
 						}
 					}
-				}
 
-				// 5. Product code or product name exact match in message
-				if rule == nil && g.db != nil && g.productRepo != nil {
-					msgLower := strings.ToLower(strings.TrimSpace(messageText))
-					cleanLower := strings.TrimSpace(strings.TrimLeft(msgLower, "/#:!# "))
-					if msgLower != "" {
-						var activeRules []database.AutomationRuleModel
-						if err := g.db.WithContext(ctx).Where("page_id = ? AND is_active = ?", entry.ID, true).Find(&activeRules).Error; err == nil {
-							for _, ar := range activeRules {
-								if ar.ProductID != nil && *ar.ProductID != "" {
-									prod, pErr := g.productRepo.GetProduct(ctx, accountID, *ar.ProductID)
-									if pErr == nil && prod != nil {
-										cLower := strings.ToLower(strings.TrimSpace(prod.Code))
-										nLower := strings.ToLower(strings.TrimSpace(prod.Name))
-										match := false
-										if cLower != "" && (msgLower == cLower || cleanLower == cLower || msgLower == "#"+cLower || msgLower == "/"+cLower) {
-											match = true
-										} else if nLower != "" && (msgLower == nLower || cleanLower == nLower) {
-											match = true
-										}
-										if match {
-											r := ruleModelToDomain(ar)
-											rule = &r
-											sourceType = ar.TriggerType
-											sourceID = ar.TriggerValue
-											resolvedKey = bindingKey(entry.ID, sourceType, sourceID)
-											break
+					// Product code or product name exact match in message (organic chats only)
+					if rule == nil && g.db != nil && g.productRepo != nil {
+						msgLower := strings.ToLower(strings.TrimSpace(messageText))
+						cleanLower := strings.TrimSpace(strings.TrimLeft(msgLower, "/#:!# "))
+						if msgLower != "" {
+							var activeRules []database.AutomationRuleModel
+							if err := g.db.WithContext(ctx).Where("page_id = ? AND is_active = ?", entry.ID, true).Find(&activeRules).Error; err == nil {
+								for _, ar := range activeRules {
+									if ar.ProductID != nil && *ar.ProductID != "" {
+										prod, pErr := g.productRepo.GetProduct(ctx, accountID, *ar.ProductID)
+										if pErr == nil && prod != nil {
+											cLower := strings.ToLower(strings.TrimSpace(prod.Code))
+											nLower := strings.ToLower(strings.TrimSpace(prod.Name))
+											match := false
+											if cLower != "" && (msgLower == cLower || cleanLower == cLower || msgLower == "#"+cLower || msgLower == "/"+cLower) {
+												match = true
+											} else if nLower != "" && (msgLower == nLower || cleanLower == nLower) {
+												match = true
+											}
+											if match {
+												r := ruleModelToDomain(ar)
+												rule = &r
+												sourceType = ar.TriggerType
+												sourceID = ar.TriggerValue
+												resolvedKey = bindingKey(entry.ID, sourceType, sourceID)
+												break
+											}
 										}
 									}
 								}
@@ -1113,7 +1121,7 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 			if found && g.leadSink != nil && !isSystem {
 				_ = g.leadSink.CaptureLead(ctx, domain.LeadCapture{AccountID: accountID, PageID: entry.ID, SenderID: customerID, SourceType: sourceType, SourceID: sourceID, ProductID: rule.ProductID})
 			}
-			if !found && resolvedKey == "" {
+			if !found {
 				continue
 			}
 

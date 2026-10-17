@@ -698,4 +698,82 @@ func TestAdReferralPriorityAndCommentTextReply(t *testing.T) {
 	}
 }
 
+func TestUnlinkedCampaignDoesNotTriggerAutoReply(t *testing.T) {
+	var sentRequests []string
+	transport := roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		sentRequests = append(sentRequests, req.Method+" "+req.URL.String())
+		return &http.Response{
+			StatusCode: 200,
+			Body:       io.NopCloser(strings.NewReader(`{"success":true,"message_id":"mid.789"}`)),
+			Header:     make(http.Header),
+		}, nil
+	})
+
+	const appSecret = "test-secret-unlinked"
+	g := NewGraphConnector(GraphConfig{Version: "v22.0", AppSecret: appSecret}, nil)
+	g.client = &http.Client{Transport: transport}
+	g.sessions["acc-3"] = &graphSession{
+		UserToken: "user-tok",
+		Pages: map[string]graphPage{
+			"page-20": {
+				MetaPage:    domain.MetaPage{ID: "page-20", Connected: true},
+				AccessToken: "page-tok-20",
+			},
+		},
+	}
+
+	// Database has an active rule for KITO shoes linked to campaign-kito
+	kitoRule := &domain.AutomationRule{
+		ID:           "rule-kito-1",
+		AccountID:    "acc-3",
+		PageID:       "page-20",
+		TriggerType:  "campaign",
+		TriggerValue: "campaign-kito",
+		ProductID:    "prod-kito",
+		ReplySetID:   "reply-kito",
+		FlowID:       "flow-kito",
+		IsActive:     true,
+	}
+
+	mockAuto := &mockMultiAutomationProvider{
+		rules: map[string]*domain.AutomationRule{
+			"campaign:campaign-kito": kitoRule,
+		},
+		items: map[string][]domain.ReplyItem{
+			"reply-kito": {
+				{ID: "k-1", Type: "image", Content: "https://example.com/kito.jpg", IsEnabled: true},
+				{ID: "k-2", Type: "text", Content: "ເກີບ Kito ແທ້ 100%", IsEnabled: true},
+			},
+		},
+	}
+	g.SetAutomationProvider(mockAuto)
+
+	// Customer interacts with a BRAND NEW UNLINKED campaign (campaign-brand-new-999)
+	unlinkedAdPayload := []byte(`{"object":"page","entry":[{"id":"page-20","messaging":[{"sender":{"id":"customer-new-campaign"},"recipient":{"id":"page-20"},"timestamp":123456789,"message":{"mid":"mid-new-1","text":"ສະບາຍດີ ລາຄາເທົ່າໃດ"},"referral":{"source":"ADS","type":"OPEN_THREAD","campaign_id":"campaign-brand-new-999","ad_id":"ad-brand-new-888"}}]}]}`)
+	if err := g.ReceiveWebhook(context.Background(), unlinkedAdPayload, signPayload(appSecret, unlinkedAdPayload)); err != nil {
+		t.Fatalf("webhook error: %v", err)
+	}
+
+	// Must NOT send any message! (Should be 0 outbound calls to /messages)
+	for _, req := range sentRequests {
+		if strings.Contains(req, "/messages") {
+			t.Fatalf("CRITICAL ERROR: Unlinked campaign triggered an automated message: %v", req)
+		}
+	}
+
+	// Customer comments on an UNLINKED post (post-brand-new-777)
+	unlinkedCommentPayload := []byte(`{"object":"page","entry":[{"id":"page-20","changes":[{"field":"feed","value":{"item":"comment","verb":"add","post_id":"post-brand-new-777","comment_id":"comm-new-555","message":"ສົນໃຈ","from":{"id":"commenter-new"}}}]}]}`)
+	if err := g.ReceiveWebhook(context.Background(), unlinkedCommentPayload, signPayload(appSecret, unlinkedCommentPayload)); err != nil {
+		t.Fatalf("comment webhook error: %v", err)
+	}
+
+	// Must NOT send any private reply or comment reply for Kito!
+	for _, req := range sentRequests {
+		if strings.Contains(req, "/private_replies") {
+			t.Fatalf("CRITICAL ERROR: Unlinked post triggered a private reply: %v", req)
+		}
+	}
+}
+
+
 
