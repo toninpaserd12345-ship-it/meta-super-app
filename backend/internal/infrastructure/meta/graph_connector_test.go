@@ -534,3 +534,168 @@ func TestCommentAutoReplyWithKeywordAndPostbackUnlock(t *testing.T) {
 	}
 }
 
+type mockMultiAutomationProvider struct {
+	rules map[string]*domain.AutomationRule
+	items map[string][]domain.ReplyItem
+}
+
+func (m *mockMultiAutomationProvider) FindActiveRuleForTrigger(ctx context.Context, pageID, triggerType, triggerValue string) (*domain.AutomationRule, error) {
+	key := triggerType + ":" + triggerValue
+	if r, ok := m.rules[key]; ok {
+		return r, nil
+	}
+	return nil, nil
+}
+
+func (m *mockMultiAutomationProvider) GetKeywordRules(ctx context.Context, pageID string) ([]domain.AutomationRule, error) {
+	var list []domain.AutomationRule
+	for _, r := range m.rules {
+		if r.TriggerType == "keyword" {
+			list = append(list, *r)
+		}
+	}
+	return list, nil
+}
+
+func (m *mockMultiAutomationProvider) FindReplySetByTrigger(ctx context.Context, accountID, trigger string) (*domain.ReplySet, error) {
+	return nil, nil
+}
+
+func (m *mockMultiAutomationProvider) GetReplySetItems(ctx context.Context, replySetID string, accountID string) ([]domain.ReplyItem, error) {
+	return m.items[replySetID], nil
+}
+
+func (m *mockMultiAutomationProvider) GetRule(ctx context.Context, id, accountID string) (*domain.AutomationRule, error) {
+	for _, r := range m.rules {
+		if r.ID == id {
+			return r, nil
+		}
+	}
+	return nil, nil
+}
+
+func TestAdReferralPriorityAndCommentTextReply(t *testing.T) {
+	var sentRequests []string
+	var sentFormMessages []string
+	transport := roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		urlStr := req.Method + " " + req.URL.String()
+		sentRequests = append(sentRequests, urlStr)
+		if strings.Contains(urlStr, "/private_replies") {
+			_ = req.ParseForm()
+			sentFormMessages = append(sentFormMessages, req.Form.Get("message"))
+		}
+		return &http.Response{
+			StatusCode: 200,
+			Body:       io.NopCloser(strings.NewReader(`{"success":true,"message_id":"mid.456"}`)),
+			Header:     make(http.Header),
+		}, nil
+	})
+
+	const appSecret = "test-secret-2"
+	g := NewGraphConnector(GraphConfig{Version: "v22.0", AppSecret: appSecret}, nil)
+	g.client = &http.Client{Transport: transport}
+	g.sessions["acc-2"] = &graphSession{
+		UserToken: "user-tok",
+		Pages: map[string]graphPage{
+			"page-10": {
+				MetaPage:    domain.MetaPage{ID: "page-10", Connected: true},
+				AccessToken: "page-tok-10",
+			},
+		},
+	}
+
+	adRule := &domain.AutomationRule{
+		ID:           "rule-ad-1",
+		AccountID:    "acc-2",
+		PageID:       "page-10",
+		TriggerType:  "ad",
+		TriggerValue: "12022334455",
+		ProductID:    "prod-shoes",
+		ReplySetID:   "reply-shoes",
+		FlowID:       "flow-shoes",
+		IsActive:     true,
+	}
+	postRule := &domain.AutomationRule{
+		ID:               "rule-post-2",
+		AccountID:        "acc-2",
+		PageID:           "page-10",
+		TriggerType:      "post",
+		TriggerValue:     "post-777",
+		ProductID:        "prod-shirt",
+		ReplySetID:       "reply-shirt",
+		FlowID:           "flow-shirt",
+		CommentReplyText: "ສະບາຍດີ! ແຈ້ງລາຄາທາງ Inbox ແລ້ວເດີ້",
+		IsActive:         true,
+	}
+
+	mockAuto := &mockMultiAutomationProvider{
+		rules: map[string]*domain.AutomationRule{
+			"ad:12022334455": adRule,
+			"post:post-777":  postRule,
+		},
+		items: map[string][]domain.ReplyItem{
+			"reply-shoes": {
+				{ID: "s-1", Type: "text", Content: "ເກີບແຕະ Kito ແທ້ ລາຄາ 120,000 ກີບ", IsEnabled: true},
+			},
+			"reply-shirt": {
+				{ID: "sh-1", Type: "text", Content: "ເສື້ອຍືດພຣີມ່ຽມ ລາຄາ 99,000 ກີບ ພ້ອມສົ່ງ", IsEnabled: true},
+			},
+		},
+	}
+	g.SetAutomationProvider(mockAuto)
+
+	// Test 1: Customer clicks Facebook Ad and sends message "ສະບາຍດີ ລາຄາເທົ່າໃດ"
+	// Ad referral must be matched and shoes reply set delivered!
+	adPayload := []byte(`{"object":"page","entry":[{"id":"page-10","messaging":[{"sender":{"id":"customer-ad-user"},"recipient":{"id":"page-10"},"timestamp":123456789,"message":{"mid":"mid-ad-1","text":"ສະບາຍດີ ລາຄາເທົ່າໃດ"},"referral":{"source":"ADS","type":"OPEN_THREAD","ad_id":"12022334455"}}]}]}`)
+	if err := g.ReceiveWebhook(context.Background(), adPayload, signPayload(appSecret, adPayload)); err != nil {
+		t.Fatalf("webhook error: %v", err)
+	}
+
+	// Verify conversation context was bound to ad rule
+	g.mu.RLock()
+	boundContext := g.conversations["page-10:customer-ad-user"]
+	g.mu.RUnlock()
+	expectedBinding := "page-10:ad:12022334455"
+	if boundContext != expectedBinding {
+		t.Errorf("ad conversation binding = %q, want %q", boundContext, expectedBinding)
+	}
+
+	// Test 2: Comment on post-777 must send exact text reply via private_replies
+	commentPayload := []byte(`{"object":"page","entry":[{"id":"page-10","changes":[{"field":"feed","value":{"item":"comment","verb":"add","post_id":"post-777","comment_id":"comm-123","message":"ສົນໃຈເສື້ອໂຕນີ້","from":{"id":"customer-commenter"}}}]}]}`)
+	if err := g.ReceiveWebhook(context.Background(), commentPayload, signPayload(appSecret, commentPayload)); err != nil {
+		t.Fatalf("webhook comment error: %v", err)
+	}
+
+	foundPrivateReply := false
+	for _, req := range sentRequests {
+		if strings.Contains(req, "/comm-123/private_replies") {
+			foundPrivateReply = true
+			break
+		}
+	}
+	if !foundPrivateReply {
+		t.Errorf("expected private_replies call for comm-123, got: %v", sentRequests)
+	}
+
+	foundExactText := false
+	for _, msg := range sentFormMessages {
+		if strings.Contains(msg, "ເສື້ອຍືດພຣີມ່ຽມ ລາຄາ 99,000 ກີບ") {
+			foundExactText = true
+			break
+		}
+	}
+	if !foundExactText {
+		t.Errorf("expected private reply to contain configured reply set text, got: %v", sentFormMessages)
+	}
+
+	// Verify commenter's conversation context is bound to post-777
+	g.mu.RLock()
+	commenterBinding := g.conversations["page-10:customer-commenter"]
+	g.mu.RUnlock()
+	expectedCommentBinding := "page-10:post:post-777"
+	if commenterBinding != expectedCommentBinding {
+		t.Errorf("commenter conversation binding = %q, want %q", commenterBinding, expectedCommentBinding)
+	}
+}
+
+

@@ -523,9 +523,28 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 			commentText := strings.TrimSpace(change.Value.Message)
 
 			var rule *domain.AutomationRule
-			// 1. Direct Post ID trigger match
-			if g.automation != nil {
-				rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, "post", change.Value.PostID)
+			// 1. Direct Post ID / Ad ID trigger match
+			if change.Value.PostID != "" {
+				if g.automation != nil {
+					rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, "post", change.Value.PostID)
+					if rule == nil {
+						rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, "ad", change.Value.PostID)
+					}
+				}
+				if rule == nil && g.db != nil {
+					var arm database.AutomationRuleModel
+					if err := g.db.WithContext(ctx).Where("page_id = ? AND (trigger_type = 'post' OR trigger_type = 'ad') AND trigger_value = ? AND is_active = ?", entry.ID, change.Value.PostID, true).First(&arm).Error; err == nil {
+						r := ruleModelToDomain(arm)
+						rule = &r
+					}
+				}
+				if rule == nil && g.db != nil {
+					var arm database.AutomationRuleModel
+					if err := g.db.WithContext(ctx).Where("(trigger_type = 'post' OR trigger_type = 'ad') AND trigger_value = ? AND is_active = ?", change.Value.PostID, true).First(&arm).Error; err == nil {
+						r := ruleModelToDomain(arm)
+						rule = &r
+					}
+				}
 			}
 			// 2. Keyword trigger match on comment text
 			if rule == nil && commentText != "" && g.automation != nil {
@@ -538,38 +557,31 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 					}
 				}
 			}
-			// 3. Product code or name match on comment text
+			// 3. Product code or name exact match on comment text
 			if rule == nil && commentText != "" && g.db != nil && g.productRepo != nil {
 				accountID, _, _ := g.findPage(entry.ID)
 				var activeRules []database.AutomationRuleModel
 				if err := g.db.WithContext(ctx).Where("page_id = ? AND is_active = ?", entry.ID, true).Find(&activeRules).Error; err == nil {
-					msgLower := strings.ToLower(commentText)
+					msgLower := strings.ToLower(strings.TrimSpace(commentText))
+					cleanLower := strings.TrimSpace(strings.TrimLeft(msgLower, "/#:!# "))
 					for _, ar := range activeRules {
 						if ar.ProductID != nil && *ar.ProductID != "" {
 							prod, pErr := g.productRepo.GetProduct(ctx, accountID, *ar.ProductID)
 							if pErr == nil && prod != nil {
 								cLower := strings.ToLower(strings.TrimSpace(prod.Code))
 								nLower := strings.ToLower(strings.TrimSpace(prod.Name))
-								if (cLower != "" && len(cLower) >= 2 && strings.Contains(msgLower, cLower)) ||
-									(nLower != "" && len([]rune(nLower)) >= 3 && strings.Contains(msgLower, nLower)) {
+								match := false
+								if cLower != "" && (msgLower == cLower || cleanLower == cLower || msgLower == "#"+cLower || msgLower == "/"+cLower) {
+									match = true
+								} else if nLower != "" && (msgLower == nLower || cleanLower == nLower) {
+									match = true
+								}
+								if match {
 									r := ruleModelToDomain(ar)
 									rule = &r
 									break
 								}
 							}
-						}
-					}
-				}
-			}
-			// 4. Default fallback active rule for this page (if any active rule exists)
-			if rule == nil && g.db != nil {
-				var activeRules []database.AutomationRuleModel
-				if err := g.db.WithContext(ctx).Where("page_id = ? AND is_active = ?", entry.ID, true).Find(&activeRules).Error; err == nil && len(activeRules) > 0 {
-					for _, ar := range activeRules {
-						if ar.TriggerType == "post" || ar.TriggerType == "keyword" || ar.TriggerType == "campaign" || ar.TriggerType == "ad" {
-							r := ruleModelToDomain(ar)
-							rule = &r
-							break
 						}
 					}
 				}
@@ -647,108 +659,51 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 				slog.Error("automatic comment reply failed", "page_id", entry.ID, "post_id", change.Value.PostID, "comment_id", change.Value.CommentID, "error", err)
 			}
 
-			// 2. Reply privately:
-			// Send rich Generic Template Card with Image + Buttons!
-			title := "🔥 ລາຍລະອຽດສິນຄ້າ ແລະ ໂປຣໂມຊັ່ນພິເສດ"
-			subtitle := "👇 ກົດປຸ່ມດ້ານລຸ່ມນີ້ ເພື່ອເບິ່ງລາຍລະອຽດເພີ່ມເຕີມ & ສັ່ງຊື້"
-			imageURL := ""
-			buttonTitle := "👉 ກົດເບິ່ງລາຍລະອຽດ"
-			buttonPayload := "COMMENT_UNLOCK:" + rule.ID + ":" + change.Value.CommentID
-
-			// Extract image and info from linked product or reply items
-			if rule.ProductID != "" {
-				accID := rule.AccountID
-				if accID == "" {
-					accID, _, _ = g.findPage(entry.ID)
-				}
-				var prod *domain.Product
-				if g.productRepo != nil {
-					prod, _ = g.productRepo.GetProduct(ctx, accID, rule.ProductID)
-				}
-				if prod == nil && g.db != nil {
-					var pm database.ProductModel
-					if err := g.db.WithContext(ctx).Where("id = ?", rule.ProductID).First(&pm).Error; err == nil {
-						prod = &domain.Product{
-							ID:          pm.ID,
-							Name:        pm.Name,
-							Price:       pm.Price,
-							ImageUrl:    pm.ImageUrl,
-							GalleryURLs: pm.GalleryURLs,
-						}
-					}
-				}
-				if prod != nil {
-					if strings.TrimSpace(prod.Name) != "" {
-						title = prod.Name
-					}
-					if strings.TrimSpace(prod.Price) != "" {
-						subtitle = "💰 ລາຄາ: " + prod.Price + " | 👇 ກົດປຸ່ມດ້ານລຸ່ມເພື່ອເບິ່ງລາຍລະອຽດ"
-					}
-					if strings.TrimSpace(prod.ImageUrl) != "" {
-						imageURL = prod.ImageUrl
-					} else if strings.TrimSpace(prod.GalleryURLs) != "" {
-						var urls []string
-						if err := json.Unmarshal([]byte(prod.GalleryURLs), &urls); err == nil && len(urls) > 0 {
-							imageURL = urls[0]
-						} else {
-							parts := strings.Split(prod.GalleryURLs, ",")
-							if len(parts) > 0 && strings.TrimSpace(parts[0]) != "" {
-								imageURL = strings.TrimSpace(parts[0])
-							}
-						}
-					}
-				}
-			}
-
-			// If no image from product, check if items have an image
+			// 2. Reply privately: Send configured Reply Set messages directly (no unsolicited product cards)
+			var replyTexts []string
 			for _, step := range items {
-				if step.IsEnabled && step.Type == "image" && strings.TrimSpace(step.Content) != "" && imageURL == "" {
-					imageURL = step.Content
+				if step.IsEnabled && step.Type == "text" && strings.TrimSpace(step.Content) != "" {
+					replyTexts = append(replyTexts, strings.TrimSpace(step.Content))
 				}
-				if step.IsEnabled && step.Type == "text" && strings.TrimSpace(step.Content) != "" && subtitle == "👇 ກົດປຸ່ມດ້ານລຸ່ມນີ້ ເພື່ອເບິ່ງລາຍລະອຽດເພີ່ມເຕີມ & ສັ່ງຊື້" {
-					cleanText := strings.TrimSpace(step.Content)
-					if len([]rune(cleanText)) > 65 {
-						cleanText = string([]rune(cleanText)[:62]) + "..."
-					}
-					subtitle = cleanText
+			}
+			privateText := strings.Join(replyTexts, "\n\n")
+			if strings.TrimSpace(privateText) == "" {
+				if strings.TrimSpace(rule.CommentReplyText) != "" {
+					privateText = rule.CommentReplyText
+				} else {
+					privateText = "ສະບາຍດີ! ພວກເຮົາໄດ້ສົ່ງຂໍ້ມູນໃຫ້ທ່ານທາງຂໍ້ຄວາມແລ້ວ ສາມາດສອບຖາມເພີ່ມເຕີມໄດ້ເລີຍເຈົ້າ 😊"
 				}
 			}
 
-			// If still no image, fetch image from the Facebook Post itself!
-			if imageURL == "" && change.Value.PostID != "" && page.AccessToken != "" {
-				imageURL = g.fetchPostImage(ctx, page.AccessToken, change.Value.PostID)
-			}
-
-			// Ensure full public URL (prepending storage endpoint if filename only)
-			imageURL = g.resolveMediaURL(imageURL)
-
-			// Send rich generic template card with image + buttons (square 1:1 aspect ratio)
-			privErr := g.sendPrivateGenericTemplate(ctx, page, change.Value.CommentID, title, subtitle, imageURL, buttonTitle, buttonPayload)
-			// If sending card failed, fallback to text private reply
-			if privErr != nil {
-				slog.Warn("generic template card failed, falling back to text reply", "error", privErr)
-				texts := []string{}
-				for _, step := range items {
-					if step.IsEnabled && step.Type == "text" && strings.TrimSpace(step.Content) != "" {
-						texts = append(texts, step.Content)
-					}
-				}
-				fallbackText := strings.Join(texts, "\n\n")
-				if strings.TrimSpace(fallbackText) == "" {
-					fallbackText = "ສະບາຍດີ! ພວກເຮົາໄດ້ສົ່ງລາຍລະອຽດໃຫ້ທາງຂໍ້ຄວາມແລ້ວ 👉 ກົດຕອບກັບເພື່ອເບິ່ງຂໍ້ມູນເພີ່ມເຕີມ"
-				}
-				privErr = g.sendPrivateReply(ctx, page, change.Value.CommentID, fallbackText)
-			}
-
+			privErr := g.sendPrivateReply(ctx, page, change.Value.CommentID, privateText)
 			if privErr != nil {
 				slog.Error("automatic private product reply failed", "page_id", entry.ID, "post_id", change.Value.PostID, "comment_id", change.Value.CommentID, "error", privErr)
 				g.releaseReply(replyKey)
 				continue
 			}
+
 			g.mu.Lock()
 			g.firstReplies[replyKey] = time.Now()
 			delete(g.inFlight, replyKey)
+
+			// Bind customer conversation so that when they reply in Messenger, they stay on this exact product & flow!
+			customerSeenKey := entry.ID + ":" + change.Value.From.ID
+			customerResolvedKey := bindingKey(entry.ID, rule.TriggerType, rule.TriggerValue)
+			g.conversations[customerSeenKey] = customerResolvedKey
+			g.firstReplies[customerSeenKey] = time.Now()
 			g.mu.Unlock()
+
+			if g.leadSink != nil {
+				accountID, _, _ := g.findPage(entry.ID)
+				_ = g.leadSink.CaptureLead(ctx, domain.LeadCapture{
+					AccountID:  accountID,
+					PageID:     entry.ID,
+					SenderID:   change.Value.From.ID,
+					SourceType: rule.TriggerType,
+					SourceID:   rule.TriggerValue,
+					ProductID:  rule.ProductID,
+				})
+			}
 			slog.Info("automatic private product reply sent", "page_id", entry.ID, "post_id", change.Value.PostID, "comment_id", change.Value.CommentID)
 		}
 		for _, message := range entry.Messaging {
@@ -977,6 +932,30 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 
 			var rule *domain.AutomationRule
 			if g.automation != nil {
+				findRuleFor := func(tType, tVal string) *domain.AutomationRule {
+					if strings.TrimSpace(tVal) == "" {
+						return nil
+					}
+					tVal = strings.TrimSpace(tVal)
+					if g.automation != nil {
+						if r, _ := g.automation.FindActiveRuleForTrigger(ctx, entry.ID, tType, tVal); r != nil {
+							return r
+						}
+					}
+					if g.db != nil {
+						var arm database.AutomationRuleModel
+						if err := g.db.WithContext(ctx).Where("page_id = ? AND trigger_type = ? AND trigger_value = ? AND is_active = ?", entry.ID, tType, tVal, true).First(&arm).Error; err == nil {
+							r := ruleModelToDomain(arm)
+							return &r
+						}
+						if err := g.db.WithContext(ctx).Where("trigger_type = ? AND trigger_value = ? AND is_active = ?", tType, tVal, true).First(&arm).Error; err == nil {
+							r := ruleModelToDomain(arm)
+							return &r
+						}
+					}
+					return nil
+				}
+
 				if message.Postback.Payload != "" && strings.HasPrefix(message.Postback.Payload, "COMMENT_UNLOCK:") {
 					parts := strings.Split(message.Postback.Payload, ":")
 					if len(parts) >= 2 {
@@ -997,7 +976,69 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 							hasRepliedCustomer = false
 						}
 					}
+				} else if ref != nil {
+					// 1. TOP PRIORITY: Ad Referral / Post Referral
+					adID := ref.getAdID()
+					if adID != "" {
+						rule = findRuleFor("ad", adID)
+					}
+					if rule == nil && ref.CampaignID != "" {
+						rule = findRuleFor("campaign", ref.CampaignID)
+					}
+					if rule == nil && ref.AdGroupID != "" {
+						rule = findRuleFor("adset", ref.AdGroupID)
+					}
+					if rule == nil && ref.AdsContextData.PostID != "" {
+						rule = findRuleFor("post", ref.AdsContextData.PostID)
+					}
+					if rule == nil && ref.Ref != "" {
+						rule = findRuleFor("ad", ref.Ref)
+						if rule == nil {
+							rule = findRuleFor("post", ref.Ref)
+						}
+						if rule == nil {
+							rule = findRuleFor("campaign", ref.Ref)
+						}
+					}
+					// Hierarchy resolution: Ad -> Campaign / AdSet / Post
+					if rule == nil && (adID != "" || ref.Source == "ADS") {
+						targetAdID := adID
+						if targetAdID == "" {
+							targetAdID = ref.Ref
+						}
+						if targetAdID != "" {
+							campaignID, adSetID, postID := g.resolveAdHierarchy(ctx, entry.ID, targetAdID)
+							if campaignID != "" {
+								rule = findRuleFor("campaign", campaignID)
+							}
+							if rule == nil && adSetID != "" {
+								rule = findRuleFor("adset", adSetID)
+							}
+							if rule == nil && postID != "" {
+								rule = findRuleFor("post", postID)
+							}
+						}
+					}
+					if rule != nil {
+						sourceType = rule.TriggerType
+						sourceID = rule.TriggerValue
+						resolvedKey = bindingKey(entry.ID, sourceType, sourceID)
+						g.mu.Lock()
+						g.conversations[seenKey] = resolvedKey
+						g.mu.Unlock()
+					}
+				} else if sourceID != "" && !hasRepliedCustomer {
+					// 2. Existing active conversation context
+					rule = findRuleFor(sourceType, sourceID)
+					if rule == nil {
+						altType := "ad"
+						if sourceType == "ad" {
+							altType = "post"
+						}
+						rule = findRuleFor(altType, sourceID)
+					}
 				} else if directSet != nil && !hasRepliedCustomer {
+					// 3. Exact Reply Set name or command trigger
 					sourceType, sourceID = "reply_set_name", directSet.Name
 					resolvedKey = bindingKey(entry.ID, sourceType, directSet.ID)
 					rule = &domain.AutomationRule{
@@ -1012,68 +1053,9 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 						FirstMessageOnly: true,
 						IsActive:         true,
 					}
-				} else if ref != nil || (sourceID != "" && !hasRepliedCustomer) {
-					adID := ""
-					if ref != nil {
-						adID = ref.getAdID()
-					} else if sourceType == "ad" {
-						adID = sourceID
-					}
-
-					// 1. Direct AD match if adID is present
-					if adID != "" {
-						rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, "ad", adID)
-					}
-					// 2. Direct campaign match if referral includes campaign_id
-					if rule == nil && ref != nil && ref.CampaignID != "" {
-						rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, "campaign", ref.CampaignID)
-					}
-					// 3. Direct adgroup/adset match if referral includes adgroup_id
-					if rule == nil && ref != nil && ref.AdGroupID != "" {
-						rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, "adset", ref.AdGroupID)
-					}
-					// 4. Match by sourceType & sourceID
-					if rule == nil && sourceID != "" {
-						rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, sourceType, sourceID)
-					}
-					// 5. Match by alternative type (ad vs post)
-					if rule == nil && sourceID != "" {
-						altType := "ad"
-						if sourceType == "ad" {
-							altType = "post"
-						}
-						rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, altType, sourceID)
-					}
-					// 6. Hierarchy resolution (ad -> campaign / adset / post)
-					if rule == nil && (adID != "" || (ref != nil && ref.Source == "ADS")) {
-						targetAdID := adID
-						if targetAdID == "" && ref != nil {
-							targetAdID = ref.Ref
-						}
-						if targetAdID != "" {
-							campaignID, adSetID, postID := g.resolveAdHierarchy(ctx, entry.ID, targetAdID)
-							if campaignID != "" {
-								rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, "campaign", campaignID)
-							}
-							if rule == nil && adSetID != "" {
-								rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, "adset", adSetID)
-							}
-							if rule == nil && postID != "" {
-								rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, "post", postID)
-							}
-						}
-					}
-					// 7. Referral ads_context_data post_id match
-					if rule == nil && ref != nil && ref.AdsContextData.PostID != "" {
-						rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, "post", ref.AdsContextData.PostID)
-					}
-					// 8. Direct campaign / custom match from ref.Ref if rule is still not found
-					if rule == nil && ref != nil && ref.Ref != "" {
-						rule, _ = g.automation.FindActiveRuleForTrigger(ctx, entry.ID, "campaign", ref.Ref)
-					}
 				}
 
-				// 8. Keyword match
+				// 4. Keyword match
 				if rule == nil {
 					msgText := strings.TrimSpace(message.Message.Text)
 					if msgText != "" {
@@ -1088,21 +1070,26 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 					}
 				}
 
-				// 9. Natural language product inquiry, price question, image, or first contact fallback
-				if rule == nil && g.db != nil {
-					var activeRules []database.AutomationRuleModel
-					if err := g.db.WithContext(ctx).Where("page_id = ? AND is_active = ?", entry.ID, true).Find(&activeRules).Error; err == nil && len(activeRules) > 0 {
-						msgLower := strings.ToLower(messageText)
-						// Check if message text matches a product associated with any active rule
-						if msgLower != "" && g.productRepo != nil {
+				// 5. Product code or product name exact match in message
+				if rule == nil && g.db != nil && g.productRepo != nil {
+					msgLower := strings.ToLower(strings.TrimSpace(messageText))
+					cleanLower := strings.TrimSpace(strings.TrimLeft(msgLower, "/#:!# "))
+					if msgLower != "" {
+						var activeRules []database.AutomationRuleModel
+						if err := g.db.WithContext(ctx).Where("page_id = ? AND is_active = ?", entry.ID, true).Find(&activeRules).Error; err == nil {
 							for _, ar := range activeRules {
 								if ar.ProductID != nil && *ar.ProductID != "" {
 									prod, pErr := g.productRepo.GetProduct(ctx, accountID, *ar.ProductID)
 									if pErr == nil && prod != nil {
 										cLower := strings.ToLower(strings.TrimSpace(prod.Code))
 										nLower := strings.ToLower(strings.TrimSpace(prod.Name))
-										if (cLower != "" && len(cLower) >= 2 && strings.Contains(msgLower, cLower)) ||
-											(nLower != "" && len([]rune(nLower)) >= 3 && strings.Contains(msgLower, nLower)) {
+										match := false
+										if cLower != "" && (msgLower == cLower || cleanLower == cLower || msgLower == "#"+cLower || msgLower == "/"+cLower) {
+											match = true
+										} else if nLower != "" && (msgLower == nLower || cleanLower == nLower) {
+											match = true
+										}
+										if match {
 											r := ruleModelToDomain(ar)
 											rule = &r
 											sourceType = ar.TriggerType
@@ -1113,22 +1100,6 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 									}
 								}
 							}
-						}
-
-						// If still nil, only fallback if customer has NO prior replies and this is an initial inquiry or fresh ad
-						if rule == nil && !hasRepliedCustomer && (ref != nil || isAskingPrice(messageText)) {
-							targetRule := activeRules[0]
-							for _, ar := range activeRules {
-								if ar.TriggerType == "campaign" || ar.TriggerType == "ad" || ar.TriggerType == "post" {
-									targetRule = ar
-									break
-								}
-							}
-							r := ruleModelToDomain(targetRule)
-							rule = &r
-							sourceType = targetRule.TriggerType
-							sourceID = targetRule.TriggerValue
-							resolvedKey = bindingKey(entry.ID, sourceType, sourceID)
 						}
 					}
 				}
