@@ -272,6 +272,7 @@ export interface MetaInsightItem {
   lifetimeBudget?: number
   createdTime?: string
   updatedTime?: string
+  trend?: MetaInsightPoint[]
 }
 
 export interface MetaInsightPoint {
@@ -281,8 +282,12 @@ export interface MetaInsightPoint {
   costPerResult?: number
   messagesCount?: number
   costPerMessage?: number
+  purchasesCount?: number
+  costPerPurchase?: number
   linkCtr?: number
   frequency?: number
+  impressions?: number
+  reach?: number
 }
 
 export interface MetaInsightsReport {

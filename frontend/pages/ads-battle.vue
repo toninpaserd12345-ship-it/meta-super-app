@@ -760,6 +760,13 @@ onMounted(async () => {
         </div>
       </section>
 
+      <!-- Daily Ad Momentum & Strength Line Chart -->
+      <UiAdStrengthLineChart
+        :items="filteredBaseItems"
+        :account-trend="report.trend"
+        :currency="currency"
+      />
+
       <!-- Side-by-Side Dual Column View -->
       <section class="battle-arena">
         <!-- Left Side: Winning Ads (Ads ນາງຟ້າ) -->

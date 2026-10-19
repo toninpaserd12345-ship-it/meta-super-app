@@ -135,6 +135,7 @@ type MetaInsightItem struct {
 	LifetimeBudget        *float64          `json:"lifetimeBudget,omitempty"`
 	CreatedTime           string            `json:"createdTime,omitempty"`
 	UpdatedTime           string            `json:"updatedTime,omitempty"`
+	Trend                 []MetaInsightPoint `json:"trend,omitempty"`
 }
 
 type MetaInsightPoint struct {

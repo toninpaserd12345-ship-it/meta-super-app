@@ -2957,14 +2957,15 @@ func (g *GraphConnector) AdsInsights(ctx context.Context, _ string, accountID, a
 		}
 		rows        []graphInsightRow
 		entities    map[string]graphAdEntityDetails
-		accountRows []graphInsightRow
-		daily       []graphInsightRow
+		accountRows   []graphInsightRow
+		daily         []graphInsightRow
+		dailyEntities []graphInsightRow
 
 		errAccount, errRows, errEntities, errAccountRows, errDaily error
 		wg                                                         sync.WaitGroup
 	)
 
-	wg.Add(5)
+	wg.Add(6)
 
 	go func() {
 		defer wg.Done()
@@ -2992,6 +2993,11 @@ func (g *GraphConnector) AdsInsights(ctx context.Context, _ string, accountID, a
 		daily, errDaily = g.fetchInsightRows(ctx, token, adAccountID, "account", since, until, "1")
 	}()
 
+	go func() {
+		defer wg.Done()
+		dailyEntities, _ = g.fetchInsightRows(ctx, token, adAccountID, level, since, until, "1")
+	}()
+
 	wg.Wait()
 
 	if errAccount != nil {
@@ -3008,6 +3014,41 @@ func (g *GraphConnector) AdsInsights(ctx context.Context, _ string, accountID, a
 	}
 	if errDaily != nil {
 		return nil, errDaily
+	}
+
+	entityTrends := make(map[string][]domain.MetaInsightPoint)
+	for _, row := range dailyEntities {
+		entID := row.AdID
+		if level == "campaign" {
+			entID = row.CampaignID
+		} else if level == "adset" {
+			entID = row.AdSetID
+		}
+		if entID == "" {
+			continue
+		}
+		result := selectedInsightResult(row.Actions, row.CostPerActionType)
+		msgCount, msgCost := extractMessagingMetric(row.Actions, row.CostPerActionType)
+		if msgCount == nil && (strings.Contains(result.Type, "messaging") || strings.Contains(result.Type, "conversation")) {
+			msgCount = result.Value
+			msgCost = result.Cost
+		}
+		if msgCost == nil && msgCount != nil && *msgCount > 0 && row.Spend != "" {
+			if sp := numberPointer(row.Spend); sp != nil && *sp > 0 {
+				c := *sp / *msgCount
+				msgCost = &c
+			}
+		}
+		entityTrends[entID] = append(entityTrends[entID], domain.MetaInsightPoint{
+			Date:           row.DateStart,
+			Spend:          numberPointer(row.Spend),
+			Results:        result.Value,
+			Cost:           result.Cost,
+			MessagesCount:  msgCount,
+			CostPerMessage: msgCost,
+			LinkCTR:        numberPointer(row.InlineLinkClickCTR),
+			Frequency:      numberPointer(row.Frequency),
+		})
 	}
 
 	seenEntities := make(map[string]bool)
@@ -3038,6 +3079,9 @@ func (g *GraphConnector) AdsInsights(ctx context.Context, _ string, accountID, a
 			}
 			item.CreatedTime = entity.CreatedTime
 			item.UpdatedTime = entity.UpdatedTime
+		}
+		if t, ok := entityTrends[item.EntityID]; ok {
+			item.Trend = t
 		}
 		seenEntities[item.EntityID] = true
 		items = append(items, item)
@@ -3089,6 +3133,9 @@ func (g *GraphConnector) AdsInsights(ctx context.Context, _ string, accountID, a
 		if level == "ad" {
 			item.AdID = entity.ID
 			item.AdName = entity.Name
+		}
+		if t, ok := entityTrends[item.EntityID]; ok {
+			item.Trend = t
 		}
 		items = append(items, item)
 	}
