@@ -769,8 +769,10 @@ onMounted(async () => {
         :items="filteredBaseItems"
         :account-trend="report.trend"
         :currency="currency"
+        :updating-id="updatingId"
         @scale="openScaleModal"
         @pause="handlePauseItem"
+        @change-status="({ item, status }: { item: MetaInsightItem; status: 'ACTIVE' | 'PAUSED' }) => changeStatus(item, status)"
       />
 
       <!-- Side-by-Side Dual Column View -->
