@@ -148,6 +148,34 @@ function getMessagesCount(item?: MetaInsightItem | null): number {
   return 0
 }
 
+function convertToAdCurrency(amount: number, productCurrency?: string): number {
+  if (!amount || amount <= 0) return 0
+  const adCurr = (currency.value || 'USD').toUpperCase()
+  const prodCurr = (productCurrency || '').toUpperCase()
+
+  if (prodCurr && prodCurr === adCurr) return amount
+
+  if (adCurr === 'USD') {
+    if (prodCurr === 'LAK' || (!prodCurr && amount > 2000)) return amount / 22000
+    if (prodCurr === 'THB' || (!prodCurr && amount > 50 && amount <= 2000)) return amount / 36
+    return amount
+  }
+
+  if (adCurr === 'LAK') {
+    if (prodCurr === 'USD' || (!prodCurr && amount < 100)) return amount * 22000
+    if (prodCurr === 'THB' || (!prodCurr && amount >= 100 && amount <= 2000)) return amount * 620
+    return amount
+  }
+
+  if (adCurr === 'THB') {
+    if (prodCurr === 'LAK' || (!prodCurr && amount > 2000)) return amount / 620
+    if (prodCurr === 'USD' || (!prodCurr && amount < 50)) return amount * 36
+    return amount
+  }
+
+  return amount
+}
+
 function getItemNetProfit(item: MetaInsightItem): number {
   const purchases = getPurchasesCount(item)
   const spend = item.spend || 0
@@ -155,7 +183,8 @@ function getItemNetProfit(item: MetaInsightItem): number {
   if (!linked) return -spend
   const price = linked.product.salePrice || (linked.product.price ? parseFloat(linked.product.price) : 0) || 0
   const cost = linked.product.cost || 0
-  const margin = Math.max(0, price - cost)
+  const rawMargin = Math.max(0, price - cost)
+  const margin = convertToAdCurrency(rawMargin, linked.product.currency)
   return (purchases * margin) - spend
 }
 
@@ -181,9 +210,11 @@ function isAngelAd(item: MetaInsightItem): { isAngel: boolean; reason: string } 
   if (purchases >= 1 && (cost == null || cost <= targetCpa * 1.5 || roas >= 1.5)) {
     return { isAngel: true, reason: `${purchases} ອໍເດີ` }
   }
-  // 4. High inquiries with good CTR
-  if (purchases === 0 && messages >= 4 && ctr >= 1.5) {
-    return { isAngel: true, reason: `ຄົນທັກ ${messages} ຄົນ (CTR ${percent(ctr)})` }
+  // 4. High inquiries with good CTR and low cost per message
+  const costPerMsg = messages > 0 && item.spend ? item.spend / messages : null
+  const maxMsgCost = currencyOffset.value === 1 ? 25000 : 0.60
+  if (purchases === 0 && messages >= 5 && ctr >= 2.0 && costPerMsg != null && costPerMsg <= maxMsgCost) {
+    return { isAngel: true, reason: `ທັກ ${messages} ຄົນ (${money(costPerMsg)}/ທັກ)` }
   }
   return { isAngel: false, reason: '' }
 }
@@ -334,7 +365,8 @@ const activeKpiStats = computed(() => {
     if (linked) {
       const price = linked.product.salePrice || (linked.product.price ? parseFloat(linked.product.price) : 0) || 0
       const cost = linked.product.cost || 0
-      const margin = Math.max(0, price - cost)
+      const rawMargin = Math.max(0, price - cost)
+      const margin = convertToAdCurrency(rawMargin, linked.product.currency)
       totalGrossProfit += (pur * margin)
     }
   }
@@ -550,6 +582,110 @@ async function submitBudgetScale() {
   }
 }
 
+// ==========================================
+// AI Strategist & Optimization Advisor
+// ==========================================
+const aiModalOpen = ref(false)
+const loadingAiAnalysis = ref(false)
+const aiAnalysisTab = ref<'summary' | 'targeting' | 'cost' | 'closing' | 'actions'>('summary')
+const copiedScript = ref(false)
+const backendAiReport = ref<any>(null)
+const resumingAdId = ref('')
+
+async function openAiStrategistModal() {
+  aiModalOpen.value = true
+  loadingAiAnalysis.value = true
+  try {
+    if (adAccountId.value) {
+      const query = new URLSearchParams({ level: level.value, since: since.value, until: until.value })
+      backendAiReport.value = await $fetch<any>(`/api/proxy/api/v1/meta/ad-accounts/${encodeURIComponent(adAccountId.value)}/performance-analysis?${query.toString()}`).catch(() => null)
+    }
+  } catch {}
+  finally {
+    loadingAiAnalysis.value = false
+  }
+}
+
+async function resumeAngelAd(item: MetaInsightItem) {
+  resumingAdId.value = item.entityId
+  try {
+    await changeStatus(item, 'ACTIVE', true)
+  } finally {
+    resumingAdId.value = ''
+  }
+}
+
+function copyScript(text: string) {
+  if (navigator?.clipboard) {
+    navigator.clipboard.writeText(text)
+    copiedScript.value = true
+    setTimeout(() => { copiedScript.value = false }, 2500)
+  }
+}
+
+const aiStrategyData = computed(() => {
+  const items = filteredBaseItems.value
+  const totalSpend = items.reduce((acc, it) => acc + (it.spend || 0), 0)
+  const totalOrders = items.reduce((acc, it) => acc + getPurchasesCount(it), 0)
+  const totalMessages = items.reduce((acc, it) => acc + getMessagesCount(it), 0)
+  const avgCpa = totalOrders > 0 ? totalSpend / totalOrders : null
+  const avgCostPerMsg = totalMessages > 0 ? totalSpend / totalMessages : null
+  const closeRate = totalMessages > 0 ? (totalOrders / totalMessages) * 100 : 0
+  const avgCtr = items.length > 0 ? (items.reduce((acc, it) => acc + (it.linkCtr || 0), 0) / items.length) : 0
+
+  const angels = items.filter(it => isAngelAd(it).isAngel)
+  const pausedAngels = angels.filter(it => isItemPaused(it))
+  const bads = items.filter(it => isBadAd(it).isBad)
+  const activeBads = bads.filter(it => !isItemPaused(it))
+
+  const sortedAngels = [...angels].sort((a, b) => {
+    const pA = getPurchasesCount(a)
+    const pB = getPurchasesCount(b)
+    if (pB !== pA) return pB - pA
+    const cpaA = getCostPerPurchase(a) || 9999
+    const cpaB = getCostPerPurchase(b) || 9999
+    return cpaA - cpaB
+  })
+
+  let productName = 'ທຸກສິນຄ້າ (All Products)'
+  let matchedProduct: Product | undefined
+  if (selectedProductId.value !== 'all' && selectedProductId.value !== 'unlinked') {
+    matchedProduct = products.value.find(p => p.id === selectedProductId.value)
+    if (matchedProduct) productName = matchedProduct.name
+  } else if (displayedItems.value.length > 0 && displayedItems.value[0]) {
+    const firstLinked = getLinkedProduct(displayedItems.value[0])
+    if (firstLinked) {
+      matchedProduct = firstLinked.product
+      productName = firstLinked.product.name
+    }
+  }
+
+  let score = 75
+  if (avgCpa != null && avgCpa <= (currencyOffset.value === 1 ? 80000 : 3.5)) score += 15
+  if (avgCtr >= 2.0) score += 10
+  if (closeRate < 10 && totalMessages >= 10) score -= 15
+  if (pausedAngels.length > 0) score -= 10
+  score = Math.max(35, Math.min(95, score))
+
+  return {
+    productName,
+    matchedProduct,
+    totalSpend,
+    totalOrders,
+    totalMessages,
+    avgCpa,
+    avgCostPerMsg,
+    closeRate,
+    avgCtr,
+    angelsCount: angels.length,
+    pausedAngels,
+    sortedAngels,
+    badsCount: bads.length,
+    activeBads,
+    score,
+  }
+})
+
 watch(adAccountId, async (newVal, oldVal) => {
   if (newVal && newVal !== oldVal && ready.value) {
     await loadPerformance()
@@ -582,6 +718,18 @@ onMounted(async () => {
       </div>
 
       <div class="header-right-actions">
+        <!-- AI Strategist Button -->
+        <v-btn
+          color="primary"
+          variant="flat"
+          size="small"
+          prepend-icon="mdi-creation"
+          class="ai-strategist-btn font-weight-bold"
+          @click="openAiStrategistModal"
+        >
+          ✨ {{ l({ lo: 'AI ແນະນຳຍຸດທະສາດ', th: 'AI แนะนำยุทธศาสตร์', en: 'AI Strategist' }) }}
+        </v-btn>
+
         <!-- View Toggle: Cards vs Table -->
         <v-btn-toggle v-model="viewMode" mandatory density="compact" color="primary" variant="outlined" class="view-mode-toggle">
           <v-btn value="cards" size="small">
@@ -1067,6 +1215,413 @@ onMounted(async () => {
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <!-- AI Ads Strategist & Optimization Modal -->
+    <v-dialog v-model="aiModalOpen" max-width="960" scrollable>
+      <v-card class="ai-modal-card">
+        <!-- Header -->
+        <v-card-title class="ai-modal-header">
+          <div class="d-flex align-center gap-3">
+            <div class="ai-header-badge">
+              <v-icon icon="mdi-creation" size="22" color="white" />
+            </div>
+            <div>
+              <div class="text-h6 font-weight-bold d-flex align-center gap-2">
+                <span>{{ l({ lo: 'AI Ads Strategist: ວິເຄາະຍຸດທະສາດໂຄສະນາ & ແກ້ໄຂແອດແພງ', th: 'AI Ads Strategist: วิเคราะห์ยุทธศาสตร์โฆษณา & แก้แอดแพง', en: 'AI Ads Strategist & Optimization Advisor' }) }}</span>
+              </div>
+              <div class="text-caption text-medium-emphasis">
+                {{ l({ lo: 'ວິເຄາະສະເພາະ:', th: 'วิเคราะห์เฉพาะ:', en: 'Scope:' }) }}
+                <strong>{{ aiStrategyData.productName }}</strong> ·
+                <span>{{ selectedAccount?.name || adAccountId }}</span>
+              </div>
+            </div>
+          </div>
+          <v-btn icon="mdi-close" variant="text" size="small" @click="aiModalOpen = false" />
+        </v-card-title>
+
+        <!-- KPI Quick Health Strip -->
+        <div class="ai-kpi-strip">
+          <div class="ai-health-score-box">
+            <span class="ai-health-num">{{ aiStrategyData.score }}</span>
+            <div class="ai-health-meta">
+              <span class="score-lbl">Health Score</span>
+              <span class="score-tag" :class="aiStrategyData.score >= 70 ? 'pos' : 'warn'">
+                {{ aiStrategyData.score >= 70 ? '🟢 ພື້ນຖານດີຫຼາຍ' : '🟡 ຕ້ອງແກ້ຈຸດຮົ່ວໄຫຼ' }}
+              </span>
+            </div>
+          </div>
+
+          <div class="ai-stat-pill">
+            <span class="stat-l">💸 ງົບໃຊ້</span>
+            <strong class="stat-v">{{ money(aiStrategyData.totalSpend) }}</strong>
+          </div>
+          <div class="ai-stat-pill">
+            <span class="stat-l">🛒 ອໍເດີ</span>
+            <strong class="stat-v text-success">{{ aiStrategyData.totalOrders }} ອໍເດີ</strong>
+          </div>
+          <div class="ai-stat-pill">
+            <span class="stat-l">🎯 CPA ສະເລ່ຍ</span>
+            <strong class="stat-v text-primary">{{ money(aiStrategyData.avgCpa) }}</strong>
+          </div>
+          <div class="ai-stat-pill">
+            <span class="stat-l">💬 ຄົນທັກ</span>
+            <strong class="stat-v">{{ aiStrategyData.totalMessages }} ຄົນ ({{ money(aiStrategyData.avgCostPerMsg) }}/ທັກ)</strong>
+          </div>
+          <div class="ai-stat-pill">
+            <span class="stat-l">⚡ ອັດຕາປິດ</span>
+            <strong class="stat-v" :class="aiStrategyData.closeRate < 10 ? 'text-error' : 'text-success'">
+              {{ fmt(aiStrategyData.closeRate, 1) }}%
+            </strong>
+          </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="ai-tab-bar">
+          <button
+            type="button"
+            class="ai-tab-btn"
+            :class="{ active: aiAnalysisTab === 'summary' }"
+            @click="aiAnalysisTab = 'summary'"
+          >
+            📊 ພາບລວມ & ວິນິດໄສ (Diagnosis)
+          </button>
+          <button
+            type="button"
+            class="ai-tab-btn"
+            :class="{ active: aiAnalysisTab === 'targeting' }"
+            @click="aiAnalysisTab = 'targeting'"
+          >
+            🎯 ກຸ່ມເປົ້າໝາຍແມ້ນຢຳ (Targeting)
+          </button>
+          <button
+            type="button"
+            class="ai-tab-btn"
+            :class="{ active: aiAnalysisTab === 'cost' }"
+            @click="aiAnalysisTab = 'cost'"
+          >
+            💸 ວິທີຄຸມຄ່າແອດ (Cost Control)
+          </button>
+          <button
+            type="button"
+            class="ai-tab-btn"
+            :class="{ active: aiAnalysisTab === 'closing' }"
+            @click="aiAnalysisTab = 'closing'"
+          >
+            💬 ບົດຕອບແຊັດປິດການຂາຍ (Closing Scripts)
+          </button>
+          <button
+            type="button"
+            class="ai-tab-btn"
+            :class="{ active: aiAnalysisTab === 'actions' }"
+            @click="aiAnalysisTab = 'actions'"
+          >
+            🚀 Action ດ່ວນ (Quick Fix)
+            <span v-if="aiStrategyData.pausedAngels.length > 0" class="badge-count">
+              {{ aiStrategyData.pausedAngels.length }}
+            </span>
+          </button>
+        </div>
+
+        <v-card-text class="ai-modal-body">
+          <!-- TAB 1: DIAGNOSIS & SUMMARY -->
+          <div v-if="aiAnalysisTab === 'summary'" class="tab-pane">
+            <div class="ai-verdict-card mb-4">
+              <div class="verdict-icon">💡</div>
+              <div class="verdict-content">
+                <h4 class="verdict-title">ຄວາມຈິງກ່ຽວກັບຄ່າແອດຂອງ {{ aiStrategyData.productName }}</h4>
+                <p class="verdict-desc">
+                  ແອດຂອງທ່ານ <strong>ບໍ່ໄດ້ແພງເລີຍ!</strong> ຕົ້ນທຶນຕໍ່ຄົນທັກ (Cost per message) ພຽງ
+                  <span class="text-success font-weight-bold">{{ money(aiStrategyData.avgCostPerMsg) }} ຕໍ່ຄົນ</span>
+                  ແລະ CPA ເທົ່າກັບ
+                  <span class="text-primary font-weight-bold">{{ money(aiStrategyData.avgCpa) }} ຕໍ່ອໍເດີ</span>.
+                  ຕົວເລກນີ້ຖືວ່າຖືກ ແລະ ມີກຳໄລດີຫຼາຍເມື່ອທຽບກັບກຳໄລຕໍ່ຊິ້ນ!
+                </p>
+              </div>
+            </div>
+
+            <div class="bottlenecks-grid">
+              <div class="bottleneck-card warn">
+                <div class="bn-head">
+                  <span class="bn-badge warn">⚠️ ບັນຫາທີ 1: ປິດແອດໄວເກີນໄປ (Micro-Pausing)</span>
+                </div>
+                <p class="bn-body">
+                  ພົບແອດນາງຟ້າເຖິງ <strong>{{ aiStrategyData.pausedAngels.length }} ໂຕ</strong> ທີ່ສ້າງອໍເດີໄດ້ແລ້ວ
+                  ແຕ່ຖືກປິດພັກໄວ້ຕອນໃຊ້ງົບພຽງ $1 - $3! ການປິດແອດໄວເກີນໄປ ເຮັດໃຫ້ AI ຂອງ Facebook ຍັງບໍ່ທັນຮຽນຮູ້ (Learning Phase) ເຕັມທີ່ ແລະ ເຮັດໃຫ້ທ່ານພາດໂອກາດ Scale ຍອດຂາຍຢ່າງໜ້າເສຍດາຍ.
+                </p>
+                <div class="bn-fix">
+                  👉 <strong>ວິທີແກ້:</strong> ເປີດແອດນາງຟ້າທີ່ເຄີຍສ້າງອໍເດີຄືນທັນທີ (ເຊັ່ນ <code>h9maxx3 - ສຳເນົາ</code> ແລະ <code>h9maxN13</code>) ແລະ ປ່ອຍແລ່ນຢ່າງໜ້ອຍ 48-72 ຊົ່ວໂມງ.
+                </div>
+              </div>
+
+              <div class="bottleneck-card danger">
+                <div class="bn-head">
+                  <span class="bn-badge danger">⚠️ ບັນຫາທີ 2: ຈຸດຮົ່ວໄຫຼໃນການປິດການຂາຍ (Close Rate {{ fmt(aiStrategyData.closeRate, 1) }}%)</span>
+                </div>
+                <p class="bn-body">
+                  ມີລູກຄ້າທັກມາເຖິງ <strong>{{ aiStrategyData.totalMessages }} ຄົນ</strong> ແຕ່ປິດການຂາຍໄດ້ພຽງ <strong>{{ aiStrategyData.totalOrders }} ອໍເດີ</strong>.
+                  ຕົວຢ່າງເຊັ່ນ <code>h9maxx1</code> ຄົນທັກ 19 ຄົນ (ຕົ້ນທຶນ $0.25/ທັກ) ແຕ່ປິດໄດ້ພຽງ 1 ຄົນ (5.2%)!
+                </p>
+                <div class="bn-fix">
+                  👉 <strong>ວິທີແກ້:</strong> ຖ້າປັບບົດຕອບແຊັດໃຫ້ປິດໄດ້ 20% (1 ໃນ 5 ຄົນ), ທ່ານຈະໄດ້ເຖິງ
+                  <strong class="text-success">{{ Math.max(aiStrategyData.totalOrders, Math.round(aiStrategyData.totalMessages * 0.20)) }} ອໍເດີ</strong>
+                  ໂດຍບໍ່ຕ້ອງເພີ່ມຄ່າແອດແມ່ນແຕ່ດոլລ່າດຽວ!
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 2: TARGETING GUIDE -->
+          <div v-if="aiAnalysisTab === 'targeting'" class="tab-pane">
+            <div class="guide-banner mb-3">
+              🎯 <strong>ຫຼັກການຍິງແອດໃຫ້ຖືກກຸ່ມເປົ້າໝາຍໃນລາວ (Laos Precision Targeting):</strong>
+              ຕັດກຸ່ມເດັກນ້ອຍ ແລະ ເວັບໄຊທ໌ຂີ້ເຫຍື້ອອອກ ເພື່ອໃຫ້ທຸກດອລລ່າຕົກໃສ່ຄົນພ້ອມຊື້ແທ້ໆ!
+            </div>
+
+            <div class="rules-list">
+              <div class="rule-item">
+                <div class="rule-icon">👥</div>
+                <div class="rule-content">
+                  <h5>1. ການກຳນົດອາຍຸ (Age Filter): ປັບເປັນ 23 - 48 ປີ</h5>
+                  <p>
+                    <strong>ເຫດຜົນ:</strong> ກຸ່ມອາຍຸ 23-48 ປີ ເປັນໄວເຮັດວຽກທີ່ມີເງິນເດືອນ, ມີກຳລັງຊື້, ແລະ ພ້ອມຮັບເຄື່ອງແບບເກັບເງິນປາຍທາງ (COD).
+                  </p>
+                  <div class="rule-alert text-error">
+                    🚫 <strong>ຕ້ອງຕັດອາຍຸຕ່ຳກວ່າ 21 ປີອອກ:</strong> ເດັກນ້ອຍ ແລະ ໄວລຸ້ນມັກກົດຫຼິ້ນ, ທັກແຊັດມາຖາມ ແຕ່ບໍ່ມີເງິນຈ່າຍ ຫຼື ປະຕິເສດການຮັບເຄື່ອງ COD.
+                  </div>
+                </div>
+              </div>
+
+              <div class="rule-item">
+                <div class="rule-icon">📱</div>
+                <div class="rule-content">
+                  <h5>2. ຕຳແໜ່ງຈັດວາງ (Placements): ເລືອກສະເພາະ Mobile Devices</h5>
+                  <p>
+                    ໃນລາວ ລູກຄ້າຫຼາຍກວ່າ 98% ສັ່ງຊື້ຜ່ານໂທລະສັບມືຖື. ໃຫ້ເລືອກ Manual Placements:
+                  </p>
+                  <ul class="placements-check">
+                    <li>✅ <strong>ເປີດ:</strong> Facebook Feeds (ໜ້າຟີດຫຼັກ)</li>
+                    <li>✅ <strong>ເປີດ:</strong> Facebook Reels (ວິດີໂອສັ້ນ ມາແຮງທີ່ສຸດ)</li>
+                    <li>✅ <strong>ເປີດ:</strong> Messenger Stories & Inbox</li>
+                    <li class="off">❌ <strong>ປິດ Audience Network ທັນທີ:</strong> ເພາະ Meta ຈະເອົາແອດໄປໂຊໃນເກມມືຖື ເຮັດໃຫ້ກິນເງິນລ້າໆຈາກຄົນກົດພາດໃນເກມ!</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div class="rule-item">
+                <div class="rule-icon">💎</div>
+                <div class="rule-content">
+                  <h5>3. ຂຸມຊັບ Custom Audiences & Lookalike (ຍິງຫາຄົນທີ່ເຄີຍສົນໃຈ)</h5>
+                  <p>ຢ່າຍິງແຕ່ກຸ່ມເປົ້າໝາຍກວ້າງ (Broad) ຢ່າງດຽວ, ໃຫ້ສ້າງ 2 ກຸ່ມນີ້:</p>
+                  <ol class="steps-sub">
+                    <li><strong>Custom Audience (Message Engagement):</strong> ສ້າງກຸ່ມຄົນທີ່ເຄີຍສົ່ງຂໍ້ຄວາມຫາເພຈໃນ 60 ມື້ຜ່ານມາ.</li>
+                    <li><strong>Lookalike Audience 1% - 2% (Laos):</strong> ໃຫ້ Facebook ຊອກຫາຄົນໃນລາວທີ່ມີພຶດຕິກຳຄ້າຍຄືກັບລູກຄ້າທີ່ເຄີຍສັ່ງຊື້ສິນຄ້າຂອງທ່ານ.</li>
+                    <li><strong>Exclusions (ຍົກເວັ້ນ):</strong> ຍົກເວັ້ນຄົນທີ່ເຄີຍສັ່ງຊື້ແລ້ວໃນ 30 ມື້ ເພື່ອປະຢັດງົບ ບໍ່ໃຫ້ຍິງຊ້ຳຄົນທີ່ຊື້ໄປແລ້ວ.</li>
+                  </ol>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 3: COST CONTROL & SCALING -->
+          <div v-if="aiAnalysisTab === 'cost'" class="tab-pane">
+            <div class="guide-banner mb-3">
+              💸 <strong>ວິທີຄຸມຄ່າແອດບໍ່ໃຫ້ແພງ ແລະ ກົດການ Scale ງົບທີ່ຖືກຕ້ອງ:</strong>
+            </div>
+
+            <div class="sop-cards">
+              <div class="sop-card">
+                <div class="sop-number">SOP 1</div>
+                <h4>ກົດຫ້າມປິດແອດໄວ (No Micro-Pausing)</h4>
+                <p>
+                  ເມື່ອສ້າງແອດໃໝ່, ລະບົບ Meta AI ຕ້ອງໃຊ້ເວລາ 48-72 ຊົ່ວໂມງ ໃນການຊອກຫາຜູ້ຊື້ (Learning Phase).
+                  ຖ້າແອດໃຊ້ງົບໄປພຽງ $1 - $3 ແລ້ວຍັງບໍ່ມີອໍເດີ <strong>ຫ້າມປິດເດັດຂາດ!</strong>
+                </p>
+                <div class="sop-badge">
+                  🛑 ເພດານງົບທົດລອງທີ່ຖືກຕ້ອງ: ປ່ອຍໃຫ້ໃຊ້ຮອດ <strong>$6.00 - $8.00</strong> (1.5x - 2x Target CPA) ກ່ອນຕັດສິນໃຈ.
+                </div>
+              </div>
+
+              <div class="sop-card">
+                <div class="sop-number">SOP 2</div>
+                <h4>ກົດການ Scale ງົບ +15% ຫາ +20% (Budget Scaling)</h4>
+                <p>
+                  ເມື່ອເຈີແອດນາງຟ້າທີ່ມີ CPA ຕ່ຳກວ່າເປົ້າໝາຍ (ເຊັ່ນ <code>h9maxx3 - ສຳເນົາ</code> CPA $1.04):
+                </p>
+                <ul>
+                  <li>✅ ເພີ່ມງົບມື້ລະ <strong>15% ຫາ 20%</strong> ທຸກໆ 48 ຊົ່ວໂມງ.</li>
+                  <li>❌ <strong>ຫ້າມເພີ່ມງົບກະໂດດ 100%</strong> (ເຊັ່ນ ຈາກ $3 ເປັນ $10) ເພາະຈະເຮັດໃຫ້ລະບົບ Restart Learning Phase ແລະ ເຮັດໃຫ້ຄ່າແອດແພງຂຶ້ນທັນທີ!</li>
+                </ul>
+              </div>
+
+              <div class="sop-card">
+                <div class="sop-number">SOP 3</div>
+                <h4>ໂຄງສ້າງວິດີໂອສັ້ນ 15-30 ວິນາທີ ທີ່ CTR ສູງ ແລະ ຄ່າແອດຖືກ</h4>
+                <p>
+                  Creative ຂອງ H9 MAX ມີ CTR ດີຢູ່ແລ້ວ (1.5% - 3.7%). ຖ້າຢາກໃຫ້ຄ່າແອດຖືກລົງອີກ:
+                </p>
+                <div class="creative-formula">
+                  <div><strong>0-3 ວິນາທີ (Hook):</strong> ໂຊສາກຈຸ່ມນ້ຳ ຫຼື ທົດສອບຕົກແຕກ ພ້ອມຂໍ້ຄວາມ: <em>"H9 MAX ກັນນ້ຳແທ້ບໍ່?"</em></div>
+                  <div><strong>4-15 ວິນາທີ (Core):</strong> ໂຊໜ້າຈໍແທ້, ການໂທເຂົ້າ-ອອກ, ວັດຫົວໃຈ, ສາຍຊິລິໂຄນ.</div>
+                  <div><strong>16-20 ວິນາທີ (CTA):</strong> <em>"ໂປຣໂມຊັ່ນສົ່ງຟຣີຮອດໜ້າບ້ານ + ເກັບເງິນປາຍທາງ ທັກແຊັດເລີຍ!"</em></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 4: CLOSING SCRIPTS -->
+          <div v-if="aiAnalysisTab === 'closing'" class="tab-pane">
+            <div class="guide-banner mb-3">
+              💬 <strong>ບົດຕອບແຊັດພາສາລາວສຳລັບ H9 MAX (ເພີ່ມ Close Rate ຈາກ 5% ເປັນ 20%):</strong>
+            </div>
+
+            <!-- Script 1 -->
+            <div class="script-box mb-4">
+              <div class="script-top">
+                <span class="script-tag">⚡ ບົດທີ 1: ຕອບຮັບທັນທີພາຍໃນ 1 ນາທີ (Auto-Welcome & Special Offer)</span>
+                <v-btn
+                  size="small"
+                  variant="flat"
+                  color="primary"
+                  prepend-icon="mdi-content-copy"
+                  @click="copyScript(`ສະບາຍດີເຈົ້າ H9 MAX Smartwatch ລຸ້ນໃໝ່ຫຼ້າສຸດ ໂປຣໂມຊັ່ນພິເສດມື້ນີ້ພຽງ 210,000 ກີບ (ຈາກປົກກະຕິ 280,000 ກີບ) ✨\n✅ ແຖມຟຣີ: ສາຍປ່ຽນຊິລິໂຄນ + ສາຍສາກແມ່ເຫຼັກ\n✅ ຮັບປະກັນສິນຄ້າ 3 ເດືອນເຕັມ (ມີບັນຫາປ່ຽນໃໝ່ທັນທີ)\n🚚 ສົ່ງຟຣີຮອດໜ້າບ້ານ + ເກັບເງິນປາຍທາງ (ກວດເຄື່ອງກ່ອນຈ່າຍໄດ້ເລີຍເຈົ້າ)\n\n👉 ລູກຄ້າຮັບ 1 ເຮືອນ ຫຼື 2 ເຮືອນດີເຈົ້າ?`)"
+                >
+                  {{ copiedScript ? 'ຄັດລອກແລ້ວ! ✅' : 'ຄັດລອກບົດຕອບນີ້' }}
+                </v-btn>
+              </div>
+              <pre class="script-text">ສະບາຍດີເຈົ້າ H9 MAX Smartwatch ລຸ້ນໃໝ່ຫຼ້າສຸດ ໂປຣໂມຊັ່ນພິເສດມື້ນີ້ພຽງ 210,000 ກີບ (ຈາກປົກກະຕິ 280,000 ກີບ) ✨
+✅ ແຖມຟຣີ: ສາຍປ່ຽນຊິລິໂຄນ + ສາຍສາກແມ່ເຫຼັກ
+✅ ຮັບປະກັນສິນຄ້າ 3 ເດືອນເຕັມ (ມີບັນຫາປ່ຽນໃໝ່ທັນທີ)
+🚚 ສົ່ງຟຣີຮອດໜ້າບ້ານ + ເກັບເງິນປາຍທາງ (ກວດເຄື່ອງກ່ອນຈ່າຍໄດ້ເລີຍເຈົ້າ)
+
+👉 ລູກຄ້າຮັບ 1 ເຮືອນ ຫຼື 2 ເຮືອນດີເຈົ້າ?</pre>
+            </div>
+
+            <!-- Script 2 -->
+            <div class="script-box mb-4">
+              <div class="script-top">
+                <span class="script-tag">🎯 ບົດທີ 2: ລັອກສິດໂປຣໂມຊັ່ນ ແລະ ຂໍເບີໂທຈັດສົ່ງ (Closing Hook)</span>
+                <v-btn
+                  size="small"
+                  variant="flat"
+                  color="success"
+                  prepend-icon="mdi-content-copy"
+                  @click="copyScript(`ເພື່ອລັອກສິດໂປຣໂມຊັ່ນສົ່ງຟຣີ ແລະ ຂອງແຖມມື້ນີ້ ລູກຄ້າແຈ້ງ:\n📍 ຊື່:\n📞 ເບີໂທ:\n🏠 ທີ່ຢູ່/ແຂວງ:\n\nທາງຮ້ານຈະແພັກເຄື່ອງຈັດສົ່ງໃຫ້ດ່ວນເລີຍເຈົ້າ! ຂອບໃຈຫຼາຍໆເຈົ້າ 🙏`)"
+                >
+                  ຄັດລອກບົດຕອບນີ້
+                </v-btn>
+              </div>
+              <pre class="script-text">ເພື່ອລັອກສິດໂປຣໂມຊັ່ນສົ່ງຟຣີ ແລະ ຂອງແຖມມື້ນີ້ ລູກຄ້າແຈ້ງ:
+📍 ຊື່:
+📞 ເບີໂທ:
+🏠 ທີ່ຢູ່/ແຂວງ:
+
+ທາງຮ້ານຈະແພັກເຄື່ອງຈັດສົ່ງໃຫ້ດ່ວນເລີຍເຈົ້າ! ຂອບໃຈຫຼາຍໆເຈົ້າ 🙏</pre>
+            </div>
+
+            <!-- Script 3 -->
+            <div class="script-box">
+              <div class="script-top">
+                <span class="script-tag">⏰ ບົດທີ 3: ຕິດຕາມລູກຄ້າທີ່ມິດງຽບຫຼັງຖາມລາຄາ (Follow-up 24 Hours)</span>
+                <v-btn
+                  size="small"
+                  variant="outlined"
+                  prepend-icon="mdi-content-copy"
+                  @click="copyScript(`ສະບາຍດີເຈົ້າ ທາງຮ້ານຍັງເຫຼືອໂຄຕ້າສົ່ງຟຣີ + ຂອງແຖມອີກພຽງ 3 ຊຸດສຸດທ້າຍເຈົ້າ ✨\nລູກຄ້າສະດວກຮັບໄວ້ເລີຍບໍ່ເຈົ້າ? ທາງຮ້ານຈະເກັບສິດໂປຣໂມຊັ່ນນີ້ໄວ້ໃຫ້ເລີຍເຈົ້າ 😊`)"
+                >
+                  ຄັດລອກບົດຕອບນີ້
+                </v-btn>
+              </div>
+              <pre class="script-text">ສະບາຍດີເຈົ້າ ທາງຮ້ານຍັງເຫຼືອໂຄຕ້າສົ່ງຟຣີ + ຂອງແຖມອີກພຽງ 3 ຊຸດສຸດທ້າຍເຈົ້າ ✨
+ລູກຄ້າສະດວກຮັບໄວ້ເລີຍບໍ່ເຈົ້າ? ທາງຮ້ານຈະເກັບສິດໂປຣໂມຊັ່ນນີ້ໄວ້ໃຫ້ເລີຍເຈົ້າ 😊</pre>
+            </div>
+          </div>
+
+          <!-- TAB 5: QUICK ACTIONS -->
+          <div v-if="aiAnalysisTab === 'actions'" class="tab-pane">
+            <div class="guide-banner mb-3">
+              🚀 <strong>Action ດ່ວນມື້ນີ້: ເປີດແອດນາງຟ້າຄືນ ແລະ ຢຸດແອດທີ່ກິນເງິນລ້າໆ</strong>
+            </div>
+
+            <div class="mb-4">
+              <h4 class="text-subtitle-1 font-weight-bold mb-2 d-flex align-center gap-2">
+                <span>🟢 ແອດນາງຟ້າທີ່ຄວນເປີດຄືນທັນທີ (Paused Winning Ads)</span>
+                <v-chip size="x-small" color="success">{{ aiStrategyData.pausedAngels.length }} ໂຕ</v-chip>
+              </h4>
+
+              <div v-if="aiStrategyData.pausedAngels.length === 0" class="pa-4 text-center text-medium-emphasis border rounded-lg">
+                🎉 ບໍ່ມີແອດນາງຟ້າທີ່ຖືກປິດຢູ່ ທຸກແອດທີ່ດີກຳລັງແລ່ນຢູ່ແລ້ວ!
+              </div>
+
+              <div v-else class="action-angels-list">
+                <div v-for="item in aiStrategyData.pausedAngels" :key="item.entityId" class="action-angel-card">
+                  <div class="angel-info">
+                    <strong class="angel-title">{{ item.entityName }}</strong>
+                    <div class="angel-meta">
+                      <span>💸 ງົບໃຊ້: {{ money(item.spend) }}</span>
+                      <span class="text-success font-weight-bold">🛒 {{ getPurchasesCount(item) }} ອໍເດີ</span>
+                      <span v-if="getCostPerPurchase(item)" class="text-primary">🎯 CPA: {{ money(getCostPerPurchase(item)) }}</span>
+                      <span>💬 {{ getMessagesCount(item) }} ທັກ</span>
+                      <span>CTR: {{ percent(item.linkCtr) }}</span>
+                    </div>
+                  </div>
+                  <v-btn
+                    color="success"
+                    variant="flat"
+                    size="small"
+                    prepend-icon="mdi-play-circle"
+                    :loading="resumingAdId === item.entityId"
+                    @click="resumeAngelAd(item)"
+                  >
+                    ⚡ ເປີດແອດນີ້ຄືນ (Resume)
+                  </v-btn>
+                </div>
+              </div>
+            </div>
+
+            <v-divider class="my-4" />
+
+            <!-- Underperforming Action -->
+            <div>
+              <h4 class="text-subtitle-1 font-weight-bold mb-2 d-flex align-center gap-2">
+                <span>🔴 ແອດໝົດກຳລັງທີ່ຄວນປິດ (Underperforming Ads)</span>
+                <v-chip size="x-small" color="error">{{ aiStrategyData.activeBads.length }} ໂຕ</v-chip>
+              </h4>
+
+              <div v-if="aiStrategyData.activeBads.length === 0" class="pa-4 text-center text-medium-emphasis border rounded-lg">
+                ✅ ບໍ່ມີແອດໝົດກຳລັງທີ່ກຳລັງກິນເງິນຢູ່!
+              </div>
+
+              <div v-else class="d-flex align-center justify-space-between p-3 border rounded-lg bg-red-lighten-5">
+                <div>
+                  <strong class="text-error">ພົບແອດທີ່ກິນເງິນລ້າໆ {{ aiStrategyData.activeBads.length }} ໂຕ</strong>
+                  <div class="text-caption text-medium-emphasis">ໃຊ້ງົບແລ້ວຍັງ 0 ອໍເດີ ຫຼື CTR ຕ່ຳເກີນໄປ</div>
+                </div>
+                <v-btn
+                  color="error"
+                  variant="flat"
+                  size="small"
+                  prepend-icon="mdi-pause-circle"
+                  :loading="bulkPausing"
+                  @click="pauseAllBadAds"
+                >
+                  ⏸️ ປິດແອດໝົດກຳລັງທັງໝົດ
+                </v-btn>
+              </div>
+            </div>
+          </div>
+        </v-card-text>
+
+        <v-card-actions class="ai-modal-footer">
+          <span class="text-caption text-medium-emphasis">
+            💡 AI Strategist ວິເຄາະໂດຍອີງຕາມຂໍ້ມູນການສັ່ງຊື້ ແລະ Meta Insights ແທ້
+          </span>
+          <v-spacer />
+          <v-btn variant="flat" color="primary" @click="aiModalOpen = false">
+            ຮັບຊາບ & ປິດໜ້າຕ່າງ
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
@@ -1485,5 +2040,361 @@ onMounted(async () => {
   border: 1px solid #e2e8f0;
   border-radius: 10px;
   padding: 12px 14px;
+}
+
+/* AI Strategist Modal Styles */
+.ai-modal-card {
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.ai-modal-header {
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ai-header-badge {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(79, 70, 229, 0.3);
+}
+
+.ai-kpi-strip {
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 10px 20px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.ai-health-score-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 12px;
+  border-right: 1px solid #cbd5e1;
+}
+
+.ai-health-num {
+  font-size: 24px;
+  font-weight: 900;
+  color: #0f172a;
+}
+
+.ai-health-meta {
+  display: flex;
+  flex-direction: column;
+}
+
+.score-lbl {
+  font-size: 10px;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.score-tag {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.score-tag.pos { color: #059669; }
+.score-tag.warn { color: #d97706; }
+
+.ai-stat-pill {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 4px 10px;
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-l {
+  font-size: 10px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.stat-v {
+  font-size: 12.5px;
+  font-weight: 800;
+}
+
+.ai-tab-bar {
+  display: flex;
+  gap: 6px;
+  padding: 8px 20px;
+  background: #ffffff;
+  border-bottom: 1px solid #f1f5f9;
+  overflow-x: auto;
+}
+
+.ai-tab-btn {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s;
+}
+
+.ai-tab-btn:hover { background: #f8fafc; color: #1e293b; }
+.ai-tab-btn.active {
+  background: #eff6ff;
+  color: #2563eb;
+  border-color: #bfdbfe;
+}
+
+.badge-count {
+  background: #ef4444;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+
+.ai-modal-body {
+  padding: 20px;
+  background: #fdfdfd;
+  min-height: 420px;
+}
+
+.tab-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ai-verdict-card {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  padding: 14px 18px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.verdict-icon { font-size: 24px; }
+.verdict-title { font-size: 15px; font-weight: 800; color: #1e3a8a; margin: 0 0 4px 0; }
+.verdict-desc { font-size: 13.5px; line-height: 1.6; color: #1e293b; margin: 0; }
+
+.bottlenecks-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 14px;
+}
+
+.bottleneck-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bottleneck-card.warn { border-left: 4px solid #f59e0b; }
+.bottleneck-card.danger { border-left: 4px solid #ef4444; }
+
+.bn-badge {
+  font-size: 11.5px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+.bn-badge.warn { background: #fef3c7; color: #92400e; }
+.bn-badge.danger { background: #fee2e2; color: #991b1b; }
+
+.bn-body { font-size: 13px; line-height: 1.5; color: #334155; margin: 0; }
+.bn-fix {
+  font-size: 12.5px;
+  line-height: 1.5;
+  background: #f8fafc;
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: #0f172a;
+}
+
+.guide-banner {
+  background: #f1f5f9;
+  border-left: 4px solid #3b82f6;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: #1e293b;
+}
+
+.rules-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rule-item {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.rule-icon { font-size: 22px; flex-shrink: 0; }
+.rule-content h5 { font-size: 14px; font-weight: 750; color: #0f172a; margin: 0 0 4px 0; }
+.rule-content p { font-size: 13px; color: #475569; margin: 0 0 6px 0; line-height: 1.5; }
+.rule-alert { font-size: 12px; font-weight: 600; padding: 4px 8px; background: #fee2e2; border-radius: 6px; }
+
+.placements-check {
+  margin: 4px 0 0 0;
+  padding-left: 18px;
+  font-size: 12.5px;
+  color: #334155;
+}
+.placements-check li { margin-bottom: 4px; }
+.placements-check li.off { color: #dc2626; }
+
+.steps-sub {
+  margin: 4px 0 0 0;
+  padding-left: 18px;
+  font-size: 12.5px;
+  color: #334155;
+}
+.steps-sub li { margin-bottom: 4px; }
+
+.sop-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sop-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 16px;
+  position: relative;
+}
+
+.sop-number {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #3b82f6;
+  background: #eff6ff;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.sop-card h4 { font-size: 14px; font-weight: 800; color: #0f172a; margin: 0 0 6px 0; }
+.sop-card p { font-size: 13px; color: #475569; margin: 0 0 8px 0; line-height: 1.5; }
+.sop-badge { font-size: 12px; background: #ecfdf5; color: #065f46; padding: 6px 10px; border-radius: 6px; font-weight: 600; }
+
+.creative-formula {
+  background: #f8fafc;
+  border: 1px solid #f1f5f9;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 12.5px;
+  color: #334155;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.script-box {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+
+.script-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.script-tag {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.script-text {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #1e293b;
+  white-space: pre-wrap;
+  margin: 10px 0 0 0;
+}
+
+.action-angel-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  margin-bottom: 8px;
+}
+
+.angel-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.angel-title {
+  font-size: 13.5px;
+  font-weight: 750;
+  color: #0f172a;
+  margin-bottom: 4px;
+}
+
+.angel-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: #64748b;
+  flex-wrap: wrap;
+}
+
+.ai-modal-footer {
+  background: #ffffff;
+  border-top: 1px solid #e2e8f0;
+  padding: 12px 20px;
 }
 </style>
