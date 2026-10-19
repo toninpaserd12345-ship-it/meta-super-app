@@ -463,6 +463,10 @@ async function changeStatus(item: MetaInsightItem, status: 'ACTIVE' | 'PAUSED', 
   } finally { updatingId.value = '' }
 }
 
+function handlePauseItem(item: MetaInsightItem) {
+  changeStatus(item, 'PAUSED')
+}
+
 async function pauseAllBadAds() {
   const activeBad = badAds.value.filter(it => !statusFor(it).toUpperCase().includes('PAUSED'))
   if (activeBad.length === 0) {
@@ -765,6 +769,8 @@ onMounted(async () => {
         :items="filteredBaseItems"
         :account-trend="report.trend"
         :currency="currency"
+        @scale="openScaleModal"
+        @pause="handlePauseItem"
       />
 
       <!-- Side-by-Side Dual Column View -->

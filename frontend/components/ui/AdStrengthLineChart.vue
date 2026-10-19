@@ -10,11 +10,20 @@ const props = withDefaults(defineProps<{
   accountTrend: () => [],
 })
 
+const emit = defineEmits<{
+  (e: 'scale', item: MetaInsightItem): void
+  (e: 'pause', item: MetaInsightItem): void
+}>()
+
 const { l } = useLocale()
 
 type MetricKey = 'strength' | 'purchases' | 'cpa' | 'messages' | 'ctr' | 'spend'
+type DisplayMode = 'separate' | 'combined'
 
 const selectedMetric = ref<MetricKey>('strength')
+const displayMode = ref<DisplayMode>('separate') // Default to separate ad-level cards per user request
+const focusedAdId = ref<string>('all')
+
 const hoveredPoint = ref<{
   adName: string
   adId: string
@@ -32,7 +41,7 @@ const hoveredPoint = ref<{
   y: number
 } | null>(null)
 
-// Vibrant distinct colors for multi-ad comparison
+// Distinct, vibrant colors for multi-ad comparison
 const colorPalette = [
   '#10b981', // Emerald / Green (Winner 1)
   '#06b6d4', // Cyan (Winner 2)
@@ -133,7 +142,7 @@ function getStrengthLabel(score: number): { label: string; color: string; icon: 
 }
 
 // Map each ad into a series
-interface AdSeries {
+export interface AdSeries {
   id: string
   name: string
   color: string
@@ -141,6 +150,8 @@ interface AdSeries {
   isAngel: boolean
   isBad: boolean
   currentScore: number
+  trendDiff: number
+  item: MetaInsightItem
   dataPoints: Array<{
     date: string
     purchases: number
@@ -157,7 +168,7 @@ const activeAdSeries = ref<AdSeries[]>([])
 // Build series data from items
 watch(() => [props.items, props.accountTrend], () => {
   const allDates = dates.value
-  const list = (props.items || []).slice(0, 10) // Limit to top 10 for clean visual
+  const list = (props.items || []).slice(0, 15) // Top 15 ads for comparison
 
   activeAdSeries.value = list.map((item, index) => {
     const color: string = colorPalette[index % colorPalette.length] ?? '#0ea5e9'
@@ -219,6 +230,10 @@ watch(() => [props.items, props.accountTrend], () => {
       }
     })
 
+    const firstScore = dailyPoints[0]?.strengthScore ?? overallScore
+    const lastScore = dailyPoints[dailyPoints.length - 1]?.strengthScore ?? overallScore
+    const trendDiff = lastScore - firstScore
+
     return {
       id: item.entityId,
       name: item.entityName,
@@ -227,15 +242,17 @@ watch(() => [props.items, props.accountTrend], () => {
       isAngel,
       isBad,
       currentScore: overallScore,
+      trendDiff,
+      item,
       dataPoints: dailyPoints,
     }
   })
 }, { immediate: true })
 
-// Chart Coordinates and Dimensions
-const svgWidth = 900
-const svgHeight = 320
-const padding = { top: 30, right: 30, bottom: 40, left: 55 }
+// Chart Coordinates and Dimensions for Combined Chart
+const svgWidth = 980
+const svgHeight = 330
+const padding = { top: 30, right: 160, bottom: 40, left: 55 }
 
 const innerWidth = computed(() => svgWidth - padding.left - padding.right)
 const innerHeight = computed(() => svgHeight - padding.top - padding.bottom)
@@ -267,7 +284,7 @@ function formatMetricDisplay(val: number | null): string {
   }
 }
 
-// Compute Y-Axis Range
+// Compute Y-Axis Range for Combined Chart
 const yRange = computed(() => {
   if (selectedMetric.value === 'strength') {
     return { min: 0, max: 100 }
@@ -284,7 +301,7 @@ const yRange = computed(() => {
   return { min: 0, max: Math.ceil(max * 1.15) || 5 }
 })
 
-// Calculate SVG Coordinates
+// Calculate SVG Coordinates for Combined Chart
 function getX(dIdx: number): number {
   const count = dates.value.length
   if (count <= 1) return padding.left + innerWidth.value / 2
@@ -297,7 +314,7 @@ function getY(value: number): number {
   return padding.top + innerHeight.value - (norm * innerHeight.value)
 }
 
-// Generate smooth Bezier SVG Path
+// Generate smooth Bezier SVG Path for Combined Chart
 function generatePath(series: AdSeries): string {
   if (series.dataPoints.length === 0) return ''
   const points = series.dataPoints.map((pt, idx) => ({
@@ -326,6 +343,67 @@ function generatePath(series: AdSeries): string {
     d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`
   }
   return d
+}
+
+// Dedicated Generator for Single Ad Cards
+function generateSingleAdPath(series: AdSeries, width = 520, height = 130, paddingX = 40, paddingY = 25) {
+  if (!series.dataPoints.length) return { linePath: '', areaPath: '', points: [] }
+  const count = series.dataPoints.length
+
+  let min = 0
+  let max = 100
+  if (selectedMetric.value !== 'strength') {
+    let m = 1
+    for (const p of series.dataPoints) {
+      const v = getMetricValue(p)
+      if (v > m) m = v
+    }
+    max = Math.ceil(m * 1.25) || 5
+  }
+
+  const innerW = width - 2 * paddingX
+  const innerH = height - 2 * paddingY
+
+  const pts = series.dataPoints.map((pt, idx) => {
+    const val = getMetricValue(pt)
+    const x = count <= 1 ? width / 2 : paddingX + (idx / (count - 1)) * innerW
+    const norm = (val - min) / (max - min || 1)
+    const y = paddingY + innerH - (norm * innerH)
+    return {
+      x,
+      y,
+      val,
+      label: formatMetricDisplay(val),
+      date: pt.date,
+      pt,
+    }
+  })
+
+  const first = pts[0]
+  if (!first) return { linePath: '', areaPath: '', points: [] }
+  if (pts.length === 1) {
+    return { linePath: `M ${first.x} ${first.y}`, areaPath: '', points: pts }
+  }
+
+  let linePath = `M ${first.x} ${first.y}`
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i === 0 ? i : i - 1] ?? first
+    const p1 = pts[i] ?? first
+    const p2 = pts[i + 1] ?? first
+    const p3 = pts[i + 2] ?? p2
+
+    const cp1x = p1.x + (p2.x - p0.x) / 6
+    const cp1y = p1.y + (p2.y - p0.y) / 6
+    const cp2x = p2.x - (p3.x - p1.x) / 6
+    const cp2y = p2.y - (p3.y - p1.y) / 6
+
+    linePath += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`
+  }
+
+  const last = pts[pts.length - 1] ?? first
+  const areaPath = `${linePath} L ${last.x} ${height - 12} L ${first.x} ${height - 12} Z`
+
+  return { linePath, areaPath, points: pts }
 }
 
 // Preset Filters for the Legend
@@ -368,6 +446,13 @@ function handlePointHover(series: AdSeries, pt: AdSeries['dataPoints'][0], idx: 
   }
 }
 
+const visibleSeriesList = computed(() => {
+  if (focusedAdId.value !== 'all') {
+    return activeAdSeries.value.filter(s => s.id === focusedAdId.value)
+  }
+  return activeAdSeries.value.filter(s => s.visible)
+})
+
 const strongestAd = computed(() => {
   if (!activeAdSeries.value.length) return null
   const sorted = [...activeAdSeries.value].sort((a, b) => b.currentScore - a.currentScore)
@@ -383,286 +468,560 @@ const weakestAd = computed(() => {
 
 <template>
   <div class="ad-strength-chart-card">
-    <!-- Header with Metric Selector -->
+    <!-- Header with Metric Selector & Display Mode -->
     <div class="chart-header">
       <div class="chart-title-area">
-        <div class="d-flex align-center gap-2 mb-1">
+        <div class="d-flex align-center gap-2 mb-1 flex-wrap">
           <span class="chart-tag">
             <v-icon icon="mdi-chart-bell-curve-cumulative" size="14" />
             DAILY AD MOMENTUM
           </span>
-          <span v-if="selectedMetric === 'strength'" class="strength-live-badge">
-            🔥 ວັດຄວາມແຮງ (Score 0-100)
+          <span class="strength-live-badge">
+            🔥 ວັດຄວາມແຮງລາຍມື້ (Score 0-100)
           </span>
         </div>
         <h2>{{ l({ lo: '📈 ກຣາຟເສັ້ນຄວາມແຮງ/ແຂງ ຂອງແຕ່ລະ Ads ແບບລາຍມື້', th: '📈 กราฟเส้นความแรง/แข็ง ของแต่ละ Ads แบบรายวัน', en: 'Daily Ad Momentum & Strength Line Chart' }) }}</h2>
         <p class="chart-sub">
-          {{ l({ lo: 'ຕິດຕາມເສັ້ນທາງຄວາມແຮງຂອງແຕ່ລະແອດວ່າ ໂຕໃດກຳລັງມາແຮງ (ຂາຂຶ້ນ) ຫຼື ໂຕໃດເລີ່ມໝົດກຳລັງ (ຂາລົງ) ໃນແຕ່ລະມື້', th: 'ติดตามเส้นทางความแรงของแต่ละแอดว่า ตัวไหนกำลังมาแรง (ขาขึ้น) หรือตัวไหนเริ่มหมดกำลัง (ขาลง) ในแต่ละวัน', en: 'Track each ad’s day-by-day trajectory to spot rising winners and dying ads before wasting budget.' }) }}
+          {{ l({ lo: 'ຕິດຕາມເສັ້ນທາງຄວາມແຮງຂອງແຕ່ລະແອດແບບແຍກສະເພາະ: ເຫັນຊື່ແອດຊັດເຈນ, ໂຕໃດກຳລັງມາແຮງ (ຂາຂຶ້ນ) ຫຼື ໂຕໃດເລີ່ມໝົດກຳລັງ (ຂາລົງ)', th: 'ติดตามเส้นทางความแรงของแต่ละแอดแบบแยกเฉพาะ: เห็นชื่อแอดชัดเจน ตัวไหนกำลังมาแรง (ขาขึ้น) หรือตัวไหนเริ่มหมดกำลัง (ขาลง)', en: 'Track each ad’s day-by-day trajectory individually: clear names, rising winners, and dying ads before wasting budget.' }) }}
         </p>
       </div>
 
-      <!-- Metric Toggle Buttons -->
-      <div class="metric-switchers">
-        <v-btn-toggle
-          v-model="selectedMetric"
-          mandatory
-          color="primary"
-          density="compact"
-          variant="outlined"
-          class="metric-toggle-group"
-        >
-          <v-btn value="strength">
-            <v-icon icon="mdi-lightning-bolt" size="14" class="mr-1 text-amber-darken-3" />
-            <span>{{ l({ lo: '⚡ ຄວາມແຮງ (Score)', th: '⚡ ความแรง (Score)', en: '⚡ Strength' }) }}</span>
-          </v-btn>
-          <v-btn value="purchases">
-            <v-icon icon="mdi-cart-check" size="14" class="mr-1 text-success" />
-            <span>{{ l({ lo: '🛒 ອໍເດີ', th: '🛒 ออเดอร์', en: '🛒 Orders' }) }}</span>
-          </v-btn>
-          <v-btn value="cpa">
-            <v-icon icon="mdi-target" size="14" class="mr-1 text-primary" />
-            <span>{{ l({ lo: '🎯 CPA', th: '🎯 CPA', en: '🎯 CPA' }) }}</span>
-          </v-btn>
-          <v-btn value="ctr">
-            <v-icon icon="mdi-cursor-default-click" size="14" class="mr-1 text-purple" />
-            <span>{{ l({ lo: '📈 CTR %', th: '📈 CTR %', en: '📈 CTR' }) }}</span>
-          </v-btn>
-          <v-btn value="spend">
-            <v-icon icon="mdi-cash" size="14" class="mr-1 text-error" />
-            <span>{{ l({ lo: '💸 ງົບໃຊ້', th: '💸 ใช้งบ', en: '💸 Spend' }) }}</span>
-          </v-btn>
-        </v-btn-toggle>
+      <!-- Controls: Display Mode & Metric Selector -->
+      <div class="header-control-cluster">
+        <!-- Display Mode Switcher (Separate vs Combined) -->
+        <div class="mode-switcher-wrap">
+          <v-btn-toggle
+            v-model="displayMode"
+            mandatory
+            color="primary"
+            density="compact"
+            variant="flat"
+            class="mode-toggle-group"
+          >
+            <v-btn value="separate">
+              <v-icon icon="mdi-view-grid-outline" size="15" class="mr-1 text-primary" />
+              <span>{{ l({ lo: '🔲 ແຍກກຣາຟແຕ່ລະ Ads (ແນະນຳ)', th: '🔲 แยกกราฟแต่ละ Ads (แนะนำ)', en: '🔲 Separate per Ad' }) }}</span>
+            </v-btn>
+            <v-btn value="combined">
+              <v-icon icon="mdi-chart-multiline" size="15" class="mr-1 text-secondary" />
+              <span>{{ l({ lo: '📊 ຮວມກັນໃນກຣາຟດຽວ', th: '📊 รวมกันในกราฟเดียว', en: '📊 Combined View' }) }}</span>
+            </v-btn>
+          </v-btn-toggle>
+        </div>
+
+        <!-- Metric Toggle Buttons -->
+        <div class="metric-switchers">
+          <v-btn-toggle
+            v-model="selectedMetric"
+            mandatory
+            color="primary"
+            density="compact"
+            variant="outlined"
+            class="metric-toggle-group"
+          >
+            <v-btn value="strength">
+              <v-icon icon="mdi-lightning-bolt" size="14" class="mr-1 text-amber-darken-3" />
+              <span>{{ l({ lo: '⚡ ຄວາມແຮງ', th: '⚡ ความแรง', en: '⚡ Strength' }) }}</span>
+            </v-btn>
+            <v-btn value="purchases">
+              <v-icon icon="mdi-cart-check" size="14" class="mr-1 text-success" />
+              <span>{{ l({ lo: '🛒 ອໍເດີ', th: '🛒 ออเดอร์', en: '🛒 Orders' }) }}</span>
+            </v-btn>
+            <v-btn value="cpa">
+              <v-icon icon="mdi-target" size="14" class="mr-1 text-primary" />
+              <span>{{ l({ lo: '🎯 CPA', th: '🎯 CPA', en: '🎯 CPA' }) }}</span>
+            </v-btn>
+            <v-btn value="ctr">
+              <v-icon icon="mdi-cursor-default-click" size="14" class="mr-1 text-purple" />
+              <span>{{ l({ lo: '📈 CTR %', th: '📈 CTR %', en: '📈 CTR' }) }}</span>
+            </v-btn>
+            <v-btn value="spend">
+              <v-icon icon="mdi-cash" size="14" class="mr-1 text-error" />
+              <span>{{ l({ lo: '💸 ງົບໃຊ້', th: '💸 ใช้งบ', en: '💸 Spend' }) }}</span>
+            </v-btn>
+          </v-btn-toggle>
+        </div>
       </div>
     </div>
 
-    <!-- Quick Preset Filters for Ads -->
+    <!-- Quick Preset Filters & Spotlight -->
     <div class="chart-ad-filters">
-      <span class="filter-label">
-        <v-icon icon="mdi-filter-variant" size="14" />
-        {{ l({ lo: 'ສະແດງເສັ້ນ:', th: 'แสดงเส้น:', en: 'Show lines:' }) }}
-      </span>
-      <div class="filter-pills">
-        <button type="button" class="pill-btn" @click="filterSeries('all')">
-          {{ l({ lo: '📋 ທຸກ Ads', th: '📋 ทุก Ads', en: 'All' }) }}
-        </button>
-        <button type="button" class="pill-btn angel" @click="filterSeries('angels')">
-          🧚‍♀️ {{ l({ lo: 'ສະເພາະ Ads ນາງຟ້າ', th: 'เฉพาะแอดนางฟ้า', en: 'Angel Ads' }) }}
-        </button>
-        <button type="button" class="pill-btn bad" @click="filterSeries('bad')">
-          🛑 {{ l({ lo: 'ສະເພາະ ແອດໝົດກຳລັງ', th: 'เฉพาะแอดหมดกำลัง', en: 'Fatigued Ads' }) }}
-        </button>
-        <button type="button" class="pill-btn top3" @click="filterSeries('top3')">
-          ✨ {{ l({ lo: 'ທຽບ ນາງຟ້າ VS ໂຕບໍ່ດີ', th: 'เทียบ นางฟ้า VS ตัวไม่ดี', en: 'Battle Top 3' }) }}
-        </button>
+      <div class="d-flex align-center gap-2 flex-wrap">
+        <span class="filter-label">
+          <v-icon icon="mdi-filter-variant" size="14" />
+          {{ l({ lo: 'ກັ່ນຕອງ:', th: 'กรอง:', en: 'Filter:' }) }}
+        </span>
+        <div class="filter-pills">
+          <button type="button" class="pill-btn" @click="filterSeries('all')">
+            {{ l({ lo: '📋 ທຸກ Ads', th: '📋 ทุก Ads', en: 'All' }) }}
+          </button>
+          <button type="button" class="pill-btn angel" @click="filterSeries('angels')">
+            🧚‍♀️ {{ l({ lo: 'ສະເພາະ Ads ນາງຟ້າ', th: 'เฉพาะแอดนางฟ้า', en: 'Angel Ads' }) }}
+          </button>
+          <button type="button" class="pill-btn bad" @click="filterSeries('bad')">
+            🛑 {{ l({ lo: 'ສະເພາະ ແອດໝົດກຳລັງ', th: 'เฉพาะแอดหมดกำลัง', en: 'Fatigued Ads' }) }}
+          </button>
+          <button type="button" class="pill-btn top3" @click="filterSeries('top3')">
+            ✨ {{ l({ lo: 'ທຽບ ນາງຟ້າ VS ໂຕບໍ່ດີ', th: 'เทียบ นางฟ้า VS ตัวไม่ดี', en: 'Battle Top 3' }) }}
+          </button>
+        </div>
+      </div>
+
+      <!-- Single Ad Isolator / Spotlight Dropdown -->
+      <div class="ad-spotlight-select">
+        <label>{{ l({ lo: '🔍 ເຈາະຈົງແອດດຽວ:', th: '🔍 เจาะจงแอดเดียว:', en: 'Focus Ad:' }) }}</label>
+        <select v-model="focusedAdId" class="ad-select-dropdown">
+          <option value="all">{{ l({ lo: '— ສະແດງທັງໝົດ —', th: '— แสดงทั้งหมด —', en: '— Show All —' }) }}</option>
+          <option v-for="s in activeAdSeries" :key="s.id" :value="s.id">
+            {{ s.isAngel ? '🧚‍♀️ ' : s.isBad ? '🛑 ' : '⚡ ' }}{{ s.name }} (Score: {{ s.currentScore }})
+          </option>
+        </select>
       </div>
     </div>
 
-    <!-- Interactive Line Chart Canvas (SVG) -->
-    <div class="chart-viewport" @mouseleave="hoveredPoint = null">
-      <svg
-        :viewBox="`0 0 ${svgWidth} ${svgHeight}`"
-        class="ad-svg-chart"
-        preserveAspectRatio="none"
-      >
-        <defs>
-          <!-- Threshold Gradients -->
-          <linearGradient id="angelZoneGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#10b981" stop-opacity="0.12" />
-            <stop offset="100%" stop-color="#10b981" stop-opacity="0.0" />
-          </linearGradient>
-          <linearGradient id="badZoneGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#ef4444" stop-opacity="0.0" />
-            <stop offset="100%" stop-color="#ef4444" stop-opacity="0.1" />
-          </linearGradient>
-        </defs>
+    <!-- ========================================================================= -->
+    <!-- VIEW MODE 1: SEPARATE INDIVIDUAL AD CARDS (ໂໝດແຍກກຣາຟແຕ່ລະ Ads ຊັດເຈນ) -->
+    <!-- ========================================================================= -->
+    <div v-if="displayMode === 'separate'" class="separate-view-container">
+      <div class="separate-grid">
+        <article
+          v-for="series in visibleSeriesList"
+          :key="series.id"
+          class="ad-solo-card"
+          :class="{ 'border-angel': series.isAngel, 'border-bad': series.isBad }"
+        >
+          <!-- Card Header: Clear Ad Name & Badges -->
+          <div class="solo-card-header">
+            <div class="solo-identity">
+              <div class="d-flex align-center gap-2 mb-1 flex-wrap">
+                <span v-if="series.isAngel" class="type-pill angel">
+                  🧚‍♀️ ADS ນາງຟ້າ
+                </span>
+                <span v-else-if="series.isBad" class="type-pill bad">
+                  🛑 ແອດໝົດກຳລັງ
+                </span>
+                <span v-else class="type-pill normal">
+                  ⚡ ແອດທົ່ວໄປ
+                </span>
 
-        <!-- Background Threshold Zones (for Strength metric) -->
-        <g v-if="selectedMetric === 'strength'">
-          <!-- Angel Zone: Score 80 to 100 -->
-          <rect
-            :x="padding.left"
-            :y="getY(100)"
-            :width="innerWidth"
-            :height="getY(80) - getY(100)"
-            fill="url(#angelZoneGrad)"
-          />
-          <!-- Dying Zone: Score 0 to 40 -->
-          <rect
-            :x="padding.left"
-            :y="getY(40)"
-            :width="innerWidth"
-            :height="getY(0) - getY(40)"
-            fill="url(#badZoneGrad)"
-          />
+                <!-- Trajectory Badge -->
+                <span
+                  class="trajectory-badge"
+                  :class="series.trendDiff > 3 ? 'up' : series.trendDiff < -3 ? 'down' : 'flat'"
+                >
+                  <v-icon
+                    :icon="series.trendDiff > 3 ? 'mdi-trending-up' : series.trendDiff < -3 ? 'mdi-trending-down' : 'mdi-trending-neutral'"
+                    size="14"
+                  />
+                  {{ series.trendDiff > 3 ? `ຂາຂຶ້ນ (+${series.trendDiff}%)` : series.trendDiff < -3 ? `ຂາລົງ (${series.trendDiff}%)` : 'ຄົງທີ່' }}
+                </span>
 
-          <!-- Angel Threshold Line (80) -->
-          <line
-            :x1="padding.left"
-            :y1="getY(80)"
-            :x2="padding.left + innerWidth"
-            :y2="getY(80)"
-            stroke="#10b981"
-            stroke-width="1.2"
-            stroke-dasharray="4 4"
-            opacity="0.7"
-          />
-          <text :x="padding.left + 8" :y="getY(80) - 4" fill="#059669" font-size="10" font-weight="700">
-            🧚‍♀️ ເກນ Ads ນາງຟ້າ (80+)
-          </text>
+                <!-- Current Score -->
+                <span class="solo-score-badge" :style="{ backgroundColor: series.color + '18', color: series.color }">
+                  Score: <b>{{ series.currentScore }}/100</b>
+                </span>
+              </div>
 
-          <!-- Bad Threshold Line (40) -->
-          <line
-            :x1="padding.left"
-            :y1="getY(40)"
-            :x2="padding.left + innerWidth"
-            :y2="getY(40)"
-            stroke="#ef4444"
-            stroke-width="1.2"
-            stroke-dasharray="4 4"
-            opacity="0.7"
-          />
-          <text :x="padding.left + 8" :y="getY(40) + 12" fill="#dc2626" font-size="10" font-weight="700">
-            🛑 ເກນໝົດກຳລັງ / ຄວນປິດ (&lt; 40)
-          </text>
-        </g>
+              <!-- High Contrast, Prominent Ad Name -->
+              <h3 class="solo-ad-title" :title="series.name">
+                <span class="color-dot" :style="{ backgroundColor: series.color }" />
+                {{ series.name }}
+              </h3>
+              <div class="solo-meta-row">
+                <code>ID: {{ series.id }}</code>
+                <span class="status-indicator" :class="series.item.status?.toUpperCase().includes('PAUSED') ? 'paused' : 'active'">
+                  {{ series.item.status?.toUpperCase().includes('PAUSED') ? '⏸️ ປິດຢູ່' : '🟢 ເປີດໃຊ້ງານ' }}
+                </span>
+              </div>
+            </div>
 
-        <!-- Horizontal Grid Lines -->
-        <g class="grid-lines">
-          <line
-            v-for="tick in 5"
-            :key="tick"
-            :x1="padding.left"
-            :y1="padding.top + (innerHeight / 4) * (tick - 1)"
-            :x2="padding.left + innerWidth"
-            :y2="padding.top + (innerHeight / 4) * (tick - 1)"
-            stroke="#f1f5f9"
-            stroke-width="1"
-          />
-        </g>
+            <!-- Quick Action Button -->
+            <div class="solo-actions">
+              <v-btn
+                v-if="series.isAngel"
+                size="small"
+                color="success"
+                variant="flat"
+                prepend-icon="mdi-rocket-launch"
+                class="font-weight-bold"
+                @click="emit('scale', series.item)"
+              >
+                Scale (+20%)
+              </v-btn>
+              <v-btn
+                v-if="series.isBad"
+                size="small"
+                color="error"
+                variant="tonal"
+                prepend-icon="mdi-pause-circle-outline"
+                class="font-weight-bold"
+                @click="emit('pause', series.item)"
+              >
+                ປິດແອດ
+              </v-btn>
+            </div>
+          </div>
 
-        <!-- Y-Axis Ticks & Labels -->
-        <g class="y-axis-labels">
-          <text
-            v-for="tick in 5"
-            :key="tick"
-            :x="padding.left - 8"
-            :y="padding.top + (innerHeight / 4) * (tick - 1) + 4"
-            text-anchor="end"
-            fill="#94a3b8"
-            font-size="10"
-            font-weight="600"
-          >
-            {{ Math.round(yRange.max - ((yRange.max - yRange.min) / 4) * (tick - 1)) }}
-          </text>
-        </g>
+          <!-- Cumulative Metric Chips for this Ad -->
+          <div class="solo-metric-strip">
+            <div class="m-pill">
+              <small>{{ l({ lo: 'ໃຊ້ຈ່າຍ', th: 'ใช้จ่าย', en: 'Spend' }) }}</small>
+              <strong>${{ (series.item.spend || 0).toFixed(2) }}</strong>
+            </div>
+            <div class="m-pill" :class="{ 'highlight-green': (getPurchasesCount(series.item) || 0) > 0 }">
+              <small>{{ l({ lo: 'ຍອດຊື້', th: 'ยอดซื้อ', en: 'Purchases' }) }}</small>
+              <strong>{{ getPurchasesCount(series.item) || 0 }} ອໍເດີ</strong>
+            </div>
+            <div class="m-pill">
+              <small>CPA</small>
+              <strong>{{ getCostPerPurchase(series.item) ? `$${getCostPerPurchase(series.item)?.toFixed(2)}` : '—' }}</strong>
+            </div>
+            <div class="m-pill">
+              <small>CTR</small>
+              <strong>{{ (series.item.linkCtr || 0).toFixed(2) }}%</strong>
+            </div>
+            <div class="m-pill">
+              <small>Frequency</small>
+              <strong>{{ (series.item.frequency || 1.1).toFixed(2) }}x</strong>
+            </div>
+          </div>
 
-        <!-- X-Axis Dates -->
-        <g class="x-axis-labels">
-          <text
-            v-for="(d, idx) in dates"
-            :key="d"
-            :x="getX(idx)"
-            :y="svgHeight - 12"
-            text-anchor="middle"
-            fill="#64748b"
-            font-size="11"
-            font-weight="600"
-          >
-            {{ d.slice(5) }}
-          </text>
-        </g>
+          <!-- Dedicated Clean SVG Line Chart for this Ad -->
+          <div class="solo-chart-canvas">
+            <svg viewBox="0 0 520 135" class="solo-svg" preserveAspectRatio="none">
+              <defs>
+                <linearGradient :id="'grad-solo-' + series.id" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" :stop-color="series.color" stop-opacity="0.25" />
+                  <stop offset="100%" :stop-color="series.color" stop-opacity="0.0" />
+                </linearGradient>
+              </defs>
 
-        <!-- Ad Trajectory Lines -->
-        <g v-for="series in activeAdSeries" :key="series.id">
-          <path
-            v-if="series.visible"
-            :d="generatePath(series)"
-            fill="none"
-            :stroke="series.color"
-            :stroke-width="hoveredPoint?.adId === series.id ? 3.5 : (series.isAngel ? 2.8 : 2.0)"
-            :stroke-dasharray="series.isBad ? '5 3' : 'none'"
-            :opacity="hoveredPoint && hoveredPoint.adId !== series.id ? 0.25 : 0.95"
-            class="ad-trend-line"
-          />
+              <!-- Subtle grid lines -->
+              <line x1="40" y1="25" x2="480" y2="25" stroke="#f1f5f9" stroke-width="1" />
+              <line x1="40" y1="65" x2="480" y2="65" stroke="#f1f5f9" stroke-width="1" />
+              <line x1="40" y1="105" x2="480" y2="105" stroke="#e2e8f0" stroke-width="1" />
 
-          <!-- Interactive Hover Dots on each Point -->
-          <g v-if="series.visible">
+              <!-- Area Fill Under Curve -->
+              <path
+                :d="generateSingleAdPath(series, 520, 135).areaPath"
+                :fill="'url(#grad-solo-' + series.id + ')'"
+              />
+
+              <!-- Line Path -->
+              <path
+                :d="generateSingleAdPath(series, 520, 135).linePath"
+                fill="none"
+                :stroke="series.color"
+                stroke-width="2.8"
+                stroke-linecap="round"
+              />
+
+              <!-- Dots and Printed Values on each day -->
+              <g v-for="(pt, pIdx) in generateSingleAdPath(series, 520, 135).points" :key="pIdx">
+                <!-- Dot circle -->
+                <circle
+                  :cx="pt.x"
+                  :cy="pt.y"
+                  r="4.5"
+                  :fill="series.color"
+                  stroke="#ffffff"
+                  stroke-width="2"
+                  class="solo-dot"
+                />
+
+                <!-- Printed value right above the dot -->
+                <text
+                  :x="pt.x"
+                  :y="pt.y - 8"
+                  text-anchor="middle"
+                  :fill="series.color"
+                  font-size="10"
+                  font-weight="800"
+                >
+                  {{ pt.label }}
+                </text>
+
+                <!-- Date below on bottom axis -->
+                <text
+                  :x="pt.x"
+                  :y="126"
+                  text-anchor="middle"
+                  fill="#64748b"
+                  font-size="9.5"
+                  font-weight="600"
+                >
+                  {{ pt.date.slice(5) }}
+                </text>
+              </g>
+            </svg>
+          </div>
+
+          <!-- Day-by-Day Compact Numbers Strip -->
+          <div class="solo-daily-table">
+            <div
+              v-for="(dp, dIdx) in series.dataPoints"
+              :key="dIdx"
+              class="d-col"
+              :class="{
+                'highlight-order': dp.purchases > 0,
+                'score-high': dp.strengthScore >= 80,
+                'score-low': dp.strengthScore < 40,
+              }"
+            >
+              <span class="d-date-label">{{ dp.date.slice(5) }}</span>
+              <span class="d-score-label">Score: <b>{{ dp.strengthScore }}</b></span>
+              <span class="d-order-label">
+                <b v-if="dp.purchases > 0" class="text-success">{{ dp.purchases }} ອໍເດີ</b>
+                <span v-else class="text-medium-emphasis">0</span>
+              </span>
+              <span class="d-spend-label">${{ dp.spend }}</span>
+            </div>
+          </div>
+        </article>
+      </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- VIEW MODE 2: COMBINED MULTI-LINE CHART (ມີຊື່ຕິດທຸກເສັ້ນຊັດເຈນ) -->
+    <!-- ========================================================================= -->
+    <div v-else class="combined-view-container">
+      <div class="chart-viewport" @mouseleave="hoveredPoint = null">
+        <svg
+          :viewBox="`0 0 ${svgWidth} ${svgHeight}`"
+          class="ad-svg-chart"
+          preserveAspectRatio="none"
+        >
+          <defs>
+            <!-- Threshold Gradients -->
+            <linearGradient id="angelZoneGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#10b981" stop-opacity="0.12" />
+              <stop offset="100%" stop-color="#10b981" stop-opacity="0.0" />
+            </linearGradient>
+            <linearGradient id="badZoneGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#ef4444" stop-opacity="0.0" />
+              <stop offset="100%" stop-color="#ef4444" stop-opacity="0.1" />
+            </linearGradient>
+          </defs>
+
+          <!-- Background Threshold Zones (for Strength metric) -->
+          <g v-if="selectedMetric === 'strength'">
+            <!-- Angel Zone: Score 80 to 100 -->
+            <rect
+              :x="padding.left"
+              :y="getY(100)"
+              :width="innerWidth"
+              :height="getY(80) - getY(100)"
+              fill="url(#angelZoneGrad)"
+            />
+            <!-- Dying Zone: Score 0 to 40 -->
+            <rect
+              :x="padding.left"
+              :y="getY(40)"
+              :width="innerWidth"
+              :height="getY(0) - getY(40)"
+              fill="url(#badZoneGrad)"
+            />
+
+            <!-- Angel Threshold Line (80) -->
+            <line
+              :x1="padding.left"
+              :y1="getY(80)"
+              :x2="padding.left + innerWidth"
+              :y2="getY(80)"
+              stroke="#10b981"
+              stroke-width="1.2"
+              stroke-dasharray="4 4"
+              opacity="0.7"
+            />
+            <text :x="padding.left + 8" :y="getY(80) - 4" fill="#059669" font-size="10" font-weight="700">
+              🧚‍♀️ ເກນ Ads ນາງຟ້າ (80+)
+            </text>
+
+            <!-- Bad Threshold Line (40) -->
+            <line
+              :x1="padding.left"
+              :y1="getY(40)"
+              :x2="padding.left + innerWidth"
+              :y2="getY(40)"
+              stroke="#ef4444"
+              stroke-width="1.2"
+              stroke-dasharray="4 4"
+              opacity="0.7"
+            />
+            <text :x="padding.left + 8" :y="getY(40) + 12" fill="#dc2626" font-size="10" font-weight="700">
+              🛑 ເກນໝົດກຳລັງ / ຄວນປິດ (&lt; 40)
+            </text>
+          </g>
+
+          <!-- Horizontal Grid Lines -->
+          <g class="grid-lines">
+            <line
+              v-for="tick in 5"
+              :key="tick"
+              :x1="padding.left"
+              :y1="padding.top + (innerHeight / 4) * (tick - 1)"
+              :x2="padding.left + innerWidth"
+              :y2="padding.top + (innerHeight / 4) * (tick - 1)"
+              stroke="#f1f5f9"
+              stroke-width="1"
+            />
+          </g>
+
+          <!-- Y-Axis Ticks & Labels -->
+          <g class="y-axis-labels">
+            <text
+              v-for="tick in 5"
+              :key="tick"
+              :x="padding.left - 8"
+              :y="padding.top + (innerHeight / 4) * (tick - 1) + 4"
+              text-anchor="end"
+              fill="#94a3b8"
+              font-size="10"
+              font-weight="600"
+            >
+              {{ Math.round(yRange.max - ((yRange.max - yRange.min) / 4) * (tick - 1)) }}
+            </text>
+          </g>
+
+          <!-- X-Axis Dates -->
+          <g class="x-axis-labels">
+            <text
+              v-for="(d, idx) in dates"
+              :key="d"
+              :x="getX(idx)"
+              :y="svgHeight - 12"
+              text-anchor="middle"
+              fill="#64748b"
+              font-size="11"
+              font-weight="600"
+            >
+              {{ d.slice(5) }}
+            </text>
+          </g>
+
+          <!-- Ad Trajectory Lines with End-Labels -->
+          <g v-for="series in visibleSeriesList" :key="series.id">
+            <!-- Trajectory Line -->
+            <path
+              :d="generatePath(series)"
+              fill="none"
+              :stroke="series.color"
+              :stroke-width="hoveredPoint?.adId === series.id ? 4.0 : (series.isAngel ? 3.0 : 2.2)"
+              :stroke-dasharray="series.isBad ? '5 3' : 'none'"
+              :opacity="hoveredPoint && hoveredPoint.adId !== series.id ? 0.2 : 0.95"
+              class="ad-trend-line"
+            />
+
+            <!-- Points on the line -->
             <circle
               v-for="(pt, pIdx) in series.dataPoints"
               :key="pIdx"
               :cx="getX(pIdx)"
               :cy="getY(getMetricValue(pt))"
-              :r="hoveredPoint?.adId === series.id && hoveredPoint?.date === pt.date ? 6 : 3.5"
+              :r="hoveredPoint?.adId === series.id && hoveredPoint?.date === pt.date ? 6.5 : 3.5"
               :fill="series.color"
               stroke="#ffffff"
               stroke-width="1.5"
               class="interactive-dot"
               @mouseenter="handlePointHover(series, pt, pIdx)"
             />
+
+            <!-- CLEAR NAME BADGE AT THE END OF EACH LINE (ສະແດງຊື່ແອດຕິດກັບເສັ້ນຊັດເຈນ) -->
+            <g
+              v-if="series.dataPoints.length > 0"
+              class="line-end-badge-group"
+              :class="{ 'is-spotlight': hoveredPoint?.adId === series.id }"
+              @mouseenter="handlePointHover(series, series.dataPoints[series.dataPoints.length - 1]!, series.dataPoints.length - 1)"
+            >
+              <!-- Background Pill -->
+              <rect
+                :x="getX(series.dataPoints.length - 1) + 8"
+                :y="getY(getMetricValue(series.dataPoints[series.dataPoints.length - 1]!)) - 11"
+                width="145"
+                height="22"
+                rx="6"
+                :fill="series.color"
+                :stroke="hoveredPoint?.adId === series.id ? '#ffffff' : 'none'"
+                stroke-width="1.5"
+                class="badge-pill-rect"
+              />
+              <!-- Ad Name & Metric Value Text -->
+              <text
+                :x="getX(series.dataPoints.length - 1) + 14"
+                :y="getY(getMetricValue(series.dataPoints[series.dataPoints.length - 1]!)) + 4"
+                fill="#ffffff"
+                font-size="10.5"
+                font-weight="700"
+                class="badge-pill-text"
+              >
+                {{ series.name.length > 13 ? series.name.slice(0, 13) + '..' : series.name }}
+                · {{ formatMetricDisplay(getMetricValue(series.dataPoints[series.dataPoints.length - 1]!)) }}
+              </text>
+            </g>
           </g>
-        </g>
 
-        <!-- Vertical Hover Guide Line -->
-        <line
+          <!-- Vertical Hover Guide Line -->
+          <line
+            v-if="hoveredPoint"
+            :x1="hoveredPoint.x"
+            :y1="padding.top"
+            :x2="hoveredPoint.x"
+            :y2="svgHeight - padding.bottom"
+            stroke="#94a3b8"
+            stroke-width="1"
+            stroke-dasharray="2 2"
+          />
+        </svg>
+
+        <!-- Floating Interactive Tooltip -->
+        <div
           v-if="hoveredPoint"
-          :x1="hoveredPoint.x"
-          :y1="padding.top"
-          :x2="hoveredPoint.x"
-          :y2="svgHeight - padding.bottom"
-          stroke="#94a3b8"
-          stroke-width="1"
-          stroke-dasharray="2 2"
-        />
-      </svg>
-
-      <!-- Floating Interactive Tooltip -->
-      <div
-        v-if="hoveredPoint"
-        class="chart-tooltip"
-        :style="{
-          left: `${(hoveredPoint.x / svgWidth) * 100}%`,
-          top: `${(hoveredPoint.y / svgHeight) * 100}%`,
-        }"
-      >
-        <div class="tooltip-header" :style="{ borderLeftColor: hoveredPoint.color }">
-          <strong class="tooltip-ad-name">{{ hoveredPoint.adName }}</strong>
-          <small class="tooltip-date">{{ hoveredPoint.date }}</small>
-        </div>
-        <div class="tooltip-metric-val">
-          <span>ຄ່າ {{ selectedMetric.toUpperCase() }}:</span>
-          <strong :style="{ color: hoveredPoint.color }">{{ hoveredPoint.displayValue }}</strong>
-        </div>
-        <div class="tooltip-strength-row">
-          <span class="score-chip" :style="{ background: hoveredPoint.strengthScore >= 80 ? '#ecfdf5' : hoveredPoint.strengthScore < 40 ? '#fef2f2' : '#fffbeb' }">
-            {{ hoveredPoint.strengthLabel }} ({{ hoveredPoint.strengthScore }}/100)
-          </span>
-        </div>
-        <div class="tooltip-footer">
-          <span>🛒 ອໍເດີ: {{ hoveredPoint.purchases }}</span>
-          <span>🎯 CPA: {{ hoveredPoint.cpa ? `$${hoveredPoint.cpa.toFixed(2)}` : '—' }}</span>
-          <span>📈 CTR: {{ hoveredPoint.ctr }}%</span>
+          class="chart-tooltip"
+          :style="{
+            left: `${(hoveredPoint.x / svgWidth) * 100}%`,
+            top: `${(hoveredPoint.y / svgHeight) * 100}%`,
+          }"
+        >
+          <div class="tooltip-header" :style="{ borderLeftColor: hoveredPoint.color }">
+            <strong class="tooltip-ad-name">{{ hoveredPoint.adName }}</strong>
+            <small class="tooltip-date">{{ hoveredPoint.date }}</small>
+          </div>
+          <div class="tooltip-metric-val">
+            <span>ຄ່າ {{ selectedMetric.toUpperCase() }}:</span>
+            <strong :style="{ color: hoveredPoint.color }">{{ hoveredPoint.displayValue }}</strong>
+          </div>
+          <div class="tooltip-strength-row">
+            <span class="score-chip" :style="{ background: hoveredPoint.strengthScore >= 80 ? '#ecfdf5' : hoveredPoint.strengthScore < 40 ? '#fef2f2' : '#fffbeb' }">
+              {{ hoveredPoint.strengthLabel }} ({{ hoveredPoint.strengthScore }}/100)
+            </span>
+          </div>
+          <div class="tooltip-footer">
+            <span>🛒 ອໍເດີ: {{ hoveredPoint.purchases }}</span>
+            <span>🎯 CPA: {{ hoveredPoint.cpa ? `$${hoveredPoint.cpa.toFixed(2)}` : '—' }}</span>
+            <span>📈 CTR: {{ hoveredPoint.ctr }}%</span>
+          </div>
         </div>
       </div>
-    </div>
 
-    <!-- Interactive Legend (Click chip to toggle line ON / OFF) -->
-    <div class="chart-legend">
-      <span class="legend-hint">{{ l({ lo: 'ກົດໃສ່ປ້າຍເພື່ອ ເປີດ/ປິດ ເສັ້ນກຣາຟຂອງແຕ່ລະແອດ:', th: 'แตะที่ป้ายเพื่อ เปิด/ปิด เส้นกราฟของแต่ละแอด:', en: 'Click label to toggle line:' }) }}</span>
-      <div class="legend-chips">
-        <button
-          v-for="series in activeAdSeries"
-          :key="series.id"
-          type="button"
-          class="legend-chip"
-          :class="{ active: series.visible, faded: !series.visible }"
-          @click="series.visible = !series.visible"
-        >
-          <span class="color-dot" :style="{ backgroundColor: series.color }" />
-          <span class="legend-ad-name">{{ series.name }}</span>
-          <span class="legend-score-pill" :style="{ color: series.color }">
-            {{ series.currentScore }}
-          </span>
-        </button>
+      <!-- Interactive Legend Chips -->
+      <div class="chart-legend">
+        <span class="legend-hint">{{ l({ lo: 'ກົດໃສ່ປ້າຍເພື່ອ ເປີດ/ປິດ ເສັ້ນກຣາຟຂອງແຕ່ລະແອດ:', th: 'แตะที่ป้ายเพื่อ เปิด/ปิด เส้นกราฟของแต่ละแอด:', en: 'Click label to toggle line:' }) }}</span>
+        <div class="legend-chips">
+          <button
+            v-for="series in activeAdSeries"
+            :key="series.id"
+            type="button"
+            class="legend-chip"
+            :class="{ active: series.visible, faded: !series.visible }"
+            @click="series.visible = !series.visible"
+          >
+            <span class="color-dot" :style="{ backgroundColor: series.color }" />
+            <span class="legend-ad-name">{{ series.name }}</span>
+            <span class="legend-score-pill" :style="{ color: series.color }">
+              {{ series.currentScore }}
+            </span>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -753,17 +1112,34 @@ const weakestAd = computed(() => {
   max-width: 740px;
 }
 
+.header-control-cluster {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.mode-toggle-group {
+  background: #f1f5f9;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
 .metric-toggle-group {
   background: #f8fafc;
 }
 
-/* Preset Filters */
+/* Preset Filters & Spotlight */
 .chart-ad-filters {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   flex-wrap: wrap;
-  padding-bottom: 4px;
+  padding: 8px 12px;
+  background: #f8fafc;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
 }
 
 .filter-label {
@@ -798,113 +1174,412 @@ const weakestAd = computed(() => {
 }
 
 .pill-btn.angel {
-  border-color: #a7f3d0;
-  background: #ecfdf5;
-  color: #065f46;
+  border-color: #86efac;
+  color: #15803d;
+  background: #f0fdf4;
 }
 
 .pill-btn.bad {
-  border-color: #fecaca;
+  border-color: #fca5a5;
+  color: #b91c1c;
   background: #fef2f2;
-  color: #991b1b;
 }
 
 .pill-btn.top3 {
-  border-color: #fde68a;
-  background: #fffbeb;
-  color: #92400e;
+  border-color: #bae6fd;
+  color: #0369a1;
+  background: #f0f9ff;
 }
 
-/* Viewport and SVG */
-.chart-viewport {
-  position: relative;
+.ad-spotlight-select {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ad-spotlight-select label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #475569;
+}
+
+.ad-select-dropdown {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+  max-width: 220px;
+  cursor: pointer;
+}
+
+/* ========================================================================= */
+/* SEPARATE INDIVIDUAL AD CARDS STYLING */
+/* ========================================================================= */
+.separate-view-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.separate-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+  gap: 16px;
+}
+
+@media (max-width: 640px) {
+  .separate-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ad-solo-card {
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+  transition: all 0.2s ease-in-out;
+}
+
+.ad-solo-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+}
+
+.ad-solo-card.border-angel {
+  border-color: #86efac;
+  background: linear-gradient(180deg, #f0fdf4 0%, #ffffff 40px);
+}
+
+.ad-solo-card.border-bad {
+  border-color: #fca5a5;
+  background: linear-gradient(180deg, #fef2f2 0%, #ffffff 40px);
+}
+
+.solo-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.solo-identity {
+  flex: 1;
+  min-width: 0;
+}
+
+.type-pill {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.type-pill.angel {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.type-pill.bad {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.type-pill.normal {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.trajectory-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.trajectory-badge.up {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.trajectory-badge.down {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.trajectory-badge.flat {
+  background: #f8fafc;
+  color: #64748b;
+}
+
+.solo-score-badge {
+  font-size: 11.5px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.solo-ad-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 4px 0 2px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.solo-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: #64748b;
+}
+
+.solo-meta-row code {
+  background: #f1f5f9;
+  padding: 1px 4px;
+  border-radius: 4px;
+  color: #475569;
+}
+
+.status-indicator {
+  font-weight: 600;
+}
+
+.status-indicator.active {
+  color: #16a34a;
+}
+
+.status-indicator.paused {
+  color: #dc2626;
+}
+
+/* Solo Metric Strip */
+.solo-metric-strip {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+  background: #f8fafc;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid #f1f5f9;
+}
+
+.m-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.m-pill small {
+  font-size: 10px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.m-pill strong {
+  font-size: 12px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.m-pill.highlight-green strong {
+  color: #16a34a;
+}
+
+/* Solo SVG Chart */
+.solo-chart-canvas {
   width: 100%;
-  height: 320px;
-  background: #fcfdfe;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
+  height: 135px;
+  background: #fafafa;
+  border-radius: 8px;
+  border: 1px solid #f1f5f9;
   overflow: hidden;
+  position: relative;
 }
 
-.ad-svg-chart {
+.solo-svg {
   width: 100%;
   height: 100%;
   display: block;
 }
 
+.solo-dot {
+  cursor: pointer;
+  transition: r 0.15s ease;
+}
+
+.solo-dot:hover {
+  r: 6px;
+}
+
+/* Solo Daily Table Strip */
+.solo-daily-table {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(58px, 1fr);
+  gap: 4px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.d-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 2px;
+  background: #f8fafc;
+  border-radius: 6px;
+  border: 1px solid #f1f5f9;
+  font-size: 10px;
+  text-align: center;
+}
+
+.d-col.highlight-order {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+}
+
+.d-date-label {
+  font-weight: 700;
+  color: #64748b;
+}
+
+.d-score-label {
+  color: #475569;
+}
+
+.d-score-label b {
+  color: #0f172a;
+}
+
+.d-order-label {
+  font-size: 10.5px;
+}
+
+.d-spend-label {
+  font-size: 9px;
+  color: #94a3b8;
+}
+
+/* ========================================================================= */
+/* COMBINED MULTI-LINE VIEW STYLING */
+/* ========================================================================= */
+.combined-view-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.chart-viewport {
+  position: relative;
+  width: 100%;
+  overflow-x: auto;
+}
+
+.ad-svg-chart {
+  width: 100%;
+  height: auto;
+  min-height: 290px;
+  display: block;
+}
+
 .ad-trend-line {
-  transition: stroke-width 0.15s, opacity 0.15s;
+  transition: stroke-width 0.2s ease, opacity 0.2s ease;
 }
 
 .interactive-dot {
   cursor: pointer;
-  transition: r 0.15s;
+  transition: r 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.interactive-dot:hover {
-  r: 7;
+.line-end-badge-group {
+  cursor: pointer;
+  transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
-/* Tooltip */
+.line-end-badge-group.is-spotlight {
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.2));
+}
+
+.badge-pill-rect {
+  transition: all 0.2s ease;
+}
+
+/* Floating Tooltip */
 .chart-tooltip {
   position: absolute;
-  transform: translate(-50%, -115%);
   pointer-events: none;
-  background: rgba(15, 23, 42, 0.95);
+  background: #0f172a;
   color: #ffffff;
-  padding: 10px 14px;
+  padding: 10px 12px;
   border-radius: 10px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-  font-size: 12px;
-  z-index: 10;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+  font-size: 11px;
+  z-index: 20;
+  transform: translate(-50%, -115%);
   min-width: 190px;
-  backdrop-filter: blur(4px);
+  transition: left 0.1s ease, top 0.1s ease;
 }
 
 .tooltip-header {
-  border-left: 3px solid #10b981;
-  padding-left: 8px;
+  border-left: 3px solid #38bdf8;
+  padding-left: 6px;
   margin-bottom: 6px;
 }
 
 .tooltip-ad-name {
   display: block;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
-  white-space: nowrap;
-  max-width: 220px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  color: #ffffff;
 }
 
 .tooltip-date {
+  font-size: 10px;
   color: #94a3b8;
-  font-size: 11px;
 }
 
 .tooltip-metric-val {
   display: flex;
   justify-content: space-between;
   margin-bottom: 4px;
-  font-size: 12px;
+}
+
+.tooltip-strength-row {
+  margin-bottom: 6px;
 }
 
 .score-chip {
   display: inline-block;
-  padding: 2px 6px;
+  padding: 1px 6px;
   border-radius: 4px;
-  font-size: 11px;
-  font-weight: 800;
+  font-size: 10px;
+  font-weight: 700;
   color: #0f172a;
 }
 
 .tooltip-footer {
   display: flex;
   justify-content: space-between;
-  border-top: 1px solid rgba(255, 255, 255, 0.15);
-  margin-top: 6px;
-  padding-top: 6px;
-  font-size: 11px;
+  border-top: 1px solid #334155;
+  padding-top: 4px;
+  font-size: 10px;
   color: #cbd5e1;
 }
 
@@ -913,19 +1588,21 @@ const weakestAd = computed(() => {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding-top: 4px;
+  background: #f8fafc;
+  padding: 12px;
+  border-radius: 12px;
 }
 
 .legend-hint {
   font-size: 11px;
-  color: #94a3b8;
   font-weight: 600;
+  color: #64748b;
 }
 
 .legend-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
 }
 
 .legend-chip {
@@ -937,33 +1614,28 @@ const weakestAd = computed(() => {
   border: 1px solid #e2e8f0;
   background: #ffffff;
   font-size: 12px;
+  font-weight: 600;
+  color: #1e293b;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
 }
 
 .legend-chip:hover {
-  background: #f8fafc;
+  border-color: #cbd5e1;
+  background: #f1f5f9;
 }
 
 .legend-chip.faded {
-  opacity: 0.35;
+  opacity: 0.4;
   text-decoration: line-through;
 }
 
 .color-dot {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   display: inline-block;
-}
-
-.legend-ad-name {
-  font-weight: 600;
-  max-width: 180px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: #334155;
+  flex-shrink: 0;
 }
 
 .legend-score-pill {
@@ -974,7 +1646,7 @@ const weakestAd = computed(() => {
   border-radius: 4px;
 }
 
-/* Insights Grid */
+/* Momentum Insights Grid */
 .momentum-insights-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -988,12 +1660,12 @@ const weakestAd = computed(() => {
   gap: 12px;
   padding: 12px 16px;
   border-radius: 12px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid;
 }
 
 .insight-box.winner {
   background: #f0fdf4;
-  border-color: #a7f3d0;
+  border-color: #bbf7d0;
 }
 
 .insight-box.loser {
@@ -1012,8 +1684,8 @@ const weakestAd = computed(() => {
 }
 
 .box-icon-circle.green {
-  background: #d1fae5;
-  color: #059669;
+  background: #dcfce7;
+  color: #16a34a;
 }
 
 .box-icon-circle.red {
@@ -1021,33 +1693,35 @@ const weakestAd = computed(() => {
   color: #dc2626;
 }
 
+.box-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
 .box-info small {
-  display: block;
   font-size: 11px;
-  color: #64748b;
   font-weight: 700;
-  text-transform: uppercase;
+  color: #64748b;
 }
 
 .box-info strong {
-  display: block;
   font-size: 13px;
+  font-weight: 800;
   color: #0f172a;
   white-space: nowrap;
-  max-width: 240px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .insight-badge {
-  display: inline-block;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
   margin-top: 2px;
 }
 
 .insight-badge.green {
-  color: #059669;
+  color: #16a34a;
 }
 
 .insight-badge.red {
