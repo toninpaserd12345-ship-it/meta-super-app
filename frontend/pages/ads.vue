@@ -573,12 +573,23 @@ const resultLabel = (type?: string) => {
 
 async function setPreset(value: string) {
   datePreset.value = value
-  const days = Number(value)
-  if (!Number.isFinite(days)) return
-  const end = new Date()
-  const start = new Date(end.getFullYear(), end.getMonth(), end.getDate() - days + 1)
-  since.value = iso(start)
-  until.value = iso(end)
+  if (value === 'today') {
+    const end = new Date()
+    since.value = iso(end)
+    until.value = iso(end)
+  } else if (value === 'yesterday') {
+    const y = new Date()
+    y.setDate(y.getDate() - 1)
+    since.value = iso(y)
+    until.value = iso(y)
+  } else {
+    const days = Number(value)
+    if (!Number.isFinite(days)) return
+    const end = new Date()
+    const start = new Date(end.getFullYear(), end.getMonth(), end.getDate() - days + 1)
+    since.value = iso(start)
+    until.value = iso(end)
+  }
   if (ready.value) await loadPerformance()
 }
 
@@ -2070,6 +2081,16 @@ onMounted(async () => {
       <v-btn color="primary" variant="flat" prepend-icon="mdi-refresh" :loading="loadingReport" :disabled="!adAccountId" @click="loadPerformance">
         {{ l({ lo: 'ອັບເດດຂໍ້ມູນ', th: 'อัปเดตข้อมูล', en: 'Refresh' }) }}
       </v-btn>
+      <NuxtLink to="/ads-battle">
+        <v-btn
+          color="amber-darken-3"
+          variant="flat"
+          prepend-icon="mdi-scale-balance"
+          class="font-weight-bold elevation-1"
+        >
+          {{ l({ lo: '⚖️ ວິເຄາະປຽບທຽບ (Battle)', th: '⚖️ วิเคราะห์เปรียบเทียบ (Battle)', en: '⚖️ Ads Battle' }) }}
+        </v-btn>
+      </NuxtLink>
     </div>
   </section>
 
@@ -2187,6 +2208,8 @@ onMounted(async () => {
       <v-select
         :model-value="datePreset"
         :items="[
+          { title: l({ lo: '⚡ ມື້ນີ້ (Today)', th: '⚡ วันนี้ (Today)', en: '⚡ Today' }), value: 'today' },
+          { title: l({ lo: '📅 ມື້ວານນີ້ (Yesterday)', th: '📅 เมื่อวาน (Yesterday)', en: '📅 Yesterday' }), value: 'yesterday' },
           { title: l({ lo: '7 ມື້ຫຼ້າສຸດ', th: '7 วันล่าสุด', en: 'Last 7 days' }), value: '7' },
           { title: l({ lo: '30 ມື້ຫຼ້າສຸດ', th: '30 วันล่าสุด', en: 'Last 30 days' }), value: '30' },
           { title: l({ lo: 'ກຳນົດເອງ', th: 'กำหนดเอง', en: 'Custom' }), value: 'custom' }

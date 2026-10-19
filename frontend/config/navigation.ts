@@ -33,6 +33,7 @@ export const appNavigation: NavigationItem[] = [
   // MARKETING & ADS
   { labelKey: 'nav.channels', icon: 'mdi-facebook', to: '/meta-pages', claim: 'pages:read', sectionKey: 'marketing' },
   { labelKey: 'nav.ads', icon: 'mdi-bullhorn-outline', to: '/ads', claim: 'pages:read', sectionKey: 'marketing' },
+  { labelKey: 'nav.adsBattle', icon: 'mdi-scale-balance', to: '/ads-battle', claim: 'pages:read', sectionKey: 'marketing' },
   { labelKey: 'nav.adsStrategy', icon: 'mdi-chart-timeline-variant-shimmer', to: '/ads-intelligence', claim: 'pages:read', sectionKey: 'marketing' },
 
   // COMMERCE & ORDERS
