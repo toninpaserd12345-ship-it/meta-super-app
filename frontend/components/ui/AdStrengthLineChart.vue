@@ -850,6 +850,49 @@ const weakestAd = computed(() => {
   const sorted = [...activeAdSeries.value].sort((a, b) => a.currentScore - b.currentScore)
   return sorted[0] ?? null
 })
+
+const aggregatedMetrics = computed(() => {
+  let totalSpend = 0
+  let totalPurchases = 0
+  let totalMessages = 0
+  let angelSpend = 0
+  let badSpend = 0
+  let totalNetProfit = 0
+
+  for (const s of activeAdSeries.value) {
+    const it = s.item
+    const sp = it.spend || 0
+    const pur = getPurchasesCount(it)
+    const msg = getMessagesCount(it)
+    const fin = getProductFinancials(it)
+
+    totalSpend += sp
+    totalPurchases += pur
+    totalMessages += msg
+    totalNetProfit += fin.netAdProfit
+
+    if (s.isAngel) {
+      angelSpend += sp
+    } else if (s.isBad) {
+      badSpend += sp
+    }
+  }
+
+  const neutralSpend = Math.max(0, totalSpend - angelSpend - badSpend)
+  const avgCpa = totalPurchases > 0 ? totalSpend / totalPurchases : null
+
+  return {
+    totalSpend,
+    totalPurchases,
+    totalMessages,
+    angelSpend,
+    badSpend,
+    neutralSpend,
+    avgCpa,
+    totalNetProfit,
+    adCount: activeAdSeries.value.length,
+  }
+})
 </script>
 
 <template>
@@ -927,6 +970,60 @@ const weakestAd = computed(() => {
               <span>{{ l({ lo: '💸 ງົບໃຊ້', th: '💸 ใช้งบ', en: '💸 Spend' }) }}</span>
             </v-btn>
           </v-btn-toggle>
+        </div>
+      </div>
+    </div>
+
+    <!-- Total Ad Spend & Aggregate Financial Overview Strip -->
+    <div class="ad-total-spend-strip">
+      <div class="spend-overview-main">
+        <div class="spend-badge-row">
+          <span class="spend-main-badge">
+            <v-icon icon="mdi-cash-multiple" size="16" class="mr-1" />
+            {{ l({ lo: '💸 ລວມຄ່າແອດທີ່ໃຊ້ໄປທັງໝົດ (Total Spend)', th: '💸 รวมค่าแอดที่ใช้ไปทั้งหมด (Total Spend)', en: '💸 Total Ad Spend' }) }}
+          </span>
+          <span class="spend-count-pill">{{ aggregatedMetrics.adCount }} Ads</span>
+        </div>
+        <div class="spend-big-amount">
+          {{ money(aggregatedMetrics.totalSpend) }}
+        </div>
+        <div class="spend-distribution-pills">
+          <span class="dist-pill green">
+            🟢 Ads ນາງຟ້າ: <b>{{ money(aggregatedMetrics.angelSpend) }}</b>
+            <small>({{ aggregatedMetrics.totalSpend > 0 ? ((aggregatedMetrics.angelSpend / aggregatedMetrics.totalSpend) * 100).toFixed(0) : 0 }}%)</small>
+          </span>
+          <span class="dist-pill red">
+            🔴 ແອດໝົດກຳລັງ: <b>{{ money(aggregatedMetrics.badSpend) }}</b>
+            <small>({{ aggregatedMetrics.totalSpend > 0 ? ((aggregatedMetrics.badSpend / aggregatedMetrics.totalSpend) * 100).toFixed(0) : 0 }}%)</small>
+          </span>
+          <span v-if="aggregatedMetrics.neutralSpend > 0" class="dist-pill blue">
+            🔘 ແອດທົ່ວໄປ: <b>{{ money(aggregatedMetrics.neutralSpend) }}</b>
+            <small>({{ aggregatedMetrics.totalSpend > 0 ? ((aggregatedMetrics.neutralSpend / aggregatedMetrics.totalSpend) * 100).toFixed(0) : 0 }}%)</small>
+          </span>
+        </div>
+      </div>
+
+      <div class="spend-metrics-cluster">
+        <div class="cluster-cell">
+          <small>{{ l({ lo: 'ຍອດຊື້ລວມ', th: 'ยอดซื้อรวม', en: 'Total Orders' }) }}</small>
+          <strong class="text-success">{{ aggregatedMetrics.totalPurchases }} ອໍເດີ</strong>
+        </div>
+        <div class="cluster-cell">
+          <small>{{ l({ lo: 'CPA ສະເລ່ຍ', th: 'CPA เฉลี่ย', en: 'Avg CPA' }) }}</small>
+          <strong class="text-primary">{{ money(aggregatedMetrics.avgCpa) }}</strong>
+        </div>
+        <div class="cluster-cell">
+          <small>{{ l({ lo: 'ຄົນທັກລວມ', th: 'คนทักรวม', en: 'Messages' }) }}</small>
+          <strong>{{ aggregatedMetrics.totalMessages }} ຄົນ</strong>
+        </div>
+        <div
+          class="cluster-cell profit-cell"
+          :class="aggregatedMetrics.totalNetProfit >= 0 ? 'profit-pos' : 'profit-neg'"
+        >
+          <small>{{ l({ lo: 'ກຳໄລແອດສຸດທິລວມ', th: 'กำไรแอดสุทธิรวม', en: 'Total Net Profit' }) }}</small>
+          <strong>
+            {{ aggregatedMetrics.totalNetProfit >= 0 ? '+' : '' }}{{ money(aggregatedMetrics.totalNetProfit) }}
+          </strong>
         </div>
       </div>
     </div>
@@ -2806,5 +2903,142 @@ const weakestAd = computed(() => {
 .diag-btn {
   text-transform: none;
   letter-spacing: normal;
+}
+
+/* Total Ad Spend Overview Strip */
+.ad-total-spend-strip {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  border-radius: 14px;
+  padding: 18px 22px;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
+  margin-bottom: 6px;
+}
+
+.spend-overview-main {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 250px;
+}
+
+.spend-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.spend-main-badge {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #38bdf8;
+  display: inline-flex;
+  align-items: center;
+}
+
+.spend-count-pill {
+  font-size: 10px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.15);
+  color: #e2e8f0;
+  padding: 1px 7px;
+  border-radius: 10px;
+}
+
+.spend-big-amount {
+  font-size: 32px;
+  font-weight: 900;
+  color: #ffffff;
+  letter-spacing: -0.5px;
+  line-height: 1.1;
+}
+
+.spend-distribution-pills {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dist-pill {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.dist-pill.green {
+  color: #6ee7b7;
+}
+
+.dist-pill.red {
+  color: #fca5a5;
+}
+
+.dist-pill.blue {
+  color: #93c5fd;
+}
+
+.spend-metrics-cluster {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  flex-grow: 1;
+  max-width: 600px;
+}
+
+@media (max-width: 800px) {
+  .spend-metrics-cluster {
+    grid-template-columns: repeat(2, 1fr);
+    max-width: 100%;
+    width: 100%;
+  }
+}
+
+.cluster-cell {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 9px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cluster-cell small {
+  font-size: 10.5px;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.cluster-cell strong {
+  font-size: 14.5px;
+  font-weight: 800;
+  color: #f8fafc;
+}
+
+.cluster-cell.profit-cell.profit-pos {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
+.cluster-cell.profit-cell.profit-pos strong {
+  color: #34d399;
+}
+
+.cluster-cell.profit-cell.profit-neg {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+.cluster-cell.profit-cell.profit-neg strong {
+  color: #f87171;
 }
 </style>

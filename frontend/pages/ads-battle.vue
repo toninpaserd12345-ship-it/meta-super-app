@@ -350,6 +350,43 @@ const battleStats = computed(() => {
   const avgBadCTR = badCount > 0 ? badCtrSum / badCount : 0
   const potentialNewOrders = avgAngelCPA && avgAngelCPA > 0 ? Math.floor(badSpend / avgAngelCPA) : 0
 
+  // Grand Total across all filtered base items
+  let totalSpend = 0
+  let totalPurchases = 0
+  let totalMessages = 0
+  let totalGrossProfit = 0
+
+  for (const it of filteredBaseItems.value) {
+    const sp = it.spend || 0
+    const pur = getPurchasesCount(it)
+    const msg = getMessagesCount(it)
+    totalSpend += sp
+    totalPurchases += pur
+    totalMessages += msg
+
+    const linked = getLinkedProduct(it)
+    if (linked) {
+      const price = linked.product.salePrice || (linked.product.price ? parseFloat(linked.product.price) : 0) || 0
+      const cost = linked.product.cost || 0
+      const margin = Math.max(0, price - cost)
+      totalGrossProfit += (pur * margin)
+    }
+  }
+
+  if (totalSpend === 0 && summary.value?.spend) {
+    totalSpend = summary.value.spend
+  }
+  if (totalPurchases === 0 && getPurchasesCount(summary.value)) {
+    totalPurchases = getPurchasesCount(summary.value)
+  }
+  if (totalMessages === 0 && getMessagesCount(summary.value)) {
+    totalMessages = getMessagesCount(summary.value)
+  }
+
+  const neutralSpend = Math.max(0, totalSpend - angelSpend - badSpend)
+  const overallCPA = totalPurchases > 0 ? totalSpend / totalPurchases : null
+  const totalNetProfit = totalGrossProfit > 0 ? (totalGrossProfit - totalSpend) : -totalSpend
+
   return {
     angelCount,
     angelSpend,
@@ -363,6 +400,13 @@ const battleStats = computed(() => {
     badMessages,
     avgBadCTR,
     potentialNewOrders,
+    totalSpend,
+    totalPurchases,
+    totalMessages,
+    neutralSpend,
+    overallCPA,
+    totalNetProfit,
+    totalCount: filteredBaseItems.value.length,
   }
 })
 
@@ -668,6 +712,61 @@ onMounted(async () => {
     </div>
 
     <template v-else-if="report">
+      <!-- Grand Total Ad Spend & ROI Banner -->
+      <section class="total-spend-hero-banner">
+        <div class="spend-hero-main">
+          <div class="spend-hero-label-wrap">
+            <span class="spend-badge-pill">
+              <v-icon icon="mdi-cash-multiple" size="16" class="mr-1" />
+              {{ l({ lo: '💸 ລວມຄ່າແອດທີ່ໃຊ້ໄປທັງໝົດ (Total Ad Spend)', th: '💸 รวมค่าแอดที่ใช้ไปทั้งหมด (Total Ad Spend)', en: '💸 Total Ad Spend' }) }}
+            </span>
+            <span class="period-sub-tag">
+              {{ datePreset === 'today' ? l({ lo: 'ສະເພາະມື້ນີ້', th: 'เฉพาะวันนี้', en: 'Today' }) : `${since} ຫາ ${until}` }}
+            </span>
+          </div>
+          <div class="spend-hero-big-number">
+            {{ money(battleStats.totalSpend) }}
+          </div>
+          <div class="spend-breakdown-sub">
+            <span class="break-item green">
+              🟢 Ads ນາງຟ້າ: <strong>{{ money(battleStats.angelSpend) }}</strong>
+              <small>({{ battleStats.totalSpend > 0 ? ((battleStats.angelSpend / battleStats.totalSpend) * 100).toFixed(0) : 0 }}%)</small>
+            </span>
+            <span class="break-separator">•</span>
+            <span class="break-item red">
+              🔴 ແອດໝົດກຳລັງ: <strong>{{ money(battleStats.badSpend) }}</strong>
+              <small>({{ battleStats.totalSpend > 0 ? ((battleStats.badSpend / battleStats.totalSpend) * 100).toFixed(0) : 0 }}%)</small>
+            </span>
+            <span v-if="battleStats.neutralSpend > 0" class="break-separator">•</span>
+            <span v-if="battleStats.neutralSpend > 0" class="break-item blue">
+              🔘 ແອດທົ່ວໄປ: <strong>{{ money(battleStats.neutralSpend) }}</strong>
+              <small>({{ battleStats.totalSpend > 0 ? ((battleStats.neutralSpend / battleStats.totalSpend) * 100).toFixed(0) : 0 }}%)</small>
+            </span>
+          </div>
+        </div>
+
+        <div class="spend-hero-results-grid">
+          <div class="hero-stat-card">
+            <small>{{ l({ lo: 'ຍອດຊື້ລວມ', th: 'ยอดซื้อรวม', en: 'Total Orders' }) }}</small>
+            <strong class="text-success">{{ battleStats.totalPurchases }} ອໍເດີ</strong>
+          </div>
+          <div class="hero-stat-card">
+            <small>{{ l({ lo: 'CPA ສະເລ່ຍລວມ', th: 'CPA เฉลี่ยรวม', en: 'Overall CPA' }) }}</small>
+            <strong class="text-primary">{{ money(battleStats.overallCPA) }}</strong>
+          </div>
+          <div class="hero-stat-card">
+            <small>{{ l({ lo: 'ຄົນທັກລວມ', th: 'คนทักรวม', en: 'Total Messages' }) }}</small>
+            <strong>{{ battleStats.totalMessages }} ຄົນ</strong>
+          </div>
+          <div class="hero-stat-card" :class="battleStats.totalNetProfit >= 0 ? 'profit-bg-pos' : 'profit-bg-neg'">
+            <small>{{ l({ lo: 'ກຳໄລແອດສຸດທິລວມ', th: 'กำไรแอดสุทธิรวม', en: 'Total Net Profit' }) }}</small>
+            <strong :class="battleStats.totalNetProfit >= 0 ? 'text-success' : 'text-error'">
+              {{ battleStats.totalNetProfit >= 0 ? '+' : '' }}{{ money(battleStats.totalNetProfit) }}
+            </strong>
+          </div>
+        </div>
+      </section>
+
       <!-- Head-to-Head Scoreboard (3 Hero Cards) -->
       <section class="scoreboard-grid">
         <!-- Card 1: The Winners -->
@@ -1200,6 +1299,135 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   padding: 60px 20px;
+}
+
+/* Total Spend Hero Banner */
+.total-spend-hero-banner {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  border-radius: 16px;
+  padding: 20px 24px;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.12);
+  margin-bottom: 4px;
+}
+
+.spend-hero-main {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 260px;
+}
+
+.spend-hero-label-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.spend-badge-pill {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: rgba(255, 255, 255, 0.12);
+  padding: 3px 10px;
+  border-radius: 20px;
+  color: #38bdf8;
+  display: inline-flex;
+  align-items: center;
+}
+
+.period-sub-tag {
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.spend-hero-big-number {
+  font-size: 34px;
+  font-weight: 900;
+  color: #ffffff;
+  letter-spacing: -0.5px;
+  line-height: 1.1;
+}
+
+.spend-breakdown-sub {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 11.5px;
+  color: #cbd5e1;
+}
+
+.break-item.green strong {
+  color: #34d399;
+}
+
+.break-item.red strong {
+  color: #f87171;
+}
+
+.break-item.blue strong {
+  color: #60a5fa;
+}
+
+.break-separator {
+  color: #475569;
+}
+
+.spend-hero-results-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  flex-grow: 1;
+  max-width: 650px;
+}
+
+@media (max-width: 800px) {
+  .spend-hero-results-grid {
+    grid-template-columns: repeat(2, 1fr);
+    max-width: 100%;
+    width: 100%;
+  }
+}
+
+.hero-stat-card {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hero-stat-card small {
+  font-size: 10.5px;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.hero-stat-card strong {
+  font-size: 15px;
+  font-weight: 800;
+  color: #f8fafc;
+}
+
+.hero-stat-card.profit-bg-pos {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.hero-stat-card.profit-bg-neg {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.3);
 }
 
 /* Scoreboard Grid */
