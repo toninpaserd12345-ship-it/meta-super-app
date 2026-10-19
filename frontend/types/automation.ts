@@ -273,6 +273,7 @@ export interface MetaInsightItem {
   createdTime?: string
   updatedTime?: string
   trend?: MetaInsightPoint[]
+  hourly?: MetaInsightHourlyPoint[]
 }
 
 export interface MetaInsightPoint {
@@ -290,6 +291,19 @@ export interface MetaInsightPoint {
   reach?: number
 }
 
+export interface MetaInsightHourlyPoint {
+  hour: string
+  spend?: number
+  results?: number
+  costPerResult?: number
+  messagesCount?: number
+  costPerMessage?: number
+  purchasesCount?: number
+  costPerPurchase?: number
+  linkCtr?: number
+  impressions?: number
+}
+
 export interface MetaInsightsReport {
   currency: string
   timezone: string
@@ -300,6 +314,7 @@ export interface MetaInsightsReport {
   summary?: MetaInsightItem
   items: MetaInsightItem[]
   trend: MetaInsightPoint[]
+  hourly?: MetaInsightHourlyPoint[]
   warnings: string[]
 }
 

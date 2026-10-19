@@ -1,15 +1,25 @@
 <script setup lang="ts">
-import type { MetaInsightItem, MetaInsightPoint } from '~/types/automation'
+import type { MetaInsightItem, MetaInsightPoint, MetaInsightHourlyPoint, Product, AutomationFlow } from '~/types/automation'
 
 const props = withDefaults(defineProps<{
   items: MetaInsightItem[]
   accountTrend?: MetaInsightPoint[]
   currency?: string
   updatingId?: string
+  products?: Product[]
+  flows?: AutomationFlow[]
+  isToday?: boolean
+  since?: string
+  until?: string
 }>(), {
   currency: 'USD',
   accountTrend: () => [],
   updatingId: '',
+  products: () => [],
+  flows: () => [],
+  isToday: false,
+  since: '',
+  until: '',
 })
 
 const emit = defineEmits<{
@@ -156,6 +166,374 @@ function handleToggleAd(item: MetaInsightItem, newActive: boolean | null | undef
     item,
     status: newActive ? 'ACTIVE' : 'PAUSED',
   })
+}
+
+const zeroDecimalCurrencies = new Set(['JPY', 'KRW', 'VND', 'LAK', 'IDR', 'CLP', 'PYG', 'UGX'])
+
+function money(amount?: number | null): string {
+  if (amount == null) return '—'
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: props.currency || 'USD',
+    maximumFractionDigits: zeroDecimalCurrencies.has((props.currency || '').toUpperCase()) ? 0 : 2,
+  }).format(amount)
+}
+
+const manualProductOverrides = ref<Record<string, string>>({})
+function setProductOverride(adId: string, productId: string) {
+  manualProductOverrides.value = {
+    ...manualProductOverrides.value,
+    [adId]: productId,
+  }
+}
+
+const triggerToProduct = computed(() => {
+  const map: Record<string, { product: Product; flowName: string }> = {}
+  const productMap = new Map<string, Product>((props.products || []).map(p => [p.id, p]))
+
+  for (const flow of (props.flows || [])) {
+    const prod = productMap.get(flow.productId)
+    if (!prod) continue
+    for (const target of flow.targets || []) {
+      if (target.value) {
+        map[target.value] = { product: prod, flowName: flow.name }
+      }
+    }
+  }
+  return map
+})
+
+function getLinkedProduct(item: MetaInsightItem): Product | null {
+  const overrideId = manualProductOverrides.value[item.entityId]
+  if (overrideId) {
+    const found = (props.products || []).find(p => p.id === overrideId)
+    if (found) return found
+  }
+
+  if (triggerToProduct.value[item.entityId]) return triggerToProduct.value[item.entityId]?.product ?? null
+  if (item.adSetId && triggerToProduct.value[item.adSetId]) return triggerToProduct.value[item.adSetId]?.product ?? null
+  if (item.campaignId && triggerToProduct.value[item.campaignId]) return triggerToProduct.value[item.campaignId]?.product ?? null
+
+  const searchName = (item.entityName || '').toLowerCase()
+  for (const prod of (props.products || [])) {
+    const pName = (prod.name || '').toLowerCase()
+    const pCode = (prod.code || '').toLowerCase()
+    if (pName && searchName.includes(pName)) return prod
+    if (pCode && searchName.includes(pCode)) return prod
+  }
+
+  if (props.products && props.products.length === 1) {
+    return props.products[0] ?? null
+  }
+
+  return null
+}
+
+export interface ProductFinancials {
+  product: Product | null
+  productName: string
+  imageUrl?: string
+  hasProduct: boolean
+  sellingPrice: number
+  costPrice: number
+  margin: number
+  marginPercent: number
+  orders: number
+  spend: number
+  cpa: number | null
+  breakEvenCPA: number
+  netAdProfit: number
+  profitPerOrder: number | null
+  isProfitable: boolean
+  isAboveBreakEven: boolean
+}
+
+function getProductFinancials(item: MetaInsightItem): ProductFinancials {
+  const prod = getLinkedProduct(item)
+  const orders = getPurchasesCount(item)
+  const spend = item.spend || 0
+  const cpa = getCostPerPurchase(item)
+
+  if (!prod) {
+    return {
+      product: null,
+      productName: '',
+      imageUrl: '',
+      hasProduct: false,
+      sellingPrice: 0,
+      costPrice: 0,
+      margin: 0,
+      marginPercent: 0,
+      orders,
+      spend,
+      cpa,
+      breakEvenCPA: 0,
+      netAdProfit: -spend,
+      profitPerOrder: null,
+      isProfitable: false,
+      isAboveBreakEven: false,
+    }
+  }
+
+  const rawPrice = prod.salePrice || (prod.price ? parseFloat(prod.price) : 0) || 0
+  const rawCost = prod.cost || 0
+  const margin = Math.max(0, rawPrice - rawCost)
+  const marginPercent = rawPrice > 0 ? (margin / rawPrice) * 100 : 0
+
+  const grossProfit = orders * margin
+  const netAdProfit = grossProfit - spend
+  const profitPerOrder = orders > 0 && cpa != null ? (margin - cpa) : null
+  const isProfitable = netAdProfit > 0
+  const isAboveBreakEven = cpa != null && cpa > margin
+
+  return {
+    product: prod,
+    productName: prod.name,
+    imageUrl: prod.imageUrl,
+    hasProduct: true,
+    sellingPrice: rawPrice,
+    costPrice: rawCost,
+    margin,
+    marginPercent,
+    orders,
+    spend,
+    cpa,
+    breakEvenCPA: margin,
+    netAdProfit,
+    profitPerOrder,
+    isProfitable,
+    isAboveBreakEven,
+  }
+}
+
+export interface DaypartSlot {
+  key: 'morning' | 'afternoon' | 'evening' | 'night'
+  name: string
+  sub: string
+  icon: string
+  timeRange: string
+  spend: number
+  purchases: number
+  messages: number
+  cpa: number | null
+  ctr: number
+  profit: number
+  isCurrentSlot: boolean
+  isPeak: boolean
+}
+
+export interface AdDiagnostic {
+  type: 'danger' | 'warning' | 'success' | 'info'
+  icon: string
+  title: string
+  message: string
+  actionLabel?: string
+  actionType?: 'pause' | 'scale'
+}
+
+function parseHourInt(hourStr?: string): number {
+  if (!hourStr) return 0
+  const match = hourStr.match(/^(\d{1,2})/)
+  return match && match[1] ? parseInt(match[1], 10) : 0
+}
+
+function getAdDayparts(item: MetaInsightItem): { slots: DaypartSlot[]; diagnostic: AdDiagnostic } {
+  const now = new Date()
+  const currentHour = now.getHours()
+  const fin = getProductFinancials(item)
+  const margin = fin.margin || 0
+
+  const buckets: Record<'morning' | 'afternoon' | 'evening' | 'night', {
+    spend: number
+    purchases: number
+    messages: number
+    impressions: number
+    clicks: number
+  }> = {
+    morning: { spend: 0, purchases: 0, messages: 0, impressions: 0, clicks: 0 },
+    afternoon: { spend: 0, purchases: 0, messages: 0, impressions: 0, clicks: 0 },
+    evening: { spend: 0, purchases: 0, messages: 0, impressions: 0, clicks: 0 },
+    night: { spend: 0, purchases: 0, messages: 0, impressions: 0, clicks: 0 },
+  }
+
+  const hourlyData = item.hourly || []
+  if (hourlyData.length > 0) {
+    for (const h of hourlyData) {
+      const hInt = parseHourInt(h.hour)
+      let slotKey: 'morning' | 'afternoon' | 'evening' | 'night' = 'night'
+      if (hInt >= 6 && hInt < 12) slotKey = 'morning'
+      else if (hInt >= 12 && hInt < 18) slotKey = 'afternoon'
+      else if (hInt >= 18 && hInt < 24) slotKey = 'evening'
+      else slotKey = 'night'
+
+      const b = buckets[slotKey]
+      b.spend += h.spend || 0
+      b.purchases += h.purchasesCount || h.results || 0
+      b.messages += h.messagesCount || 0
+      b.impressions += h.impressions || 0
+      if (h.linkCtr && h.impressions) {
+        b.clicks += Math.round((h.linkCtr / 100) * h.impressions)
+      }
+    }
+  } else {
+    const totalSpend = item.spend || 0
+    const totalPurchases = getPurchasesCount(item)
+    const totalMessages = getMessagesCount(item)
+    const totalImp = item.impressions || 100
+    const totalClicks = item.linkClicks || Math.round((item.linkCtr || 1) * totalImp / 100)
+
+    const weights: Record<'morning' | 'afternoon' | 'evening' | 'night', number> = {
+      night: currentHour >= 0 ? 0.10 : 0,
+      morning: currentHour >= 6 ? 0.30 : 0,
+      afternoon: currentHour >= 12 ? 0.35 : 0,
+      evening: currentHour >= 18 ? 0.25 : 0,
+    }
+    const weightSum = (weights.night + weights.morning + weights.afternoon + weights.evening) || 1
+
+    for (const k of ['night', 'morning', 'afternoon', 'evening'] as const) {
+      const share = weights[k] / weightSum
+      buckets[k].spend = Math.round(totalSpend * share * 100) / 100
+      buckets[k].purchases = Math.round(totalPurchases * share)
+      buckets[k].messages = Math.round(totalMessages * share)
+      buckets[k].impressions = Math.round(totalImp * share)
+      buckets[k].clicks = Math.round(totalClicks * share)
+    }
+  }
+
+  const maxOrders = Math.max(...Object.values(buckets).map(b => b.purchases))
+
+  const slots: DaypartSlot[] = [
+    {
+      key: 'morning',
+      name: l({ lo: '🌅 ຕອນເຊົ້າ', th: '🌅 ตอนเช้า', en: '🌅 Morning' }),
+      sub: '06:00 - 12:00',
+      icon: 'mdi-weather-sunset-up',
+      timeRange: '06:00 - 12:00',
+      spend: buckets.morning.spend,
+      purchases: buckets.morning.purchases,
+      messages: buckets.morning.messages,
+      cpa: buckets.morning.purchases > 0 ? buckets.morning.spend / buckets.morning.purchases : null,
+      ctr: buckets.morning.impressions > 0 ? (buckets.morning.clicks / buckets.morning.impressions) * 100 : (item.linkCtr || 0),
+      profit: (buckets.morning.purchases * margin) - buckets.morning.spend,
+      isCurrentSlot: currentHour >= 6 && currentHour < 12,
+      isPeak: maxOrders > 0 && buckets.morning.purchases === maxOrders,
+    },
+    {
+      key: 'afternoon',
+      name: l({ lo: '☀️ ຕອນສວາຍ', th: '☀️ ตอนบ่าย', en: '☀️ Afternoon' }),
+      sub: '12:00 - 18:00',
+      icon: 'mdi-weather-sunny',
+      timeRange: '12:00 - 18:00',
+      spend: buckets.afternoon.spend,
+      purchases: buckets.afternoon.purchases,
+      messages: buckets.afternoon.messages,
+      cpa: buckets.afternoon.purchases > 0 ? buckets.afternoon.spend / buckets.afternoon.purchases : null,
+      ctr: buckets.afternoon.impressions > 0 ? (buckets.afternoon.clicks / buckets.afternoon.impressions) * 100 : (item.linkCtr || 0),
+      profit: (buckets.afternoon.purchases * margin) - buckets.afternoon.spend,
+      isCurrentSlot: currentHour >= 12 && currentHour < 18,
+      isPeak: maxOrders > 0 && buckets.afternoon.purchases === maxOrders,
+    },
+    {
+      key: 'evening',
+      name: l({ lo: '🌙 ຫົວຄ່ຳ (Prime)', th: '🌙 หัวค่ำ (Prime)', en: '🌙 Evening (Prime)' }),
+      sub: '18:00 - 24:00',
+      icon: 'mdi-weather-night',
+      timeRange: '18:00 - 24:00',
+      spend: buckets.evening.spend,
+      purchases: buckets.evening.purchases,
+      messages: buckets.evening.messages,
+      cpa: buckets.evening.purchases > 0 ? buckets.evening.spend / buckets.evening.purchases : null,
+      ctr: buckets.evening.impressions > 0 ? (buckets.evening.clicks / buckets.evening.impressions) * 100 : (item.linkCtr || 0),
+      profit: (buckets.evening.purchases * margin) - buckets.evening.spend,
+      isCurrentSlot: currentHour >= 18 && currentHour < 24,
+      isPeak: maxOrders > 0 && buckets.evening.purchases === maxOrders,
+    },
+    {
+      key: 'night',
+      name: l({ lo: '🌌 ຕອນເດິກ', th: '🌌 ดึก', en: '🌌 Late Night' }),
+      sub: '00:00 - 06:00',
+      icon: 'mdi-moon-waning-crescent',
+      timeRange: '00:00 - 06:00',
+      spend: buckets.night.spend,
+      purchases: buckets.night.purchases,
+      messages: buckets.night.messages,
+      cpa: buckets.night.purchases > 0 ? buckets.night.spend / buckets.night.purchases : null,
+      ctr: buckets.night.impressions > 0 ? (buckets.night.clicks / buckets.night.impressions) * 100 : (item.linkCtr || 0),
+      profit: (buckets.night.purchases * margin) - buckets.night.spend,
+      isCurrentSlot: currentHour >= 0 && currentHour < 6,
+      isPeak: maxOrders > 0 && buckets.night.purchases === maxOrders,
+    },
+  ]
+
+  const daytimeSpend = buckets.morning.spend + buckets.afternoon.spend
+  const daytimePurchases = buckets.morning.purchases + buckets.afternoon.purchases
+  const totalPurchases = getPurchasesCount(item)
+  const totalSpend = item.spend || 0
+  const cpa = getCostPerPurchase(item)
+  const ctr = item.linkCtr || 0
+
+  let diagnostic: AdDiagnostic = {
+    type: 'info',
+    icon: 'mdi-information-outline',
+    title: l({ lo: 'ແອດເຮັດວຽກປົກກະຕິ', th: 'แอดทำงานปกติ', en: 'Ad Operating Normally' }),
+    message: l({ lo: 'ການໃຊ້ຈ່າຍ ແລະ ປະສິດທິພາບຢູ່ໃນເກນປົກກະຕິ, ສືບຕໍ່ຕິດຕາມໃນຊ່ວງ Prime Time.', th: 'การใช้จ่ายและประสิทธิภาพอยู่ในเกณฑ์ปกติ ติดตามดูต่อเนื่องช่วง Prime Time', en: 'Spend and performance are healthy. Keep monitoring for prime time.' }),
+  }
+
+  if (daytimeSpend >= 3 && daytimePurchases === 0) {
+    diagnostic = {
+      type: 'warning',
+      icon: 'mdi-fire-alert',
+      title: l({ lo: '⚠️ ງົບໄຫຼຕອນກາງເວັນ ແຕ່ບໍ່ມີຍອດຊື້ (Daytime Drain)', th: '⚠️ งบไหลตอนกลางวันแต่ไม่มีออเดอร์', en: '⚠️ Daytime Budget Drain' }),
+      message: l({
+        lo: `ໃຊ້ງົບໃນຊ່ວງເຊົ້າ-ສວາຍແລ້ວ $${daytimeSpend.toFixed(2)} ແຕ່ຍັງບໍ່ມີອໍເດີ. ຖ້າລູກຄ້າສິນຄ້ານີ້ຊື້ຕອນແລງ, ຄວນຕັ້ງເວລາ Dayparting ຫຼື ພັກແອດໄວ້ກ່ອນ.`,
+        th: `ใช้งบตอนเช้า-บ่ายไปแล้ว $${daytimeSpend.toFixed(2)} แต่ยังไม่มีออเดอร์ หากลูกค้าซื้อตอนค่ำ แนะนำตั้ง Dayparting หรือพักแอด`,
+        en: `Spent $${daytimeSpend.toFixed(2)} daytime with 0 purchases. Consider dayparting schedule or pausing.`
+      }),
+      actionLabel: l({ lo: '⏸️ ພັກແອດກ່ອນ', th: '⏸️ พักแอดก่อน', en: 'Pause Ad' }),
+      actionType: 'pause',
+    }
+  } else if (totalPurchases >= 2 && (cpa == null || (margin > 0 ? cpa <= margin : cpa <= 3.0))) {
+    diagnostic = {
+      type: 'success',
+      icon: 'mdi-rocket-launch',
+      title: l({ lo: '🚀 ແອດແຮງມື້ນີ້ ໂອກາດ Scale ງົບຕອນແລງ (Scale Opportunity)', th: '🚀 แอดแรงวันนี้ โอกาส Scale งบตอนค่ำ', en: '🚀 Prime Scale Opportunity' }),
+      message: l({
+        lo: `ຍອດຊື້ເຂົ້າມາແລ້ວ ${totalPurchases} ອໍເດີ, CPA ຖືກພຽງ $${(cpa || 0).toFixed(2)}. ແນະນຳກົດ Scale ງົບ (+20%) ເພື່ອດັກຈັບຍອດຊ່ວງຫົວຄ່ຳ (18:00 - 24:00)!`,
+        th: `ยอดซื้อเข้ามาแล้ว ${totalPurchases} ออเดอร์ CPA ถูกเพียง $${(cpa || 0).toFixed(2)} แนะนำกด Scale งบ (+20%) เพื่อดักยอดช่วงหัวค่ำ`,
+        en: `${totalPurchases} orders today, cheap CPA $${(cpa || 0).toFixed(2)}. Recommended to Scale (+20%) for prime time.`
+      }),
+      actionLabel: l({ lo: '🚀 Scale ງົບ (+20%)', th: '🚀 Scale งบ (+20%)', en: 'Scale Budget' }),
+      actionType: 'scale',
+    }
+  } else if (totalPurchases > 0 && margin > 0 && cpa != null && cpa > margin) {
+    diagnostic = {
+      type: 'danger',
+      icon: 'mdi-alert-decagram',
+      title: l({ lo: '🛑 ຂາຍໄດ້ແຕ່ຕິດລົບ (CPA > Margin)', th: '🛑 ขายได้แต่ติดลบ (CPA > Margin)', en: '🛑 Loss Per Sale (CPA > Margin)' }),
+      message: l({
+        lo: `ຕົ້ນທຶນແອດ ($${cpa.toFixed(2)}/ອໍເດີ) ສູງກວ່າກຳໄລຕໍ່ຊິ້ນ ($${margin.toFixed(2)}). ຂາຍທຸກອໍເດີຂາດທຶນ -$${(cpa - margin).toFixed(2)}. ຄວນປັບ Creative ຫຼື Up-sell ແພັກຄູ່.`,
+        th: `ต้นทุนแอด ($${cpa.toFixed(2)}) สูงกว่ากำไรสินค้า ($${margin.toFixed(2)}) ขายขาดทุน -$${(cpa - margin).toFixed(2)} ต่องวด`,
+        en: `Ad cost per order ($${cpa.toFixed(2)}) exceeds product margin ($${margin.toFixed(2)}). Net loss -$${(cpa - margin).toFixed(2)}/sale.`
+      }),
+      actionLabel: l({ lo: '⏸️ ປິດຢຸດຂາດທຶນ', th: '⏸️ ปิดหยุดขาดทุน', en: 'Pause Ad' }),
+      actionType: 'pause',
+    }
+  } else if (totalSpend >= 3.0 && totalPurchases === 0 && ctr < 1.0) {
+    diagnostic = {
+      type: 'danger',
+      icon: 'mdi-trending-down',
+      title: l({ lo: '🛑 ຄົນບໍ່ຄລິກ CTR ຕ່ຳ (Creative Fatigue)', th: '🛑 คนไม่คลิก CTR ต่ำ', en: '🛑 Creative Fatigue Today' }),
+      message: l({
+        lo: `Link CTR ພຽງ ${ctr.toFixed(2)}% (ຕ່ຳກວ່າເກນ 1.2%) ແລະ ໃຊ້ງົບໄປແລ້ວ $${totalSpend.toFixed(2)} ໂດຍຍັງບໍ່ມີອໍເດີ. ແນະນຳໃຫ້ປິດພັກແອດເພື່ອບໍ່ໃຫ້ເສຍງົບຟຣີ.`,
+        th: `Link CTR เพียง ${ctr.toFixed(2)}% และใช้งบไป $${totalSpend.toFixed(2)} ยังไม่มีออเดอร์ แนะนำพักแอด`,
+        en: `Low Link CTR ${ctr.toFixed(2)}% and spent $${totalSpend.toFixed(2)} with 0 orders. Recommended to pause.`
+      }),
+      actionLabel: l({ lo: '⏸️ ປິດແອດ', th: '⏸️ ปิดแอด', en: 'Pause Ad' }),
+      actionType: 'pause',
+    }
+  }
+
+  return { slots, diagnostic }
 }
 
 export interface AdSeries {
@@ -670,6 +1048,111 @@ const weakestAd = computed(() => {
             </div>
           </div>
 
+          <!-- Product Financials & Margin Box -->
+          <div class="ad-product-financial-card">
+            <div class="product-header-bar">
+              <div class="d-flex align-center gap-2 flex-grow-1 min-w-0">
+                <img
+                  v-if="getProductFinancials(series.item).imageUrl"
+                  :src="getProductFinancials(series.item).imageUrl"
+                  class="product-thumb-mini"
+                  alt="Product"
+                />
+                <div v-else class="product-thumb-placeholder">
+                  <v-icon icon="mdi-package-variant-closed" size="16" />
+                </div>
+                <div class="product-info-texts min-w-0">
+                  <div class="d-flex align-center gap-1">
+                    <span class="product-name-badge" :title="getProductFinancials(series.item).productName || 'ຍັງບໍ່ໄດ້ຜູກສິນຄ້າ'">
+                      📦 {{ getProductFinancials(series.item).productName || 'ຍັງບໍ່ໄດ້ຜູກສິນຄ້າ' }}
+                    </span>
+                    <v-menu v-if="props.products && props.products.length > 0" location="bottom start">
+                      <template #activator="{ props: menuProps }">
+                        <button
+                          type="button"
+                          v-bind="menuProps"
+                          class="product-change-btn"
+                          title="ປ່ຽນສິນຄ້າທີ່ຜູກ"
+                        >
+                          <v-icon icon="mdi-pencil-outline" size="12" />
+                        </button>
+                      </template>
+                      <v-list density="compact" class="product-select-menu">
+                        <v-list-subheader>{{ l({ lo: 'ເລືອກສິນຄ້າເພື່ອຄິດໄລ່ກຳໄລ', th: 'เลือกสินค้าเพื่อคิดกำไร', en: 'Select Product for Margin' }) }}</v-list-subheader>
+                        <v-list-item
+                          v-for="p in props.products"
+                          :key="p.id"
+                          :value="p.id"
+                          :active="getProductFinancials(series.item).product?.id === p.id"
+                          @click="setProductOverride(series.id, p.id)"
+                        >
+                          <template #prepend>
+                            <v-avatar size="24" rounded class="mr-2">
+                              <v-img v-if="p.imageUrl" :src="p.imageUrl" />
+                              <v-icon v-else icon="mdi-package-variant-closed" size="14" />
+                            </v-avatar>
+                          </template>
+                          <v-list-item-title class="text-caption font-weight-bold">{{ p.name }}</v-list-item-title>
+                          <v-list-item-subtitle class="text-caption">
+                            ຂາຍ: {{ money(p.salePrice || (p.price ? parseFloat(p.price) : 0)) }} | ຕົ້ນທຶນ: {{ money(p.cost || 0) }}
+                          </v-list-item-subtitle>
+                        </v-list-item>
+                      </v-list>
+                    </v-menu>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Net Ad Profit Badge -->
+              <div
+                class="net-profit-badge"
+                :class="getProductFinancials(series.item).netAdProfit >= 0 ? 'profit-positive' : 'profit-negative'"
+              >
+                <small>{{ l({ lo: 'ກຳໄລແອດສຸດທິ', th: 'กำไรแอดสุทธิ', en: 'Net Ad Profit' }) }}</small>
+                <span class="profit-number">
+                  {{ getProductFinancials(series.item).netAdProfit >= 0 ? '+' : '' }}{{ money(getProductFinancials(series.item).netAdProfit) }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Pricing & Unit Margin Grid -->
+            <div class="product-pricing-grid">
+              <div class="price-cell">
+                <span class="p-label">{{ l({ lo: '🏷️ ລາຄາຂາຍ:', th: '🏷️ ราคาขาย:', en: 'Price:' }) }}</span>
+                <span class="p-val">{{ money(getProductFinancials(series.item).sellingPrice) }}</span>
+              </div>
+              <div class="price-cell">
+                <span class="p-label">{{ l({ lo: '📦 ຕົ້ນທຶນ:', th: '📦 ต้นทุน:', en: 'Cost:' }) }}</span>
+                <span class="p-val">{{ money(getProductFinancials(series.item).costPrice) }}</span>
+              </div>
+              <div class="price-cell">
+                <span class="p-label">{{ l({ lo: '💎 ກຳໄລ/ຊິ້ນ:', th: '💎 กำไร/ชิ้น:', en: 'Margin:' }) }}</span>
+                <span class="p-val text-success font-weight-bold">
+                  +{{ money(getProductFinancials(series.item).margin) }}
+                  <small v-if="getProductFinancials(series.item).marginPercent > 0">({{ getProductFinancials(series.item).marginPercent.toFixed(0) }}%)</small>
+                </span>
+              </div>
+              <div class="price-cell">
+                <span class="p-label">{{ l({ lo: '📊 ກຳໄລ/ອໍເດີ:', th: '📊 กำไร/ออเดอร์:', en: 'Profit/Order:' }) }}</span>
+                <span
+                  class="p-val font-weight-bold"
+                  :class="(getProductFinancials(series.item).profitPerOrder ?? 0) >= 0 ? 'text-success' : 'text-error'"
+                >
+                  <template v-if="getProductFinancials(series.item).profitPerOrder != null">
+                    {{ (getProductFinancials(series.item).profitPerOrder ?? 0) >= 0 ? '+' : '' }}{{ money(getProductFinancials(series.item).profitPerOrder) }}
+                  </template>
+                  <template v-else>—</template>
+                </span>
+              </div>
+            </div>
+
+            <!-- Alert if CPA > Margin -->
+            <div v-if="getProductFinancials(series.item).isAboveBreakEven" class="margin-danger-alert">
+              <v-icon icon="mdi-alert-circle-outline" size="14" class="mr-1" />
+              <span><strong>{{ l({ lo: 'ເຕືອນໄພຂາດທຶນ:', th: 'เตือนภัยขาดทุน:', en: 'Loss Alert:' }) }}</strong> CPA ({{ money(getProductFinancials(series.item).cpa) }}) ສູງກວ່າກຳໄລຕໍ່ຊິ້ນ ({{ money(getProductFinancials(series.item).margin) }}).</span>
+            </div>
+          </div>
+
           <!-- 4 Clean Metric Boxes -->
           <div class="metric-clean-grid">
             <div class="stat-cell">
@@ -687,6 +1170,106 @@ const weakestAd = computed(() => {
             <div class="stat-cell">
               <small>CTR</small>
               <strong>{{ (series.item.linkCtr || 0).toFixed(2) }}%</strong>
+            </div>
+          </div>
+
+          <!-- TODAY TIME-OF-DAY 4-SLOT BREAKDOWN & DIAGNOSTIC ASSISTANT -->
+          <div v-if="props.isToday || (series.item.hourly && series.item.hourly.length > 0)" class="today-time-slots-card">
+            <div class="today-slots-header">
+              <div class="d-flex align-center gap-1">
+                <span class="pulse-today-dot" />
+                <span class="today-slots-title">
+                  {{ l({ lo: '🕒 ຊ່ວງເວລາປະຈຳວັນ (Time-of-Day Slots)', th: '🕒 ช่วงเวลาประจำวัน (Time-of-Day Slots)', en: '🕒 Time-of-Day Breakdown' }) }}
+                </span>
+              </div>
+              <span class="today-slots-sub">
+                {{ l({ lo: 'ແຍກ 4 ຊ່ວງເວລາ ເພື່ອຮູ້ບ່ອນແກ້ໄຂມື້ນີ້', th: 'แยก 4 ช่วงเวลา เพื่อรู้จุดแก้ไขวันนี้', en: '4 dayparts to pinpoint what to optimize' }) }}
+              </span>
+            </div>
+
+            <!-- 4 Dayparts Horizontal Grid -->
+            <div class="dayparts-grid">
+              <div
+                v-for="slot in getAdDayparts(series.item).slots"
+                :key="slot.key"
+                class="daypart-cell"
+                :class="{
+                  'is-current-time': slot.isCurrentSlot,
+                  'is-peak-orders': slot.isPeak,
+                  'is-burning-slot': slot.spend > 2 && slot.purchases === 0
+                }"
+              >
+                <div class="daypart-time-header">
+                  <div class="d-flex align-center gap-1">
+                    <v-icon :icon="slot.icon" size="13" />
+                    <span class="daypart-title">{{ slot.name }}</span>
+                  </div>
+                  <span v-if="slot.isCurrentSlot" class="now-badge">🔴 {{ l({ lo: 'ຕອນນີ້', th: 'ตอนนี้', en: 'Now' }) }}</span>
+                  <span v-else-if="slot.isPeak" class="peak-badge">👑 Peak</span>
+                </div>
+                <div class="daypart-sub-range">{{ slot.sub }}</div>
+
+                <div class="daypart-stats">
+                  <div class="dp-stat-item">
+                    <span class="dp-k">{{ l({ lo: 'ງົບໃຊ້:', th: 'งบ:', en: 'Spend:' }) }}</span>
+                    <span class="dp-v">${{ slot.spend.toFixed(2) }}</span>
+                  </div>
+                  <div class="dp-stat-item">
+                    <span class="dp-k">{{ l({ lo: 'ຍອດຊື້:', th: 'ซื้อ:', en: 'Orders:' }) }}</span>
+                    <span class="dp-v font-weight-bold" :class="slot.purchases > 0 ? 'text-success' : 'text-medium-emphasis'">
+                      {{ slot.purchases }} ອໍເດີ
+                    </span>
+                  </div>
+                  <div class="dp-stat-item">
+                    <span class="dp-k">CPA:</span>
+                    <span class="dp-v">{{ slot.cpa ? `$${slot.cpa.toFixed(2)}` : '—' }}</span>
+                  </div>
+                  <div class="dp-stat-item">
+                    <span class="dp-k">{{ l({ lo: 'ກຳໄລ:', th: 'กำไร:', en: 'Profit:' }) }}</span>
+                    <span class="dp-v font-weight-bold" :class="slot.profit >= 0 ? 'text-success' : 'text-error'">
+                      {{ slot.profit >= 0 ? '+' : '' }}${{ slot.profit.toFixed(2) }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Actionable Diagnostic Assistant Box -->
+            <div
+              class="today-diagnostic-box"
+              :class="'diag-' + getAdDayparts(series.item).diagnostic.type"
+            >
+              <div class="d-flex align-start gap-2 flex-grow-1 min-w-0">
+                <div class="diag-icon-wrap">
+                  <v-icon :icon="getAdDayparts(series.item).diagnostic.icon" size="18" />
+                </div>
+                <div class="diag-content min-w-0">
+                  <h4 class="diag-title">{{ getAdDayparts(series.item).diagnostic.title }}</h4>
+                  <p class="diag-msg">{{ getAdDayparts(series.item).diagnostic.message }}</p>
+                </div>
+              </div>
+              <div v-if="getAdDayparts(series.item).diagnostic.actionLabel" class="diag-action-wrap">
+                <v-btn
+                  v-if="getAdDayparts(series.item).diagnostic.actionType === 'scale'"
+                  size="x-small"
+                  color="success"
+                  variant="elevated"
+                  class="font-weight-bold diag-btn"
+                  @click="emit('scale', series.item)"
+                >
+                  {{ getAdDayparts(series.item).diagnostic.actionLabel }}
+                </v-btn>
+                <v-btn
+                  v-else-if="getAdDayparts(series.item).diagnostic.actionType === 'pause' && isItemActive(series.item)"
+                  size="x-small"
+                  color="error"
+                  variant="tonal"
+                  class="font-weight-bold diag-btn"
+                  @click="emit('pause', series.item)"
+                >
+                  {{ getAdDayparts(series.item).diagnostic.actionLabel }}
+                </v-btn>
+              </div>
             </div>
           </div>
 
@@ -1854,5 +2437,374 @@ const weakestAd = computed(() => {
 
 .insight-badge.red {
   color: #dc2626;
+}
+
+/* ========================================================================= */
+/* PRODUCT FINANCIALS & UNIT MARGIN CARD                                      */
+/* ========================================================================= */
+.ad-product-financial-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 2px;
+  transition: all 0.2s ease;
+}
+
+.theme-angel .ad-product-financial-card {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.theme-bad .ad-product-financial-card {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.product-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.product-thumb-mini {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  object-fit: cover;
+  border: 1px solid #cbd5e1;
+  flex-shrink: 0;
+}
+
+.product-thumb-placeholder {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: #e2e8f0;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.product-name-badge {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 170px;
+}
+
+.product-change-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #94a3b8;
+  padding: 2px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.product-change-btn:hover {
+  color: #2563eb;
+  background: #eff6ff;
+}
+
+.net-profit-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid;
+}
+
+.net-profit-badge small {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.net-profit-badge.profit-positive {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #065f46;
+}
+
+.net-profit-badge.profit-positive .profit-number {
+  font-size: 15px;
+  font-weight: 900;
+  color: #059669;
+}
+
+.net-profit-badge.profit-negative {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+.net-profit-badge.profit-negative .profit-number {
+  font-size: 15px;
+  font-weight: 900;
+  color: #dc2626;
+}
+
+.product-pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  background: #ffffff;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #edf2f7;
+}
+
+@media (max-width: 600px) {
+  .product-pricing-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.price-cell {
+  display: flex;
+  flex-direction: column;
+}
+
+.price-cell .p-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.price-cell .p-val {
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.margin-danger-alert {
+  display: flex;
+  align-items: center;
+  background: #fee2e2;
+  color: #991b1b;
+  font-size: 11px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid #fca5a5;
+}
+
+/* ========================================================================= */
+/* TODAY TIME-OF-DAY 4-SLOT BREAKDOWN & DIAGNOSTIC ASSISTANT                 */
+/* ========================================================================= */
+.today-time-slots-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.today-slots-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pulse-today-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ef4444;
+  animation: pulse-dot 1.8s infinite;
+}
+
+@keyframes pulse-dot {
+  0% { transform: scale(0.9); opacity: 0.8; }
+  50% { transform: scale(1.3); opacity: 1; }
+  100% { transform: scale(0.9); opacity: 0.8; }
+}
+
+.today-slots-title {
+  font-size: 12px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.today-slots-sub {
+  font-size: 10.5px;
+  color: #64748b;
+}
+
+.dayparts-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+@media (max-width: 600px) {
+  .dayparts-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.daypart-cell {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.daypart-cell.is-current-time {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 1px #3b82f6;
+}
+
+.daypart-cell.is-peak-orders {
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+
+.daypart-cell.is-burning-slot {
+  background: #fff1f2;
+  border-color: #fecdd3;
+}
+
+.daypart-time-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.daypart-title {
+  font-size: 11px;
+  font-weight: 800;
+  color: #1e293b;
+}
+
+.now-badge {
+  font-size: 9px;
+  font-weight: 800;
+  color: #2563eb;
+  background: #dbeafe;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.peak-badge {
+  font-size: 9px;
+  font-weight: 800;
+  color: #166534;
+  background: #dcfce7;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.daypart-sub-range {
+  font-size: 9.5px;
+  color: #64748b;
+  margin-bottom: 2px;
+}
+
+.daypart-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.dp-stat-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+}
+
+.dp-k {
+  color: #64748b;
+}
+
+.dp-v {
+  color: #0f172a;
+}
+
+/* Diagnostic Box */
+.today-diagnostic-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid;
+  margin-top: 2px;
+}
+
+.today-diagnostic-box.diag-success {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #065f46;
+}
+
+.today-diagnostic-box.diag-warning {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #92400e;
+}
+
+.today-diagnostic-box.diag-danger {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+.today-diagnostic-box.diag-info {
+  background: #f0f9ff;
+  border-color: #bae6fd;
+  color: #075985;
+}
+
+.diag-icon-wrap {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.diag-title {
+  font-size: 11.5px;
+  font-weight: 800;
+  margin-bottom: 1px;
+}
+
+.diag-msg {
+  font-size: 10.5px;
+  line-height: 1.35;
+  margin: 0;
+  opacity: 0.95;
+}
+
+.diag-action-wrap {
+  flex-shrink: 0;
+}
+
+.diag-btn {
+  text-transform: none;
+  letter-spacing: normal;
 }
 </style>

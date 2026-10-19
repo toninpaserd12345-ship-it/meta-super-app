@@ -132,10 +132,11 @@ type MetaInsightItem struct {
 	EngagementRateRanking string            `json:"engagementRateRanking,omitempty"`
 	ConversionRateRanking string            `json:"conversionRateRanking,omitempty"`
 	DailyBudget           *float64          `json:"dailyBudget,omitempty"`
-	LifetimeBudget        *float64          `json:"lifetimeBudget,omitempty"`
-	CreatedTime           string            `json:"createdTime,omitempty"`
-	UpdatedTime           string            `json:"updatedTime,omitempty"`
-	Trend                 []MetaInsightPoint `json:"trend,omitempty"`
+	LifetimeBudget        *float64                   `json:"lifetimeBudget,omitempty"`
+	CreatedTime           string                     `json:"createdTime,omitempty"`
+	UpdatedTime           string                     `json:"updatedTime,omitempty"`
+	Trend                 []MetaInsightPoint         `json:"trend,omitempty"`
+	Hourly                []MetaInsightHourlyPoint   `json:"hourly,omitempty"`
 }
 
 type MetaInsightPoint struct {
@@ -149,17 +150,29 @@ type MetaInsightPoint struct {
 	Frequency      *float64 `json:"frequency,omitempty"`
 }
 
+type MetaInsightHourlyPoint struct {
+	Hour           string   `json:"hour"`
+	Spend          *float64 `json:"spend,omitempty"`
+	Results        *float64 `json:"results,omitempty"`
+	Cost           *float64 `json:"costPerResult,omitempty"`
+	MessagesCount  *float64 `json:"messagesCount,omitempty"`
+	CostPerMessage *float64 `json:"costPerMessage,omitempty"`
+	LinkCTR        *float64 `json:"linkCtr,omitempty"`
+	Impressions    *float64 `json:"impressions,omitempty"`
+}
+
 type MetaInsightsReport struct {
-	Currency    string             `json:"currency"`
-	Timezone    string             `json:"timezone"`
-	Level       string             `json:"level"`
-	DateStart   string             `json:"dateStart"`
-	DateStop    string             `json:"dateStop"`
-	GeneratedAt string             `json:"generatedAt"`
-	Summary     *MetaInsightItem   `json:"summary,omitempty"`
-	Items       []MetaInsightItem  `json:"items"`
-	Trend       []MetaInsightPoint `json:"trend"`
-	Warnings    []string           `json:"warnings"`
+	Currency    string                   `json:"currency"`
+	Timezone    string                   `json:"timezone"`
+	Level       string                   `json:"level"`
+	DateStart   string                   `json:"dateStart"`
+	DateStop    string                   `json:"dateStop"`
+	GeneratedAt string                   `json:"generatedAt"`
+	Summary     *MetaInsightItem         `json:"summary,omitempty"`
+	Items       []MetaInsightItem        `json:"items"`
+	Trend       []MetaInsightPoint       `json:"trend"`
+	Hourly      []MetaInsightHourlyPoint `json:"hourly,omitempty"`
+	Warnings    []string                 `json:"warnings"`
 }
 
 type MetaAudienceTargeting struct {

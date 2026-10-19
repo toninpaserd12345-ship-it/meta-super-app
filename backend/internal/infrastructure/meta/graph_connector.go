@@ -2641,6 +2641,7 @@ type graphInsightRow struct {
 	AdName                 string               `json:"ad_name"`
 	DateStart              string               `json:"date_start"`
 	DateStop               string               `json:"date_stop"`
+	HourlyStats            string               `json:"hourly_stats_aggregated_by_advertiser_time_zone"`
 	Spend                  string               `json:"spend"`
 	Impressions            string               `json:"impressions"`
 	Reach                  string               `json:"reach"`
@@ -2873,6 +2874,44 @@ func (g *GraphConnector) fetchInsightRows(ctx context.Context, token, adAccountI
 	return rows, nil
 }
 
+func (g *GraphConnector) fetchHourlyInsightRows(ctx context.Context, token, adAccountID, level, since, until string) ([]graphInsightRow, error) {
+	fields := "date_start,date_stop,spend,impressions,inline_link_clicks,inline_link_click_ctr,cost_per_inline_link_click,cpm,actions,cost_per_action_type"
+	switch level {
+	case "campaign":
+		fields = "campaign_id,campaign_name," + fields
+	case "adset":
+		fields = "campaign_id,campaign_name,adset_id,adset_name," + fields
+	case "ad":
+		fields = "campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name," + fields
+	}
+	query := url.Values{
+		"fields":       {fields},
+		"level":        {level},
+		"breakdowns":   {"hourly_stats_aggregated_by_advertiser_time_zone"},
+		"time_range":   {fmt.Sprintf(`{"since":"%s","until":"%s"}`, since, until)},
+		"limit":        {"500"},
+		"access_token": {token},
+	}
+	endpoint := "https://graph.facebook.com/" + g.cfg.Version + "/" + url.PathEscape(adAccountID) + "/insights?" + query.Encode()
+	rows := make([]graphInsightRow, 0)
+	pageCount := 0
+	for endpoint != "" && pageCount < 5 {
+		pageCount++
+		var response struct {
+			Data   []graphInsightRow `json:"data"`
+			Paging struct {
+				Next string `json:"next"`
+			} `json:"paging"`
+		}
+		if err := g.getJSON(ctx, endpoint, &response); err != nil {
+			return nil, err
+		}
+		rows = append(rows, response.Data...)
+		endpoint = response.Paging.Next
+	}
+	return rows, nil
+}
+
 type graphAdEntityDetails struct {
 	ID              string `json:"id"`
 	Name            string `json:"name"`
@@ -2960,12 +2999,19 @@ func (g *GraphConnector) AdsInsights(ctx context.Context, _ string, accountID, a
 		accountRows   []graphInsightRow
 		daily         []graphInsightRow
 		dailyEntities []graphInsightRow
+		hourlyEntities []graphInsightRow
+		hourlyAccount  []graphInsightRow
 
 		errAccount, errRows, errEntities, errAccountRows, errDaily error
 		wg                                                         sync.WaitGroup
 	)
 
-	wg.Add(6)
+	isSingleDay := since == until
+	callCount := 6
+	if isSingleDay {
+		callCount += 2
+	}
+	wg.Add(callCount)
 
 	go func() {
 		defer wg.Done()
@@ -2997,6 +3043,17 @@ func (g *GraphConnector) AdsInsights(ctx context.Context, _ string, accountID, a
 		defer wg.Done()
 		dailyEntities, _ = g.fetchInsightRows(ctx, token, adAccountID, level, since, until, "1")
 	}()
+
+	if isSingleDay {
+		go func() {
+			defer wg.Done()
+			hourlyEntities, _ = g.fetchHourlyInsightRows(ctx, token, adAccountID, level, since, until)
+		}()
+		go func() {
+			defer wg.Done()
+			hourlyAccount, _ = g.fetchHourlyInsightRows(ctx, token, adAccountID, "account", since, until)
+		}()
+	}
 
 	wg.Wait()
 
@@ -3051,6 +3108,39 @@ func (g *GraphConnector) AdsInsights(ctx context.Context, _ string, accountID, a
 		})
 	}
 
+	entityHourly := make(map[string][]domain.MetaInsightHourlyPoint)
+	for _, row := range hourlyEntities {
+		entID := row.AdID
+		if level == "campaign" {
+			entID = row.CampaignID
+		} else if level == "adset" {
+			entID = row.AdSetID
+		}
+		if entID == "" {
+			continue
+		}
+		result := selectedInsightResult(row.Actions, row.CostPerActionType)
+		msgCount, msgCost := extractMessagingMetric(row.Actions, row.CostPerActionType)
+		if msgCount == nil && (strings.Contains(result.Type, "messaging") || strings.Contains(result.Type, "conversation")) {
+			msgCount = result.Value
+			msgCost = result.Cost
+		}
+		hourStr := row.HourlyStats
+		if len(hourStr) >= 5 {
+			hourStr = hourStr[:5]
+		}
+		entityHourly[entID] = append(entityHourly[entID], domain.MetaInsightHourlyPoint{
+			Hour:           hourStr,
+			Spend:          numberPointer(row.Spend),
+			Results:        result.Value,
+			Cost:           result.Cost,
+			MessagesCount:  msgCount,
+			CostPerMessage: msgCost,
+			LinkCTR:        numberPointer(row.InlineLinkClickCTR),
+			Impressions:    numberPointer(row.Impressions),
+		})
+	}
+
 	seenEntities := make(map[string]bool)
 	items := make([]domain.MetaInsightItem, 0, len(rows)+len(entities))
 	for _, row := range rows {
@@ -3082,6 +3172,9 @@ func (g *GraphConnector) AdsInsights(ctx context.Context, _ string, accountID, a
 		}
 		if t, ok := entityTrends[item.EntityID]; ok {
 			item.Trend = t
+		}
+		if h, ok := entityHourly[item.EntityID]; ok {
+			item.Hourly = h
 		}
 		seenEntities[item.EntityID] = true
 		items = append(items, item)
@@ -3137,6 +3230,9 @@ func (g *GraphConnector) AdsInsights(ctx context.Context, _ string, accountID, a
 		if t, ok := entityTrends[item.EntityID]; ok {
 			item.Trend = t
 		}
+		if h, ok := entityHourly[item.EntityID]; ok {
+			item.Hourly = h
+		}
 		items = append(items, item)
 	}
 
@@ -3165,6 +3261,31 @@ func (g *GraphConnector) AdsInsights(ctx context.Context, _ string, accountID, a
 			Frequency:      numberPointer(row.Frequency),
 		})
 	}
+
+	reportHourly := make([]domain.MetaInsightHourlyPoint, 0, len(hourlyAccount))
+	for _, row := range hourlyAccount {
+		result := selectedInsightResult(row.Actions, row.CostPerActionType)
+		msgCount, msgCost := extractMessagingMetric(row.Actions, row.CostPerActionType)
+		if msgCount == nil && (strings.Contains(result.Type, "messaging") || strings.Contains(result.Type, "conversation")) {
+			msgCount = result.Value
+			msgCost = result.Cost
+		}
+		hourStr := row.HourlyStats
+		if len(hourStr) >= 5 {
+			hourStr = hourStr[:5]
+		}
+		reportHourly = append(reportHourly, domain.MetaInsightHourlyPoint{
+			Hour:           hourStr,
+			Spend:          numberPointer(row.Spend),
+			Results:        result.Value,
+			Cost:           result.Cost,
+			MessagesCount:  msgCount,
+			CostPerMessage: msgCost,
+			LinkCTR:        numberPointer(row.InlineLinkClickCTR),
+			Impressions:    numberPointer(row.Impressions),
+		})
+	}
+
 	warnings := []string{"Recommendations are decision support, not automatic proof of profitability. Compare cost per result with your store's real break-even cost."}
 	var summary *domain.MetaInsightItem
 	if len(accountRows) > 0 {
@@ -3180,7 +3301,7 @@ func (g *GraphConnector) AdsInsights(ctx context.Context, _ string, accountID, a
 			Reach:       &zero,
 		}
 	}
-	report := &domain.MetaInsightsReport{Currency: account.Currency, Timezone: account.Timezone, Level: level, DateStart: since, DateStop: until, GeneratedAt: time.Now().UTC().Format(time.RFC3339), Summary: summary, Items: items, Trend: trend, Warnings: warnings}
+	report := &domain.MetaInsightsReport{Currency: account.Currency, Timezone: account.Timezone, Level: level, DateStart: since, DateStop: until, GeneratedAt: time.Now().UTC().Format(time.RFC3339), Summary: summary, Items: items, Trend: trend, Hourly: reportHourly, Warnings: warnings}
 
 	g.mu.Lock()
 	g.insightsCache[cacheKey] = insightsCacheEntry{
