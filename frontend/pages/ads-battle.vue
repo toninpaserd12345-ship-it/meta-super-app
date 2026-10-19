@@ -28,6 +28,7 @@ const notice = ref('')
 const success = ref('')
 const search = ref('')
 const selectedProductId = ref<string>('all')
+const activeView = ref<'momentum' | 'battle' | 'dayparts'>('momentum')
 
 const iso = (date: Date) => {
   const copy = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
@@ -96,38 +97,57 @@ const triggerToProduct = computed(() => {
   return map
 })
 
-function getLinkedProduct(item: MetaInsightItem) {
+function getLinkedProduct(item: MetaInsightItem): { product: Product; flowName: string } | undefined {
   if (triggerToProduct.value[item.entityId]) return triggerToProduct.value[item.entityId]
   if (item.adSetId && triggerToProduct.value[item.adSetId]) return triggerToProduct.value[item.adSetId]
   if (item.campaignId && triggerToProduct.value[item.campaignId]) return triggerToProduct.value[item.campaignId]
+
+  // Name / Code matching across products (e.g. h9max -> H9 Max)
+  const searchName = `${item.entityName || ''} ${item.adSetName || ''} ${item.campaignName || ''}`.toLowerCase()
+  for (const prod of products.value) {
+    const pName = (prod.name || '').toLowerCase().trim()
+    const pCode = (prod.code || '').toLowerCase().trim()
+    const pNorm = pName.replace(/\s+/g, '')
+    const searchNorm = searchName.replace(/\s+/g, '')
+    if (pName && (searchName.includes(pName) || (pNorm.length >= 3 && searchNorm.includes(pNorm)))) {
+      return { product: prod, flowName: 'Auto-Matched' }
+    }
+    if (pCode && searchName.includes(pCode)) {
+      return { product: prod, flowName: 'Auto-Matched' }
+    }
+  }
+
+  if (products.value.length === 1 && products.value[0]) {
+    return { product: products.value[0], flowName: 'Default' }
+  }
+
   return undefined
 }
 
 const productOptions = computed(() => {
   const allList = report.value?.items || []
   const countsByProduct: Record<string, { count: number; name: string; img?: string }> = {}
-  let unlinkedCount = 0
 
+  for (const p of products.value) {
+    countsByProduct[p.id] = {
+      count: 0,
+      name: p.name,
+      img: p.imageUrl,
+    }
+  }
+
+  let unlinkedCount = 0
   for (const it of allList) {
     const linked = getLinkedProduct(it)
-    if (linked) {
-      const existing = countsByProduct[linked.product.id]
-      if (!existing) {
-        countsByProduct[linked.product.id] = {
-          count: 1,
-          name: linked.product.name,
-          img: linked.product.imageUrl,
-        }
-      } else {
-        existing.count++
-      }
+    if (linked && countsByProduct[linked.product.id]) {
+      countsByProduct[linked.product.id]!.count++
     } else {
       unlinkedCount++
     }
   }
 
   const list = [
-    { title: l({ lo: `ທຸກສິນຄ້າ (${allList.length})`, th: `สินค้าทั้งหมด (${allList.length})`, en: `All Products (${allList.length})` }), value: 'all' },
+    { title: l({ lo: `ທຸກສິນຄ້າ (${allList.length} ແອດ)`, th: `สินค้าทั้งหมด (${allList.length} แอด)`, en: `All Products (${allList.length} ads)` }), value: 'all' },
   ]
 
   for (const [pId, pData] of Object.entries(countsByProduct)) {
@@ -373,19 +393,9 @@ const battleStats = computed(() => {
     }
   }
 
-  if (totalSpend === 0 && summary.value?.spend) {
-    totalSpend = summary.value.spend
-  }
-  if (totalPurchases === 0 && getPurchasesCount(summary.value)) {
-    totalPurchases = getPurchasesCount(summary.value)
-  }
-  if (totalMessages === 0 && getMessagesCount(summary.value)) {
-    totalMessages = getMessagesCount(summary.value)
-  }
-
   const neutralSpend = Math.max(0, totalSpend - angelSpend - badSpend)
   const overallCPA = totalPurchases > 0 ? totalSpend / totalPurchases : null
-  const totalNetProfit = totalGrossProfit > 0 ? (totalGrossProfit - totalSpend) : -totalSpend
+  const totalNetProfit = totalPurchases > 0 ? (totalGrossProfit - totalSpend) : -totalSpend
 
   return {
     angelCount,
@@ -767,120 +777,151 @@ onMounted(async () => {
         </div>
       </section>
 
-      <!-- Head-to-Head Scoreboard (3 Hero Cards) -->
-      <section class="scoreboard-grid">
-        <!-- Card 1: The Winners -->
-        <div class="score-card winner-card">
-          <div class="score-card-header">
-            <span class="card-badge gold">
-              <v-icon icon="mdi-star-face" size="16" />
-              🧚‍♀️ ADS ນາງຟ້າ (THE WINNERS)
-            </span>
-            <span class="count-tag">{{ battleStats.angelCount }} ໂຕ</span>
-          </div>
+      <!-- Mode View Tabs: Clean, calm navigation -->
+      <div class="battle-view-tabs-container">
+        <v-btn-toggle
+          v-model="activeView"
+          mandatory
+          color="primary"
+          density="comfortable"
+          variant="flat"
+          class="battle-view-toggles"
+        >
+          <v-btn value="momentum">
+            <v-icon icon="mdi-chart-line" size="18" class="mr-2" />
+            <span class="font-weight-bold">{{ l({ lo: '📈 ກຣາຟເສັ້ນ & ຄວາມແຮງແຕ່ລະ Ads', th: '📈 กราฟเส้น & ความแรงแต่ละ Ads', en: 'Ad Momentum & Trends' }) }}</span>
+            <v-chip size="x-small" color="primary" variant="tonal" class="ml-2 font-weight-bold">
+              {{ filteredBaseItems.length }}
+            </v-chip>
+          </v-btn>
+          <v-btn value="battle">
+            <v-icon icon="mdi-sword-cross" size="18" class="mr-2" />
+            <span class="font-weight-bold">{{ l({ lo: '⚔️ ທຽບ Ads ນາງຟ້າ VS ໂຕໝົດກຳລັງ', th: '⚔️ เทียบ แอดนางฟ้า VS ตัวหมดกำลัง', en: 'Winners VS Losers Battle' }) }}</span>
+            <v-chip size="x-small" color="amber-darken-3" variant="tonal" class="ml-2 font-weight-bold">
+              {{ battleStats.angelCount }} vs {{ battleStats.badCount }}
+            </v-chip>
+          </v-btn>
+        </v-btn-toggle>
+      </div>
 
-          <div class="score-main-stats">
-            <div class="stat-unit">
-              <small>{{ l({ lo: 'ຍອດປິດການຊື້', th: 'ยอดปิดการซื้อ', en: 'Purchases' }) }}</small>
-              <strong class="text-success">{{ battleStats.angelPurchases }} ອໍເດີ</strong>
+      <!-- TAB 1: DAILY AD MOMENTUM & STRENGTH LINE CHART -->
+      <div v-show="activeView === 'momentum'" class="view-pane-momentum">
+        <UiAdStrengthLineChart
+          :items="filteredBaseItems"
+          :account-trend="report.trend"
+          :currency="currency"
+          :updating-id="updatingId"
+          :products="products"
+          :flows="flows"
+          :is-today="since === until"
+          :since="since"
+          :until="until"
+          @scale="openScaleModal"
+          @pause="handlePauseItem"
+          @change-status="({ item, status }: { item: MetaInsightItem; status: 'ACTIVE' | 'PAUSED' }) => changeStatus(item, status)"
+        />
+      </div>
+
+      <!-- TAB 2: HEAD-TO-HEAD BATTLE ARENA (WINNERS VS LOSERS) -->
+      <div v-show="activeView === 'battle'" class="view-pane-battle">
+        <!-- Head-to-Head Scoreboard (3 Hero Cards) -->
+        <section class="scoreboard-grid">
+          <!-- Card 1: The Winners -->
+          <div class="score-card winner-card">
+            <div class="score-card-header">
+              <span class="card-badge gold">
+                <v-icon icon="mdi-star-face" size="16" />
+                🧚‍♀️ ADS ນາງຟ້າ (THE WINNERS)
+              </span>
+              <span class="count-tag">{{ battleStats.angelCount }} ໂຕ</span>
             </div>
-            <div class="stat-unit">
-              <small>{{ l({ lo: 'ສະເລ່ຍຕົ້ນທຶນ/ອໍເດີ', th: 'เฉลี่ยต้นทุน/ออเดอร์', en: 'Avg CPA' }) }}</small>
-              <strong class="text-primary">{{ money(battleStats.avgAngelCPA) }}</strong>
+
+            <div class="score-main-stats">
+              <div class="stat-unit">
+                <small>{{ l({ lo: 'ຍອດປິດການຊື້', th: 'ยอดปิดการซื้อ', en: 'Purchases' }) }}</small>
+                <strong class="text-success">{{ battleStats.angelPurchases }} ອໍເດີ</strong>
+              </div>
+              <div class="stat-unit">
+                <small>{{ l({ lo: 'ສະເລ່ຍຕົ້ນທຶນ/ອໍເດີ', th: 'เฉลี่ยต้นทุน/ออเดอร์', en: 'Avg CPA' }) }}</small>
+                <strong class="text-primary">{{ money(battleStats.avgAngelCPA) }}</strong>
+              </div>
             </div>
-          </div>
 
-          <div class="score-sub-stats">
-            <span>ໃຊ້ຈ່າຍ: <strong>{{ money(battleStats.angelSpend) }}</strong></span>
-            <span>ຄົນທັກ: <strong>{{ battleStats.angelMessages }} ຄົນ</strong></span>
-            <span>Link CTR: <strong>{{ percent(battleStats.avgAngelCTR) }}</strong></span>
-          </div>
-        </div>
-
-        <!-- Card 2: VS & Reallocation Opportunity -->
-        <div class="score-card opportunity-card">
-          <div class="score-card-header">
-            <span class="card-badge cyan">
-              <v-icon icon="mdi-swap-horizontal-bold" size="16" />
-              VS ມູນຄ່າທີ່ປະຢັດໄດ້
-            </span>
-            <span class="count-tag highlight">{{ money(battleStats.badSpend) }}</span>
-          </div>
-
-          <div class="opportunity-message">
-            <p>
-              {{ l({
-                lo: `ຖ້າຍົກຍ້າຍງົບ ${money(battleStats.badSpend)} ຈາກແອດທີ່ບໍ່ດີ ມາອັດໃສ່ Ads ນາງຟ້າ ຈະໄດ້ອໍເດີເພີ່ມປະມານ:`,
-                th: `ถ้าย้ายงบ ${money(battleStats.badSpend)} จากแอดที่ไม่ดีมาใส่แอดนางฟ้า จะได้ออเดอร์เพิ่มประมาณ:`,
-                en: `Reallocating ${money(battleStats.badSpend)} from bad ads to winners could generate:`,
-              }) }}
-            </p>
-            <strong class="potential-orders">+{{ battleStats.potentialNewOrders }} ອໍເດີ! 🔥</strong>
-          </div>
-
-          <div class="score-actions">
-            <v-btn
-              color="error"
-              variant="flat"
-              prepend-icon="mdi-pause-circle-outline"
-              size="small"
-              :disabled="battleStats.badCount === 0"
-              :loading="bulkPausing"
-              class="font-weight-bold"
-              @click="pauseAllBadAds"
-            >
-              {{ l({ lo: '⏸️ ປິດແອດທີ່ບໍ່ດີທັງໝົດ', th: '⏸️ หยุดแอดที่ไม่ดีทั้งหมด', en: 'Pause All Bad Ads' }) }}
-            </v-btn>
-          </div>
-        </div>
-
-        <!-- Card 3: The Losers / Fatigued -->
-        <div class="score-card loser-card">
-          <div class="score-card-header">
-            <span class="card-badge crimson">
-              <v-icon icon="mdi-alert-octagon-outline" size="16" />
-              🛑 ແອດທີ່ບໍ່ດີ / ໝົດກຳລັງ
-            </span>
-            <span class="count-tag red">{{ battleStats.badCount }} ໂຕ</span>
-          </div>
-
-          <div class="score-main-stats">
-            <div class="stat-unit">
-              <small>{{ l({ lo: 'ເງິນທີ່ເສຍລ້າໆ', th: 'เงินที่เสียเปล่า', en: 'Wasted Spend' }) }}</small>
-              <strong class="text-error">{{ money(battleStats.badSpend) }}</strong>
-            </div>
-            <div class="stat-unit">
-              <small>{{ l({ lo: 'ຍອດການຊື້', th: 'ยอดการซื้อ', en: 'Purchases' }) }}</small>
-              <strong class="text-medium-emphasis">0 ອໍເດີ</strong>
+            <div class="score-sub-stats">
+              <span>ໃຊ້ຈ່າຍ: <strong>{{ money(battleStats.angelSpend) }}</strong></span>
+              <span>ຄົນທັກ: <strong>{{ battleStats.angelMessages }} ຄົນ</strong></span>
+              <span>Link CTR: <strong>{{ percent(battleStats.avgAngelCTR) }}</strong></span>
             </div>
           </div>
 
-          <div class="score-sub-stats">
-            <span>Link CTR: <strong>{{ percent(battleStats.avgBadCTR) }} (ຕ່ຳ)</strong></span>
-            <span>ຄົນທັກ: <strong>{{ battleStats.badMessages }} ຄົນ</strong></span>
-            <span>ສະຖານະ: <strong class="text-error">ຄວນປິດທັນທີ</strong></span>
+          <!-- Card 2: VS & Reallocation Opportunity -->
+          <div class="score-card opportunity-card">
+            <div class="score-card-header">
+              <span class="card-badge cyan">
+                <v-icon icon="mdi-swap-horizontal-bold" size="16" />
+                VS ມູນຄ່າທີ່ປະຢັດໄດ້
+              </span>
+              <span class="count-tag highlight">{{ money(battleStats.badSpend) }}</span>
+            </div>
+
+            <div class="opportunity-message">
+              <p>
+                {{ l({
+                  lo: `ຖ້າຍົກຍ້າຍງົບ ${money(battleStats.badSpend)} ຈາກແອດທີ່ບໍ່ດີ ມາອັດໃສ່ Ads ນາງຟ້າ ຈະໄດ້ອໍເດີເພີ່ມປະມານ:`,
+                  th: `ถ้าย้ายงบ ${money(battleStats.badSpend)} จากแอดที่ไม่ดีมาใส่แอดนางฟ้า จะได้ออเดอร์เพิ่มประมาณ:`,
+                  en: `Reallocating ${money(battleStats.badSpend)} from bad ads to winners could generate:`,
+                }) }}
+              </p>
+              <strong class="potential-orders">+{{ battleStats.potentialNewOrders }} ອໍເດີ! 🔥</strong>
+            </div>
+
+            <div class="score-actions">
+              <v-btn
+                color="error"
+                variant="flat"
+                prepend-icon="mdi-pause-circle-outline"
+                size="small"
+                :disabled="battleStats.badCount === 0"
+                :loading="bulkPausing"
+                class="font-weight-bold"
+                @click="pauseAllBadAds"
+              >
+                {{ l({ lo: '⏸️ ປິດແອດທີ່ບໍ່ດີທັງໝົດ', th: '⏸️ หยุดแอดที่ไม่ดีทั้งหมด', en: 'Pause All Bad Ads' }) }}
+              </v-btn>
+            </div>
           </div>
-        </div>
-      </section>
 
-      <!-- Daily Ad Momentum & Strength Line Chart -->
-      <UiAdStrengthLineChart
-        :items="filteredBaseItems"
-        :account-trend="report.trend"
-        :currency="currency"
-        :updating-id="updatingId"
-        :products="products"
-        :flows="flows"
-        :is-today="since === until"
-        :since="since"
-        :until="until"
-        @scale="openScaleModal"
-        @pause="handlePauseItem"
-        @change-status="({ item, status }: { item: MetaInsightItem; status: 'ACTIVE' | 'PAUSED' }) => changeStatus(item, status)"
-      />
+          <!-- Card 3: The Losers / Fatigued -->
+          <div class="score-card loser-card">
+            <div class="score-card-header">
+              <span class="card-badge crimson">
+                <v-icon icon="mdi-alert-octagon-outline" size="16" />
+                🛑 ແອດທີ່ບໍ່ດີ / ໝົດກຳລັງ
+              </span>
+              <span class="count-tag red">{{ battleStats.badCount }} ໂຕ</span>
+            </div>
 
-      <!-- Side-by-Side Dual Column View -->
-      <section class="battle-arena">
+            <div class="score-main-stats">
+              <div class="stat-unit">
+                <small>{{ l({ lo: 'ເງິນທີ່ເສຍລ້າໆ', th: 'เงินที่เสียเปล่า', en: 'Wasted Spend' }) }}</small>
+                <strong class="text-error">{{ money(battleStats.badSpend) }}</strong>
+              </div>
+              <div class="stat-unit">
+                <small>{{ l({ lo: 'ຍອດການຊື້', th: 'ยอดการซื้อ', en: 'Purchases' }) }}</small>
+                <strong class="text-medium-emphasis">0 ອໍເດີ</strong>
+              </div>
+            </div>
+
+            <div class="score-sub-stats">
+              <span>Link CTR: <strong>{{ percent(battleStats.avgBadCTR) }} (ຕ່ຳ)</strong></span>
+              <span>ຄົນທັກ: <strong>{{ battleStats.badMessages }} ຄົນ</strong></span>
+              <span>ສະຖານະ: <strong class="text-error">ຄວນປິດທັນທີ</strong></span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Side-by-Side Dual Column View -->
+        <section class="battle-arena">
         <!-- Left Side: Winning Ads (Ads ນາງຟ້າ) -->
         <div class="arena-column winner-column">
           <div class="arena-column-header">
@@ -1146,6 +1187,7 @@ onMounted(async () => {
           </table>
         </div>
       </section>
+      </div>
     </template>
 
     <!-- Scale Budget Modal -->
@@ -1861,5 +1903,36 @@ onMounted(async () => {
 .impact-chip.red {
   background: #fee2e2;
   color: #b91c1c;
+}
+
+.battle-view-tabs-container {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  margin-bottom: 24px;
+}
+
+.battle-view-toggles {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.view-pane-momentum,
+.view-pane-battle {
+  animation: fadeInPane 0.25s ease-out;
+}
+
+@keyframes fadeInPane {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 </style>

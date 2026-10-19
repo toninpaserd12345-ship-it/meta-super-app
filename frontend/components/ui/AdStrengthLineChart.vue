@@ -558,11 +558,67 @@ export interface AdSeries {
 }
 
 const activeAdSeries = ref<AdSeries[]>([])
+const expandedSlots = ref<Record<string, boolean>>({})
+
+function isSlotExpanded(id: string): boolean {
+  return !!expandedSlots.value[id]
+}
+
+function toggleSlotExpand(id: string) {
+  expandedSlots.value = {
+    ...expandedSlots.value,
+    [id]: !expandedSlots.value[id],
+  }
+}
+
+const allSlotsExpanded = ref(false)
+function toggleAllSlots() {
+  allSlotsExpanded.value = !allSlotsExpanded.value
+  const next: Record<string, boolean> = {}
+  for (const s of activeAdSeries.value) {
+    next[s.id] = allSlotsExpanded.value
+  }
+  expandedSlots.value = next
+}
+
+const isZeroDecimal = computed(() => zeroDecimalCurrencies.has((props.currency || '').toUpperCase()))
+
+function checkIsAngel(item: MetaInsightItem): boolean {
+  if (!item.impressions && !item.spend) return false
+  const purchases = getPurchasesCount(item)
+  const cost = getCostPerPurchase(item)
+  const messages = getMessagesCount(item)
+  const ctr = item.linkCtr || 0
+  const roas = item.roas || 0
+  const targetCpa = isZeroDecimal.value ? 100000 : 5
+
+  if (purchases >= 3 && (cost == null || cost <= targetCpa * 1.35)) return true
+  if (purchases >= 1 && (roas >= 2.0 || (cost != null && cost <= targetCpa))) return true
+  if (purchases === 0 && messages >= 5 && ctr >= 2.0) return true
+  return false
+}
+
+function checkIsBad(item: MetaInsightItem): boolean {
+  if (!item.impressions && !item.spend) return false
+  const purchases = getPurchasesCount(item)
+  const ctr = item.linkCtr || 0
+  const spend = item.spend || 0
+  const freq = item.frequency || 0
+  const messages = getMessagesCount(item)
+  const minSpendThreshold = isZeroDecimal.value ? 50000 : 3
+  const reasons: boolean[] = [
+    purchases === 0 && spend >= minSpendThreshold,
+    ctr > 0 && ctr < 1.0,
+    freq >= 2.2,
+    purchases === 0 && messages > 0 && spend >= minSpendThreshold * 1.5,
+  ]
+  return purchases === 0 && reasons.some(Boolean)
+}
 
 // Build series data from items
 watch(() => [props.items, props.accountTrend], () => {
   const allDates = dates.value
-  const list = (props.items || []).slice(0, 15)
+  const list = props.items || []
 
   activeAdSeries.value = list.map((item, index) => {
     const purchases = getPurchasesCount(item)
@@ -573,8 +629,8 @@ watch(() => [props.items, props.accountTrend], () => {
     const freq = item.frequency || 1.2
 
     const overallScore = computeStrengthScore(purchases, cpa, ctr, spend, freq)
-    const isAngel = purchases >= 2 || (purchases >= 1 && (cpa == null || cpa <= 2))
-    const isBad = purchases === 0 && (spend >= 3 || (ctr < 1.0 && spend >= 1))
+    const isAngel = checkIsAngel(item)
+    const isBad = checkIsBad(item)
     const color = getSemanticColor(isAngel, isBad, index)
 
     // Build day-by-day points
@@ -793,7 +849,10 @@ function generateSingleAdPath(series: AdSeries, width = 520, height = 130, paddi
   return { linePath, areaPath, points: pts }
 }
 
+const currentFilter = ref<'all' | 'angels' | 'bad' | 'top3'>('all')
+
 function filterSeries(type: 'all' | 'angels' | 'bad' | 'top3') {
+  currentFilter.value = type
   if (type === 'all') {
     activeAdSeries.value.forEach(s => { s.visible = true })
   } else if (type === 'angels') {
@@ -974,59 +1033,6 @@ const aggregatedMetrics = computed(() => {
       </div>
     </div>
 
-    <!-- Total Ad Spend & Aggregate Financial Overview Strip -->
-    <div class="ad-total-spend-strip">
-      <div class="spend-overview-main">
-        <div class="spend-badge-row">
-          <span class="spend-main-badge">
-            <v-icon icon="mdi-cash-multiple" size="16" class="mr-1" />
-            {{ l({ lo: '💸 ລວມຄ່າແອດທີ່ໃຊ້ໄປທັງໝົດ (Total Spend)', th: '💸 รวมค่าแอดที่ใช้ไปทั้งหมด (Total Spend)', en: '💸 Total Ad Spend' }) }}
-          </span>
-          <span class="spend-count-pill">{{ aggregatedMetrics.adCount }} Ads</span>
-        </div>
-        <div class="spend-big-amount">
-          {{ money(aggregatedMetrics.totalSpend) }}
-        </div>
-        <div class="spend-distribution-pills">
-          <span class="dist-pill green">
-            🟢 Ads ນາງຟ້າ: <b>{{ money(aggregatedMetrics.angelSpend) }}</b>
-            <small>({{ aggregatedMetrics.totalSpend > 0 ? ((aggregatedMetrics.angelSpend / aggregatedMetrics.totalSpend) * 100).toFixed(0) : 0 }}%)</small>
-          </span>
-          <span class="dist-pill red">
-            🔴 ແອດໝົດກຳລັງ: <b>{{ money(aggregatedMetrics.badSpend) }}</b>
-            <small>({{ aggregatedMetrics.totalSpend > 0 ? ((aggregatedMetrics.badSpend / aggregatedMetrics.totalSpend) * 100).toFixed(0) : 0 }}%)</small>
-          </span>
-          <span v-if="aggregatedMetrics.neutralSpend > 0" class="dist-pill blue">
-            🔘 ແອດທົ່ວໄປ: <b>{{ money(aggregatedMetrics.neutralSpend) }}</b>
-            <small>({{ aggregatedMetrics.totalSpend > 0 ? ((aggregatedMetrics.neutralSpend / aggregatedMetrics.totalSpend) * 100).toFixed(0) : 0 }}%)</small>
-          </span>
-        </div>
-      </div>
-
-      <div class="spend-metrics-cluster">
-        <div class="cluster-cell">
-          <small>{{ l({ lo: 'ຍອດຊື້ລວມ', th: 'ยอดซื้อรวม', en: 'Total Orders' }) }}</small>
-          <strong class="text-success">{{ aggregatedMetrics.totalPurchases }} ອໍເດີ</strong>
-        </div>
-        <div class="cluster-cell">
-          <small>{{ l({ lo: 'CPA ສະເລ່ຍ', th: 'CPA เฉลี่ย', en: 'Avg CPA' }) }}</small>
-          <strong class="text-primary">{{ money(aggregatedMetrics.avgCpa) }}</strong>
-        </div>
-        <div class="cluster-cell">
-          <small>{{ l({ lo: 'ຄົນທັກລວມ', th: 'คนทักรวม', en: 'Messages' }) }}</small>
-          <strong>{{ aggregatedMetrics.totalMessages }} ຄົນ</strong>
-        </div>
-        <div
-          class="cluster-cell profit-cell"
-          :class="aggregatedMetrics.totalNetProfit >= 0 ? 'profit-pos' : 'profit-neg'"
-        >
-          <small>{{ l({ lo: 'ກຳໄລແອດສຸດທິລວມ', th: 'กำไรแอดสุทธิรวม', en: 'Total Net Profit' }) }}</small>
-          <strong>
-            {{ aggregatedMetrics.totalNetProfit >= 0 ? '+' : '' }}{{ money(aggregatedMetrics.totalNetProfit) }}
-          </strong>
-        </div>
-      </div>
-    </div>
 
     <!-- Quick Preset Filters & Spotlight -->
     <div class="chart-ad-filters">
@@ -1036,17 +1042,46 @@ const aggregatedMetrics = computed(() => {
           {{ l({ lo: 'ກັ່ນຕອງ:', th: 'กรอง:', en: 'Filter:' }) }}
         </span>
         <div class="filter-pills">
-          <button type="button" class="pill-btn" @click="filterSeries('all')">
+          <button
+            type="button"
+            class="pill-btn"
+            :class="{ active: currentFilter === 'all' }"
+            @click="filterSeries('all')"
+          >
             {{ l({ lo: '📋 ທຸກ Ads', th: '📋 ทุก Ads', en: 'All' }) }}
           </button>
-          <button type="button" class="pill-btn angel" @click="filterSeries('angels')">
+          <button
+            type="button"
+            class="pill-btn angel"
+            :class="{ active: currentFilter === 'angels' }"
+            @click="filterSeries('angels')"
+          >
             🟢 {{ l({ lo: 'ສະເພາະ Ads ນາງຟ້າ', th: 'เฉพาะแอดนางฟ้า', en: 'Angel Ads' }) }}
           </button>
-          <button type="button" class="pill-btn bad" @click="filterSeries('bad')">
+          <button
+            type="button"
+            class="pill-btn bad"
+            :class="{ active: currentFilter === 'bad' }"
+            @click="filterSeries('bad')"
+          >
             🔴 {{ l({ lo: 'ສະເພາະ ແອດໝົດກຳລັງ', th: 'เฉพาะแอดหมดกำลัง', en: 'Fatigued Ads' }) }}
           </button>
-          <button type="button" class="pill-btn top3" @click="filterSeries('top3')">
+          <button
+            type="button"
+            class="pill-btn top3"
+            :class="{ active: currentFilter === 'top3' }"
+            @click="filterSeries('top3')"
+          >
             ✨ {{ l({ lo: 'ທຽບ ນາງຟ້າ VS ໂຕບໍ່ດີ', th: 'เทียบ นางฟ้า VS ตัวไม่ดี', en: 'Battle Top 3' }) }}
+          </button>
+          <button
+            v-if="props.isToday"
+            type="button"
+            class="pill-btn"
+            :class="{ active: allSlotsExpanded }"
+            @click="toggleAllSlots"
+          >
+            {{ allSlotsExpanded ? '▲ ຫຍໍ້ 4 ຊ່ວງເວລາ' : '🕒 ເບິ່ງ 4 ຊ່ວງເວລາ' }}
           </button>
         </div>
       </div>
@@ -1254,7 +1289,7 @@ const aggregatedMetrics = computed(() => {
           <div class="metric-clean-grid">
             <div class="stat-cell">
               <small>{{ l({ lo: 'ໃຊ້ຈ່າຍ', th: 'ใช้จ่าย', en: 'Spend' }) }}</small>
-              <strong>${{ (series.item.spend || 0).toFixed(2) }}</strong>
+              <strong>{{ money(series.item.spend) }}</strong>
             </div>
             <div class="stat-cell" :class="{ 'cell-green': (getPurchasesCount(series.item) || 0) > 0 }">
               <small>{{ l({ lo: 'ຍອດຊື້', th: 'ยอดซื้อ', en: 'Purchases' }) }}</small>
@@ -1262,7 +1297,7 @@ const aggregatedMetrics = computed(() => {
             </div>
             <div class="stat-cell">
               <small>CPA</small>
-              <strong>{{ getCostPerPurchase(series.item) ? `$${getCostPerPurchase(series.item)?.toFixed(2)}` : '—' }}</strong>
+              <strong>{{ money(getCostPerPurchase(series.item)) }}</strong>
             </div>
             <div class="stat-cell">
               <small>CTR</small>
@@ -1272,102 +1307,109 @@ const aggregatedMetrics = computed(() => {
 
           <!-- TODAY TIME-OF-DAY 4-SLOT BREAKDOWN & DIAGNOSTIC ASSISTANT -->
           <div v-if="props.isToday || (series.item.hourly && series.item.hourly.length > 0)" class="today-time-slots-card">
-            <div class="today-slots-header">
+            <div class="today-slots-header cursor-pointer" @click="toggleSlotExpand(series.id)">
               <div class="d-flex align-center gap-1">
                 <span class="pulse-today-dot" />
                 <span class="today-slots-title">
-                  {{ l({ lo: '🕒 ຊ່ວງເວລາປະຈຳວັນ (Time-of-Day Slots)', th: '🕒 ช่วงเวลาประจำวัน (Time-of-Day Slots)', en: '🕒 Time-of-Day Breakdown' }) }}
+                  {{ l({ lo: '🕒 ຊ່ວງເວລາປະຈຳວັນ (Time Slots)', th: '🕒 ช่วงเวลาประจำวัน (Time Slots)', en: '🕒 Time Slots' }) }}
                 </span>
+                <v-chip size="x-small" :color="isSlotExpanded(series.id) ? 'primary' : 'default'" variant="tonal" class="ml-1 font-weight-bold">
+                  {{ isSlotExpanded(series.id) ? '▲ ຫຍໍ້ເຂົ້າ' : '▼ ເບິ່ງ 4 ຊ່ວງເວລາ & ແນະນຳ' }}
+                </v-chip>
               </div>
-              <span class="today-slots-sub">
-                {{ l({ lo: 'ແຍກ 4 ຊ່ວງເວລາ ເພື່ອຮູ້ບ່ອນແກ້ໄຂມື້ນີ້', th: 'แยก 4 ช่วงเวลา เพื่อรู้จุดแก้ไขวันนี้', en: '4 dayparts to pinpoint what to optimize' }) }}
+              <span class="today-slots-sub d-none d-sm-inline">
+                {{ l({ lo: 'ແຍກ 4 ຊ່ວງເວລາ ເພື່ອຮູ້ບ່ອນແກ້ໄຂມື້ນີ້', th: 'แยก 4 ช่วงเวลา เพื่อรู้จุดแก้ไขวันนี้', en: '4 dayparts to optimize' }) }}
               </span>
             </div>
 
-            <!-- 4 Dayparts Horizontal Grid -->
-            <div class="dayparts-grid">
-              <div
-                v-for="slot in getAdDayparts(series.item).slots"
-                :key="slot.key"
-                class="daypart-cell"
-                :class="{
-                  'is-current-time': slot.isCurrentSlot,
-                  'is-peak-orders': slot.isPeak,
-                  'is-burning-slot': slot.spend > 2 && slot.purchases === 0
-                }"
-              >
-                <div class="daypart-time-header">
-                  <div class="d-flex align-center gap-1">
-                    <v-icon :icon="slot.icon" size="13" />
-                    <span class="daypart-title">{{ slot.name }}</span>
-                  </div>
-                  <span v-if="slot.isCurrentSlot" class="now-badge">🔴 {{ l({ lo: 'ຕອນນີ້', th: 'ตอนนี้', en: 'Now' }) }}</span>
-                  <span v-else-if="slot.isPeak" class="peak-badge">👑 Peak</span>
-                </div>
-                <div class="daypart-sub-range">{{ slot.sub }}</div>
+            <v-expand-transition>
+              <div v-show="isSlotExpanded(series.id)" class="pt-2">
+                <!-- 4 Dayparts Horizontal Grid -->
+                <div class="dayparts-grid">
+                  <div
+                    v-for="slot in getAdDayparts(series.item).slots"
+                    :key="slot.key"
+                    class="daypart-cell"
+                    :class="{
+                      'is-current-time': slot.isCurrentSlot,
+                      'is-peak-orders': slot.isPeak,
+                      'is-burning-slot': slot.spend > 2 && slot.purchases === 0
+                    }"
+                  >
+                    <div class="daypart-time-header">
+                      <div class="d-flex align-center gap-1">
+                        <v-icon :icon="slot.icon" size="13" />
+                        <span class="daypart-title">{{ slot.name }}</span>
+                      </div>
+                      <span v-if="slot.isCurrentSlot" class="now-badge">🔴 {{ l({ lo: 'ຕອນນີ້', th: 'ตอนนี้', en: 'Now' }) }}</span>
+                      <span v-else-if="slot.isPeak" class="peak-badge">👑 Peak</span>
+                    </div>
+                    <div class="daypart-sub-range">{{ slot.sub }}</div>
 
-                <div class="daypart-stats">
-                  <div class="dp-stat-item">
-                    <span class="dp-k">{{ l({ lo: 'ງົບໃຊ້:', th: 'งบ:', en: 'Spend:' }) }}</span>
-                    <span class="dp-v">${{ slot.spend.toFixed(2) }}</span>
-                  </div>
-                  <div class="dp-stat-item">
-                    <span class="dp-k">{{ l({ lo: 'ຍອດຊື້:', th: 'ซื้อ:', en: 'Orders:' }) }}</span>
-                    <span class="dp-v font-weight-bold" :class="slot.purchases > 0 ? 'text-success' : 'text-medium-emphasis'">
-                      {{ slot.purchases }} ອໍເດີ
-                    </span>
-                  </div>
-                  <div class="dp-stat-item">
-                    <span class="dp-k">CPA:</span>
-                    <span class="dp-v">{{ slot.cpa ? `$${slot.cpa.toFixed(2)}` : '—' }}</span>
-                  </div>
-                  <div class="dp-stat-item">
-                    <span class="dp-k">{{ l({ lo: 'ກຳໄລ:', th: 'กำไร:', en: 'Profit:' }) }}</span>
-                    <span class="dp-v font-weight-bold" :class="slot.profit >= 0 ? 'text-success' : 'text-error'">
-                      {{ slot.profit >= 0 ? '+' : '' }}${{ slot.profit.toFixed(2) }}
-                    </span>
+                    <div class="daypart-stats">
+                      <div class="dp-stat-item">
+                        <span class="dp-k">{{ l({ lo: 'ງົບໃຊ້:', th: 'งบ:', en: 'Spend:' }) }}</span>
+                        <span class="dp-v">{{ money(slot.spend) }}</span>
+                      </div>
+                      <div class="dp-stat-item">
+                        <span class="dp-k">{{ l({ lo: 'ຍອດຊື້:', th: 'ซื้อ:', en: 'Orders:' }) }}</span>
+                        <span class="dp-v font-weight-bold" :class="slot.purchases > 0 ? 'text-success' : 'text-medium-emphasis'">
+                          {{ slot.purchases }} ອໍເດີ
+                        </span>
+                      </div>
+                      <div class="dp-stat-item">
+                        <span class="dp-k">CPA:</span>
+                        <span class="dp-v">{{ money(slot.cpa) }}</span>
+                      </div>
+                      <div class="dp-stat-item">
+                        <span class="dp-k">{{ l({ lo: 'ກຳໄລ:', th: 'กำไร:', en: 'Profit:' }) }}</span>
+                        <span class="dp-v font-weight-bold" :class="slot.profit >= 0 ? 'text-success' : 'text-error'">
+                          {{ slot.profit >= 0 ? '+' : '' }}{{ money(slot.profit) }}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
 
-            <!-- Actionable Diagnostic Assistant Box -->
-            <div
-              class="today-diagnostic-box"
-              :class="'diag-' + getAdDayparts(series.item).diagnostic.type"
-            >
-              <div class="d-flex align-start gap-2 flex-grow-1 min-w-0">
-                <div class="diag-icon-wrap">
-                  <v-icon :icon="getAdDayparts(series.item).diagnostic.icon" size="18" />
-                </div>
-                <div class="diag-content min-w-0">
-                  <h4 class="diag-title">{{ getAdDayparts(series.item).diagnostic.title }}</h4>
-                  <p class="diag-msg">{{ getAdDayparts(series.item).diagnostic.message }}</p>
+                <!-- Actionable Diagnostic Assistant Box -->
+                <div
+                  class="today-diagnostic-box"
+                  :class="'diag-' + getAdDayparts(series.item).diagnostic.type"
+                >
+                  <div class="d-flex align-start gap-2 flex-grow-1 min-w-0">
+                    <div class="diag-icon-wrap">
+                      <v-icon :icon="getAdDayparts(series.item).diagnostic.icon" size="18" />
+                    </div>
+                    <div class="diag-content min-w-0">
+                      <h4 class="diag-title">{{ getAdDayparts(series.item).diagnostic.title }}</h4>
+                      <p class="diag-msg">{{ getAdDayparts(series.item).diagnostic.message }}</p>
+                    </div>
+                  </div>
+                  <div v-if="getAdDayparts(series.item).diagnostic.actionLabel" class="diag-action-wrap">
+                    <v-btn
+                      v-if="getAdDayparts(series.item).diagnostic.actionType === 'scale'"
+                      size="x-small"
+                      color="success"
+                      variant="elevated"
+                      class="font-weight-bold diag-btn"
+                      @click="emit('scale', series.item)"
+                    >
+                      {{ getAdDayparts(series.item).diagnostic.actionLabel }}
+                    </v-btn>
+                    <v-btn
+                      v-else-if="getAdDayparts(series.item).diagnostic.actionType === 'pause' && isItemActive(series.item)"
+                      size="x-small"
+                      color="error"
+                      variant="tonal"
+                      class="font-weight-bold diag-btn"
+                      @click="emit('pause', series.item)"
+                    >
+                      {{ getAdDayparts(series.item).diagnostic.actionLabel }}
+                    </v-btn>
+                  </div>
                 </div>
               </div>
-              <div v-if="getAdDayparts(series.item).diagnostic.actionLabel" class="diag-action-wrap">
-                <v-btn
-                  v-if="getAdDayparts(series.item).diagnostic.actionType === 'scale'"
-                  size="x-small"
-                  color="success"
-                  variant="elevated"
-                  class="font-weight-bold diag-btn"
-                  @click="emit('scale', series.item)"
-                >
-                  {{ getAdDayparts(series.item).diagnostic.actionLabel }}
-                </v-btn>
-                <v-btn
-                  v-else-if="getAdDayparts(series.item).diagnostic.actionType === 'pause' && isItemActive(series.item)"
-                  size="x-small"
-                  color="error"
-                  variant="tonal"
-                  class="font-weight-bold diag-btn"
-                  @click="emit('pause', series.item)"
-                >
-                  {{ getAdDayparts(series.item).diagnostic.actionLabel }}
-                </v-btn>
-              </div>
-            </div>
+            </v-expand-transition>
           </div>
 
           <!-- Dedicated Clean SVG Line Chart for this Ad -->
@@ -1459,7 +1501,7 @@ const aggregatedMetrics = computed(() => {
                 <b v-if="dp.purchases > 0" class="text-success">{{ dp.purchases }} ອໍເດີ</b>
                 <span v-else class="text-medium-emphasis">0</span>
               </span>
-              <span class="d-spend-label">${{ dp.spend }}</span>
+              <span class="d-spend-label">{{ money(dp.spend) }}</span>
             </div>
           </div>
 
@@ -1911,6 +1953,31 @@ const aggregatedMetrics = computed(() => {
   border-color: #bae6fd;
   color: #0369a1;
   background: #f0f9ff;
+}
+
+.pill-btn.active {
+  background: #1e293b;
+  color: #ffffff;
+  border-color: #0f172a;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+}
+
+.pill-btn.angel.active {
+  background: #16a34a;
+  color: #ffffff;
+  border-color: #15803d;
+}
+
+.pill-btn.bad.active {
+  background: #dc2626;
+  color: #ffffff;
+  border-color: #b91c1c;
+}
+
+.pill-btn.top3.active {
+  background: #0284c7;
+  color: #ffffff;
+  border-color: #0369a1;
 }
 
 .ad-spotlight-select {
@@ -2719,6 +2786,16 @@ const aggregatedMetrics = computed(() => {
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.today-slots-header.cursor-pointer {
+  cursor: pointer;
+  user-select: none;
+  transition: opacity 0.15s;
+}
+
+.today-slots-header.cursor-pointer:hover {
+  opacity: 0.82;
 }
 
 .pulse-today-dot {
