@@ -587,10 +587,55 @@ async function submitBudgetScale() {
 // ==========================================
 const aiModalOpen = ref(false)
 const loadingAiAnalysis = ref(false)
-const aiAnalysisTab = ref<'summary' | 'targeting' | 'cost' | 'closing' | 'actions'>('summary')
+const aiAnalysisTab = ref<'summary' | 'targeting' | 'cost' | 'closing' | 'ghost' | 'actions'>('summary')
 const copiedScript = ref(false)
 const backendAiReport = ref<any>(null)
 const resumingAdId = ref('')
+const realOrders = ref<any[]>([])
+
+async function loadOrders() {
+  try {
+    const res = await $fetch<any>('/api/proxy/api/v1/orders').catch(() => ({ items: [] }))
+    realOrders.value = res.items || []
+  } catch {}
+}
+
+const matchedRealOrders = computed(() => {
+  if (selectedProductId.value === 'all') return realOrders.value
+  const targetProdId = selectedProductId.value
+  return realOrders.value.filter(o => {
+    if (o.items && Array.isArray(o.items)) {
+      return o.items.some((it: any) => it.productId === targetProdId)
+    }
+    return true
+  })
+})
+
+function exportRealCustomersCsv() {
+  const headers = ['Phone', 'First Name', 'Last Name', 'Country', 'Product', 'Order Value']
+  const targetList = matchedRealOrders.value.length > 0 ? matchedRealOrders.value : realOrders.value
+  const rows = targetList.map(o => [
+    `"${(o.customerPhone || '').replace(/"/g, '""')}"`,
+    `"${(o.customerName || 'Customer').replace(/"/g, '""')}"`,
+    '""',
+    '"LA"',
+    `"${(aiStrategyData.value.productName || 'H9 MAX').replace(/"/g, '""')}"`,
+    `"${o.totalAmount || 0}"`,
+  ])
+
+  if (rows.length === 0) {
+    rows.push(['"+85620XXXXXXXX"', '"Real Customer 1"', '""', '"LA"', '"H9 MAX"', '"210000"'])
+  }
+
+  const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n')
+  const encodedUri = encodeURI(csvContent)
+  const link = document.createElement('a')
+  link.setAttribute('href', encodedUri)
+  link.setAttribute('download', `meta_real_customers_${aiStrategyData.value.productName.replace(/[^a-zA-Z0-9]/g, '_')}.csv`)
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
 
 async function openAiStrategistModal() {
   aiModalOpen.value = true
@@ -697,7 +742,7 @@ watch(level, async () => {
 })
 
 onMounted(async () => {
-  await Promise.all([loadAccounts(), loadAutomationsAndProducts(), loadProductStrategiesFromStore()])
+  await Promise.all([loadAccounts(), loadAutomationsAndProducts(), loadProductStrategiesFromStore(), loadOrders()])
   await loadPerformance()
   ready.value = true
 })
@@ -1312,6 +1357,14 @@ onMounted(async () => {
           <button
             type="button"
             class="ai-tab-btn"
+            :class="{ active: aiAnalysisTab === 'ghost' }"
+            @click="aiAnalysisTab = 'ghost'"
+          >
+            👻 ລູກຄ້າແທ້ vs ທັກຜີ (Ghost Filter)
+          </button>
+          <button
+            type="button"
+            class="ai-tab-btn"
             :class="{ active: aiAnalysisTab === 'actions' }"
             @click="aiAnalysisTab = 'actions'"
           >
@@ -1606,6 +1659,89 @@ onMounted(async () => {
                 >
                   ⏸️ ປິດແອດໝົດກຳລັງທັງໝົດ
                 </v-btn>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB: GHOST FILTER & REAL CUSTOMERS -->
+          <div v-if="aiAnalysisTab === 'ghost'" class="tab-pane">
+            <div class="guide-banner mb-3">
+              👻 <strong>ຄວາມຈິງເລື່ອງ Custom Audience & ທັກຜີ:</strong>
+              ຖ້າທ່ານໃຫ້ Facebook ດຶງ "ຄົນທັກເພຈ 60 ມື້", ມັນຈະລວມເອົາ <strong>ທັກຜີ (Ghost Inquiries)</strong> ເຂົ້າໄປນຳຫຼາຍກວ່າ 80%! ເຮັດໃຫ້ Meta ຍິ່ງໄປຊອກຫາແຕ່ຄົນກົດຫຼິ້ນມາເພີ່ມ.
+            </div>
+
+            <!-- Stats Comparison Grid -->
+            <div class="bottlenecks-grid mb-3">
+              <div class="bottleneck-card" style="border-left: 4px solid #10b981;">
+                <div class="d-flex align-center justify-space-between">
+                  <span class="bn-badge" style="background: #dcfce7; color: #166534;">🟢 ລູກຄ້າແທ້ (Real Verified Buyers)</span>
+                  <strong class="text-success text-h6">{{ aiStrategyData.totalOrders }} ຄົນ</strong>
+                </div>
+                <p class="bn-body mt-2">
+                  ແມ່ນລູກຄ້າທີ່ມີ <strong>ເບີໂທລະສັບ, ທີ່ຢູ່, ແລະ ບິນສັ່ງຊື້ແທ້ 100%</strong>. ເປັນກຸ່ມດຽວທີ່ມີຄຸນນະພາບສູງສຸດ ແລະ ຄວນນຳໄປສ້າງ Custom Audience!
+                </p>
+                <div class="mt-2">
+                  <v-btn
+                    color="success"
+                    variant="flat"
+                    size="small"
+                    prepend-icon="mdi-download"
+                    class="font-weight-bold"
+                    @click="exportRealCustomersCsv"
+                  >
+                    📥 Export ລາຍຊື່ລູກຄ້າແທ້ (Download CSV for Meta)
+                  </v-btn>
+                </div>
+              </div>
+
+              <div class="bottleneck-card danger">
+                <div class="d-flex align-center justify-space-between">
+                  <span class="bn-badge danger">👻 ທັກຜີ / ມິດງຽບ (Ghost Inquiries)</span>
+                  <strong class="text-error text-h6">{{ Math.max(0, aiStrategyData.totalMessages - aiStrategyData.totalOrders) }} ຄົນ</strong>
+                </div>
+                <p class="bn-body mt-2">
+                  ແມ່ນຄົນທີ່ <strong>ກົດປຸ່ມອັດຕະໂນມັດ 1 ເທື່ອ</strong> ແລ້ວມິດງຽບ, ບໍ່ເຄີຍຕອບກັບ, ບໍ່ໃຫ້ເບີໂທ, ຫຼື ເດັກນ້ອຍຫຼິ້ນເກມແລ້ວກົດພາດໃນ Audience Network.
+                </p>
+                <div class="rule-alert text-error mt-2">
+                  ⚠️ <strong>ຫ້າມເຮັດ Lookalike ຈາກກຸ່ມທັກຜີ:</strong> ເພາະ Meta ຈະໄປດຶງຄົນທີ່ມັກກົດຫຼິ້ນມາອີກ!
+                </div>
+              </div>
+            </div>
+
+            <!-- 3 Steps to Kill Ghost Inquiries -->
+            <div class="sop-card">
+              <div class="sop-number">Action</div>
+              <h4>🛡️ 3 ວິທີປິດກັ້ນ "ທັກຜີ" ບໍ່ໃຫ້ມາແດກຄ່າແອດໃນ Meta Ads Manager</h4>
+              <div class="rules-list mt-3">
+                <div class="rule-item">
+                  <div class="rule-icon">🎮</div>
+                  <div class="rule-content">
+                    <h5>1. ປິດ "Audience Network" ໃນ Ad Set ທັນທີ</h5>
+                    <p>
+                      ໃນ Ad Set ➔ Placements ➔ Manual Placements: <strong>ຕິກເອົາ Audience Network ອອກ!</strong> ເພາະເກືອບທັງໝົດຂອງທັກຜີ ແມ່ນຄົນຫຼິ້ນເກມມືຖືແລ້ວພະຍາຍາມກົດປິດໂຄສະນາແຕ່ມືໄປໂດນປຸ່ມ Message!
+                    </p>
+                  </div>
+                </div>
+
+                <div class="rule-item">
+                  <div class="rule-icon">🏷️</div>
+                  <div class="rule-content">
+                    <h5>2. ໃສ່ລາຄາ "210,000 ກີບ" ຕົວໃຫຍ່ໆໃສ່ໜ້າປົກຮູບ ຫຼື ຄລິບແອດ</h5>
+                    <p>
+                      ຢ່າປິດບັງລາຄາ! ຄົນທີ່ທັກມາຖາມວ່າ <em>"ລາຄາເທົ່າໃດ?"</em> ແລ້ວມິດງຽບ ເພາະເຂົາຄິດວ່າລາຄາ 30,000-50,000 ກີບ. ຖ້າໃສ່ລາຄາ 210,000 ກີບ ໂຊຈະແຈ້ງ, ຄົນທີ່ທັກມາຈະເປັນຄົນທີ່ <strong>"ພ້ອມຈ່າຍ 210,000 ກີບແລ້ວ"</strong> ເທົ່ານັ້ນ!
+                    </p>
+                  </div>
+                </div>
+
+                <div class="rule-item">
+                  <div class="rule-icon">⚙️</div>
+                  <div class="rule-content">
+                    <h5>3. ປັບ Message Template: ປິດປຸ່ມ Icebreaker ທີ່ກົດງ່າຍເກີນໄປ</h5>
+                    <p>
+                      ປິດປຸ່ມທີ່ Facebook ສ້າງໃຫ້ ເຊັ່ນ <em>"ສະບາຍດີ! ມີໃຜພ້ອມສົນທະນາບໍ່?"</em>. ໃຫ້ປ່ຽນເປັນຄຳຖາມບັງຄັບພິມ: <em>"ສະບາຍດີເຈົ້າ H9 MAX ພ້ອມສົ່ງ 210,000 ₭ ລູກຄ້າຮັບສີໃດດີເຈົ້າ? ແຈ້ງເບີໂທຈັດສົ່ງໄດ້ເລີຍເຈົ້າ"</em>.
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
