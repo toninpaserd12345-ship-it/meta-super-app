@@ -9,6 +9,7 @@ const { l } = useLocale()
 type Level = 'campaign' | 'adset' | 'ad'
 type DecisionCode = 'keep' | 'review' | 'pause' | 'no_data'
 type StatusFilter = 'all' | 'active' | 'paused' | 'issues'
+type OutcomeFilter = 'all' | 'angel' | 'purchases' | 'messages' | 'scale' | 'pause'
 
 const adAccounts = ref<MetaAdAccount[]>([])
 const campaigns = ref<MetaCampaign[]>([])
@@ -22,6 +23,7 @@ const notice = ref('')
 const success = ref('')
 const search = ref('')
 const statusFilter = ref<StatusFilter>('all')
+const outcomeFilter = ref<OutcomeFilter>('all')
 const selectedId = ref('')
 const selectedProductId = ref('all')
 const products = ref<Product[]>([])
@@ -192,7 +194,7 @@ const maxFrequency = ref(3)
 const grossMargin = ref<number | null>(null)
 const minimumPlanImpressions = ref(1000)
 const minimumPlanSpend = ref<number | null>(null)
-const sortBy = ref<'spend' | 'newest' | 'name'>('spend')
+const sortBy = ref<'spend' | 'purchases' | 'messages' | 'roas' | 'newest' | 'name'>('spend')
 
 const selectedAccount = computed(() => adAccounts.value.find(item => item.id === adAccountId.value))
 const { detectVatRate, computeVat } = useAdVat()
@@ -312,7 +314,35 @@ const items = computed(() => {
       if (statusFilter.value === 'issues') return !!status && status !== 'ACTIVE' && status !== 'IN_PROCESS' && status !== 'PENDING_REVIEW' && status !== 'PAUSED' && status !== 'CAMPAIGN_PAUSED' && status !== 'ADSET_PAUSED'
       return true
     })
+    .filter((item) => {
+      if (outcomeFilter.value === 'angel') return isAngelAd(item).isAngel
+      if (outcomeFilter.value === 'purchases') return (getPurchasesCount(item) || 0) > 0
+      if (outcomeFilter.value === 'messages') {
+        return (getMessagesCount(item) || 0) > 0 || (isMessagingAction(item.results?.type) && (item.results?.value || 0) > 0)
+      }
+      if (outcomeFilter.value === 'scale') return isScaleCandidate(item).eligible
+      if (outcomeFilter.value === 'pause') return decision(item).code === 'pause'
+      return true
+    })
     .sort((a, b) => {
+      if (sortBy.value === 'purchases') {
+        const pA = getPurchasesCount(a) || 0
+        const pB = getPurchasesCount(b) || 0
+        if (pA !== pB) return pB - pA
+        return (b.spend ?? -1) - (a.spend ?? -1)
+      }
+      if (sortBy.value === 'messages') {
+        const mA = getMessagesCount(a) || (isMessagingAction(a.results?.type) ? (a.results?.value || 0) : 0)
+        const mB = getMessagesCount(b) || (isMessagingAction(b.results?.type) ? (b.results?.value || 0) : 0)
+        if (mA !== mB) return mB - mA
+        return (b.spend ?? -1) - (a.spend ?? -1)
+      }
+      if (sortBy.value === 'roas') {
+        const rA = a.roas || 0
+        const rB = b.roas || 0
+        if (rA !== rB) return rB - rA
+        return (b.spend ?? -1) - (a.spend ?? -1)
+      }
       if (sortBy.value === 'newest') {
         const timeA = a.createdTime || ''
         const timeB = b.createdTime || ''
@@ -334,7 +364,7 @@ const items = computed(() => {
 })
 
 const isFiltered = computed(() => {
-  return selectedProductId.value !== 'all' || statusFilter.value !== 'all' || !!search.value.trim()
+  return selectedProductId.value !== 'all' || statusFilter.value !== 'all' || outcomeFilter.value !== 'all' || !!search.value.trim()
 })
 
 function isMessagingAction(type?: string): boolean {
@@ -483,6 +513,25 @@ const statusCounts = computed(() => productFilteredItems.value.reduce((counts, i
   else counts.issues += 1
   return counts
 }, { active: 0, paused: 0, issues: 0 } as Record<'active' | 'paused' | 'issues', number>))
+
+const outcomeCounts = computed(() => {
+  const list = productFilteredItems.value
+  let angel = 0
+  let purchases = 0
+  let messages = 0
+  let scale = 0
+  let pause = 0
+
+  for (const item of list) {
+    if (isAngelAd(item).isAngel) angel++
+    if ((getPurchasesCount(item) || 0) > 0) purchases++
+    if ((getMessagesCount(item) || 0) > 0 || (isMessagingAction(item.results?.type) && (item.results?.value || 0) > 0)) messages++
+    if (isScaleCandidate(item).eligible) scale++
+    if (decision(item).code === 'pause') pause++
+  }
+
+  return { all: list.length, angel, purchases, messages, scale, pause }
+})
 
 const fmt = (value?: number | null, digits = 2) => value == null ? '—' : new Intl.NumberFormat(undefined, { maximumFractionDigits: digits }).format(value)
 const money = (value?: number | null) => value == null ? '—' : new Intl.NumberFormat(undefined, { style: 'currency', currency: currency.value, maximumFractionDigits: 2 }).format(value)
@@ -732,6 +781,65 @@ function buyingOpportunity(item: MetaInsightItem) {
   }
 }
 
+function isAngelAd(item: MetaInsightItem): { isAngel: boolean; score: number; reason: string } {
+  if (!item) return { isAngel: false, score: 0, reason: '' }
+  const status = statusFor(item).toUpperCase()
+  const isPaused = status.includes('PAUSED')
+  if (isPaused) {
+    return { isAngel: false, score: 0, reason: '' }
+  }
+  const purchases = getPurchasesCount(item) || 0
+  const cost = getCostPerPurchase(item)
+  const messages = getMessagesCount(item) || 0
+  const messageCost = getCostPerMessage(item)
+  const ctr = item.linkCtr || 0
+  const roas = item.roas || 0
+  const opp = buyingOpportunity(item)
+  const strat = getEffectiveStrategy(item)
+  const targetCpa = strat.targetCost || targetCost.value || (currencyOffset.value === 1 ? 100000 : 5)
+
+  // 1. Top Tier Angel Ad (🧚‍♀️): Verified purchases >= 3 with profitable CPA or high ROAS
+  if (purchases >= 3 && (cost == null || cost <= targetCpa * 1.35)) {
+    return {
+      isAngel: true,
+      score: 100,
+      reason: l({
+        lo: `🧚‍♀️ Ads ນາງຟ້າ (Super Winner): ປິດໄດ້ ${purchases} ອໍເດີ${cost != null ? ` (CPA ${money(cost)}/ອໍເດີ)` : ''}${roas > 0 ? ` · ROAS ${fmt(roas, 2)}x` : ''}`,
+        th: `🧚‍♀️ แอดนางฟ้า (Super Winner): ปิดได้ ${purchases} ออเดอร์${cost != null ? ` (CPA ${money(cost)}/ออเดอร์)` : ''}${roas > 0 ? ` · ROAS ${fmt(roas, 2)}x` : ''}`,
+        en: `🧚‍♀️ Angel Ad (Super Winner): ${purchases} orders closed${cost != null ? ` (CPA ${money(cost)}/order)` : ''}${roas > 0 ? ` · ROAS ${fmt(roas, 2)}x` : ''}`,
+      }),
+    }
+  }
+
+  // 2. Strong Performer (✨): High purchase intent (at least 1 order and good ROAS or high buying opportunity)
+  if (purchases >= 1 && (roas >= 2.0 || opp.level === 'high' || (cost != null && cost <= targetCpa))) {
+    return {
+      isAngel: true,
+      score: 85,
+      reason: l({
+        lo: `✨ Ads ດາວເດັ່ນ: ປິດໄດ້ ${purchases} ອໍເດີ${roas > 0 ? ` · ROAS ${fmt(roas, 2)}x` : ''} (ໂອກາດຊື້ສູງ / ພ້ອມຂະຫຍາຍງົບ)`,
+        th: `✨ แอดดาวเด่น: ปิดได้ ${purchases} ออเดอร์${roas > 0 ? ` · ROAS ${fmt(roas, 2)}x` : ''} (โอกาสซื้อสูง / พร้อมขยายงบ)`,
+        en: `✨ Winning Ad: ${purchases} orders closed${roas > 0 ? ` · ROAS ${fmt(roas, 2)}x` : ''} (High conversion / Scale candidate)`,
+      }),
+    }
+  }
+
+  // 3. High Inquiries Champion (💬): Low cost per message & high volume & good CTR
+  if (purchases === 0 && messages >= 5 && ctr >= 2.0 && messageCost != null && messageCost <= (currencyOffset.value === 1 ? 25000 : 1.5)) {
+    return {
+      isAngel: true,
+      score: 75,
+      reason: l({
+        lo: `💬 Ads ທັກແຊັດປັງ: ຄົນທັກ ${messages} ຄົນ (${money(messageCost)}/ຂໍ້ຄວາມ, CTR ${percent(ctr)})`,
+        th: `💬 แอดทักแชตปัง: คนทัก ${messages} คน (${money(messageCost)}/ข้อความ, CTR ${percent(ctr)})`,
+        en: `💬 Inquiries Champion: ${messages} messages (${money(messageCost)}/msg, CTR ${percent(ctr)})`,
+      }),
+    }
+  }
+
+  return { isAngel: false, score: 0, reason: '' }
+}
+
 function decision(item: MetaInsightItem): { code: DecisionCode; color: string; icon: string; title: string; detail: string; signals: string[] } {
   if (!item.impressions && !item.spend) {
     return { code: 'no_data', color: 'default', icon: 'mdi-minus-circle-outline', title: l({ lo: 'ສ້າງໃໝ່ / ຍັງບໍ່ມີຂໍ້ມູນ', th: 'เพิ่งสร้าง / ยังไม่มีข้อมูล', en: 'New / No delivery data' }), detail: l({ lo: 'ໂຄສະນາຫາກໍ່ສ້າງໃໝ່ ຫຼື ຍັງບໍ່ທັນມີຄ່າໃຊ້ຈ່າຍ ແລະການສະແດງຜົນໃນຊ່ວງເວລານີ້.', th: 'โฆษณาเพิ่งสร้างหรือยังไม่มีค่าใช้จ่ายและการแสดงผลในช่วงเวลานี้', en: 'Newly created ad or no delivery/spend in selected date range.' }), signals: [] }
@@ -891,6 +999,18 @@ function decision(item: MetaInsightItem): { code: DecisionCode; color: string; i
   }
 
   // Active Ads Evaluation:
+  const angel = isAngelAd(item)
+  if (angel.isAngel && purchases >= 3) {
+    return {
+      code: 'keep',
+      color: 'success',
+      icon: 'mdi-star-face',
+      title: l({ lo: '🧚‍♀️ Ads ນາງຟ້າ / Scale', th: '🧚‍♀️ แอดนางฟ้า / Scale', en: '🧚‍♀️ Angel Ad / Scale' }),
+      detail: angel.reason,
+      signals: [...good, ...bad]
+    }
+  }
+
   // ONLY scale if verified purchases >= 3
   if (purchases >= 3 && bad.length <= 1) {
     return {
@@ -2101,12 +2221,16 @@ onMounted(async () => {
   <template v-else-if="report">
     <!-- Active Filter Feedback Pill -->
     <div v-if="isFiltered" class="d-flex align-center justify-space-between mb-3 px-1 flex-wrap gap-2">
-      <div class="d-flex align-center gap-2">
+      <div class="d-flex align-center gap-2 flex-wrap">
         <v-chip size="small" color="primary" variant="tonal" prepend-icon="mdi-filter-check" class="font-weight-bold">
           {{ l({ lo: `ສະຫຼຸບຕົວເລກສະເພາະ Filter (${items.length} ລາຍການ)`, th: `สรุปตัวเลขเฉพาะ Filter (${items.length} รายการ)`, en: `Filtered metrics (${items.length} items)` }) }}
         </v-chip>
+        <v-chip v-if="outcomeFilter !== 'all'" size="small" color="amber-darken-3" variant="flat" class="font-weight-bold elevation-1">
+          <v-icon icon="mdi-filter-variant" start size="13" />
+          {{ outcomeFilter === 'angel' ? '🧚‍♀️ Ads ນາງຟ້າ' : outcomeFilter === 'purchases' ? '🛒 ມີການຊື້' : outcomeFilter === 'messages' ? '💬 ມີຄົນທັກ' : outcomeFilter === 'scale' ? '🚀 ພ້ອມ Scale' : '⏸️ ຄວນປິດ' }}
+        </v-chip>
       </div>
-      <v-btn size="x-small" variant="text" color="primary" prepend-icon="mdi-refresh" @click="selectedProductId='all';statusFilter='all';search=''">
+      <v-btn size="x-small" variant="text" color="primary" prepend-icon="mdi-refresh" @click="selectedProductId='all';statusFilter='all';outcomeFilter='all';search=''">
         {{ l({ lo: 'ເບິ່ງລວມທັງໝົດບັນຊີ', th: 'ดูรวมทั้งบัญชี', en: 'View full account' }) }}
       </v-btn>
     </div>
@@ -2227,7 +2351,10 @@ onMounted(async () => {
           <v-select
             v-model="sortBy"
             :items="[
+              { title: l({ lo: '🛒 ອໍເດີສູງສຸດ', th: '🛒 ออเดอร์สูงสุด', en: 'Highest purchases' }), value: 'purchases' },
+              { title: l({ lo: '💬 ຄົນທັກຫຼາຍສຸດ', th: '💬 ทักแชตสูงสุด', en: 'Most messages' }), value: 'messages' },
               { title: l({ lo: '⚡ ໃຊ້ຈ່າຍສູງສຸດ', th: '⚡ ใช้จ่ายสูงสุด', en: 'Highest spend' }), value: 'spend' },
+              { title: l({ lo: '📈 ROAS ສູງສຸດ', th: '📈 ROAS สูงสุด', en: 'Highest ROAS' }), value: 'roas' },
               { title: l({ lo: '✨ ສ້າງໃໝ່ສຸດ', th: '✨ สร้างใหม่ล่าสุด', en: 'Newest created' }), value: 'newest' },
               { title: l({ lo: '🔤 ຊື່ (A-Z)', th: '🔤 ชื่อ (A-Z)', en: 'Name (A-Z)' }), value: 'name' }
             ]"
@@ -2237,7 +2364,7 @@ onMounted(async () => {
             variant="outlined"
             hide-details
             class="sort-select"
-            style="min-width: 160px; max-width: 195px;"
+            style="min-width: 175px; max-width: 215px;"
           />
           <v-text-field v-model="search" density="compact" variant="outlined" prepend-inner-icon="mdi-magnify" :placeholder="l({lo:'ຄົ້ນຫາ...',th:'ค้นหา...',en:'Search...'})" hide-details clearable />
         </div>
@@ -2261,18 +2388,130 @@ onMounted(async () => {
           </v-btn-toggle>
         </div>
       </div>
+
+      <!-- Quick Outcome / Conversion / Angel Ads Filter Bar (ການຊື້, ຄົນທັກ, Ads ນາງຟ້າ) -->
+      <div class="outcome-filter-strip">
+        <div class="outcome-strip-header">
+          <span class="outcome-strip-label">
+            <v-icon icon="mdi-filter-cog-outline" size="16" class="text-primary" />
+            <strong>{{ l({ lo: 'ກອງຕາມຜົນລັບ & Ads ດາວເດັ່ນ:', th: 'กรองตามผลลัพธ์ & แอดดาวเด่น:', en: 'Filter by Outcomes & Winners:' }) }}</strong>
+          </span>
+          <span v-if="outcomeCounts.angel > 0" class="angel-found-pill">
+            <v-icon icon="mdi-star" size="12" />
+            {{ l({ lo: `ພົບ Ads ນາງຟ້າ ${outcomeCounts.angel} ໂຕ`, th: `พบแอดนางฟ้า ${outcomeCounts.angel} ตัว`, en: `Found ${outcomeCounts.angel} Angel Ads` }) }}
+          </span>
+        </div>
+        <div class="outcome-tabs">
+          <button
+            type="button"
+            class="outcome-tab-btn"
+            :class="{ active: outcomeFilter === 'all' }"
+            @click="outcomeFilter = 'all'"
+          >
+            <span>{{ l({ lo: '📋 ທັງໝົດ', th: '📋 ทั้งหมด', en: '📋 All' }) }}</span>
+            <b class="count-pill">{{ outcomeCounts.all }}</b>
+          </button>
+
+          <button
+            type="button"
+            class="outcome-tab-btn angel-tab"
+            :class="{ active: outcomeFilter === 'angel' }"
+            @click="outcomeFilter = 'angel'"
+          >
+            <v-icon icon="mdi-star-face" size="15" class="angel-icon" />
+            <span>{{ l({ lo: '🧚‍♀️ Ads ນາງຟ້າ (Winning)', th: '🧚‍♀️ แอดนางฟ้า (Winning)', en: '🧚‍♀️ Angel Ads' }) }}</span>
+            <b class="count-pill gold">{{ outcomeCounts.angel }}</b>
+          </button>
+
+          <button
+            type="button"
+            class="outcome-tab-btn purchase-tab"
+            :class="{ active: outcomeFilter === 'purchases' }"
+            @click="outcomeFilter = 'purchases'"
+          >
+            <v-icon icon="mdi-cart-check" size="15" />
+            <span>{{ l({ lo: '🛒 ມີການຊື້ (Purchases)', th: '🛒 มีการซื้อ (Purchases)', en: '🛒 Has Purchases' }) }}</span>
+            <b class="count-pill green">{{ outcomeCounts.purchases }}</b>
+          </button>
+
+          <button
+            type="button"
+            class="outcome-tab-btn message-tab"
+            :class="{ active: outcomeFilter === 'messages' }"
+            @click="outcomeFilter = 'messages'"
+          >
+            <v-icon icon="mdi-message-text-outline" size="15" />
+            <span>{{ l({ lo: '💬 ມີຄົນທັກ (Messages)', th: '💬 มีคนทัก (Messages)', en: '💬 Has Messages' }) }}</span>
+            <b class="count-pill blue">{{ outcomeCounts.messages }}</b>
+          </button>
+
+          <button
+            type="button"
+            class="outcome-tab-btn scale-tab"
+            :class="{ active: outcomeFilter === 'scale' }"
+            @click="outcomeFilter = 'scale'"
+          >
+            <v-icon icon="mdi-rocket-launch" size="14" />
+            <span>{{ l({ lo: '🚀 ພ້ອມ Scale', th: '🚀 พร้อม Scale', en: '🚀 Scale Ready' }) }}</span>
+            <b class="count-pill purple">{{ outcomeCounts.scale }}</b>
+          </button>
+
+          <button
+            type="button"
+            class="outcome-tab-btn pause-tab"
+            :class="{ active: outcomeFilter === 'pause' }"
+            @click="outcomeFilter = 'pause'"
+          >
+            <v-icon icon="mdi-pause-circle-outline" size="15" />
+            <span>{{ l({ lo: '⏸️ ຄວນປິດ', th: '⏸️ ควรปิด', en: '⏸️ Pause' }) }}</span>
+            <b class="count-pill red">{{ outcomeCounts.pause }}</b>
+          </button>
+        </div>
+      </div>
+
       <p class="filter-help"><v-icon icon="mdi-information-outline" /> {{ l({lo:'ສະຖານະນີ້ແມ່ນຄ່າຈິງຈາກ Meta. Ad ອາດຖືກຢຸດເພາະ Campaign ຫຼື Ad Set ຊັ້ນເທິງຖືກປິດ.',th:'สถานะนี้มาจาก Meta โดยตรง โฆษณาอาจหยุดเพราะแคมเปญหรือชุดโฆษณาด้านบนถูกปิด',en:'Statuses come directly from Meta. An ad may stop because its parent campaign or ad set is paused.'}) }}</p>
 
       <div v-if="loadingReport" class="table-loading"><v-progress-linear indeterminate color="primary" /></div>
-      <div v-else-if="!items.length" class="empty-state"><v-icon icon="mdi-filter-off-outline" size="44" /><h3>{{ l({lo:'ບໍ່ພົບລາຍການຕາມ filter',th:'ไม่พบรายการตามตัวกรอง',en:'No items match these filters'}) }}</h3><p>{{ l({lo:'ລອງເລືອກສະຖານະທັງໝົດ ຫຼືລຶບຄຳຄົ້ນຫາ.',th:'ลองเลือกสถานะทั้งหมดหรือล้างคำค้นหา',en:'Choose All statuses or clear the search.'}) }}</p><v-btn variant="tonal" color="primary" @click="statusFilter='all';search=''">{{ l({lo:'ລ້າງ filter',th:'ล้างตัวกรอง',en:'Clear filters'}) }}</v-btn></div>
+      <div v-else-if="!items.length" class="empty-state">
+        <v-icon icon="mdi-filter-off-outline" size="44" />
+        <h3>{{ l({lo:'ບໍ່ພົບລາຍການຕາມ filter',th:'ไม่พบรายการตามตัวกรอง',en:'No items match these filters'}) }}</h3>
+        <p>{{ l({lo:'ລອງເລືອກສະຖານະທັງໝົດ, ລ້າງການກອງຜົນລັບ ຫຼືລຶບຄຳຄົ້ນຫາ.',th:'ลองเลือกสถานะทั้งหมด ล้างตัวกรองผลลัพธ์ หรือล้างคำค้นหา',en:'Choose All statuses, reset outcome filter, or clear the search.'}) }}</p>
+        <v-btn variant="tonal" color="primary" @click="statusFilter='all';outcomeFilter='all';search=''">
+          {{ l({lo:'ລ້າງ filter ທັງໝົດ',th:'ล้างตัวกรองทั้งหมด',en:'Clear all filters'}) }}
+        </v-btn>
+      </div>
 
       <div v-else class="performance-list">
-        <article v-for="item in items" :key="item.entityId" class="performance-row" :class="{ expanded: selectedId === item.entityId }">
+        <article
+          v-for="item in items"
+          :key="item.entityId"
+          class="performance-row"
+          :class="{
+            expanded: selectedId === item.entityId,
+            'is-angel-ad': isAngelAd(item).isAngel
+          }"
+        >
           <button class="row-main" type="button" :aria-expanded="selectedId === item.entityId" @click="toggleItem(item)">
             <span class="entity-cell">
-              <span class="entity-icon"><v-icon :icon="item.entityType==='campaign'?'mdi-bullhorn-outline':item.entityType==='adset'?'mdi-account-group-outline':'mdi-advertisements'" /></span>
+              <span class="entity-icon" :class="{ 'angel-avatar': isAngelAd(item).isAngel }">
+                <v-icon :icon="isAngelAd(item).isAngel ? 'mdi-star-face' : (item.entityType==='campaign'?'mdi-bullhorn-outline':item.entityType==='adset'?'mdi-account-group-outline':'mdi-advertisements')" />
+              </span>
               <span>
-                <strong>{{ item.entityName || item.entityId }}</strong>
+                <div class="d-flex align-center gap-1 flex-wrap">
+                  <strong>{{ item.entityName || item.entityId }}</strong>
+                  <!-- Angel Ad Badge -->
+                  <v-chip
+                    v-if="isAngelAd(item).isAngel"
+                    size="x-small"
+                    color="amber-darken-3"
+                    variant="flat"
+                    class="font-weight-bold angel-badge elevation-1"
+                    :title="isAngelAd(item).reason"
+                  >
+                    <v-icon icon="mdi-star" start size="11" />
+                    🧚‍♀️ Ads ນາງຟ້າ
+                  </v-chip>
+                </div>
                 <small v-if="item.entityType!=='campaign'">{{ item.campaignName }}<template v-if="item.entityType==='ad'"> · {{ item.adSetName }}</template></small>
                 <code>{{ item.entityId }}</code>
                 <!-- Product & Auto Reply Badge -->
@@ -2321,17 +2560,21 @@ onMounted(async () => {
                     {{ buyingOpportunity(item).badgeText }}
                   </v-chip>
                 </div>
-                <!-- Prominent Conversion Badges (Messages & Orders) -->
-                <div v-if="getMessagesCount(item) != null || getPurchasesCount(item) != null" class="d-flex align-center gap-1 mt-1 flex-wrap">
+                <!-- Prominent Conversion Badges (Messages & Orders & ROAS) -->
+                <div v-if="getMessagesCount(item) != null || getPurchasesCount(item) != null || (item.roas != null && item.roas > 0)" class="d-flex align-center gap-1 mt-1 flex-wrap">
+                  <v-chip v-if="getPurchasesCount(item) != null" size="x-small" color="success" variant="flat" class="font-weight-bold elevation-1">
+                    <v-icon icon="mdi-cart-check" start size="12" />
+                    {{ fmt(getPurchasesCount(item), 0) }} ອໍເດີ
+                    <template v-if="getCostPerPurchase(item)"> (CPA: {{ money(getCostPerPurchase(item)) }})</template>
+                  </v-chip>
                   <v-chip v-if="getMessagesCount(item) != null" size="x-small" color="info" variant="tonal" class="font-weight-bold">
                     <v-icon icon="mdi-message-text-outline" start size="12" />
                     {{ fmt(getMessagesCount(item), 0) }} ຂໍ້ຄວາມ
-                    <template v-if="getCostPerMessage(item)"> ({{ money(getCostPerMessage(item)) }})</template>
+                    <template v-if="getCostPerMessage(item)"> ({{ money(getCostPerMessage(item)) }}/ຂໍ້ຄວາມ)</template>
                   </v-chip>
-                  <v-chip v-if="getPurchasesCount(item) != null" size="x-small" color="success" variant="tonal" class="font-weight-bold">
-                    <v-icon icon="mdi-cart-check" start size="12" />
-                    {{ fmt(getPurchasesCount(item), 0) }} ຊື້
-                    <template v-if="getCostPerPurchase(item)"> ({{ money(getCostPerPurchase(item)) }})</template>
+                  <v-chip v-if="item.roas != null && item.roas > 0" size="x-small" color="purple" variant="tonal" class="font-weight-bold">
+                    <v-icon icon="mdi-chart-line" start size="12" />
+                    ROAS {{ fmt(item.roas, 2) }}x
                   </v-chip>
                 </div>
               </span>
@@ -2407,6 +2650,22 @@ onMounted(async () => {
             </div>
           </button>
           <div v-if="selectedId === item.entityId" class="row-detail">
+            <!-- Angel Ad Spotlight Banner -->
+            <div v-if="isAngelAd(item).isAngel" class="angel-callout">
+              <div class="d-flex align-center gap-3">
+                <div class="angel-callout-icon">
+                  <v-icon icon="mdi-star-face" size="26" color="amber-darken-3" />
+                </div>
+                <div>
+                  <h4 class="text-subtitle-2 font-weight-bold text-amber-darken-4 d-flex align-center gap-1">
+                    🧚‍♀️ ແອດນີ້ແມ່ນ "Ads ນາງຟ້າ" (Winning / Top Performer)
+                  </h4>
+                  <p class="text-caption mb-0 text-amber-darken-3">
+                    {{ isAngelAd(item).reason }}
+                  </p>
+                </div>
+              </div>
+            </div>
             <div class="explanation"><v-icon :icon="decision(item).icon" :color="decision(item).color" /><div><h3>{{ decision(item).title }}</h3><p>{{ decision(item).detail }}</p><ul v-if="decision(item).signals.length"><li v-for="signal in decision(item).signals" :key="signal">{{ signal }}</li></ul></div></div>
             <section v-if="item.entityType==='campaign'" class="audience-callout"><v-icon icon="mdi-account-group-outline" /><div><strong>{{ l({lo:'Audience ກຳນົດຢູ່ລະດັບ Ad Set',th:'กลุ่มเป้าหมายกำหนดที่ระดับ Ad Set',en:'Audience is configured at Ad Set level'}) }}</strong><span>{{ l({lo:'ເລືອກແຖບ Ad Set ເພື່ອເບິ່ງ Targeting ແລະ Audience coverage ຂອງແຕ່ລະກຸ່ມ.',th:'เลือกแท็บ Ad Set เพื่อดู Targeting และ Audience coverage ของแต่ละกลุ่ม',en:'Open the Ad Set tab to inspect targeting and audience coverage for each audience.'}) }}</span></div></section>
             <section v-else class="audience-panel">
@@ -4847,5 +5106,152 @@ onMounted(async () => {
     transform: translateY(0);
     opacity: 1;
   }
+}
+
+/* Outcome Filter Strip */
+.outcome-filter-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+}
+.outcome-strip-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.outcome-strip-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+.angel-found-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #b45309;
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  box-shadow: 0 1px 3px rgba(245, 158, 11, 0.15);
+}
+.outcome-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+.outcome-tabs::-webkit-scrollbar {
+  display: none;
+}
+.outcome-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--color-surface-soft);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+.outcome-tab-btn:hover {
+  background: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface));
+  color: var(--color-text);
+}
+.outcome-tab-btn.active {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+}
+.outcome-tab-btn.angel-tab.active {
+  background: linear-gradient(135deg, #f59e0b, #d97706) !important;
+  border-color: #d97706 !important;
+  color: #fff !important;
+}
+.count-pill {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  background: rgba(0, 0, 0, 0.08);
+}
+.outcome-tab-btn.active .count-pill {
+  background: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+.count-pill.gold {
+  background: #fef3c7;
+  color: #92400e;
+}
+.count-pill.green {
+  background: #d1fae5;
+  color: #065f46;
+}
+.count-pill.blue {
+  background: #e0f2fe;
+  color: #075985;
+}
+.count-pill.purple {
+  background: #f3e8ff;
+  color: #6b21a8;
+}
+.count-pill.red {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+/* Angel Ad Row & Callout Styling */
+.performance-row.is-angel-ad {
+  border-left: 4px solid #f59e0b !important;
+  background: linear-gradient(90deg, rgba(245, 158, 11, 0.06) 0%, transparent 35%);
+}
+.entity-icon.angel-avatar {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%) !important;
+  color: #b45309 !important;
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.35);
+}
+.angel-badge {
+  letter-spacing: 0;
+  font-size: 11px !important;
+  background: linear-gradient(135deg, #f59e0b, #d97706) !important;
+  box-shadow: 0 1px 4px rgba(217, 119, 6, 0.35);
+}
+.angel-callout {
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+  border: 1.5px solid #fde68a;
+  margin-bottom: 12px;
+}
+.angel-callout-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(245, 158, 11, 0.2);
+  flex-shrink: 0;
 }
 </style>

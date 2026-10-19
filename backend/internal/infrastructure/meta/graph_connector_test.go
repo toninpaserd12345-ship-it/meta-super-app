@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 	"unsafe"
@@ -440,9 +441,12 @@ func signPayload(secret string, body []byte) string {
 }
 
 func TestCommentAutoReplyWithKeywordAndPostbackUnlock(t *testing.T) {
+	var reqMu sync.Mutex
 	var requestedURLs []string
 	transport := roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		reqMu.Lock()
 		requestedURLs = append(requestedURLs, req.Method+" "+req.URL.String())
+		reqMu.Unlock()
 		return &http.Response{
 			StatusCode: 200,
 			Body:       io.NopCloser(strings.NewReader(`{"success":true,"message_id":"mid.123"}`)),
@@ -488,8 +492,11 @@ func TestCommentAutoReplyWithKeywordAndPostbackUnlock(t *testing.T) {
 	if err := g.ReceiveWebhook(context.Background(), selfCommentPayload, signPayload(appSecret, selfCommentPayload)); err != nil {
 		t.Fatalf("webhook error: %v", err)
 	}
-	if len(requestedURLs) != 0 {
-		t.Fatalf("expected 0 requests for self comment, got %d: %v", len(requestedURLs), requestedURLs)
+	reqMu.Lock()
+	selfCount := len(requestedURLs)
+	reqMu.Unlock()
+	if selfCount != 0 {
+		t.Fatalf("expected 0 requests for self comment, got %d", selfCount)
 	}
 
 	// 2. Customer comment with keyword "ສົນໃຈ" should trigger like, public reply, and private reply
@@ -499,14 +506,19 @@ func TestCommentAutoReplyWithKeywordAndPostbackUnlock(t *testing.T) {
 	}
 
 	time.Sleep(50 * time.Millisecond)
-	if len(requestedURLs) < 3 {
-		t.Fatalf("expected at least 3 requests (like, comment reply, private reply), got %d: %v", len(requestedURLs), requestedURLs)
+	reqMu.Lock()
+	urls := make([]string, len(requestedURLs))
+	copy(urls, requestedURLs)
+	reqMu.Unlock()
+
+	if len(urls) < 3 {
+		t.Fatalf("expected at least 3 requests (like, comment reply, private reply), got %d: %v", len(urls), urls)
 	}
 
 	hasLike := false
 	hasCommentReply := false
 	hasPrivateMessage := false
-	for _, u := range requestedURLs {
+	for _, u := range urls {
 		if strings.Contains(u, "/likes") {
 			hasLike = true
 		}
@@ -518,13 +530,13 @@ func TestCommentAutoReplyWithKeywordAndPostbackUnlock(t *testing.T) {
 		}
 	}
 	if !hasLike {
-		t.Errorf("missing like request: %v", requestedURLs)
+		t.Errorf("missing like request: %v", urls)
 	}
 	if !hasCommentReply {
-		t.Errorf("missing public comment reply request: %v", requestedURLs)
+		t.Errorf("missing public comment reply request: %v", urls)
 	}
 	if !hasPrivateMessage {
-		t.Errorf("missing private reply request: %v", requestedURLs)
+		t.Errorf("missing private reply request: %v", urls)
 	}
 
 	// 3. Customer clicks button which triggers postback COMMENT_UNLOCK
@@ -532,6 +544,7 @@ func TestCommentAutoReplyWithKeywordAndPostbackUnlock(t *testing.T) {
 	if err := g.ReceiveWebhook(context.Background(), postbackPayload, signPayload(appSecret, postbackPayload)); err != nil {
 		t.Fatalf("postback webhook error: %v", err)
 	}
+	time.Sleep(50 * time.Millisecond)
 }
 
 type mockMultiAutomationProvider struct {
@@ -575,15 +588,18 @@ func (m *mockMultiAutomationProvider) GetRule(ctx context.Context, id, accountID
 }
 
 func TestAdReferralPriorityAndCommentTextReply(t *testing.T) {
+	var reqMu sync.Mutex
 	var sentRequests []string
 	var sentFormMessages []string
 	transport := roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		reqMu.Lock()
 		urlStr := req.Method + " " + req.URL.String()
 		sentRequests = append(sentRequests, urlStr)
 		if strings.Contains(urlStr, "/private_replies") {
 			_ = req.ParseForm()
 			sentFormMessages = append(sentFormMessages, req.Form.Get("message"))
 		}
+		reqMu.Unlock()
 		return &http.Response{
 			StatusCode: 200,
 			Body:       io.NopCloser(strings.NewReader(`{"success":true,"message_id":"mid.456"}`)),
@@ -650,6 +666,7 @@ func TestAdReferralPriorityAndCommentTextReply(t *testing.T) {
 	if err := g.ReceiveWebhook(context.Background(), adPayload, signPayload(appSecret, adPayload)); err != nil {
 		t.Fatalf("webhook error: %v", err)
 	}
+	time.Sleep(50 * time.Millisecond)
 
 	// Verify conversation context was bound to ad rule
 	g.mu.RLock()
@@ -665,27 +682,35 @@ func TestAdReferralPriorityAndCommentTextReply(t *testing.T) {
 	if err := g.ReceiveWebhook(context.Background(), commentPayload, signPayload(appSecret, commentPayload)); err != nil {
 		t.Fatalf("webhook comment error: %v", err)
 	}
+	time.Sleep(50 * time.Millisecond)
+
+	reqMu.Lock()
+	requestsCopy := make([]string, len(sentRequests))
+	copy(requestsCopy, sentRequests)
+	messagesCopy := make([]string, len(sentFormMessages))
+	copy(messagesCopy, sentFormMessages)
+	reqMu.Unlock()
 
 	foundPrivateReply := false
-	for _, req := range sentRequests {
+	for _, req := range requestsCopy {
 		if strings.Contains(req, "/comm-123/private_replies") {
 			foundPrivateReply = true
 			break
 		}
 	}
 	if !foundPrivateReply {
-		t.Errorf("expected private_replies call for comm-123, got: %v", sentRequests)
+		t.Errorf("expected private_replies call for comm-123, got: %v", requestsCopy)
 	}
 
 	foundExactText := false
-	for _, msg := range sentFormMessages {
+	for _, msg := range messagesCopy {
 		if strings.Contains(msg, "ເສື້ອຍືດພຣີມ່ຽມ ລາຄາ 99,000 ກີບ") {
 			foundExactText = true
 			break
 		}
 	}
 	if !foundExactText {
-		t.Errorf("expected private reply to contain configured reply set text, got: %v", sentFormMessages)
+		t.Errorf("expected private reply to contain configured reply set text, got: %v", messagesCopy)
 	}
 
 	// Verify commenter's conversation context is bound to post-777
@@ -699,9 +724,12 @@ func TestAdReferralPriorityAndCommentTextReply(t *testing.T) {
 }
 
 func TestUnlinkedCampaignDoesNotTriggerAutoReply(t *testing.T) {
+	var reqMu sync.Mutex
 	var sentRequests []string
 	transport := roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		reqMu.Lock()
 		sentRequests = append(sentRequests, req.Method+" "+req.URL.String())
+		reqMu.Unlock()
 		return &http.Response{
 			StatusCode: 200,
 			Body:       io.NopCloser(strings.NewReader(`{"success":true,"message_id":"mid.789"}`)),
@@ -753,9 +781,15 @@ func TestUnlinkedCampaignDoesNotTriggerAutoReply(t *testing.T) {
 	if err := g.ReceiveWebhook(context.Background(), unlinkedAdPayload, signPayload(appSecret, unlinkedAdPayload)); err != nil {
 		t.Fatalf("webhook error: %v", err)
 	}
+	time.Sleep(50 * time.Millisecond)
+
+	reqMu.Lock()
+	requestsCopy := make([]string, len(sentRequests))
+	copy(requestsCopy, sentRequests)
+	reqMu.Unlock()
 
 	// Must NOT send any message! (Should be 0 outbound calls to /messages)
-	for _, req := range sentRequests {
+	for _, req := range requestsCopy {
 		if strings.Contains(req, "/messages") {
 			t.Fatalf("CRITICAL ERROR: Unlinked campaign triggered an automated message: %v", req)
 		}
@@ -766,9 +800,15 @@ func TestUnlinkedCampaignDoesNotTriggerAutoReply(t *testing.T) {
 	if err := g.ReceiveWebhook(context.Background(), unlinkedCommentPayload, signPayload(appSecret, unlinkedCommentPayload)); err != nil {
 		t.Fatalf("comment webhook error: %v", err)
 	}
+	time.Sleep(50 * time.Millisecond)
+
+	reqMu.Lock()
+	requestsCopy = make([]string, len(sentRequests))
+	copy(requestsCopy, sentRequests)
+	reqMu.Unlock()
 
 	// Must NOT send any private reply or comment reply for Kito!
-	for _, req := range sentRequests {
+	for _, req := range requestsCopy {
 		if strings.Contains(req, "/private_replies") {
 			t.Fatalf("CRITICAL ERROR: Unlinked post triggered a private reply: %v", req)
 		}
