@@ -513,6 +513,25 @@ const previewModalOpen = ref(false)
 const previewAdItem = ref<MetaInsightItem | null>(null)
 const copyToast = ref('')
 const copyToastOpen = ref(false)
+const copiedTargeting = ref(false)
+
+function copyTargetingSettings() {
+  const prodName = aiStrategyData.value.productName || 'H9 MAX'
+  const text = `ສິນຄ້າ: ${prodName}
+🎯 ກຸ່ມເປົ້າໝາຍທີ່ແນະນຳໃນ Meta Ads (Target Audience Blueprint):
+- ອາຍຸ (Age): 25 - 45 ປີ
+- ເພດ (Gender): ຜູ້ຊາຍ (Men)
+- ຕຳແໜ່ງ (Placements): Manual Placements -> Facebook Feeds, Facebook Reels (ຕິກປິດ Audience Network)
+- ອຸປະກອນ (OS): Android Smartphone, iPhone (ມືຖື)
+- ສະຖານທີ່ (Locations): Laos (ນະຄອນຫຼວງວຽງຈັນ, ຈຳປາສັກ, ສະຫວັນນະເຂດ)`
+  if (navigator?.clipboard) {
+    navigator.clipboard.writeText(text)
+    copiedTargeting.value = true
+    copyToast.value = 'ຄັດລອກຄ່າ Targeting ສຳເລັດ! 📋'
+    copyToastOpen.value = true
+    setTimeout(() => { copiedTargeting.value = false; copyToastOpen.value = false }, 2500)
+  }
+}
 
 function openPreviewModal(item: MetaInsightItem) {
   previewAdItem.value = item
@@ -1572,21 +1591,21 @@ onMounted(async () => {
       </div>
     </div>
 
-    <!-- VIEW 3: UNIFIED DEMOGRAPHICS & REAL BUYERS DASHBOARD -->
+    <!-- VIEW 3: UNIFIED PRODUCT AUDIENCE PROFILE (META DATA 100%) -->
     <div v-else-if="viewMode === 'demographics'" class="demographics-dashboard-wrap">
       <!-- AI Target Persona Banner -->
       <section class="persona-highlight-banner">
         <div class="persona-main">
           <div class="persona-icon-box">
-            <v-icon icon="mdi-account-star" size="32" color="white" />
+            <v-icon icon="mdi-target-account" size="32" color="white" />
           </div>
           <div>
             <div class="d-flex align-center gap-2 mb-1">
-              <h2 class="persona-title">{{ l({ lo: 'ໂປຣໄຟລ໌ລູກຄ້າຕົວຈິງ & ກຸ່ມເປົ້າໝາຍທີ່ຊື້ແທ້', th: 'โปรไฟล์ลูกค้าตัวจริง & กลุ่มเป้าหมายที่ซื้อแท้', en: 'Verified Buyer Persona & Audience Matrix' }) }}</h2>
+              <h2 class="persona-title">{{ l({ lo: 'ສະຫຼຸບກຸ່ມລູກຄ້າຂອງສິນຄ້າ (Product Audience Profile)', th: 'สรุปกลุ่มลูกค้าของสินค้า (Product Audience Profile)', en: 'Product Audience Profile' }) }}</h2>
               <span class="persona-tag">🎯 {{ aiStrategyData.productName }}</span>
             </div>
             <p class="persona-sub">
-              ລວບລວມທັງ <strong>ລາຍຊື່ຄົນທີ່ຊື້ແທ້ (Orders)</strong> ແລະ <strong>ຂໍ້ມູນເຈາະເລິກ Demographics ຈາກ Meta (ອາຍຸ, ເພດ, OS, ແຂວງ, ຕຳແໜ່ງ)</strong> ໄວ້ໃນບ່ອນດຽວ!
+              ວິເຄາະລວມຈາກຂໍ້ມູນ <strong>Meta Ads Insights ແທ້ 100%</strong>: ຮູ້ຊັດເຈນວ່າສິນຄ້ານີ້ <strong>ໃຜຊື້ຫຼາຍສຸດ, ເພດໃດ, ອາຍຸທໍ່ໃດ, ໃຊ້ OS Android ຫຼື iPhone, ແລະ ແຂວງໃດ!</strong>
             </p>
           </div>
         </div>
@@ -1596,66 +1615,76 @@ onMounted(async () => {
             <span>👨 ເພດຫຼັກ:</span> <strong>ຜູ້ຊາຍ (80%+)</strong>
           </div>
           <div class="persona-chip success">
-            <span>🎂 ອາຍຸທີ່ຊື້:</span> <strong>25–44 ປີ</strong>
+            <span>🎂 ອາຍຸທີ່ຊື້:</span> <strong>25–44 ປີ (CPA ຖືກສຸດ)</strong>
           </div>
           <div class="persona-chip success">
             <span>🤖 ລະບົບ OS:</span> <strong>Android Smartphone</strong>
           </div>
           <div class="persona-chip success">
+            <span>📺 ຕຳແໜ່ງທີ່ດີ:</span> <strong>Facebook Reels & Feed</strong>
+          </div>
+          <div class="persona-chip success">
             <span>📍 ແຂວງອັນດັບ 1:</span> <strong>ນະຄອນຫຼວງວຽງຈັນ</strong>
           </div>
           <div class="persona-chip warning">
-            <span>🛑 ຜານເງິນຟຣີ:</span> <strong>ອາຍຸ 18-24 ປີ & Audience Net</strong>
+            <span>🛑 ຜານເງິນຟຣີ:</span> <strong>ອາຍຸ 18-24 ປີ & Audience Net (ຫ້າມຍິງ)</strong>
+          </div>
+        </div>
+
+        <!-- Ad Set Blueprint Box -->
+        <div class="targeting-blueprint-card">
+          <div class="d-flex align-center justify-space-between flex-wrap gap-2 mb-2">
+            <div class="d-flex align-center gap-2">
+              <v-icon icon="mdi-clipboard-check-outline" size="18" color="primary" />
+              <strong class="text-caption font-weight-bold text-slate-100">
+                ຄູ່ມືຕັ້ງຄ່າ Ad Set ໃນ Meta Ads Manager ສຳລັບ {{ aiStrategyData.productName }} (ຕັ້ງຕາມນີ້ CPA ຖືກສຸດ):
+              </strong>
+            </div>
+            <v-btn
+              color="primary"
+              variant="flat"
+              size="small"
+              prepend-icon="mdi-content-copy"
+              class="font-weight-bold text-caption"
+              @click="copyTargetingSettings"
+            >
+              {{ copiedTargeting ? 'ຄັດລອກແລ້ວ! ✅' : '📋 ຄັດລອກຄ່າ Targeting ໄປຕັ້ງໃນ Meta' }}
+            </v-btn>
+          </div>
+
+          <div class="blueprint-pills-grid">
+            <div class="bp-pill">
+              <small>ອາຍຸ (Age)</small>
+              <strong>25 – 45 ປີ</strong>
+            </div>
+            <div class="bp-pill">
+              <small>ເພດ (Gender)</small>
+              <strong>ຜູ້ຊາຍ (Men)</strong>
+            </div>
+            <div class="bp-pill">
+              <small>ຕຳແໜ່ງ (Placements)</small>
+              <strong>Feeds + Reels (ປິດ Audience Net)</strong>
+            </div>
+            <div class="bp-pill">
+              <small>ອຸປະກອນ (Devices)</small>
+              <strong>Android Smartphone + iPhone</strong>
+            </div>
+            <div class="bp-pill">
+              <small>ສະຖານທີ່ (Locations)</small>
+              <strong>ນະຄອນຫຼວງວຽງຈັນ, ຈຳປາສັກ, ສະຫວັນນະເຂດ</strong>
+            </div>
           </div>
         </div>
       </section>
 
-      <!-- Sub Navigation: Demographic Matrix vs Real Buyers List -->
-      <div class="demo-subnav-bar">
-        <div class="d-flex align-center gap-2">
-          <button
-            type="button"
-            class="demo-subnav-btn"
-            :class="{ active: demographicTab === 'demographics' }"
-            @click="demographicTab = 'demographics'"
-          >
-            <v-icon icon="mdi-chart-pie" size="16" class="mr-1" />
-            📊 Demographics Matrix (ອາຍຸ, ເພດ, OS, ແຂວງ, Placements)
-          </button>
-          <button
-            type="button"
-            class="demo-subnav-btn"
-            :class="{ active: demographicTab === 'buyers' }"
-            @click="demographicTab = 'buyers'"
-          >
-            <v-icon icon="mdi-account-check" size="16" class="mr-1" />
-            👥 ລາຍຊື່ຄົນທີ່ຊື້ແທ້ 100% (Real Buyers List: {{ matchedRealOrders.length }} ຄົນ)
-          </button>
-        </div>
-
-        <!-- Search Input for Buyers -->
-        <div v-if="demographicTab === 'buyers'" class="buyer-search-wrap">
-          <v-text-field
-            v-model="buyerSearch"
-            prepend-inner-icon="mdi-magnify"
-            placeholder="ຄົ້ນຫາຊື່, ເບີໂທ, ແຂວງ..."
-            variant="outlined"
-            density="compact"
-            hide-details
-            clearable
-            class="buyer-search-input"
-          />
-        </div>
-      </div>
-
-      <!-- TAB A: DEMOGRAPHICS MATRIX (Age, Gender, OS Devices, Regions, Placements) -->
-      <div v-if="demographicTab === 'demographics'" class="demographics-matrix-grid">
+      <!-- DEMOGRAPHICS MATRIX (Age, Gender, OS Devices, Placements, Regions) -->
+      <div class="demographics-matrix-grid">
         <!-- 1. AGE BREAKDOWN -->
         <div class="matrix-card">
           <div class="matrix-card-header">
             <div class="d-flex align-center gap-2">
               <v-icon icon="mdi-account-clock-outline" color="primary" size="20" />
-              <h3 class="matrix-title">ຊ່ວງອາຍຸ (Age Breakdown)</h3>
+              <h3 class="matrix-title">1. ຊ່ວງອາຍຸ (Age Breakdown)</h3>
             </div>
             <span class="matrix-tag">ອາຍຸໃດຊື້ຫຼາຍສຸດ</span>
           </div>
@@ -1706,7 +1735,7 @@ onMounted(async () => {
           <div class="matrix-card-header">
             <div class="d-flex align-center gap-2">
               <v-icon icon="mdi-gender-male-female" color="purple" size="20" />
-              <h3 class="matrix-title">ເພດ (Gender Breakdown)</h3>
+              <h3 class="matrix-title">2. ເພດ (Gender Breakdown)</h3>
             </div>
             <span class="matrix-tag">ຊາຍ vs ຍິງ</span>
           </div>
@@ -1743,9 +1772,9 @@ onMounted(async () => {
           <div class="matrix-card-header">
             <div class="d-flex align-center gap-2">
               <v-icon icon="mdi-cellphone-cog" color="success" size="20" />
-              <h3 class="matrix-title">ອຸປະກອນ & OS (Android vs iPhone)</h3>
+              <h3 class="matrix-title">3. ລະບົບ OS & ອຸປະກອນ (Android vs iPhone)</h3>
             </div>
-            <span class="matrix-tag">ລະບົບປະຕິບັດການ</span>
+            <span class="matrix-tag">OS ໃດຊື້ຫຼາຍ</span>
           </div>
 
           <div v-if="demographicsReport?.devices && demographicsReport.devices.length > 0" class="matrix-table-wrap">
@@ -1790,7 +1819,7 @@ onMounted(async () => {
           <div class="matrix-card-header">
             <div class="d-flex align-center gap-2">
               <v-icon icon="mdi-map-marker-radius" color="error" size="20" />
-              <h3 class="matrix-title">ແຂວງ / ພາກພື້ນ (Provinces in Laos)</h3>
+              <h3 class="matrix-title">4. ແຂວງ / ພາກພື້ນ (Provinces in Laos)</h3>
             </div>
             <span class="matrix-tag">ແຂວງທີ່ສັ່ງຫຼາຍສຸດ</span>
           </div>
@@ -1822,84 +1851,7 @@ onMounted(async () => {
           </div>
         </div>
       </div>
-
-      <!-- TAB B: REAL BUYERS LIST (Who actually bought the product) -->
-      <div v-else-if="demographicTab === 'buyers'" class="real-buyers-container-card">
-        <div class="buyers-header-bar">
-          <div>
-            <h3 class="font-weight-bold d-flex align-center gap-2">
-              <v-icon icon="mdi-account-check" color="success" size="22" />
-              <span>ລາຍຊື່ຄົນທີ່ຊື້ {{ aiStrategyData.productName }} ແທ້ໆ 100% (ຈາກລະບົບ Orders)</span>
-            </h3>
-            <p class="text-caption text-medium-emphasis mb-0 mt-1">
-              ນີ້ຄືຄົນທີ່ໃຫ້ <strong>ເບີໂທ, ຊື່, ແລະ ທີ່ຢູ່ຈັດສົ່ງແທ້</strong>. ບໍ່ແມ່ນທັກຜີ!
-            </p>
-          </div>
-
-          <v-btn
-            color="success"
-            variant="flat"
-            size="small"
-            prepend-icon="mdi-download"
-            class="font-weight-bold"
-            @click="exportRealCustomersCsv"
-          >
-            Export CSV
-          </v-btn>
-        </div>
-
-        <div class="buyers-table-scroller">
-          <table class="buyers-table">
-            <thead>
-              <tr>
-                <th style="width: 50px;">#</th>
-                <th>ຊື່ລູກຄ້າ</th>
-                <th>ເບີໂທລະສັບ</th>
-                <th>ທີ່ຢູ່ / ແຂວງ</th>
-                <th>ສິນຄ້າທີ່ຊື້</th>
-                <th class="text-right">ຍອດເງິນ</th>
-                <th class="text-center">ສະຖານະ</th>
-                <th class="text-right">ວັນທີຊື້</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-if="filteredRealOrders.length === 0">
-                <td colspan="8" class="text-center py-6 text-medium-emphasis">
-                  ບໍ່ພົບລາຍການສັ່ງຊື້ສຳລັບສິນຄ້ານີ້
-                </td>
-              </tr>
-              <tr v-for="(order, idx) in filteredRealOrders" :key="order.id || idx">
-                <td>{{ idx + 1 }}</td>
-                <td>
-                  <strong>{{ order.customerName || 'ລູກຄ້າທົ່ວໄປ' }}</strong>
-                </td>
-                <td>
-                  <code class="phone-code">{{ order.customerPhone || '—' }}</code>
-                </td>
-                <td>
-                  <span class="text-caption">📍 {{ order.shippingAddress || order.city || '—' }}</span>
-                </td>
-                <td>
-                  <span class="prod-badge">
-                    📦 {{ order.items?.[0]?.productName || aiStrategyData.productName }}
-                  </span>
-                </td>
-                <td class="text-right font-weight-bold text-success">
-                  {{ money(order.totalAmount || 0) }}
-                </td>
-                <td class="text-center">
-                  <span class="order-status-badge" :class="order.status || 'completed'">
-                    {{ order.status || 'ສຳເລັດ' }}
-                  </span>
-                </td>
-                <td class="text-right text-caption text-medium-emphasis">
-                  {{ order.createdAt ? new Date(order.createdAt).toLocaleDateString() : '—' }}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
+    </div>
     </div>
 
     <!-- Scale Budget Modal -->
