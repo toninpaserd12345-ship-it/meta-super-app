@@ -1186,6 +1186,7 @@ const aggregatedMetrics = computed(() => {
               <div class="d-flex align-center gap-2 flex-grow-1 min-w-0">
                 <img
                   v-if="getProductFinancials(series.item).imageUrl"
+                  
                   :src="getProductFinancials(series.item).imageUrl"
                   class="product-thumb-mini"
                   alt="Product"
@@ -1309,7 +1310,7 @@ const aggregatedMetrics = computed(() => {
           <div v-if="props.isToday || (series.item.hourly && series.item.hourly.length > 0)" class="today-time-slots-card">
             <div class="today-slots-header cursor-pointer" @click="toggleSlotExpand(series.id)">
               <div class="d-flex align-center gap-1">
-                <span class="pulse-today-dot" />
+                <svg width="8" height="8" viewBox="0 0 8 8" class="pulse-today-dot mr-1"><circle cx="4" cy="4" r="4" fill="#ef4444"/></svg>
                 <span class="today-slots-title">
                   {{ l({ lo: '🕒 ຊ່ວງເວລາປະຈຳວັນ (Time Slots)', th: '🕒 ช่วงเวลาประจำวัน (Time Slots)', en: '🕒 Time Slots' }) }}
                 </span>
@@ -1462,7 +1463,7 @@ const aggregatedMetrics = computed(() => {
                   :y="pt.y - 8"
                   text-anchor="middle"
                   :fill="series.color"
-                  font-size="10"
+                  font-size=\"11\"
                   font-weight="800"
                 >
                   {{ pt.label }}
@@ -1474,7 +1475,7 @@ const aggregatedMetrics = computed(() => {
                   :y="126"
                   text-anchor="middle"
                   fill="#64748b"
-                  font-size="9.5"
+                  font-size=\"11\"
                   font-weight="600"
                 >
                   {{ pt.date.slice(5) }}
@@ -1589,7 +1590,7 @@ const aggregatedMetrics = computed(() => {
               stroke-dasharray="4 4"
               opacity="0.7"
             />
-            <text :x="padding.left + 8" :y="getY(80) - 4" fill="#059669" font-size="10" font-weight="700">
+            <text :x="padding.left + 8" :y="getY(80) - 4" fill="#059669" font-size=\"11\" font-weight="700">
               🟢 ເກນ Ads ນາງຟ້າ (80+)
             </text>
 
@@ -1604,7 +1605,7 @@ const aggregatedMetrics = computed(() => {
               stroke-dasharray="4 4"
               opacity="0.7"
             />
-            <text :x="padding.left + 8" :y="getY(40) + 12" fill="#dc2626" font-size="10" font-weight="700">
+            <text :x="padding.left + 8" :y="getY(40) + 12" fill="#dc2626" font-size=\"11\" font-weight="700">
               🔴 ເກນໝົດກຳລັງ / ຄວນປິດ (&lt; 40)
             </text>
           </g>
@@ -1632,7 +1633,7 @@ const aggregatedMetrics = computed(() => {
               :y="padding.top + (innerHeight / 4) * (tick - 1) + 4"
               text-anchor="end"
               fill="#94a3b8"
-              font-size="10"
+              font-size=\"11\"
               font-weight="600"
             >
               {{ Math.round(yRange.max - ((yRange.max - yRange.min) / 4) * (tick - 1)) }}
@@ -1704,7 +1705,7 @@ const aggregatedMetrics = computed(() => {
                 :x="getX(series.dataPoints.length - 1) + 14"
                 :y="getY(getMetricValue(series.dataPoints[series.dataPoints.length - 1]!)) + 4"
                 fill="#ffffff"
-                font-size="10.5"
+                font-size=\"11\"
                 font-weight="700"
                 class="badge-pill-text"
               >
@@ -1841,24 +1842,26 @@ const aggregatedMetrics = computed(() => {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.5px;
   color: #0284c7;
   background: #e0f2fe;
-  padding: 2px 8px;
+  padding: 4px 8px;
+  line-height: 1.4;
   border-radius: 6px;
 }
 
 .color-guide-hint {
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 700;
   color: #475569;
   display: inline-flex;
   align-items: center;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
-  padding: 2px 10px;
+  padding: 4px 10px;
+  line-height: 1.4;
   border-radius: 6px;
 }
 
@@ -1887,10 +1890,12 @@ const aggregatedMetrics = computed(() => {
   background: #f1f5f9;
   border-radius: 8px;
   overflow: hidden;
+  padding: 4px;
 }
 
 .metric-toggle-group {
   background: #f8fafc;
+  padding: 4px;
 }
 
 /* Preset Filters & Spotlight */
@@ -2072,7 +2077,7 @@ const aggregatedMetrics = computed(() => {
 }
 
 .semantic-pill {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
   padding: 3px 8px;
   border-radius: 6px;
@@ -2099,7 +2104,7 @@ const aggregatedMetrics = computed(() => {
 }
 
 .trajectory-pill {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   padding: 3px 6px;
   border-radius: 4px;
@@ -2124,7 +2129,7 @@ const aggregatedMetrics = computed(() => {
 }
 
 .score-badge-clear {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   padding: 2px 7px;
   border-radius: 5px;
@@ -2150,7 +2155,7 @@ const aggregatedMetrics = computed(() => {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 2px 8px;
+  padding: 4px 8px;
   border-radius: 8px;
   border: 1px solid;
   transition: all 0.2s ease;
@@ -2167,7 +2172,7 @@ const aggregatedMetrics = computed(() => {
 }
 
 .switch-text {
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 800;
 }
 
@@ -2216,7 +2221,7 @@ const aggregatedMetrics = computed(() => {
 .bg-blue { background-color: #3b82f6; }
 
 .ad-sub-id code {
-  font-size: 11px;
+  font-size: 12px;
   background: #f1f5f9;
   color: #64748b;
   padding: 1px 6px;
@@ -2242,7 +2247,7 @@ const aggregatedMetrics = computed(() => {
 }
 
 .stat-cell small {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   color: #64748b;
 }
@@ -2266,6 +2271,7 @@ const aggregatedMetrics = computed(() => {
   border: 1px solid #f1f5f9;
   overflow: hidden;
   position: relative;
+  padding: 4px;
 }
 
 .solo-svg {
@@ -2297,11 +2303,12 @@ const aggregatedMetrics = computed(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 4px 2px;
+  padding: 6px 6px;
   background: #f8fafc;
   border-radius: 6px;
   border: 1px solid #f1f5f9;
-  font-size: 10px;
+  font-size: 12px;
+  line-height: 1.4;
   text-align: center;
 }
 
@@ -2324,11 +2331,11 @@ const aggregatedMetrics = computed(() => {
 }
 
 .d-order-label {
-  font-size: 10.5px;
+  font-size: 12px;
 }
 
 .d-spend-label {
-  font-size: 9px;
+  font-size: 12px;
   color: #94a3b8;
 }
 
@@ -2340,7 +2347,7 @@ const aggregatedMetrics = computed(() => {
 }
 
 .closed-label {
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 600;
   color: #64748b;
   display: inline-flex;
@@ -2400,7 +2407,7 @@ const aggregatedMetrics = computed(() => {
   padding: 10px 12px;
   border-radius: 10px;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
-  font-size: 11px;
+  font-size: 12px;
   z-index: 20;
   transform: translate(-50%, -115%);
   min-width: 190px;
@@ -2421,7 +2428,7 @@ const aggregatedMetrics = computed(() => {
 }
 
 .tooltip-date {
-  font-size: 10px;
+  font-size: 12px;
   color: #94a3b8;
 }
 
@@ -2439,7 +2446,7 @@ const aggregatedMetrics = computed(() => {
   display: inline-block;
   padding: 1px 6px;
   border-radius: 4px;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   color: #0f172a;
 }
@@ -2449,7 +2456,7 @@ const aggregatedMetrics = computed(() => {
   justify-content: space-between;
   border-top: 1px solid #334155;
   padding-top: 4px;
-  font-size: 10px;
+  font-size: 12px;
   color: #cbd5e1;
 }
 
@@ -2464,7 +2471,7 @@ const aggregatedMetrics = computed(() => {
 }
 
 .legend-hint {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: #64748b;
 }
@@ -2482,7 +2489,8 @@ const aggregatedMetrics = computed(() => {
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
-  padding: 2px 6px;
+  padding: 4px 8px;
+  line-height: 1.4;
   transition: all 0.2s ease;
 }
 
@@ -2505,7 +2513,7 @@ const aggregatedMetrics = computed(() => {
 }
 
 .chip-status-badge {
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .legend-chip-card.faded {
@@ -2514,7 +2522,7 @@ const aggregatedMetrics = computed(() => {
 }
 
 .legend-score-pill {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
   background: #f1f5f9;
   padding: 1px 5px;
@@ -2575,7 +2583,7 @@ const aggregatedMetrics = computed(() => {
 }
 
 .box-info small {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   color: #64748b;
 }
@@ -2590,7 +2598,7 @@ const aggregatedMetrics = computed(() => {
 }
 
 .insight-badge {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   margin-top: 2px;
 }
@@ -2693,7 +2701,7 @@ const aggregatedMetrics = computed(() => {
 }
 
 .net-profit-badge small {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.3px;
@@ -2745,7 +2753,7 @@ const aggregatedMetrics = computed(() => {
 }
 
 .price-cell .p-label {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   color: #64748b;
 }
@@ -2761,7 +2769,7 @@ const aggregatedMetrics = computed(() => {
   align-items: center;
   background: #fee2e2;
   color: #991b1b;
-  font-size: 11px;
+  font-size: 12px;
   padding: 6px 10px;
   border-radius: 6px;
   border: 1px solid #fca5a5;
@@ -2799,11 +2807,11 @@ const aggregatedMetrics = computed(() => {
 }
 
 .pulse-today-dot {
+  display: inline-block;
   width: 8px;
   height: 8px;
-  border-radius: 50%;
-  background: #ef4444;
   animation: pulse-dot 1.8s infinite;
+  flex-shrink: 0;
 }
 
 @keyframes pulse-dot {
@@ -2819,7 +2827,7 @@ const aggregatedMetrics = computed(() => {
 }
 
 .today-slots-sub {
-  font-size: 10.5px;
+  font-size: 12px;
   color: #64748b;
 }
 
@@ -2870,13 +2878,13 @@ const aggregatedMetrics = computed(() => {
 }
 
 .daypart-title {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
   color: #1e293b;
 }
 
 .now-badge {
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 800;
   color: #2563eb;
   background: #dbeafe;
@@ -2885,7 +2893,7 @@ const aggregatedMetrics = computed(() => {
 }
 
 .peak-badge {
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 800;
   color: #166534;
   background: #dcfce7;
@@ -2894,7 +2902,7 @@ const aggregatedMetrics = computed(() => {
 }
 
 .daypart-sub-range {
-  font-size: 9.5px;
+  font-size: 12px;
   color: #64748b;
   margin-bottom: 2px;
 }
@@ -2908,7 +2916,7 @@ const aggregatedMetrics = computed(() => {
 .dp-stat-item {
   display: flex;
   justify-content: space-between;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .dp-k {
@@ -2961,13 +2969,13 @@ const aggregatedMetrics = computed(() => {
 }
 
 .diag-title {
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 800;
   margin-bottom: 1px;
 }
 
 .diag-msg {
-  font-size: 10.5px;
+  font-size: 12px;
   line-height: 1.35;
   margin: 0;
   opacity: 0.95;
@@ -3011,7 +3019,7 @@ const aggregatedMetrics = computed(() => {
 }
 
 .spend-main-badge {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.4px;
@@ -3021,7 +3029,7 @@ const aggregatedMetrics = computed(() => {
 }
 
 .spend-count-pill {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   background: rgba(255, 255, 255, 0.15);
   color: #e2e8f0;
@@ -3045,7 +3053,7 @@ const aggregatedMetrics = computed(() => {
 }
 
 .dist-pill {
-  font-size: 11px;
+  font-size: 12px;
   padding: 2px 8px;
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.08);
@@ -3090,7 +3098,7 @@ const aggregatedMetrics = computed(() => {
 }
 
 .cluster-cell small {
-  font-size: 10.5px;
+  font-size: 12px;
   color: #94a3b8;
   font-weight: 600;
 }

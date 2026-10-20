@@ -73,7 +73,7 @@ const isChatActiveOnMobile = computed(() => {
     color: var(--color-text-secondary);
     background: none;
     text-decoration: none;
-    font-size: 10px;
+    font-size: 12px;
     font-weight: 650;
     cursor: pointer;
     transition: 0.18s ease;

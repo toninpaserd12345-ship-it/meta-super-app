@@ -1157,7 +1157,12 @@ const formatTime = (ts: string) => {
             @click="selectConversation(item.senderId)"
           >
             <div class="conv-avatar">
-              <img v-if="item.senderPic" :src="item.senderPic" alt="Profile" class="avatar-img" />
+              <img
+                v-if="item.senderPic"
+                :src="item.senderPic"
+                alt="Profile"
+                class="avatar-img"
+              />
               <v-icon v-else :icon="item.platform === 'whatsapp' ? 'mdi-whatsapp' : 'mdi-facebook-messenger'" />
               <span class="platform-mini-badge" :class="item.platform">
                 <v-icon :icon="item.platform === 'whatsapp' ? 'mdi-whatsapp' : 'mdi-facebook-messenger'" size="9"/>
@@ -1309,7 +1314,12 @@ const formatTime = (ts: string) => {
             :class="msg.platform === 'system' ? 'outgoing' : 'incoming'"
           >
             <div class="bubble-content">
-              <img v-if="msg.type === 'image' && msg.message" :src="msg.message" :alt="locale==='lo'?'ຮູບຈາກການສົນທະນາ':'Conversation image'" class="message-image">
+              <img
+                v-if="msg.type === 'image' && msg.message"
+                :src="msg.message"
+                :alt="locale==='lo'?'ຮູບຈາກການສົນທະນາ':'Conversation image'"
+                class="message-image"
+              />
               <video v-else-if="msg.type === 'video' && msg.message" :src="msg.message" controls class="message-video"/>
               <audio v-else-if="msg.type === 'audio' && msg.message" :src="msg.message" controls class="message-audio"/>
               <span v-else-if="msg.type === 'image'" class="media-placeholder">{{locale==='lo'?'ຮູບພາບ':'Image'}}</span>
@@ -1450,7 +1460,11 @@ const formatTime = (ts: string) => {
         <!-- Customer Profile Card -->
         <div class="pancake-card profile-card">
           <div class="customer-avatar-lg">
-            <img v-if="activeSenderSummary.senderPic" :src="activeSenderSummary.senderPic" alt="Avatar"/>
+            <img
+              v-if="activeSenderSummary.senderPic"
+              :src="activeSenderSummary.senderPic"
+              alt="Avatar"
+            />
             <v-icon v-else :icon="activeSenderSummary.platform === 'whatsapp' ? 'mdi-whatsapp' : 'mdi-facebook-messenger'" size="28"/>
           </div>
           <div class="customer-profile-info">
@@ -1892,7 +1906,7 @@ const formatTime = (ts: string) => {
   font-size: 17px;
   font-weight: 750;
 }
-.live-state{display:flex;align-items:center;gap:6px;color:var(--color-text-muted);font-size:11px;font-weight:600}.live-state i{width:7px;height:7px;border-radius:50%;background:#f59e0b}.live-state.online{color:#15803d}.live-state.online i{background:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,.16)}
+.live-state{display:flex;align-items:center;gap:6px;color:var(--color-text-muted);font-size: 12px;font-weight:600}.live-state i{width:7px;height:7px;border-radius:50%;background:#f59e0b}.live-state.online{color:#15803d}.live-state.online i{background:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,.16)}
 
 .sidebar-search {
   position: relative;
@@ -1953,7 +1967,7 @@ const formatTime = (ts: string) => {
   gap: 5px;
   padding: 4px 10px;
   border-radius: 14px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   border: 1px solid var(--color-border);
   background: var(--color-background);
@@ -1975,7 +1989,7 @@ const formatTime = (ts: string) => {
   padding: 1px 5px;
   border-radius: 10px;
   background: rgba(0,0,0,0.06);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 750;
 }
 .filter-pill.active .filter-count {
@@ -2080,7 +2094,7 @@ const formatTime = (ts: string) => {
   text-overflow: ellipsis;
 }
 .conv-time {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--color-text-muted);
   flex-shrink: 0;
   font-weight: 500;
@@ -2097,7 +2111,7 @@ const formatTime = (ts: string) => {
   align-items: center;
   padding: 2px 7px;
   border-radius: 10px;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 750;
   border: 1px solid transparent;
   flex-shrink: 0;
@@ -2158,7 +2172,7 @@ const formatTime = (ts: string) => {
 }
 
 .header-page-id {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--color-text-muted);
   display: inline-flex;
   align-items: center;
@@ -2166,7 +2180,7 @@ const formatTime = (ts: string) => {
 }
 
 .platform-badge {
-  font-size: 10px;
+  font-size: 12px;
   padding: 2px 7px;
   border-radius: 10px;
   font-weight: 700;
@@ -2256,7 +2270,7 @@ const formatTime = (ts: string) => {
 }
 
 .status-menu-header {
-  font-size: 11px !important;
+  font-size: 12px !important;
   font-weight: 750 !important;
   color: var(--color-text-muted) !important;
   padding: 4px 12px !important;
@@ -2321,7 +2335,7 @@ const formatTime = (ts: string) => {
 }
 
 .bubble-time {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--color-text-muted);
   margin-top: 4px;
 }
@@ -2346,7 +2360,7 @@ const formatTime = (ts: string) => {
   justify-content: space-between;
 }
 .quick-chips-title {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 750;
   color: var(--color-text-secondary);
   display: flex;
@@ -2357,7 +2371,7 @@ const formatTime = (ts: string) => {
   background: none;
   border: none;
   color: var(--color-primary);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   cursor: pointer;
   display: flex;
@@ -2399,7 +2413,7 @@ const formatTime = (ts: string) => {
 .quick-tap-chip .chip-badge {
   color: var(--color-primary);
   font-weight: 800;
-  font-size: 11.5px;
+  font-size: 12px;
 }
 .quick-tap-chip .chip-text {
   font-weight: 600;
@@ -2419,7 +2433,7 @@ const formatTime = (ts: string) => {
 }
 
 .suggestion-label {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 750;
   color: var(--color-primary);
   display: flex;
@@ -2452,7 +2466,7 @@ const formatTime = (ts: string) => {
 }
 .suggestion-chip small {
   color: var(--color-text-secondary);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .chat-notice-success {
@@ -2542,7 +2556,7 @@ const formatTime = (ts: string) => {
   background: var(--color-primary-soft);
   color: var(--color-primary);
   border-radius: 6px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
   width: fit-content;
 }
@@ -2553,7 +2567,7 @@ const formatTime = (ts: string) => {
   text-overflow: ellipsis;
 }
 .code-info small {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--color-text-secondary);
 }
 .code-actions {
@@ -2648,7 +2662,7 @@ const formatTime = (ts: string) => {
   .sidebar-header h2{font-size:15px}
   .conv-item{padding:10px 8px}
   .conv-name{font-size:12.5px}
-  .conv-preview{font-size:11.5px}
+  .conv-preview{font-size: 12px}
   .chat-header,.chat-messages{padding:12px}
   .message-bubble{max-width:88%}
 }
@@ -2696,19 +2710,19 @@ const formatTime = (ts: string) => {
   .chat-header-actions{gap:6px}
   .current-status-btn{
     padding: 7px 11px;
-    font-size: 11.5px;
+    font-size: 12px;
     min-height: 40px;
     border-radius: 10px;
     touch-action: manipulation;
   }
   .action-btn-purchased{
     padding: 7px 11px;
-    font-size: 11.5px;
+    font-size: 12px;
     min-height: 40px;
     border-radius: 10px;
     touch-action: manipulation;
   }
-  .purchased-pill{padding:5px 10px;font-size:11.5px}
+  .purchased-pill{padding:5px 10px;font-size: 12px}
   .chat-messages{
     padding: 12px 10px;
     -webkit-overflow-scrolling: touch;
@@ -2741,8 +2755,9 @@ const formatTime = (ts: string) => {
 }
 
 .status-badge {
-  font-size: 10px;
-  padding: 2px 6px;
+  font-size: 12px;
+  padding: 4px 8px;
+  line-height: 1.4;
   border-radius: 4px;
   margin-left: 6px;
   background: #f0f0f0;
@@ -2761,7 +2776,7 @@ const formatTime = (ts: string) => {
   margin-top: 6px;
 }
 .meta-tag {
-  font-size: 10px;
+  font-size: 12px;
   padding: 2px 6px;
   border-radius: 12px;
   background: var(--color-background);
@@ -2830,7 +2845,7 @@ const formatTime = (ts: string) => {
 .staff-filter-btn {
   padding: 3px 9px;
   border-radius: 12px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 650;
   border: 1px solid var(--color-border);
   background: var(--color-background);
@@ -2969,12 +2984,12 @@ const formatTime = (ts: string) => {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
+  font-size: 12px;
 }
 .platform-chip {
   padding: 1px 6px;
   border-radius: 8px;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
 }
@@ -3013,7 +3028,7 @@ const formatTime = (ts: string) => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 750;
   color: var(--color-text-secondary);
   gap: 4px;
@@ -3038,7 +3053,7 @@ const formatTime = (ts: string) => {
   gap: 5px;
   padding: 6px 8px;
   border-radius: 8px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   border: 1px solid var(--color-border);
   background: var(--color-surface);
@@ -3112,7 +3127,7 @@ const formatTime = (ts: string) => {
   align-items: center;
   padding: 4px 8px;
   border-radius: 12px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   border: 1px solid var(--color-border);
   background: var(--color-surface);
@@ -3136,7 +3151,7 @@ const formatTime = (ts: string) => {
   background: var(--color-primary);
   color: white;
   border: none;
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -3196,7 +3211,7 @@ const formatTime = (ts: string) => {
   align-items: center;
   padding: 5px 11px;
   border-radius: 14px;
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 700;
   border: 1px solid var(--color-border);
   background: var(--color-background);
@@ -3264,7 +3279,7 @@ const formatTime = (ts: string) => {
   gap: 6px;
 }
 .order-label {
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 750;
   color: var(--color-text-secondary);
 }

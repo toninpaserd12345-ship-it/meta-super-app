@@ -291,7 +291,8 @@ onMounted(() => {
 .password-box strong {
   display: block;
   font-size: 20px;
+  font-family: monospace;
   margin-top: 8px;
-  letter-spacing: 2px;
+  letter-spacing: 0.04em;
 }
 </style>

@@ -37,6 +37,7 @@ const demographicTab = ref<'demographics' | 'buyers'>('demographics')
 const selectedProductId = ref<string>('all')
 const statusFilter = ref<'all' | 'angels' | 'bad'>('all')
 const viewMode = ref<'cards' | 'table' | 'demographics'>('cards')
+const isPlacementBattleOpen = ref(false)
 
 const iso = (date: Date) => {
   const copy = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
@@ -555,132 +556,185 @@ const activeDemographics = computed<DynamicDemographics>(() => {
   const totalMessages = items.reduce((acc, it) => acc + getMessagesCount(it), 0)
   const avgCpa = totalOrders > 0 ? totalSpend / totalOrders : (totalMessages > 0 ? totalSpend / totalMessages : null)
 
-  // 1. Gender calculation
-  const lowerName = prodName.toLowerCase()
-  const isFemaleProd = ['women', 'lady', 'female', 'dress', 'skincare', 'lipstick', 'lip', 'ເສື້ອຜ້າຜູ້ຍິງ', 'ເຄື່ອງສຳອາງ', 'ຄຣີມ', 'ສ້ອຍ', 'ກະໂປ່ງ'].some(k => lowerName.includes(k))
-  const isMaleProd = ['men', 'man', 'male', 'watch', 'smartwatch', 'gadget', 'drone', 'game', 'h9', 'h9 max', 't900', 'ultra', 'ໂມງ'].some(k => lowerName.includes(k))
+  const apiDemo = demographicsReport.value
 
+  // 1. Gender calculation from real Meta API
+  let genderList: MetaDemographicMetric[] = []
   let maleRatio = 0.5
   let femaleRatio = 0.5
-  if (isFemaleProd) {
-    femaleRatio = 0.88
-    maleRatio = 0.12
-  } else if (isMaleProd) {
-    maleRatio = 0.82
-    femaleRatio = 0.18
-  } else if (demographicsReport.value?.gender && demographicsReport.value.gender.length >= 2) {
-    const m = demographicsReport.value.gender.find(g => g.key === 'male')?.spend || 0
-    const f = demographicsReport.value.gender.find(g => g.key === 'female')?.spend || 0
+
+  if (apiDemo?.gender && apiDemo.gender.length > 0) {
+    genderList = apiDemo.gender.map(g => ({
+      key: g.key,
+      label: g.key === 'male' ? 'ຜູ້ຊາຍ (Men)' : (g.key === 'female' ? 'ຜູ້ຍິງ (Women)' : g.label || g.key),
+      category: 'gender',
+      spend: g.spend || 0,
+      purchasesCount: g.purchasesCount || 0,
+      messagesCount: g.messagesCount || 0,
+      costPerPurchase: g.costPerPurchase,
+      costPerMessage: g.costPerMessage,
+    }))
+    const m = apiDemo.gender.find(g => g.key === 'male')?.spend || 0
+    const f = apiDemo.gender.find(g => g.key === 'female')?.spend || 0
     const tot = m + f
     if (tot > 0) {
       maleRatio = m / tot
       femaleRatio = f / tot
     }
+  } else {
+    const lowerName = prodName.toLowerCase()
+    const isFemaleProd = ['women', 'lady', 'female', 'dress', 'skincare', 'lipstick', 'lip', 'ເສື້ອຜ້າຜູ້ຍິງ', 'ເຄື່ອງສຳອາງ', 'ຄຣີມ', 'ສ້ອຍ', 'ກະໂປ່ງ'].some(k => lowerName.includes(k))
+    const isMaleProd = ['men', 'man', 'male', 'watch', 'smartwatch', 'gadget', 'drone', 'game', 'ໂມງ'].some(k => lowerName.includes(k))
+    if (isFemaleProd) {
+      femaleRatio = 0.88
+      maleRatio = 0.12
+    } else if (isMaleProd) {
+      maleRatio = 0.82
+      femaleRatio = 0.18
+    }
+    genderList = [
+      {
+        key: 'male',
+        label: 'ຜູ້ຊາຍ (Men)',
+        category: 'gender',
+        spend: totalSpend * maleRatio,
+        purchasesCount: Math.round(totalOrders * maleRatio),
+        messagesCount: Math.round(totalMessages * maleRatio),
+        costPerPurchase: Math.round(totalOrders * maleRatio) > 0 ? (totalSpend * maleRatio) / Math.round(totalOrders * maleRatio) : undefined,
+        costPerMessage: Math.round(totalMessages * maleRatio) > 0 ? (totalSpend * maleRatio) / Math.round(totalMessages * maleRatio) : undefined,
+      },
+      {
+        key: 'female',
+        label: 'ຜູ້ຍິງ (Women)',
+        category: 'gender',
+        spend: totalSpend * femaleRatio,
+        purchasesCount: Math.round(totalOrders * femaleRatio),
+        messagesCount: Math.round(totalMessages * femaleRatio),
+        costPerPurchase: Math.round(totalOrders * femaleRatio) > 0 ? (totalSpend * femaleRatio) / Math.round(totalOrders * femaleRatio) : undefined,
+        costPerMessage: Math.round(totalMessages * femaleRatio) > 0 ? (totalSpend * femaleRatio) / Math.round(totalMessages * femaleRatio) : undefined,
+      },
+    ]
   }
 
-  const genderList: MetaDemographicMetric[] = [
-    {
-      key: 'male',
-      label: 'ຜູ້ຊາຍ (Men)',
-      category: 'gender',
-      spend: totalSpend * maleRatio,
-      purchasesCount: Math.round(totalOrders * maleRatio),
-      messagesCount: Math.round(totalMessages * maleRatio),
-      costPerPurchase: Math.round(totalOrders * maleRatio) > 0 ? (totalSpend * maleRatio) / Math.round(totalOrders * maleRatio) : undefined,
-      costPerMessage: Math.round(totalMessages * maleRatio) > 0 ? (totalSpend * maleRatio) / Math.round(totalMessages * maleRatio) : undefined,
-    },
-    {
-      key: 'female',
-      label: 'ຜູ້ຍິງ (Women)',
-      category: 'gender',
-      spend: totalSpend * femaleRatio,
-      purchasesCount: Math.round(totalOrders * femaleRatio),
-      messagesCount: Math.round(totalMessages * femaleRatio),
-      costPerPurchase: Math.round(totalOrders * femaleRatio) > 0 ? (totalSpend * femaleRatio) / Math.round(totalOrders * femaleRatio) : undefined,
-      costPerMessage: Math.round(totalMessages * femaleRatio) > 0 ? (totalSpend * femaleRatio) / Math.round(totalMessages * femaleRatio) : undefined,
-    },
-  ]
   const bestGender = maleRatio >= femaleRatio ? `ຜູ້ຊາຍ (${Math.round(maleRatio * 100)}%+)` : `ຜູ້ຍິງ (${Math.round(femaleRatio * 100)}%+)`
   const blueprintGender = maleRatio >= 0.7 ? 'ຜູ້ຊາຍ (Men)' : (femaleRatio >= 0.7 ? 'ຜູ້ຍິງ (Women)' : 'ທັງໝົດ (All Genders)')
 
-  // 2. Age calculation
-  const baseAgeWeights: Record<string, { share: number; purShare: number }> = {
-    '18-24': { share: 0.15, purShare: 0.05 },
-    '25-34': { share: 0.45, purShare: 0.55 },
-    '35-44': { share: 0.28, purShare: 0.32 },
-    '45-54': { share: 0.08, purShare: 0.06 },
-    '55-64': { share: 0.03, purShare: 0.02 },
-    '65+':   { share: 0.01, purShare: 0.00 },
-  }
-  const ageList: MetaDemographicMetric[] = Object.entries(baseAgeWeights).map(([aKey, w]) => {
-    const sp = totalSpend * w.share
-    const pur = Math.round(totalOrders * w.purShare)
-    const msg = Math.round(totalMessages * w.share)
-    const cpa = pur > 0 ? sp / pur : (msg > 0 ? sp / msg : undefined)
-    return {
-      key: aKey,
-      label: `${aKey} ປີ`,
+  // 2. Age calculation from real Meta API
+  let ageList: MetaDemographicMetric[] = []
+  if (apiDemo?.age && apiDemo.age.length > 0) {
+    ageList = apiDemo.age.map(a => ({
+      key: a.key,
+      label: a.label || `${a.key} ປີ`,
       category: 'age',
-      spend: sp,
-      purchasesCount: pur,
-      messagesCount: msg,
-      costPerPurchase: cpa,
+      spend: a.spend || 0,
+      purchasesCount: a.purchasesCount || 0,
+      messagesCount: a.messagesCount || 0,
+      costPerPurchase: a.costPerPurchase,
+      costPerMessage: a.costPerMessage,
+    }))
+  } else {
+    const baseAgeWeights: Record<string, { share: number; purShare: number }> = {
+      '18-24': { share: 0.15, purShare: 0.05 },
+      '25-34': { share: 0.45, purShare: 0.55 },
+      '35-44': { share: 0.28, purShare: 0.32 },
+      '45-54': { share: 0.08, purShare: 0.06 },
+      '55-64': { share: 0.03, purShare: 0.02 },
+      '65+':   { share: 0.01, purShare: 0.00 },
     }
-  })
+    ageList = Object.entries(baseAgeWeights).map(([aKey, w]) => {
+      const sp = totalSpend * w.share
+      const pur = Math.round(totalOrders * w.purShare)
+      const msg = Math.round(totalMessages * w.share)
+      const cpa = pur > 0 ? sp / pur : (msg > 0 ? sp / msg : undefined)
+      return {
+        key: aKey,
+        label: `${aKey} ປີ`,
+        category: 'age',
+        spend: sp,
+        purchasesCount: pur,
+        messagesCount: msg,
+        costPerPurchase: cpa,
+      }
+    })
+  }
   const bestAge = '25–44 ປີ (CPA ຖືກສຸດ)'
   const blueprintAge = '25 – 45 ປີ'
 
-  // 3. Devices calculation
-  const devList: MetaDemographicMetric[] = [
-    {
-      key: 'android_smartphone',
-      label: 'Android Smartphone',
+  // 3. Devices calculation from real Meta API
+  let devList: MetaDemographicMetric[] = []
+  if (apiDemo?.devices && apiDemo.devices.length > 0) {
+    devList = apiDemo.devices.map(d => ({
+      key: d.key,
+      label: d.label || d.key,
       category: 'device',
-      spend: totalSpend * 0.72,
-      purchasesCount: Math.round(totalOrders * 0.75),
-      costPerPurchase: totalOrders > 0 ? (totalSpend * 0.72) / Math.max(1, Math.round(totalOrders * 0.75)) : undefined,
-    },
-    {
-      key: 'iphone',
-      label: 'Apple iPhone (iOS)',
-      category: 'device',
-      spend: totalSpend * 0.26,
-      purchasesCount: Math.round(totalOrders * 0.24),
-      costPerPurchase: totalOrders > 0 ? (totalSpend * 0.26) / Math.max(1, Math.round(totalOrders * 0.24)) : undefined,
-    },
-    {
-      key: 'desktop',
-      label: 'Computer / Desktop',
-      category: 'device',
-      spend: totalSpend * 0.02,
-      purchasesCount: Math.round(totalOrders * 0.01),
-      costPerPurchase: totalOrders > 0 ? (totalSpend * 0.02) / Math.max(1, Math.round(totalOrders * 0.01)) : undefined,
-    },
-  ]
+      spend: d.spend || 0,
+      purchasesCount: d.purchasesCount || 0,
+      costPerPurchase: d.costPerPurchase,
+    }))
+  } else {
+    devList = [
+      {
+        key: 'android_smartphone',
+        label: 'Android Smartphone',
+        category: 'device',
+        spend: totalSpend * 0.72,
+        purchasesCount: Math.round(totalOrders * 0.75),
+        costPerPurchase: totalOrders > 0 ? (totalSpend * 0.72) / Math.max(1, Math.round(totalOrders * 0.75)) : undefined,
+      },
+      {
+        key: 'iphone',
+        label: 'Apple iPhone (iOS)',
+        category: 'device',
+        spend: totalSpend * 0.26,
+        purchasesCount: Math.round(totalOrders * 0.24),
+        costPerPurchase: totalOrders > 0 ? (totalSpend * 0.26) / Math.max(1, Math.round(totalOrders * 0.24)) : undefined,
+      },
+      {
+        key: 'desktop',
+        label: 'Computer / Desktop',
+        category: 'device',
+        spend: totalSpend * 0.02,
+        purchasesCount: Math.round(totalOrders * 0.01),
+        costPerPurchase: totalOrders > 0 ? (totalSpend * 0.02) / Math.max(1, Math.round(totalOrders * 0.01)) : undefined,
+      },
+    ]
+  }
   const bestDevice = 'Android Smartphone'
   const blueprintDevices = 'Android Smartphone + iPhone (ມືຖື)'
 
-  // 4. Regions calculation
-  const regionWeights: Record<string, number> = {
-    'ນະຄອນຫຼວງວຽງຈັນ (Vientiane)': 0.58,
-    'ແຂວງ ຈຳປາສັກ (Champasak)': 0.18,
-    'ແຂວງ ສະຫວັນນະເຂດ (Savannakhet)': 0.12,
-    'ແຂວງ ຫຼວງພະບາງ (Luang Prabang)': 0.06,
-    'ແຂວງ ຄຳມ່ວນ (Khammouane)': 0.03,
-    'ແຂວງ ວຽງຈັນ (Vientiane Prov.)': 0.03,
-  }
-  const regionList: MetaDemographicMetric[] = Object.entries(regionWeights).map(([rKey, share]) => {
-    const sp = totalSpend * share
-    const pur = Math.round(totalOrders * share)
-    return {
-      key: rKey,
-      label: rKey,
+  // 4. Regions calculation from real Meta API
+  let regionList: MetaDemographicMetric[] = []
+  if (apiDemo?.regions && apiDemo.regions.length > 0) {
+    regionList = apiDemo.regions.map(r => ({
+      key: r.key,
+      label: r.label || r.key,
       category: 'region',
-      spend: sp,
-      purchasesCount: pur,
-      costPerPurchase: pur > 0 ? sp / pur : undefined,
+      spend: r.spend || 0,
+      purchasesCount: r.purchasesCount || 0,
+      costPerPurchase: r.costPerPurchase,
+    }))
+  } else {
+    const regionWeights: Record<string, number> = {
+      'ນະຄອນຫຼວງວຽງຈັນ (Vientiane)': 0.58,
+      'ແຂວງ ຈຳປາສັກ (Champasak)': 0.18,
+      'ແຂວງ ສະຫວັນນະເຂດ (Savannakhet)': 0.12,
+      'ແຂວງ ຫຼວງພະບາງ (Luang Prabang)': 0.06,
+      'ແຂວງ ຄຳມ່ວນ (Khammouane)': 0.03,
+      'ແຂວງ ວຽງຈັນ (Vientiane Prov.)': 0.03,
     }
-  })
+    regionList = Object.entries(regionWeights).map(([rKey, share]) => {
+      const sp = totalSpend * share
+      const pur = Math.round(totalOrders * share)
+      return {
+        key: rKey,
+        label: rKey,
+        category: 'region',
+        spend: sp,
+        purchasesCount: pur,
+        costPerPurchase: pur > 0 ? sp / pur : undefined,
+      }
+    })
+  }
   const bestRegion = 'ນະຄອນຫຼວງວຽງຈັນ'
   const blueprintLocations = 'ນະຄອນຫຼວງວຽງຈັນ, ຈຳປາສັກ, ສະຫວັນນະເຂດ'
 
@@ -710,62 +764,72 @@ const activeDemographics = computed<DynamicDemographics>(() => {
   const bestHours = '11:00-14:00 & 19:00-23:30'
   const blueprintSchedule = '11:00 - 14:00 ແລະ 19:00 - 23:30 (ປິດແອດຕອນເດິກ)'
 
-  // 7. Video retention funnel
-  let totalImp = 0
-  let total3s = 0
-  let totalThru = 0
-  let totalP50 = 0
-  let totalP100 = 0
-  for (const it of items) {
-    if (it.impressions) totalImp += it.impressions
-    if (it.videoViews3s) total3s += it.videoViews3s
-    if (it.videoThruplay) totalThru += it.videoThruplay
-    if (it.videoP50) totalP50 += it.videoP50
-    if (it.videoP100) totalP100 += it.videoP100
+  // 7. Video retention funnel from real Meta API
+  let videoFunnel: MetaVideoFunnelMetric | null = apiDemo?.videoFunnel || null
+  let hookRate = videoFunnel?.hookRate || 0
+
+  if (!videoFunnel) {
+    let totalImp = 0
+    let total3s = 0
+    let totalThru = 0
+    let totalP50 = 0
+    let totalP100 = 0
+    for (const it of items) {
+      if (it.impressions) totalImp += it.impressions
+      if (it.videoViews3s) total3s += it.videoViews3s
+      if (it.videoThruplay) totalThru += it.videoThruplay
+      if (it.videoP50) totalP50 += it.videoP50
+      if (it.videoP100) totalP100 += it.videoP100
+    }
+    if (total3s === 0 && totalImp > 0) {
+      total3s = Math.round(totalImp * 0.324)
+      totalThru = Math.round(total3s * 0.44)
+      totalP50 = Math.round(total3s * 0.58)
+      totalP100 = totalThru
+    }
+    hookRate = totalImp > 0 ? (total3s / totalImp) * 100 : 0
+    const holdRate = total3s > 0 ? (totalThru / total3s) * 100 : 0
+
+    videoFunnel = totalImp > 0 ? {
+      totalImpressions: totalImp,
+      views3s: total3s,
+      thruplay: totalThru,
+      p50: totalP50,
+      p100: totalP100,
+      hookRate,
+      holdRate,
+    } : null
   }
-  if (total3s === 0 && totalImp > 0) {
-    total3s = Math.round(totalImp * 0.324)
-    totalThru = Math.round(total3s * 0.44)
-    totalP50 = Math.round(total3s * 0.58)
-    totalP100 = totalThru
-  }
-  const hookRate = totalImp > 0 ? (total3s / totalImp) * 100 : 0
-  const holdRate = total3s > 0 ? (totalThru / total3s) * 100 : 0
+
   const hookRateText = hookRate > 0 ? `${fmt(hookRate, 1)}% (${hookRate >= 25 ? 'ຢຸດຕາຄົນດີ ⭐' : 'ຄວນປັບ Hook'})` : 'ບໍ່ມີວິດີໂອ'
 
-  const videoFunnel: MetaVideoFunnelMetric | null = totalImp > 0 ? {
-    totalImpressions: totalImp,
-    views3s: total3s,
-    thruplay: totalThru,
-    p50: totalP50,
-    p100: totalP100,
-    hookRate,
-    holdRate,
-  } : null
-
-  // 8. 24-Hour Timeline
-  const timeWeights: { [h: number]: { pur: number; spendRatio: number } } = {
-    0: { pur: 0, spendRatio: 0.02 }, 1: { pur: 0, spendRatio: 0.015 }, 2: { pur: 0, spendRatio: 0.01 },
-    3: { pur: 0, spendRatio: 0.005 }, 4: { pur: 0, spendRatio: 0.005 }, 5: { pur: 0, spendRatio: 0.01 },
-    6: { pur: 0, spendRatio: 0.015 }, 7: { pur: 1, spendRatio: 0.025 }, 8: { pur: 1, spendRatio: 0.035 },
-    9: { pur: 2, spendRatio: 0.045 }, 10: { pur: 3, spendRatio: 0.055 }, 11: { pur: 5, spendRatio: 0.075 },
-    12: { pur: 7, spendRatio: 0.095 }, 13: { pur: 4, spendRatio: 0.065 }, 14: { pur: 3, spendRatio: 0.05 },
-    15: { pur: 2, spendRatio: 0.045 }, 16: { pur: 3, spendRatio: 0.05 }, 17: { pur: 3, spendRatio: 0.055 },
-    18: { pur: 4, spendRatio: 0.065 }, 19: { pur: 8, spendRatio: 0.10 }, 20: { pur: 10, spendRatio: 0.12 },
-    21: { pur: 9, spendRatio: 0.11 }, 22: { pur: 6, spendRatio: 0.08 }, 23: { pur: 2, spendRatio: 0.04 }
-  }
-  const hourly: MetaInsightHourlyPoint[] = []
-  for (let h = 0; h < 24; h++) {
-    const hKey = `${String(h).padStart(2, '0')}:00`
-    const w = timeWeights[h] || { pur: 0, spendRatio: 0.01 }
-    const sp = totalSpend * w.spendRatio
-    const pur = Math.round(totalOrders * w.spendRatio * 1.5)
-    hourly.push({
-      hour: hKey,
-      spend: sp,
-      purchasesCount: pur,
-      costPerPurchase: pur > 0 ? sp / pur : undefined,
-    })
+  // 8. 24-Hour Timeline from real Meta API
+  let hourly: MetaInsightHourlyPoint[] = []
+  if (apiDemo?.hourly && apiDemo.hourly.length > 0) {
+    hourly = apiDemo.hourly
+  } else {
+    const timeWeights: { [h: number]: { pur: number; spendRatio: number } } = {
+      0: { pur: 0, spendRatio: 0.02 }, 1: { pur: 0, spendRatio: 0.015 }, 2: { pur: 0, spendRatio: 0.01 },
+      3: { pur: 0, spendRatio: 0.005 }, 4: { pur: 0, spendRatio: 0.005 }, 5: { pur: 0, spendRatio: 0.01 },
+      6: { pur: 0, spendRatio: 0.015 }, 7: { pur: 1, spendRatio: 0.025 }, 8: { pur: 1, spendRatio: 0.035 },
+      9: { pur: 2, spendRatio: 0.045 }, 10: { pur: 3, spendRatio: 0.055 }, 11: { pur: 5, spendRatio: 0.075 },
+      12: { pur: 7, spendRatio: 0.095 }, 13: { pur: 4, spendRatio: 0.065 }, 14: { pur: 3, spendRatio: 0.05 },
+      15: { pur: 2, spendRatio: 0.045 }, 16: { pur: 3, spendRatio: 0.05 }, 17: { pur: 3, spendRatio: 0.055 },
+      18: { pur: 4, spendRatio: 0.065 }, 19: { pur: 8, spendRatio: 0.10 }, 20: { pur: 10, spendRatio: 0.12 },
+      21: { pur: 9, spendRatio: 0.11 }, 22: { pur: 6, spendRatio: 0.08 }, 23: { pur: 2, spendRatio: 0.04 }
+    }
+    for (let h = 0; h < 24; h++) {
+      const hKey = `${String(h).padStart(2, '0')}:00`
+      const w = timeWeights[h] || { pur: 0, spendRatio: 0.01 }
+      const sp = totalSpend * w.spendRatio
+      const pur = Math.round(totalOrders * w.spendRatio * 1.5)
+      hourly.push({
+        hour: hKey,
+        spend: sp,
+        purchasesCount: pur,
+        costPerPurchase: pur > 0 ? sp / pur : undefined,
+      })
+    }
   }
 
   const wastedText = 'ຕອນເດິກ (01-05h) & Audience Net (ຫ້າມຍິງ)'
@@ -1254,7 +1318,6 @@ onMounted(async () => {
       <div>
         <h1 class="page-heading">
           <span>⚡ Ads Performance & Battle</span>
-          <span class="simple-tag">Simple Design</span>
         </h1>
         <p class="page-sub">
           {{ l({ lo: 'ເບິ່ງຄວາມແຮງ, ກຳໄລ ແລະ ປິດແອດທີ່ກິນເງິນລ້າໆແບບງ່າຍດາຍ', th: 'ดูความแรง กำไร และปิดแอดที่กินเงินเปล่าอย่างง่ายดาย', en: 'Monitor momentum, profit, and pause money-wasting ads easily' }) }}
@@ -1473,22 +1536,35 @@ onMounted(async () => {
       </div>
     </section>
 
-    <!-- PLACEMENTS BATTLE SUMMARY (Feeds vs Reels vs Stories vs Audience Network) -->
+    <!-- PLACEMENTS BATTLE SUMMARY (Collapsible Accordion) -->
     <section v-if="displayedItems.length > 0 && placementBattleStats.hasData" class="placement-battle-summary-card">
-      <div class="pbs-header">
-        <div class="pbs-title">
-          <v-icon icon="mdi-sword-cross" size="18" color="primary" class="mr-1" />
-          <span>{{ l({ lo: 'ສະໜາມຮົບຊ່ອງທາງ (Placement Battle): Feed vs Reels vs Audience Net', th: 'ศึกชิงตำแหน่ง (Placement Battle): Feed vs Reels vs Audience Net', en: 'Placement Battle: Feed vs Reels vs Audience Network' }) }}</span>
+      <div class="pbs-header" style="cursor: pointer;" @click="isPlacementBattleOpen = !isPlacementBattleOpen">
+        <div class="d-flex align-center gap-2">
+          <v-icon icon="mdi-sword-cross" size="18" color="primary" />
+          <h2 class="pbs-title">
+            {{ l({ lo: 'ສະໜາມຮົບຊ່ອງທາງ (Placement Battle): Feed vs Reels vs Audience Net', th: 'ศึกชิงตำแหน่ง (Placement Battle): Feed vs Reels vs Audience Net', en: 'Placement Battle: Feed vs Reels vs Audience Network' }) }}
+          </h2>
         </div>
-        <div v-if="placementBattleStats.reels.cpa && placementBattleStats.feed.cpa && placementBattleStats.reels.cpa < placementBattleStats.feed.cpa" class="pbs-smart-badge reels-win">
-          🔥 Reels ປິດການຂາຍຖືກກວ່າ Feed {{ Math.round((1 - placementBattleStats.reels.cpa / placementBattleStats.feed.cpa) * 100) }}%!
-        </div>
-        <div v-else-if="placementBattleStats.audienceNetwork.isWasted" class="pbs-smart-badge audience-waste">
-          ⚠️ ພົບ Audience Network ຜານເງິນຟຣີ! ແນະນຳໃຫ້ປິດໃນ Ad Set
+        <div class="d-flex align-center gap-2">
+          <div v-if="placementBattleStats.reels.cpa && placementBattleStats.feed.cpa && placementBattleStats.reels.cpa < placementBattleStats.feed.cpa" class="pbs-smart-badge reels-win">
+            🔥 Reels ປິດການຂາຍຖືກກວ່າ Feed {{ Math.round((1 - placementBattleStats.reels.cpa / placementBattleStats.feed.cpa) * 100) }}%!
+          </div>
+          <div v-else-if="placementBattleStats.audienceNetwork.isWasted" class="pbs-smart-badge audience-waste">
+            ⚠️ ພົບ Audience Network ຜານເງິນຟຣີ! ແນະນຳໃຫ້ປິດໃນ Ad Set
+          </div>
+          <v-btn
+            size="x-small"
+            variant="tonal"
+            color="primary"
+            class="font-weight-bold ml-2"
+            :prepend-icon="isPlacementBattleOpen ? 'mdi-chevron-up' : 'mdi-chevron-down'"
+          >
+            {{ isPlacementBattleOpen ? 'ຫຍໍ້ເກັບ' : 'ເບິ່ງລາຍລະອຽດ' }}
+          </v-btn>
         </div>
       </div>
 
-      <div class="pbs-grid">
+      <div v-show="isPlacementBattleOpen" class="pbs-grid mt-3">
         <!-- 1. Feeds -->
         <div class="pbs-col feed-col">
           <div class="pbs-col-header">
@@ -1548,6 +1624,9 @@ onMounted(async () => {
         </div>
       </div>
     </section>
+
+    <!-- Accessible Section Landmark for Ads -->
+    <h2 class="sr-only">ລາຍການແອດທັງໝົດ</h2>
 
     <!-- Loading State -->
     <div v-if="loadingReport" class="simple-loading">
@@ -1859,7 +1938,12 @@ onMounted(async () => {
               </td>
               <td>
                 <div v-if="item.thumbnailUrl || item.imageUrl" class="table-thumb-box" @click="openPreviewModal(item)">
-                  <img :src="item.thumbnailUrl || item.imageUrl" class="table-thumb-img" />
+                  <img
+                    
+                    :src="item.thumbnailUrl || item.imageUrl"
+                    class="table-thumb-img"
+                    alt=""
+                  />
                   <span class="table-format-tag" :style="{ backgroundColor: getAdFormatType(item).color }">
                     <v-icon :icon="getAdFormatType(item).icon" size="10" color="white" />
                   </span>
@@ -2034,8 +2118,100 @@ onMounted(async () => {
         </div>
       </section>
 
+      <!-- Sub-Navigation: Demographics vs Real Buyers -->
+      <div class="d-flex align-center justify-space-between mb-4 flex-wrap gap-2">
+        <div class="d-flex align-center gap-2">
+          <v-btn
+            size="small"
+            :variant="demographicTab === 'demographics' ? 'flat' : 'outlined'"
+            :color="demographicTab === 'demographics' ? 'primary' : 'default'"
+            prepend-icon="mdi-chart-box-outline"
+            class="font-weight-bold"
+            @click="demographicTab = 'demographics'"
+          >
+            📊 6 ມິຕິ Demographics & ພຶດຕິກຳ (Insights Matrix)
+          </v-btn>
+          <v-btn
+            size="small"
+            :variant="demographicTab === 'buyers' ? 'flat' : 'outlined'"
+            :color="demographicTab === 'buyers' ? 'success' : 'default'"
+            prepend-icon="mdi-account-check-outline"
+            class="font-weight-bold"
+            @click="demographicTab = 'buyers'; loadOrders()"
+          >
+            👥 ລູກຄ້າຕົວຈິງ (Real Buyers: {{ filteredRealOrders.length }} ຄົນ)
+          </v-btn>
+        </div>
+
+        <v-btn
+          v-if="demographicTab === 'buyers'"
+          size="small"
+          color="success"
+          variant="flat"
+          prepend-icon="mdi-download"
+          class="font-weight-bold"
+          @click="exportRealCustomersCsv"
+        >
+          Export CSV ສໍາລັບ Meta Custom Audience
+        </v-btn>
+      </div>
+
+      <!-- VIEW: REAL VERIFIED BUYERS -->
+      <div v-if="demographicTab === 'buyers'" class="real-buyers-view-wrap">
+        <div class="app-table-card">
+          <div class="app-table-header">
+            <div class="d-flex align-center gap-2">
+              <v-icon icon="mdi-shield-check" color="success" size="20" />
+              <strong>ລາຍຊື່ລູກຄ້າທີ່ສັ່ງຊື້ສິນຄ້າແທ້ 100% (Real Verified Buyers)</strong>
+              <span class="text-caption text-medium-emphasis">({{ filteredRealOrders.length }} ຄົນ)</span>
+            </div>
+            <v-text-field
+              v-model="buyerSearch"
+              density="compact"
+              variant="outlined"
+              hide-details
+              placeholder="ຄົ້ນຫາຊື່, ເບີໂທ, ແຂວງ..."
+              prepend-inner-icon="mdi-magnify"
+              style="max-width: 260px;"
+            />
+          </div>
+
+          <div class="table-scroller">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>ລູກຄ້າ (Customer)</th>
+                  <th>ເບີໂທລະສັບ (Phone)</th>
+                  <th>ແຂວງ / ທີ່ຢູ່ (Location)</th>
+                  <th>ຍອດຊື້ລວມ (Total Spent)</th>
+                  <th>ສະຖານະ (Status)</th>
+                  <th>ວັນທີສັ່ງຊື້ (Date)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-if="filteredRealOrders.length === 0">
+                  <td colspan="6" class="text-center py-6 text-medium-emphasis">
+                    ບໍ່ພົບລາຍຊື່ລູກຄ້າທີ່ກົງກັບຄຳຄົ້ນຫາ
+                  </td>
+                </tr>
+                <tr v-for="order in filteredRealOrders" :key="order.id">
+                  <td class="font-weight-bold">{{ order.customerName || 'ລູກຄ້າທົ່ວໄປ' }}</td>
+                  <td><code>{{ order.customerPhone || '—' }}</code></td>
+                  <td>{{ order.city || order.shippingAddress || 'ນະຄອນຫຼວງວຽງຈັນ' }}</td>
+                  <td class="font-weight-bold text-success">{{ money(order.totalAmount || 0) }}</td>
+                  <td>
+                    <v-chip size="x-small" color="success" variant="flat">ສຳເລັດແລ້ວ</v-chip>
+                  </td>
+                  <td class="text-caption text-medium-emphasis">{{ order.createdAt ? new Date(order.createdAt).toLocaleDateString('lo-LA') : '—' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <!-- DEMOGRAPHICS MATRIX (Age, Gender, OS Devices, Placements, Regions) -->
-      <div class="demographics-matrix-grid">
+      <div v-else class="demographics-matrix-grid">
         <!-- 1. AGE BREAKDOWN -->
         <div class="matrix-card">
           <div class="matrix-card-header">
@@ -2304,7 +2480,6 @@ onMounted(async () => {
         </div>
       </div>
     </div>
-    </div>
 
     <!-- Scale Budget Modal -->
     <v-dialog v-model="budgetModalOpen" max-width="460">
@@ -2337,13 +2512,22 @@ onMounted(async () => {
 
           <div class="budget-preview-box">
             <div class="d-flex justify-space-between text-caption mb-1">
-              <span>ງົບປະມານປະຈຸບັນ (ປະມານ):</span>
+              <span>ງົບປະມານປະຈຸບັນ:</span>
               <strong>{{ money(currentDailyBudget) }}/ມື້</strong>
             </div>
-            <div class="d-flex justify-space-between text-body-1 font-weight-bold text-success">
+            <div class="d-flex justify-space-between text-body-1 font-weight-bold text-success mb-1">
               <span>ງົບໃໝ່ຫຼັງ Scale (+{{ selectedPercent }}%):</span>
               <span>{{ money(newDailyBudget) }}/ມື້</span>
             </div>
+            <div class="d-flex justify-space-between text-caption text-medium-emphasis border-t pt-1">
+              <span>ຄາດຄະເນຍອດຕັດບັດ 30 ມື້:</span>
+              <strong>~{{ money(newDailyBudget * 30) }}</strong>
+            </div>
+          </div>
+
+          <div class="mt-3 pa-2 rounded bg-surface-variant d-flex align-center gap-2 text-caption">
+            <v-icon icon="mdi-shield-check-outline" color="success" size="18" />
+            <span>💡 <strong>ປອດໄພ:</strong> ການ Scale +{{ selectedPercent }}% ບໍ່ເຮັດໃຫ້ Meta Reset Learning Phase.</span>
           </div>
         </v-card-text>
 
@@ -2901,6 +3085,7 @@ onMounted(async () => {
                 <div class="phone-media-container">
                   <img
                     v-if="previewAdItem.thumbnailUrl || previewAdItem.imageUrl"
+                    
                     :src="previewAdItem.thumbnailUrl || previewAdItem.imageUrl"
                     :alt="previewAdItem.entityName"
                     class="phone-media-img"
@@ -3066,7 +3251,7 @@ onMounted(async () => {
 }
 
 .simple-tag {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   background: #e0e7ff;
   color: #4338ca;
@@ -3142,7 +3327,7 @@ onMounted(async () => {
 }
 
 .kpi-lbl {
-  font-size: 11.5px;
+  font-size: 12px;
   color: #64748b;
   font-weight: 600;
   margin-bottom: 2px;
@@ -3302,7 +3487,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
+  font-size: 12px;
   color: #64748b;
   margin-top: 2px;
 }
@@ -3311,11 +3496,11 @@ onMounted(async () => {
   background: #f1f5f9;
   padding: 1px 4px;
   border-radius: 4px;
-  font-size: 10.5px;
+  font-size: 12px;
 }
 
 .prod-badge {
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 600;
   color: #0284c7;
   background: #e0f2fe;
@@ -3324,7 +3509,7 @@ onMounted(async () => {
 }
 
 .pill-badge {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   padding: 3px 8px;
   border-radius: 999px;
@@ -3353,7 +3538,7 @@ onMounted(async () => {
 }
 
 .m-k {
-  font-size: 10px;
+  font-size: 12px;
   color: #64748b;
   font-weight: 600;
   margin-bottom: 2px;
@@ -3393,7 +3578,7 @@ onMounted(async () => {
 }
 
 .paused-status-text {
-  font-size: 11px;
+  font-size: 12px;
   color: #64748b;
   font-weight: 600;
 }
@@ -3401,7 +3586,6 @@ onMounted(async () => {
 /* Table View */
 .table-container-card {
   background: #ffffff;
-  border: 1px solid #e2e8f0;
   border-radius: 14px;
   overflow: hidden;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
@@ -3519,14 +3703,14 @@ onMounted(async () => {
 }
 
 .score-lbl {
-  font-size: 10px;
+  font-size: 12px;
   text-transform: uppercase;
   font-weight: 700;
   color: #64748b;
 }
 
 .score-tag {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -3543,7 +3727,7 @@ onMounted(async () => {
 }
 
 .stat-l {
-  font-size: 10px;
+  font-size: 12px;
   color: #64748b;
   font-weight: 600;
 }
@@ -3588,7 +3772,7 @@ onMounted(async () => {
 .badge-count {
   background: #ef4444;
   color: #ffffff;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
   padding: 1px 6px;
   border-radius: 999px;
@@ -3650,7 +3834,7 @@ onMounted(async () => {
 }
 
 .bn-badge {
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 800;
   padding: 2px 8px;
   border-radius: 6px;
@@ -3733,7 +3917,7 @@ onMounted(async () => {
   position: absolute;
   top: 14px;
   right: 16px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
   color: #3b82f6;
   background: #eff6ff;
@@ -3859,7 +4043,7 @@ onMounted(async () => {
 }
 
 .pbs-smart-badge {
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 750;
   padding: 3px 10px;
   border-radius: 999px;
@@ -3911,7 +4095,7 @@ onMounted(async () => {
 }
 
 .win-tag {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   background: #fdf2f8;
   color: #be185d;
@@ -3920,7 +4104,7 @@ onMounted(async () => {
 }
 
 .ghost-tag {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   background: #fee2e2;
   color: #b91c1c;
@@ -3932,7 +4116,7 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 3px;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .pbs-m {
@@ -3997,7 +4181,7 @@ onMounted(async () => {
   position: absolute;
   top: 4px;
   left: 4px;
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 800;
   color: #ffffff;
   padding: 1px 6px;
@@ -4012,11 +4196,13 @@ onMounted(async () => {
   inset: 0;
   background: rgba(15, 23, 42, 0.6);
   color: #ffffff;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 8px;
+  line-height: 1.4;
   opacity: 0;
   transition: opacity 0.15s;
 }
@@ -4042,7 +4228,7 @@ onMounted(async () => {
 }
 
 .creative-body-snippet {
-  font-size: 11px;
+  font-size: 12px;
   color: #475569;
   line-height: 1.4;
   display: -webkit-box;
@@ -4061,7 +4247,7 @@ onMounted(async () => {
 
 .creative-copy-btn,
 .creative-view-details-btn {
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 600;
   color: #475569;
   background: #ffffff;
@@ -4081,7 +4267,7 @@ onMounted(async () => {
 }
 
 .creative-fb-link {
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 700;
   color: #2563eb;
   background: #eff6ff;
@@ -4110,15 +4296,16 @@ onMounted(async () => {
 }
 
 .pl-badge {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   color: #475569;
   background: #f1f5f9;
   border: 1px solid #e2e8f0;
   border-radius: 6px;
-  padding: 2px 6px;
+  padding: 4px 8px;
   display: flex;
   align-items: center;
+  line-height: 1.4;
 }
 
 .pl-badge.pl-waste {
@@ -4214,7 +4401,7 @@ onMounted(async () => {
 
 .phone-body-text {
   padding: 10px 12px;
-  font-size: 11.5px;
+  font-size: 12px;
   line-height: 1.45;
   color: #1e293b;
   max-height: 100px;
@@ -4260,11 +4447,11 @@ onMounted(async () => {
   min-width: 0;
   flex: 1;
   padding-right: 8px;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .phone-cta-text small {
-  font-size: 9.5px;
+  font-size: 12px;
   color: #64748b;
   text-transform: uppercase;
 }
@@ -4275,9 +4462,7 @@ onMounted(async () => {
 }
 
 .modal-placements-table-wrap {
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  overflow: hidden;
+  overflow-x: auto;
 }
 
 .modal-placements-table {
@@ -4314,7 +4499,7 @@ onMounted(async () => {
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   padding: 10px 12px;
-  font-size: 11.5px;
+  font-size: 12px;
   line-height: 1.5;
   color: #334155;
   max-height: 140px;
@@ -4369,7 +4554,7 @@ onMounted(async () => {
 }
 
 .persona-tag {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 750;
   background: rgba(59, 130, 246, 0.25);
   color: #93c5fd;
@@ -4397,7 +4582,7 @@ onMounted(async () => {
 }
 
 .persona-chip {
-  font-size: 11.5px;
+  font-size: 12px;
   padding: 5px 12px;
   border-radius: 8px;
   display: flex;
@@ -4504,7 +4689,7 @@ onMounted(async () => {
 }
 
 .matrix-tag {
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 700;
   color: #64748b;
   background: #f1f5f9;
@@ -4513,9 +4698,7 @@ onMounted(async () => {
 }
 
 .matrix-table-wrap {
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  overflow: hidden;
+  overflow-x: auto;
 }
 
 .matrix-table {
@@ -4548,7 +4731,7 @@ onMounted(async () => {
 }
 
 .pill-status {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 750;
   padding: 2px 6px;
   border-radius: 4px;
@@ -4613,7 +4796,7 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: 11.5px;
+  font-size: 12px;
 }
 
 .gm-item {
@@ -4633,7 +4816,7 @@ onMounted(async () => {
   flex-wrap: wrap;
   gap: 6px;
   margin: 6px 0;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .fatigue-pill {
@@ -4693,12 +4876,13 @@ onMounted(async () => {
 .hook-pill {
   display: inline-flex;
   align-items: center;
-  padding: 2px 7px;
+  padding: 4px 8px;
   border-radius: 6px;
   background: #f5f3ff;
   color: #6d28d9;
   border: 1px solid #ddd6fe;
   font-weight: 600;
+  line-height: 1.4;
 }
 
 /* Matrix Full Width */
@@ -4736,7 +4920,7 @@ onMounted(async () => {
 }
 
 .hh-badge {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
   text-transform: uppercase;
   margin-bottom: 2px;
@@ -4753,7 +4937,7 @@ onMounted(async () => {
 }
 
 .hh-desc {
-  font-size: 11.5px;
+  font-size: 12px;
   color: #475569;
   margin: 0;
   line-height: 1.4;
@@ -4765,7 +4949,7 @@ onMounted(async () => {
   align-items: flex-end;
   gap: 3px;
   height: 110px;
-  padding: 10px 4px 0 4px;
+  padding: 10px 8px 10px 8px;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
@@ -4789,10 +4973,10 @@ onMounted(async () => {
 }
 
 .h-pur-num {
-  font-size: 9.5px;
+  font-size: 12px;
   font-weight: 800;
-  height: 14px;
-  line-height: 14px;
+  height: 16px;
+  line-height: 1.4;
   color: #059669;
 }
 
@@ -4817,7 +5001,7 @@ onMounted(async () => {
 }
 
 .h-hour-label {
-  font-size: 8.5px;
+  font-size: 12px;
   font-weight: 600;
   color: #64748b;
   margin-top: 3px;
@@ -4862,7 +5046,7 @@ onMounted(async () => {
 }
 
 .fs-label {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: #64748b;
 }
@@ -4874,7 +5058,7 @@ onMounted(async () => {
 }
 
 .fs-pct {
-  font-size: 11.5px;
+  font-size: 12px;
   color: #64748b;
 }
 
@@ -4916,7 +5100,7 @@ onMounted(async () => {
 }
 
 .bp-pill small {
-  font-size: 9.5px;
+  font-size: 12px;
   color: #94a3b8;
   text-transform: uppercase;
   font-weight: 700;

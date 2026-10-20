@@ -645,7 +645,7 @@ onUnmounted(() => {
 .hero-tag {
   color: #38bdf8;
   font-weight: 850;
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: 0.12em;
 }
 .hero-text h2 {
@@ -674,8 +674,8 @@ onUnmounted(() => {
 /* KPI Cards Grid */
 .capi-health{display:grid;grid-template-columns:auto 1fr auto auto;align-items:center;gap:14px;margin-bottom:16px;padding:14px 16px;border:1px solid var(--color-border);border-radius:16px;background:var(--color-surface)}
 .capi-health-icon{width:42px;height:42px;display:grid;place-items:center;border-radius:12px;color:var(--color-primary);background:var(--color-primary-soft)}
-.capi-health-copy{display:grid;min-width:0}.capi-health-copy small{color:var(--color-text-muted);font-size:9px;font-weight:800;letter-spacing:.09em}.capi-health-copy strong{font-size:14px}.capi-health-copy span{overflow:hidden;color:var(--color-text-secondary);font-size:10px;text-overflow:ellipsis;white-space:nowrap}
-.capi-health-metrics{display:flex;gap:8px}.capi-health-metrics>div{display:grid;min-width:70px;padding:8px 10px;border-radius:10px;background:var(--color-background)}.capi-health-metrics small{color:var(--color-text-muted);font-size:9px}.capi-health-metrics strong{font-size:15px}
+.capi-health-copy{display:grid;min-width:0}.capi-health-copy small{color:var(--color-text-muted);font-size: 12px;font-weight:800;letter-spacing:.09em}.capi-health-copy strong{font-size:14px}.capi-health-copy span{overflow:hidden;color:var(--color-text-secondary);font-size: 12px;text-overflow:ellipsis;white-space:nowrap}
+.capi-health-metrics{display:flex;gap:8px}.capi-health-metrics>div{display:grid;min-width:70px;padding:8px 10px;border-radius:10px;background:var(--color-background)}.capi-health-metrics small{color:var(--color-text-muted);font-size: 12px}.capi-health-metrics strong{font-size:15px}
 .capi-health.healthy{border-color:rgba(22,163,74,.3)}.capi-health.healthy .capi-health-icon{color:#167a4b;background:rgba(22,163,74,.1)}.capi-health.failing{border-color:rgba(239,68,68,.35)}.capi-health.failing .capi-health-icon{color:var(--color-error);background:rgba(239,68,68,.1)}
 .kpi-grid {
   display: grid;
@@ -719,7 +719,7 @@ onUnmounted(() => {
   flex-direction: column;
 }
 .kpi-content small {
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--color-text-secondary);
   font-weight: 600;
 }
@@ -818,7 +818,7 @@ onUnmounted(() => {
   padding: 1px 6px;
   border-radius: 10px;
   background: rgba(0,0,0,0.06);
-  font-size: 10.5px;
+  font-size: 12px;
 }
 .tab-btn.active .count-badge {
   background: rgba(255,255,255,0.25);
@@ -892,7 +892,7 @@ onUnmounted(() => {
   color: var(--color-text);
 }
 .id-tag {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--color-text-muted);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -925,7 +925,7 @@ onUnmounted(() => {
   flex-wrap: wrap;
 }
 .meta-pill {
-  font-size: 11px;
+  font-size: 12px;
   padding: 2px 8px;
   border-radius: 10px;
   display: inline-flex;
@@ -985,7 +985,7 @@ onUnmounted(() => {
   border: 1px solid #bbf7d0;
   padding: 5px 10px;
   border-radius: 18px;
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 750;
 }
 
@@ -1071,7 +1071,7 @@ onUnmounted(() => {
   background: var(--color-primary-soft);
   color: var(--color-primary);
   font-weight: 800;
-  font-size: 11px;
+  font-size: 12px;
   padding: 4px 8px;
   border-radius: 6px;
 }
@@ -1110,7 +1110,7 @@ onUnmounted(() => {
   }
   .tab-btn {
     padding: 8px 12px;
-    font-size: 11.5px;
+    font-size: 12px;
     min-height: 38px;
     touch-action: manipulation;
   }

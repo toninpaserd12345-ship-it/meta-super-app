@@ -529,7 +529,7 @@ function copyScript(text: string, index: number) {
 }
 
 .hero-eyebrow {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.1em;
   color: #38bdf8;
@@ -548,7 +548,7 @@ function copyScript(text: string, index: number) {
 }
 
 .hero-badge {
-  font-size: 11px;
+  font-size: 12px;
   background: rgba(56, 189, 248, 0.15);
   border: 1px solid rgba(56, 189, 248, 0.3);
   color: #38bdf8;
@@ -724,7 +724,7 @@ function copyScript(text: string, index: number) {
   border-radius: 999px;
   background: #2563eb;
   color: #ffffff;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
   display: flex;
   align-items: center;
@@ -738,7 +738,7 @@ function copyScript(text: string, index: number) {
 }
 
 .funnel-step small {
-  font-size: 11px;
+  font-size: 12px;
   color: #64748b;
 }
 
@@ -771,7 +771,7 @@ function copyScript(text: string, index: number) {
 }
 
 .metric-tag {
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 800;
   text-transform: uppercase;
   color: #2563eb;
@@ -959,7 +959,7 @@ function copyScript(text: string, index: number) {
 }
 
 .script-badge {
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 800;
   text-transform: uppercase;
   padding: 2px 8px;

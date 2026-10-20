@@ -342,7 +342,7 @@ function openChat(senderId: string) {
   padding: 4px 12px;
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.14);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 750;
   margin-bottom: 8px;
 }
@@ -368,7 +368,7 @@ function openChat(senderId: string) {
 }
 
 .section-tag {
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 850;
   letter-spacing: 0.12em;
   color: var(--color-primary);
@@ -448,7 +448,7 @@ function openChat(senderId: string) {
   text-overflow: ellipsis;
 }
 .tile-body small {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--color-text-muted);
 }
 .tile-arrow {
@@ -492,7 +492,7 @@ function openChat(senderId: string) {
   flex-direction: column;
 }
 .kpi-meta small {
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--color-text-secondary);
   font-weight: 600;
 }
@@ -582,7 +582,7 @@ function openChat(senderId: string) {
   margin-top: 2px;
 }
 .source-tag, .ad-tag, .time-tag {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--color-text-muted);
 }
 .ad-tag { color: #c2410c; }
@@ -594,7 +594,7 @@ function openChat(senderId: string) {
   flex-shrink: 0;
 }
 .status-pill.purchased {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 750;
   padding: 4px 9px;
   border-radius: 14px;
@@ -610,7 +610,7 @@ function openChat(senderId: string) {
   background: #16a34a;
   color: #fff;
   border: none;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 750;
   cursor: pointer;
   transition: background 0.15s ease;
@@ -664,7 +664,7 @@ function openChat(senderId: string) {
   transition: width 0.3s ease;
 }
 .readiness-count-text {
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--color-text-muted);
   margin-bottom: 14px;
   display: block;
@@ -715,7 +715,7 @@ function openChat(senderId: string) {
   font-weight: 750;
 }
 .step-info small {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--color-text-muted);
 }
 

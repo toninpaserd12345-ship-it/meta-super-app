@@ -117,12 +117,12 @@ async function changeAccount(event: Event) {
   letter-spacing: -0.01em;
 }
 .role-pill {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   background: var(--color-surface-soft);
   color: var(--color-text-muted);
-  padding: 2px 6px;
+  padding: 2px 8px;
   border-radius: 4px;
   border: 1px solid var(--color-border);
 }
@@ -206,7 +206,7 @@ async function changeAccount(event: Event) {
   place-items: center;
   color: #fff;
   background: var(--color-primary-deep);
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 800;
   box-shadow: var(--shadow-xs);
 }
@@ -225,7 +225,7 @@ async function changeAccount(event: Event) {
   border-radius: 7px;
   background: none;
   color: var(--color-text-secondary);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   cursor: pointer;
   transition: all var(--transition-fast);
@@ -265,12 +265,12 @@ async function changeAccount(event: Event) {
   .locale-switch button {
     min-width: 28px;
     height: 26px;
-    font-size: 10px;
+    font-size: 12px;
   }
   .avatar {
     width: 30px;
     height: 30px;
-    font-size: 10.5px;
+    font-size: 12px;
   }
 }
 @media(max-width: 400px) {

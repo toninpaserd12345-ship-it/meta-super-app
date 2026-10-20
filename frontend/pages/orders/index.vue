@@ -1731,6 +1731,10 @@ async function saveStatusUpdate() {
 <style scoped>
 .orders-page {
   padding-bottom: 40px;
+  line-height: 1.5;
+}
+.orders-page * {
+  line-height: inherit;
 }
 .page-head {
   display: flex;
@@ -1746,18 +1750,20 @@ async function saveStatusUpdate() {
 .page-head p {
   margin: 0 0 7px;
   color: var(--color-primary);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
-  letter-spacing: .13em;
+  letter-spacing: 0.04em;
 }
 .page-head h2 {
   margin: 0 0 7px;
   font-size: 24px;
   font-weight: 750;
+  line-height: 1.35;
 }
 .page-head span {
   color: var(--color-text-secondary);
   font-size: 13px;
+  line-height: 1.45;
 }
 .head-actions {
   display: flex;
@@ -1798,7 +1804,7 @@ async function saveStatusUpdate() {
   flex-direction: column;
 }
 .stat-text small {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--color-text-muted);
 }
 .stat-text strong {
@@ -1941,23 +1947,25 @@ async function saveStatusUpdate() {
 .badge-capi {
   display: inline-flex;
   align-items: center;
-  padding: 2px 8px;
+  padding: 4px 10px;
+  line-height: 1.4;
   background: #eff6ff;
   color: #1877f2;
   border: 1px solid #bfdbfe;
   border-radius: 10px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 750;
 }
 .badge-page-tag {
   display: inline-flex;
   align-items: center;
-  padding: 2px 8px;
+  padding: 4px 10px;
+  line-height: 1.4;
   background: #eff6ff;
   color: #1d4ed8;
   border: 1px solid #bfdbfe;
   border-radius: 10px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
 }
 .badge-wh-tag {
@@ -1968,7 +1976,7 @@ async function saveStatusUpdate() {
   color: var(--color-text-secondary);
   border: 1px solid var(--color-border);
   border-radius: 10px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 650;
 }
 
@@ -1980,7 +1988,7 @@ async function saveStatusUpdate() {
 .badge-status {
   padding: 3px 10px;
   border-radius: 12px;
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 750;
 }
 .status-paid { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
@@ -1990,7 +1998,7 @@ async function saveStatusUpdate() {
 .badge-fulfillment {
   padding: 3px 10px;
   border-radius: 12px;
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 750;
 }
 .fulfill-pending { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
@@ -2026,7 +2034,7 @@ async function saveStatusUpdate() {
 .customer-address-row {
   color: var(--color-text-secondary);
   font-size: 12px;
-  line-height: 1.3;
+  line-height: 1.45;
 }
 
 .items-summary-list {
@@ -2043,7 +2051,7 @@ async function saveStatusUpdate() {
 .item-qty {
   font-weight: 800;
   color: var(--color-primary);
-  font-size: 11px;
+  font-size: 12px;
   background: var(--color-primary-soft);
   padding: 1px 5px;
   border-radius: 6px;
@@ -2058,7 +2066,7 @@ async function saveStatusUpdate() {
 .item-price {
   font-weight: 600;
   color: var(--color-text-secondary);
-  font-size: 11.5px;
+  font-size: 12px;
 }
 
 .courier-badge {
@@ -2069,7 +2077,7 @@ async function saveStatusUpdate() {
   color: var(--color-text-secondary);
 }
 .tracking-pill {
-  font-size: 11px;
+  font-size: 12px;
   background: var(--color-background);
   padding: 2px 8px;
   border-radius: 8px;
@@ -2092,7 +2100,7 @@ async function saveStatusUpdate() {
   align-items: flex-end;
 }
 .total-display small {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--color-text-muted);
 }
 .total-display strong {
@@ -2455,7 +2463,7 @@ async function saveStatusUpdate() {
     flex-shrink: 0;
     white-space: nowrap;
     padding: 6px 12px;
-    font-size: 11.5px;
+    font-size: 12px;
   }
   .search-filters {
     flex-direction: column;
@@ -2476,7 +2484,7 @@ async function saveStatusUpdate() {
   padding: 8px;
 }
 .variant-tag-pill {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   padding: 1px 6px;
   border-radius: 6px;
@@ -2598,8 +2606,8 @@ async function saveStatusUpdate() {
   border: 2px solid #000000;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
   font-family: 'Noto Sans Lao', system-ui, -apple-system, sans-serif;
-  font-size: 11px;
-  line-height: 1.25;
+  font-size: 12px;
+  line-height: 1.4;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -2636,7 +2644,7 @@ async function saveStatusUpdate() {
   color: #ffffff;
   padding: 4px 6px;
   border-radius: 4px;
-  line-height: 1;
+  line-height: 1.3;
 }
 
 .an-logo-main {
@@ -2646,25 +2654,28 @@ async function saveStatusUpdate() {
 }
 
 .an-logo-sub {
-  font-size: 8px;
+  font-size: 12px;
   font-weight: 800;
-  letter-spacing: 1.5px;
+  letter-spacing: 0.5px;
 }
 
 .an-company-info {
   display: flex;
   flex-direction: column;
+  line-height: 1.4;
 }
 
 .an-company-info strong {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
   color: #d9251d;
+  line-height: 1.4;
 }
 
 .an-company-info small {
-  font-size: 9px;
+  font-size: 12px;
   color: #333333;
+  line-height: 1.4;
 }
 
 .an-company-info .hotline {
@@ -2683,7 +2694,7 @@ async function saveStatusUpdate() {
 .an-express-pill {
   background: #d9251d;
   color: #ffffff;
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 800;
   padding: 2px 6px;
   border-radius: 3px;
@@ -2724,9 +2735,9 @@ async function saveStatusUpdate() {
 
 .an-barcode-text {
   font-family: monospace;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: 1px;
+  letter-spacing: 0.5px;
   margin-top: 2px;
 }
 
@@ -2734,7 +2745,7 @@ async function saveStatusUpdate() {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  font-size: 10px;
+  font-size: 12px;
   text-align: right;
   gap: 2px;
 }
@@ -2773,7 +2784,7 @@ async function saveStatusUpdate() {
   align-items: center;
   gap: 4px;
   font-weight: 800;
-  font-size: 10px;
+  font-size: 12px;
   border-bottom: 1px dashed #cccccc;
   padding-bottom: 3px;
   margin-bottom: 2px;
@@ -2782,7 +2793,7 @@ async function saveStatusUpdate() {
 .title-tag {
   background: #000000;
   color: #ffffff;
-  font-size: 8px;
+  font-size: 12px;
   font-weight: 900;
   padding: 1px 4px;
   border-radius: 2px;
@@ -2798,7 +2809,7 @@ async function saveStatusUpdate() {
   color: #000000;
   padding: 1px 5px;
   border-radius: 3px;
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 800;
 }
 
@@ -2814,7 +2825,7 @@ async function saveStatusUpdate() {
 }
 
 .phone-label {
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 800;
   color: #000000;
 }
@@ -2827,8 +2838,8 @@ async function saveStatusUpdate() {
 }
 
 .an-receiver-addr {
-  font-size: 10px;
-  line-height: 1.3;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .an-receiver-addr p {
@@ -2838,18 +2849,18 @@ async function saveStatusUpdate() {
 }
 
 .an-name {
-  font-size: 11px;
+  font-size: 12px;
   margin: 0;
 }
 
 .an-phone {
-  font-size: 10px;
+  font-size: 12px;
   margin: 2px 0;
   color: #333333;
 }
 
 .an-addr {
-  font-size: 9px;
+  font-size: 12px;
   color: #555555;
   margin: 0;
 }
@@ -2879,13 +2890,13 @@ async function saveStatusUpdate() {
 }
 
 .cod-tag {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 900;
   letter-spacing: 0.3px;
 }
 
 .pay-method {
-  font-size: 9px;
+  font-size: 12px;
   opacity: 0.9;
 }
 
@@ -2896,7 +2907,7 @@ async function saveStatusUpdate() {
 }
 
 .cod-amt-label {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -2922,7 +2933,7 @@ async function saveStatusUpdate() {
   background: #f1f5f9;
   border-bottom: 1px solid #000000;
   font-weight: 800;
-  font-size: 9px;
+  font-size: 12px;
   padding: 4px 8px;
   text-transform: uppercase;
 }
@@ -2932,7 +2943,7 @@ async function saveStatusUpdate() {
   align-items: center;
   padding: 4px 8px;
   border-bottom: 1px dashed #e2e8f0;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .col-no {
@@ -2950,7 +2961,7 @@ async function saveStatusUpdate() {
 
 .col-var {
   width: 70px;
-  font-size: 9px;
+  font-size: 12px;
   color: #475569;
 }
 
@@ -2972,7 +2983,7 @@ async function saveStatusUpdate() {
   justify-content: space-between;
   padding: 4px 8px;
   background: #fafafa;
-  font-size: 9px;
+  font-size: 12px;
   border-top: 1px solid #000000;
 }
 
@@ -2994,19 +3005,19 @@ async function saveStatusUpdate() {
 
 .remark-lbl {
   font-weight: 800;
-  font-size: 9px;
+  font-size: 12px;
   color: #475569;
 }
 
 .remark-text {
   margin: 2px 0 6px;
-  font-size: 9px;
+  font-size: 12px;
   color: #000000;
-  line-height: 1.25;
+  line-height: 1.4;
 }
 
 .an-courier-sign small {
-  font-size: 8px;
+  font-size: 12px;
   color: #64748b;
   font-weight: 600;
 }
@@ -3020,7 +3031,7 @@ async function saveStatusUpdate() {
 }
 
 .sign-col small {
-  font-size: 8px;
+  font-size: 12px;
   font-weight: 700;
   color: #475569;
 }
@@ -3031,7 +3042,7 @@ async function saveStatusUpdate() {
 }
 
 .date-lbl {
-  font-size: 7px;
+  font-size: 12px;
   color: #94a3b8;
 }
 
@@ -3041,7 +3052,7 @@ async function saveStatusUpdate() {
   background: #ffd200;
   text-align: center;
   font-weight: 800;
-  font-size: 8px;
+  font-size: 12px;
   color: #000000;
   letter-spacing: 0.3px;
 }

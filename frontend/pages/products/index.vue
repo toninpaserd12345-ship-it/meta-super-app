@@ -1590,9 +1590,10 @@ function goToProductAds(productId: string) {
   margin: 4px 0 6px;
 }
 .tag-pill {
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 700;
-  padding: 2px 7px;
+  padding: 4px 8px;
+  line-height: 1.4;
   border-radius: 8px;
 }
 .tag-category {
@@ -1635,7 +1636,7 @@ function goToProductAds(productId: string) {
   background: #f3e8ff;
 }
 .ad-count-sub {
-  font-size: 9.5px;
+  font-size: 12px;
   opacity: 0.8;
   margin-left: 2px;
 }
@@ -1648,7 +1649,7 @@ function goToProductAds(productId: string) {
   background: var(--color-primary-soft);
   color: var(--color-primary);
   border: 1px solid color-mix(in srgb, var(--color-primary) 30%, transparent);
-  font-size: 11.5px;
+  font-size: 12px;
   cursor: pointer;
   transition: all .15s ease;
 }
@@ -1669,10 +1670,10 @@ function goToProductAds(productId: string) {
   background: var(--color-background);
 }
 .inventory-row small {
-  font-size: 9px;
+  font-size: 12px;
 }
 .inventory-row strong {
-  font-size: 11px;
+  font-size: 12px;
   overflow-wrap: anywhere;
 }
 .money-grid {
@@ -1724,7 +1725,7 @@ function goToProductAds(productId: string) {
 .page-head p {
   margin: 0 0 7px;
   color: var(--color-primary);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: .13em;
 }
@@ -1786,7 +1787,7 @@ function goToProductAds(productId: string) {
 }
 .product-card small {
   color: var(--color-text-muted);
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .product-mini-bar {
@@ -1818,7 +1819,7 @@ function goToProductAds(productId: string) {
   font-size: 13px;
 }
 .badge-mini-def {
-  font-size: 9.5px;
+  font-size: 12px;
   background: #fef3c7;
   color: #b45309;
   padding: 1px 6px;
@@ -1890,7 +1891,7 @@ function goToProductAds(productId: string) {
   border-radius: 8px;
 }
 .spec-cell small {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--color-text-muted);
 }
 .spec-cell strong {
@@ -2079,7 +2080,7 @@ function goToProductAds(productId: string) {
   gap: 6px;
   padding: 8px 10px;
   background: var(--color-background);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--color-text-secondary);
   border-bottom: 1px solid var(--color-border);
@@ -2152,7 +2153,7 @@ function goToProductAds(productId: string) {
   grid-template-columns: 1.2fr 1.2fr 1.2fr 1fr;
   padding: 8px 12px;
   background: var(--color-background);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--color-text-secondary);
   border-bottom: 1px solid var(--color-border);
@@ -2186,7 +2187,7 @@ function goToProductAds(productId: string) {
   background: #f0fdf4;
   color: #16a34a;
   border-radius: 6px;
-  font-size: 11px;
+  font-size: 12px;
 }
 .qty-badge {
   display: inline-block;
@@ -2195,7 +2196,7 @@ function goToProductAds(productId: string) {
   color: #2563eb;
   border-radius: 12px;
   font-weight: 700;
-  font-size: 11px;
+  font-size: 12px;
 }
 .qty-badge.zero-stock {
   background: #fee2e2;
@@ -2239,11 +2240,11 @@ function goToProductAds(productId: string) {
   border-radius: 6px;
 }
 .ssc-metric .label {
-  font-size: 9.5px;
+  font-size: 12px;
   color: var(--color-text-muted);
 }
 .ssc-metric .value {
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--color-text);
 }
 
@@ -2277,11 +2278,11 @@ function goToProductAds(productId: string) {
 .banner-numbers > span {
   display: flex;
   flex-direction: column;
-  font-size: 11px;
+  font-size: 12px;
 }
 .banner-numbers small {
   color: var(--color-text-muted);
-  font-size: 9.5px;
+  font-size: 12px;
 }
 .flow-sync-banner {
   padding: 10px 12px;
@@ -2305,14 +2306,14 @@ function goToProductAds(productId: string) {
   gap: 4px;
 }
 .form-label {
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 700;
   display: flex;
   align-items: center;
   color: var(--color-text);
 }
 .field-hint {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--color-text-muted);
   line-height: 1.3;
 }

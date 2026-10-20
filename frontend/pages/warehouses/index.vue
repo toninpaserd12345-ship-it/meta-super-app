@@ -481,7 +481,7 @@ async function deleteWarehouse() {
 .page-head p {
   margin: 0 0 7px;
   color: var(--color-primary);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: .13em;
 }
@@ -534,7 +534,7 @@ async function deleteWarehouse() {
   overflow: hidden;
 }
 .stat-text small {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--color-text-muted);
 }
 .stat-text strong {
@@ -677,7 +677,7 @@ async function deleteWarehouse() {
   color: #b45309;
   border: 1px solid #fde68a;
   border-radius: 10px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
 }
 .badge-type {
@@ -685,7 +685,7 @@ async function deleteWarehouse() {
   align-items: center;
   padding: 3px 8px;
   border-radius: 10px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 750;
 }
 .badge-wh {
@@ -704,7 +704,7 @@ async function deleteWarehouse() {
   color: var(--color-text-secondary);
   border: 1px solid var(--color-border);
   border-radius: 10px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -749,7 +749,7 @@ async function deleteWarehouse() {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 650;
 }
 .status-dot {
@@ -833,7 +833,7 @@ async function deleteWarehouse() {
   font-size: 13px;
 }
 .type-choice-btn small {
-  font-size: 10.5px;
+  font-size: 12px;
   color: var(--color-text-muted);
 }
 .type-choice-btn.selected small {
