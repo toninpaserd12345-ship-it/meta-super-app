@@ -2641,6 +2641,8 @@ type graphInsightRow struct {
 	AdName                 string               `json:"ad_name"`
 	DateStart              string               `json:"date_start"`
 	DateStop               string               `json:"date_stop"`
+	PublisherPlatform      string               `json:"publisher_platform"`
+	PlatformPosition       string               `json:"platform_position"`
 	HourlyStats            string               `json:"hourly_stats_aggregated_by_advertiser_time_zone"`
 	Spend                  string               `json:"spend"`
 	Impressions            string               `json:"impressions"`
@@ -2931,6 +2933,17 @@ type graphAdEntityDetails struct {
 		Name        string `json:"name"`
 		DailyBudget string `json:"daily_budget"`
 	} `json:"adset"`
+	Creative struct {
+		ID                     string `json:"id"`
+		Name                   string `json:"name"`
+		Title                  string `json:"title"`
+		Body                   string `json:"body"`
+		ImageURL               string `json:"image_url"`
+		ThumbnailURL           string `json:"thumbnail_url"`
+		VideoID                string `json:"video_id"`
+		EffectiveObjectStoryID string `json:"effective_object_story_id"`
+		InstagramPermalinkURL  string `json:"instagram_permalink_url"`
+	} `json:"creative"`
 	CreatedTime string `json:"created_time"`
 	UpdatedTime string `json:"updated_time"`
 }
@@ -2948,7 +2961,7 @@ func (g *GraphConnector) fetchAdEntities(ctx context.Context, token, adAccountID
 	case "adset":
 		fields = "id,name,status,effective_status,daily_budget,lifetime_budget,campaign_id,campaign{id,name,daily_budget},created_time,updated_time"
 	case "ad":
-		fields = "id,name,status,effective_status,campaign_id,campaign{id,name,daily_budget},adset_id,adset{id,name,daily_budget},created_time,updated_time"
+		fields = "id,name,status,effective_status,campaign_id,campaign{id,name,daily_budget},adset_id,adset{id,name,daily_budget},creative{id,name,title,body,image_url,thumbnail_url,video_id,effective_object_story_id,instagram_permalink_url},created_time,updated_time"
 	}
 	query := url.Values{"fields": {fields}, "limit": {"250"}, "access_token": {token}}
 	endpoint := "https://graph.facebook.com/" + g.cfg.Version + "/" + url.PathEscape(adAccountID) + "/" + edge + "?" + query.Encode()
@@ -2963,6 +2976,18 @@ func (g *GraphConnector) fetchAdEntities(ctx context.Context, token, adAccountID
 			} `json:"paging"`
 		}
 		if err := g.getJSON(ctx, endpoint, &response); err != nil {
+			// Fallback without creative if query fails
+			if level == "ad" && strings.Contains(fields, "creative") {
+				fieldsFallback := "id,name,status,effective_status,campaign_id,campaign{id,name,daily_budget},adset_id,adset{id,name,daily_budget},created_time,updated_time"
+				query.Set("fields", fieldsFallback)
+				endpointFallback := "https://graph.facebook.com/" + g.cfg.Version + "/" + url.PathEscape(adAccountID) + "/" + edge + "?" + query.Encode()
+				if errFallback := g.getJSON(ctx, endpointFallback, &response); errFallback == nil {
+					for _, item := range response.Data {
+						entities[item.ID] = item
+					}
+					return entities, nil
+				}
+			}
 			return nil, err
 		}
 		for _, item := range response.Data {
@@ -2971,6 +2996,57 @@ func (g *GraphConnector) fetchAdEntities(ctx context.Context, token, adAccountID
 		endpoint = response.Paging.Next
 	}
 	return entities, nil
+}
+
+func (g *GraphConnector) fetchPlacementInsightRows(ctx context.Context, token, adAccountID, level, since, until string) ([]graphInsightRow, error) {
+	fields := "ad_id,spend,impressions,reach,inline_link_clicks,actions,cost_per_action_type"
+	query := url.Values{
+		"fields":       {fields},
+		"level":        {level},
+		"breakdowns":   {"publisher_platform,platform_position"},
+		"time_range":   {fmt.Sprintf(`{"since":"%s","until":"%s"}`, since, until)},
+		"limit":        {"500"},
+		"access_token": {token},
+	}
+	endpoint := "https://graph.facebook.com/" + g.cfg.Version + "/" + url.PathEscape(adAccountID) + "/insights?" + query.Encode()
+	rows := make([]graphInsightRow, 0)
+	pageCount := 0
+	for endpoint != "" && pageCount < 5 {
+		pageCount++
+		var response struct {
+			Data   []graphInsightRow `json:"data"`
+			Paging struct {
+				Next string `json:"next"`
+			} `json:"paging"`
+		}
+		if err := g.getJSON(ctx, endpoint, &response); err != nil {
+			return nil, err
+		}
+		rows = append(rows, response.Data...)
+		endpoint = response.Paging.Next
+	}
+	return rows, nil
+}
+
+func applyCreativeDetails(item *domain.MetaInsightItem, entity graphAdEntityDetails) {
+	if entity.Creative.ID == "" && entity.Creative.ImageURL == "" && entity.Creative.ThumbnailURL == "" {
+		return
+	}
+	item.ThumbnailURL = entity.Creative.ThumbnailURL
+	item.ImageURL = entity.Creative.ImageURL
+	if item.ImageURL == "" && item.ThumbnailURL != "" {
+		item.ImageURL = item.ThumbnailURL
+	}
+	item.CreativeTitle = entity.Creative.Title
+	item.CreativeBody = entity.Creative.Body
+	item.VideoID = entity.Creative.VideoID
+	item.EffectiveObjectStoryID = entity.Creative.EffectiveObjectStoryID
+	item.PermalinkURL = entity.Creative.InstagramPermalinkURL
+	if item.PermalinkURL == "" && entity.Creative.EffectiveObjectStoryID != "" {
+		item.PermalinkURL = "https://www.facebook.com/" + entity.Creative.EffectiveObjectStoryID
+	} else if item.PermalinkURL == "" && entity.Creative.VideoID != "" {
+		item.PermalinkURL = "https://www.facebook.com/reel/" + entity.Creative.VideoID
+	}
 }
 
 func (g *GraphConnector) AdsInsights(ctx context.Context, _ string, accountID, adAccountID, level, since, until string) (*domain.MetaInsightsReport, error) {
@@ -3001,6 +3077,7 @@ func (g *GraphConnector) AdsInsights(ctx context.Context, _ string, accountID, a
 		dailyEntities []graphInsightRow
 		hourlyEntities []graphInsightRow
 		hourlyAccount  []graphInsightRow
+		placementRows  []graphInsightRow
 
 		errAccount, errRows, errEntities, errAccountRows, errDaily error
 		wg                                                         sync.WaitGroup
@@ -3010,6 +3087,9 @@ func (g *GraphConnector) AdsInsights(ctx context.Context, _ string, accountID, a
 	callCount := 6
 	if isSingleDay {
 		callCount += 2
+	}
+	if level == "ad" {
+		callCount += 1
 	}
 	wg.Add(callCount)
 
@@ -3052,6 +3132,13 @@ func (g *GraphConnector) AdsInsights(ctx context.Context, _ string, accountID, a
 		go func() {
 			defer wg.Done()
 			hourlyAccount, _ = g.fetchHourlyInsightRows(ctx, token, adAccountID, "account", since, until)
+		}()
+	}
+
+	if level == "ad" {
+		go func() {
+			defer wg.Done()
+			placementRows, _ = g.fetchPlacementInsightRows(ctx, token, adAccountID, level, since, until)
 		}()
 	}
 
@@ -3141,6 +3228,28 @@ func (g *GraphConnector) AdsInsights(ctx context.Context, _ string, accountID, a
 		})
 	}
 
+	entityPlacements := make(map[string][]domain.MetaPlacementMetric)
+	for _, row := range placementRows {
+		if row.AdID == "" || (row.PublisherPlatform == "" && row.PlatformPosition == "") {
+			continue
+		}
+		msgCount, msgCost := extractMessagingMetric(row.Actions, row.CostPerActionType)
+		purCount, purCost := extractPurchaseMetric(row.Actions, row.CostPerActionType)
+
+		entityPlacements[row.AdID] = append(entityPlacements[row.AdID], domain.MetaPlacementMetric{
+			PublisherPlatform: row.PublisherPlatform,
+			PlatformPosition:  row.PlatformPosition,
+			Spend:             numberPointer(row.Spend),
+			Impressions:       numberPointer(row.Impressions),
+			Reach:             numberPointer(row.Reach),
+			LinkClicks:        numberPointer(row.InlineLinkClicks),
+			MessagesCount:     msgCount,
+			CostPerMessage:    msgCost,
+			PurchasesCount:    purCount,
+			CostPerPurchase:   purCost,
+		})
+	}
+
 	seenEntities := make(map[string]bool)
 	items := make([]domain.MetaInsightItem, 0, len(rows)+len(entities))
 	for _, row := range rows {
@@ -3169,6 +3278,14 @@ func (g *GraphConnector) AdsInsights(ctx context.Context, _ string, accountID, a
 			}
 			item.CreatedTime = entity.CreatedTime
 			item.UpdatedTime = entity.UpdatedTime
+			if level == "ad" {
+				applyCreativeDetails(&item, entity)
+			}
+		}
+		if level == "ad" {
+			if pl, ok := entityPlacements[item.EntityID]; ok {
+				item.Placements = pl
+			}
 		}
 		if t, ok := entityTrends[item.EntityID]; ok {
 			item.Trend = t
@@ -3226,6 +3343,10 @@ func (g *GraphConnector) AdsInsights(ctx context.Context, _ string, accountID, a
 		if level == "ad" {
 			item.AdID = entity.ID
 			item.AdName = entity.Name
+			applyCreativeDetails(&item, entity)
+			if pl, ok := entityPlacements[item.EntityID]; ok {
+				item.Placements = pl
+			}
 		}
 		if t, ok := entityTrends[item.EntityID]; ok {
 			item.Trend = t

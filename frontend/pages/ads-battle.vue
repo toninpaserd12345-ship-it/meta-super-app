@@ -384,6 +384,145 @@ const activeKpiStats = computed(() => {
   }
 })
 
+// Placements Battle Summary (Aggregates Feed vs Reels vs Stories vs Audience Network)
+const placementBattleStats = computed(() => {
+  let feedSpend = 0, feedPur = 0, feedMsg = 0
+  let reelsSpend = 0, reelsPur = 0, reelsMsg = 0
+  let storiesSpend = 0, storiesPur = 0, storiesMsg = 0
+  let audienceNetSpend = 0, audienceNetPur = 0, audienceNetMsg = 0
+  let otherSpend = 0, otherPur = 0, otherMsg = 0
+
+  for (const it of displayedItems.value) {
+    if (it.placements && it.placements.length > 0) {
+      for (const pl of it.placements) {
+        const sp = pl.spend || 0
+        const pur = pl.purchasesCount || 0
+        const msg = pl.messagesCount || 0
+        const pos = (pl.platformPosition || '').toLowerCase()
+        const pub = (pl.publisherPlatform || '').toLowerCase()
+
+        if (pub === 'audience_network' || pos.includes('an_') || pos.includes('audience')) {
+          audienceNetSpend += sp
+          audienceNetPur += pur
+          audienceNetMsg += msg
+        } else if (pos.includes('reel')) {
+          reelsSpend += sp
+          reelsPur += pur
+          reelsMsg += msg
+        } else if (pos.includes('feed')) {
+          feedSpend += sp
+          feedPur += pur
+          feedMsg += msg
+        } else if (pos.includes('story')) {
+          storiesSpend += sp
+          storiesPur += pur
+          storiesMsg += msg
+        } else {
+          otherSpend += sp
+          otherPur += pur
+          otherMsg += msg
+        }
+      }
+    }
+  }
+
+  const hasPlacementData = (feedSpend + reelsSpend + storiesSpend + audienceNetSpend + otherSpend) > 0
+
+  return {
+    hasData: hasPlacementData,
+    feed: {
+      name: 'Feeds (Facebook & IG)',
+      icon: 'mdi-newspaper-variant-outline',
+      spend: feedSpend,
+      messages: feedMsg,
+      purchases: feedPur,
+      cpa: feedPur > 0 ? feedSpend / feedPur : (feedMsg > 0 ? feedSpend / feedMsg : null),
+    },
+    reels: {
+      name: 'Reels (FB & IG Reels)',
+      icon: 'mdi-video-vintage',
+      spend: reelsSpend,
+      messages: reelsMsg,
+      purchases: reelsPur,
+      cpa: reelsPur > 0 ? reelsSpend / reelsPur : (reelsMsg > 0 ? reelsSpend / reelsMsg : null),
+    },
+    stories: {
+      name: 'Stories',
+      icon: 'mdi-camera-timer',
+      spend: storiesSpend,
+      messages: storiesMsg,
+      purchases: storiesPur,
+      cpa: storiesPur > 0 ? storiesSpend / storiesPur : (storiesMsg > 0 ? storiesSpend / storiesMsg : null),
+    },
+    audienceNetwork: {
+      name: 'Audience Network',
+      icon: 'mdi-lan-disconnect',
+      spend: audienceNetSpend,
+      messages: audienceNetMsg,
+      purchases: audienceNetPur,
+      cpa: audienceNetPur > 0 ? audienceNetSpend / audienceNetPur : (audienceNetMsg > 0 ? audienceNetSpend / audienceNetMsg : null),
+      isWasted: audienceNetSpend > 1 && audienceNetPur === 0 && audienceNetMsg === 0,
+    },
+  }
+})
+
+// Placement Badge Formatter
+function formatPlacementBadge(pl: any) {
+  const pub = (pl.publisherPlatform || '').toLowerCase()
+  const pos = (pl.platformPosition || '').toLowerCase()
+
+  let label = 'Other'
+  let icon = 'mdi-cellphone-link'
+  let color = 'default'
+
+  if (pub === 'facebook') {
+    if (pos.includes('feed')) { label = 'FB Feed'; icon = 'mdi-facebook'; color = 'blue' }
+    else if (pos.includes('reel')) { label = 'FB Reels'; icon = 'mdi-video-vintage'; color = 'pink' }
+    else if (pos.includes('story')) { label = 'FB Story'; icon = 'mdi-camera-timer'; color = 'cyan' }
+    else { label = 'Facebook'; icon = 'mdi-facebook'; color = 'blue' }
+  } else if (pub === 'instagram') {
+    if (pos.includes('reel')) { label = 'IG Reels'; icon = 'mdi-video-vintage'; color = 'purple' }
+    else if (pos.includes('feed')) { label = 'IG Feed'; icon = 'mdi-instagram'; color = 'purple' }
+    else if (pos.includes('story')) { label = 'IG Story'; icon = 'mdi-instagram'; color = 'purple' }
+    else { label = 'Instagram'; icon = 'mdi-instagram'; color = 'purple' }
+  } else if (pub === 'audience_network' || pos.includes('an_')) {
+    label = 'Audience Net'; icon = 'mdi-lan-disconnect'; color = 'error'
+  } else if (pub === 'messenger') {
+    label = 'Messenger'; icon = 'mdi-facebook-messenger'; color = 'info'
+  }
+
+  return { label, icon, color }
+}
+
+// Detect format type: Reel vs Feed Post
+function getAdFormatType(item: MetaInsightItem): { label: string; icon: string; color: string } {
+  if (item.videoId || (item.placements && item.placements.some(p => (p.platformPosition || '').toLowerCase().includes('reel')))) {
+    return { label: 'Reels / Video', icon: 'mdi-video-vintage', color: '#e11d48' }
+  }
+  return { label: 'Feed Post', icon: 'mdi-newspaper-variant-outline', color: '#2563eb' }
+}
+
+// Creative Preview Modal & Copy Text States
+const previewModalOpen = ref(false)
+const previewAdItem = ref<MetaInsightItem | null>(null)
+const copyToast = ref('')
+const copyToastOpen = ref(false)
+
+function openPreviewModal(item: MetaInsightItem) {
+  previewAdItem.value = item
+  previewModalOpen.value = true
+}
+
+async function copyAdCopy(text?: string) {
+  if (!text) return
+  try {
+    await navigator.clipboard.writeText(text)
+    copyToast.value = 'ຄັດລອກແຄັບຊັ່ນສຳເລັດ! 📋'
+    copyToastOpen.value = true
+    setTimeout(() => { copyToastOpen.value = false; copyToast.value = '' }, 2500)
+  } catch {}
+}
+
 // Sparkline SVG generator (Simple, elegant 7-point line)
 function getSparklinePoints(item: MetaInsightItem): Array<{ x: number; y: number; val: number }> {
   const trend = item.trend && item.trend.length > 0 ? item.trend : (report.value?.trend || [])
@@ -970,6 +1109,82 @@ onMounted(async () => {
       </div>
     </section>
 
+    <!-- PLACEMENTS BATTLE SUMMARY (Feeds vs Reels vs Stories vs Audience Network) -->
+    <section v-if="displayedItems.length > 0 && placementBattleStats.hasData" class="placement-battle-summary-card">
+      <div class="pbs-header">
+        <div class="pbs-title">
+          <v-icon icon="mdi-sword-cross" size="18" color="primary" class="mr-1" />
+          <span>{{ l({ lo: 'ສະໜາມຮົບຊ່ອງທາງ (Placement Battle): Feed vs Reels vs Audience Net', th: 'ศึกชิงตำแหน่ง (Placement Battle): Feed vs Reels vs Audience Net', en: 'Placement Battle: Feed vs Reels vs Audience Network' }) }}</span>
+        </div>
+        <div v-if="placementBattleStats.reels.cpa && placementBattleStats.feed.cpa && placementBattleStats.reels.cpa < placementBattleStats.feed.cpa" class="pbs-smart-badge reels-win">
+          🔥 Reels ປິດການຂາຍຖືກກວ່າ Feed {{ Math.round((1 - placementBattleStats.reels.cpa / placementBattleStats.feed.cpa) * 100) }}%!
+        </div>
+        <div v-else-if="placementBattleStats.audienceNetwork.isWasted" class="pbs-smart-badge audience-waste">
+          ⚠️ ພົບ Audience Network ຜານເງິນຟຣີ! ແນະນຳໃຫ້ປິດໃນ Ad Set
+        </div>
+      </div>
+
+      <div class="pbs-grid">
+        <!-- 1. Feeds -->
+        <div class="pbs-col feed-col">
+          <div class="pbs-col-header">
+            <v-icon icon="mdi-newspaper-variant-outline" size="16" class="mr-1 text-primary" />
+            <strong>Feeds (Facebook & IG)</strong>
+          </div>
+          <div class="pbs-col-metrics">
+            <div class="pbs-m"><span>ໃຊ້ຈ່າຍ:</span> <strong>{{ money(placementBattleStats.feed.spend) }}</strong></div>
+            <div class="pbs-m"><span>ຄົນທັກ/ຊື້:</span> <strong class="text-success">{{ placementBattleStats.feed.purchases || placementBattleStats.feed.messages }}</strong></div>
+            <div class="pbs-m"><span>CPA:</span> <strong>{{ money(placementBattleStats.feed.cpa) }}</strong></div>
+          </div>
+        </div>
+
+        <!-- 2. Reels -->
+        <div class="pbs-col reels-col">
+          <div class="pbs-col-header">
+            <v-icon icon="mdi-video-vintage" size="16" class="mr-1" style="color: #e11d48;" />
+            <strong>Reels (FB & IG Reels)</strong>
+            <span v-if="placementBattleStats.reels.cpa && placementBattleStats.feed.cpa && placementBattleStats.reels.cpa < placementBattleStats.feed.cpa" class="win-tag">ຖືກກວ່າ ⭐</span>
+          </div>
+          <div class="pbs-col-metrics">
+            <div class="pbs-m"><span>ໃຊ້ຈ່າຍ:</span> <strong>{{ money(placementBattleStats.reels.spend) }}</strong></div>
+            <div class="pbs-m"><span>ຄົນທັກ/ຊື້:</span> <strong class="text-success">{{ placementBattleStats.reels.purchases || placementBattleStats.reels.messages }}</strong></div>
+            <div class="pbs-m"><span>CPA:</span> <strong>{{ money(placementBattleStats.reels.cpa) }}</strong></div>
+          </div>
+        </div>
+
+        <!-- 3. Stories -->
+        <div class="pbs-col story-col">
+          <div class="pbs-col-header">
+            <v-icon icon="mdi-camera-timer" size="16" class="mr-1 text-info" />
+            <strong>Stories</strong>
+          </div>
+          <div class="pbs-col-metrics">
+            <div class="pbs-m"><span>ໃຊ້ຈ່າຍ:</span> <strong>{{ money(placementBattleStats.stories.spend) }}</strong></div>
+            <div class="pbs-m"><span>ຄົນທັກ/ຊື້:</span> <strong class="text-success">{{ placementBattleStats.stories.purchases || placementBattleStats.stories.messages }}</strong></div>
+            <div class="pbs-m"><span>CPA:</span> <strong>{{ money(placementBattleStats.stories.cpa) }}</strong></div>
+          </div>
+        </div>
+
+        <!-- 4. Audience Network (Ghost Monitor) -->
+        <div class="pbs-col audience-col" :class="{ 'pbs-ghost-alert': placementBattleStats.audienceNetwork.isWasted }">
+          <div class="pbs-col-header">
+            <v-icon icon="mdi-lan-disconnect" size="16" class="mr-1 text-error" />
+            <strong>Audience Network</strong>
+            <span v-if="placementBattleStats.audienceNetwork.isWasted" class="ghost-tag">ຜານເງິນ ❌</span>
+          </div>
+          <div class="pbs-col-metrics">
+            <div class="pbs-m"><span>ໃຊ້ຈ່າຍ:</span> <strong :class="{ 'text-error': placementBattleStats.audienceNetwork.isWasted }">{{ money(placementBattleStats.audienceNetwork.spend) }}</strong></div>
+            <div class="pbs-m"><span>ຄົນທັກ/ຊື້:</span> <strong>{{ placementBattleStats.audienceNetwork.purchases || placementBattleStats.audienceNetwork.messages }}</strong></div>
+            <div class="pbs-m">
+              <span>ສະຖານະ:</span>
+              <span v-if="placementBattleStats.audienceNetwork.isWasted" class="text-error font-weight-bold">ມືລັ່ນ/ບໍ່ມີຄົນຊື້</span>
+              <span v-else>ປົກກະຕິ</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- Loading State -->
     <div v-if="loadingReport" class="simple-loading">
       <v-progress-circular indeterminate color="primary" size="40" />
@@ -1031,6 +1246,85 @@ onMounted(async () => {
           </div>
         </div>
 
+        <!-- Creative Media & Copywriting Preview (Feed vs Reel) -->
+        <div class="card-creative-preview">
+          <!-- Thumbnail / Media Box -->
+          <div class="creative-media-box" @click="openPreviewModal(item)">
+            <img
+              v-if="item.thumbnailUrl || item.imageUrl"
+              :src="item.thumbnailUrl || item.imageUrl"
+              :alt="item.entityName"
+              class="creative-img"
+              loading="lazy"
+            />
+            <div v-else class="creative-placeholder">
+              <v-icon :icon="getAdFormatType(item).icon" size="26" class="text-medium-emphasis" />
+            </div>
+
+            <!-- Reel / Feed Badge -->
+            <div class="format-badge" :style="{ backgroundColor: getAdFormatType(item).color }">
+              <v-icon :icon="getAdFormatType(item).icon" size="11" class="mr-1" />
+              {{ getAdFormatType(item).label }}
+            </div>
+
+            <!-- Hover overlay -->
+            <div class="media-hover-overlay">
+              <v-icon icon="mdi-magnify-plus-outline" size="14" class="mr-1" />
+              ເບິ່ງໃຫຍ່
+            </div>
+          </div>
+
+          <!-- Headline, Text Snippet & Quick Links -->
+          <div class="creative-text-box">
+            <div v-if="item.creativeTitle" class="creative-headline" :title="item.creativeTitle">
+              {{ item.creativeTitle }}
+            </div>
+            <div v-else class="creative-headline text-truncate" :title="item.entityName">
+              {{ item.entityName }}
+            </div>
+
+            <div v-if="item.creativeBody" class="creative-body-snippet">
+              {{ item.creativeBody }}
+            </div>
+            <div v-else class="creative-body-snippet text-medium-emphasis fst-italic">
+              (ໂຄສະນາຈາກ Facebook Feed / Reels)
+            </div>
+
+            <div class="creative-actions-row">
+              <button
+                v-if="item.creativeBody"
+                type="button"
+                class="creative-copy-btn"
+                @click.stop="copyAdCopy(item.creativeBody)"
+              >
+                <v-icon icon="mdi-content-copy" size="11" class="mr-1" />
+                ຄັດລອກ
+              </button>
+
+              <a
+                v-if="item.permalinkUrl"
+                :href="item.permalinkUrl"
+                target="_blank"
+                rel="noopener"
+                class="creative-fb-link"
+                @click.stop
+              >
+                <v-icon icon="mdi-open-in-new" size="11" class="mr-1" />
+                ເບິ່ງເທິງ FB/IG
+              </a>
+
+              <button
+                type="button"
+                class="creative-view-details-btn"
+                @click="openPreviewModal(item)"
+              >
+                <v-icon icon="mdi-eye-outline" size="11" class="mr-1" />
+                ຕົວຢ່າງເຕັມ
+              </button>
+            </div>
+          </div>
+        </div>
+
         <!-- Middle: 5 Essential Metrics in 1 Row -->
         <div class="card-metric-row">
           <div class="m-box">
@@ -1055,6 +1349,31 @@ onMounted(async () => {
               {{ getItemNetProfit(item) >= 0 ? '+' : '' }}{{ money(getItemNetProfit(item)) }}
             </strong>
           </div>
+        </div>
+
+        <!-- Placements Breakdown Chips (Feed vs Reels vs Audience Net) -->
+        <div v-if="item.placements && item.placements.length > 0" class="card-placements-chips">
+          <span
+            v-for="pl in item.placements"
+            :key="pl.publisherPlatform + '_' + pl.platformPosition"
+            class="pl-badge"
+            :class="{
+              'pl-waste': (pl.spend || 0) > 1 && (pl.purchasesCount || 0) === 0 && (pl.messagesCount || 0) === 0 && (pl.publisherPlatform || '').toLowerCase() === 'audience_network'
+            }"
+            :title="`Spend: ${money(pl.spend)}, Purchases: ${pl.purchasesCount || 0}, Messages: ${pl.messagesCount || 0}`"
+          >
+            <v-icon :icon="formatPlacementBadge(pl).icon" size="11" class="mr-1" />
+            {{ formatPlacementBadge(pl).label }}: {{ money(pl.spend) }}
+            <template v-if="(pl.purchasesCount || 0) > 0">
+              <strong class="pl-highlight">({{ pl.purchasesCount }} ຊື້)</strong>
+            </template>
+            <template v-else-if="(pl.messagesCount || 0) > 0">
+              ({{ pl.messagesCount }} ທັກ)
+            </template>
+            <template v-else-if="(pl.spend || 0) > 1 && (pl.publisherPlatform || '').toLowerCase() === 'audience_network'">
+              <span class="text-error font-weight-bold">(❌ 0 ຊື້)</span>
+            </template>
+          </span>
         </div>
 
         <!-- Bottom: Sparkline Trend + Quick Action Button -->
@@ -1116,6 +1435,7 @@ onMounted(async () => {
           <thead>
             <tr>
               <th style="width: 80px;">{{ l({ lo: 'ສະຖານະ', th: 'สถานะ', en: 'Status' }) }}</th>
+              <th style="width: 60px;">{{ l({ lo: 'ຮູບ/Reels', th: 'รูป/Reels', en: 'Creative' }) }}</th>
               <th>{{ l({ lo: 'ຊື່ແອດ (Ad Name)', th: 'ชื่อแอด (Ad Name)', en: 'Ad Name' }) }}</th>
               <th>{{ l({ lo: 'ສິນຄ້າ', th: 'สินค้า', en: 'Product' }) }}</th>
               <th>{{ l({ lo: 'ປະເພດ', th: 'ประเภท', en: 'Category' }) }}</th>
@@ -1145,9 +1465,23 @@ onMounted(async () => {
                 />
               </td>
               <td>
+                <div v-if="item.thumbnailUrl || item.imageUrl" class="table-thumb-box" @click="openPreviewModal(item)">
+                  <img :src="item.thumbnailUrl || item.imageUrl" class="table-thumb-img" />
+                  <span class="table-format-tag" :style="{ backgroundColor: getAdFormatType(item).color }">
+                    <v-icon :icon="getAdFormatType(item).icon" size="10" color="white" />
+                  </span>
+                </div>
+                <span v-else class="text-caption text-medium-emphasis">—</span>
+              </td>
+              <td>
                 <div class="ad-cell">
                   <strong class="ad-cell-name text-truncate" :title="item.entityName">{{ item.entityName }}</strong>
-                  <small class="text-medium-emphasis">ID: {{ item.entityId }}</small>
+                  <div class="d-flex align-center gap-1">
+                    <small class="text-medium-emphasis">ID: {{ item.entityId }}</small>
+                    <a v-if="item.permalinkUrl" :href="item.permalinkUrl" target="_blank" class="table-fb-link" title="ເບິ່ງເທິງ FB/IG">
+                      <v-icon icon="mdi-open-in-new" size="11" />
+                    </a>
+                  </div>
                 </div>
               </td>
               <td>
@@ -1764,6 +2098,182 @@ onMounted(async () => {
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <!-- Full Creative & Placement Breakdown Modal -->
+    <v-dialog v-model="previewModalOpen" max-width="840" scrollable>
+      <v-card v-if="previewAdItem" class="pa-0 rounded-xl overflow-hidden">
+        <v-card-title class="d-flex align-center justify-space-between px-5 py-4 border-b">
+          <div class="d-flex align-center gap-2" style="min-width: 0; flex: 1;">
+            <v-icon :icon="getAdFormatType(previewAdItem).icon" :color="getAdFormatType(previewAdItem).color" size="22" />
+            <span class="font-weight-bold text-h6 text-truncate" style="max-width: 500px;">
+              {{ previewAdItem.entityName }}
+            </span>
+          </div>
+          <v-btn icon="mdi-close" variant="text" size="small" @click="previewModalOpen = false" />
+        </v-card-title>
+
+        <v-card-text class="pa-5">
+          <div class="creative-modal-layout">
+            <!-- Left: Simulated Mobile Device Viewport -->
+            <div class="modal-phone-viewport">
+              <div class="phone-screen-frame">
+                <!-- Header -->
+                <div class="phone-header">
+                  <div class="d-flex align-center gap-2">
+                    <v-avatar size="28" color="primary">
+                      <v-icon icon="mdi-bullhorn" size="16" color="white" />
+                    </v-avatar>
+                    <div>
+                      <strong class="text-caption d-block">ຜູ້ສະໜັບສະໜູນ (Sponsored)</strong>
+                      <span class="text-xs text-medium-emphasis">{{ getAdFormatType(previewAdItem).label }}</span>
+                    </div>
+                  </div>
+                  <v-icon icon="mdi-dots-horizontal" size="16" />
+                </div>
+
+                <!-- Primary Text -->
+                <div v-if="previewAdItem.creativeBody" class="phone-body-text">
+                  {{ previewAdItem.creativeBody }}
+                </div>
+
+                <!-- Media -->
+                <div class="phone-media-container">
+                  <img
+                    v-if="previewAdItem.thumbnailUrl || previewAdItem.imageUrl"
+                    :src="previewAdItem.thumbnailUrl || previewAdItem.imageUrl"
+                    :alt="previewAdItem.entityName"
+                    class="phone-media-img"
+                  />
+                  <div v-else class="phone-media-empty">
+                    <v-icon icon="mdi-play-circle-outline" size="48" class="text-medium-emphasis" />
+                    <span class="text-caption mt-1">ບໍ່ມີຮູບສະແດງຕົວຢ່າງ</span>
+                  </div>
+                </div>
+
+                <!-- Headline & CTA Footer -->
+                <div class="phone-cta-bar">
+                  <div class="phone-cta-text">
+                    <small class="text-medium-emphasis">FACEBOOK.COM</small>
+                    <strong class="d-block text-truncate">{{ previewAdItem.creativeTitle || previewAdItem.entityName }}</strong>
+                  </div>
+                  <v-btn size="small" color="primary" variant="flat" class="text-caption font-weight-bold">
+                    ສົ່ງຂໍ້ຄວາມ
+                  </v-btn>
+                </div>
+              </div>
+
+              <!-- External Live Link Button -->
+              <div class="mt-3 text-center">
+                <v-btn
+                  v-if="previewAdItem.permalinkUrl"
+                  :href="previewAdItem.permalinkUrl"
+                  target="_blank"
+                  rel="noopener"
+                  color="primary"
+                  variant="tonal"
+                  block
+                  prepend-icon="mdi-open-in-new"
+                  class="font-weight-bold"
+                >
+                  ເປີດເບິ່ງໂພສຕົວຈິງເທິງ Facebook / Instagram
+                </v-btn>
+              </div>
+            </div>
+
+            <!-- Right: Placement Breakdown Performance -->
+            <div class="modal-placements-detail">
+              <h4 class="font-weight-bold mb-3 d-flex align-center">
+                <v-icon icon="mdi-chart-box-outline" size="18" class="mr-2 text-primary" />
+                ຜົນງານແຍກຕາມຊ່ອງທາງ (Placement Breakdown)
+              </h4>
+
+              <div v-if="previewAdItem.placements && previewAdItem.placements.length > 0" class="modal-placements-table-wrap">
+                <table class="modal-placements-table">
+                  <thead>
+                    <tr>
+                      <th>ຊ່ອງທາງ (Placement)</th>
+                      <th class="text-right">ໃຊ້ຈ່າຍ</th>
+                      <th class="text-right">ຄົນທັກ/ຊື້</th>
+                      <th class="text-right">CPA</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr
+                      v-for="pl in previewAdItem.placements"
+                      :key="pl.publisherPlatform + '_' + pl.platformPosition"
+                      :class="{ 'row-wasted': (pl.spend || 0) > 1 && (pl.purchasesCount || 0) === 0 && (pl.messagesCount || 0) === 0 && (pl.publisherPlatform || '').toLowerCase() === 'audience_network' }"
+                    >
+                      <td>
+                        <div class="d-flex align-center gap-1">
+                          <v-icon :icon="formatPlacementBadge(pl).icon" size="14" />
+                          <span>{{ formatPlacementBadge(pl).label }}</span>
+                        </div>
+                      </td>
+                      <td class="text-right font-weight-bold">{{ money(pl.spend) }}</td>
+                      <td class="text-right">
+                        <strong v-if="(pl.purchasesCount || 0) > 0" class="text-success">{{ pl.purchasesCount }} ຊື້</strong>
+                        <span v-else-if="(pl.messagesCount || 0) > 0">{{ pl.messagesCount }} ທັກ</span>
+                        <span v-else class="text-medium-emphasis">0</span>
+                      </td>
+                      <td class="text-right">
+                        {{ money(pl.costPerPurchase || pl.costPerMessage) }}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div v-else class="pa-4 bg-slate-50 rounded-lg text-center text-caption text-medium-emphasis">
+                ບໍ່ມີຂໍ້ມູນແບ່ງຍ່ອຍ Placement ໃນຊ່ວງເວລານີ້
+              </div>
+
+              <!-- Creative Copywriting Helper -->
+              <div v-if="previewAdItem.creativeBody" class="mt-4 pt-3 border-t">
+                <div class="d-flex justify-space-between align-center mb-1">
+                  <span class="text-caption font-weight-bold">ແຄັບຊັ່ນໂຄສະນາ (Ad Copy):</span>
+                  <v-btn
+                    size="x-small"
+                    variant="text"
+                    color="primary"
+                    prepend-icon="mdi-content-copy"
+                    @click="copyAdCopy(previewAdItem.creativeBody)"
+                  >
+                    ຄັດລອກ
+                  </v-btn>
+                </div>
+                <div class="ad-copy-display-box">
+                  {{ previewAdItem.creativeBody }}
+                </div>
+              </div>
+
+              <!-- Quick Ad Actions -->
+              <div class="mt-4 pt-3 border-t">
+                <div class="d-flex justify-space-between align-center">
+                  <div>
+                    <span class="text-caption text-medium-emphasis">ສະຖານະແອດ:</span>
+                    <strong class="ml-1" :class="!isItemPaused(previewAdItem) ? 'text-success' : 'text-medium-emphasis'">
+                      {{ !isItemPaused(previewAdItem) ? '🟢 ກຳລັງເປີດ' : '⏸️ ປິດຢູ່' }}
+                    </strong>
+                  </div>
+                  <v-btn
+                    :color="!isItemPaused(previewAdItem) ? 'error' : 'success'"
+                    variant="tonal"
+                    size="small"
+                    @click="changeStatus(previewAdItem, !isItemPaused(previewAdItem) ? 'PAUSED' : 'ACTIVE')"
+                  >
+                    {{ !isItemPaused(previewAdItem) ? '⏸️ ປິດແອດນີ້' : '▶️ ເປີດແອດນີ້' }}
+                  </v-btn>
+                </div>
+              </div>
+            </div>
+          </div>
+        </v-card-text>
+      </v-card>
+    </v-dialog>
+
+    <!-- Copy Toast Snackbar -->
+    <v-snackbar v-model="copyToastOpen" timeout="2500" color="success" location="bottom right">
+      {{ copyToast }}
+    </v-snackbar>
   </div>
 </template>
 
@@ -2538,5 +3048,498 @@ onMounted(async () => {
   background: #ffffff;
   border-top: 1px solid #e2e8f0;
   padding: 12px 20px;
+}
+
+/* ===================================================
+   PLACEMENT BATTLE SUMMARY CARD
+   =================================================== */
+.placement-battle-summary-card {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 1px solid #cbd5e1;
+  border-radius: 14px;
+  padding: 14px 18px;
+  margin-bottom: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.pbs-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.pbs-title {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+}
+
+.pbs-smart-badge {
+  font-size: 11.5px;
+  font-weight: 750;
+  padding: 3px 10px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+}
+
+.pbs-smart-badge.reels-win {
+  background: #fdf2f8;
+  color: #be185d;
+  border: 1px solid #fbcfe8;
+}
+
+.pbs-smart-badge.audience-waste {
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+}
+
+.pbs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+}
+
+.pbs-col {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.pbs-col.feed-col { border-top: 3px solid #2563eb; }
+.pbs-col.reels-col { border-top: 3px solid #e11d48; }
+.pbs-col.story-col { border-top: 3px solid #06b6d4; }
+.pbs-col.audience-col { border-top: 3px solid #94a3b8; }
+.pbs-col.pbs-ghost-alert { border-top: 3px solid #ef4444; background: #fffafb; }
+
+.pbs-col-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #0f172a;
+}
+
+.win-tag {
+  font-size: 10px;
+  font-weight: 700;
+  background: #fdf2f8;
+  color: #be185d;
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+
+.ghost-tag {
+  font-size: 10px;
+  font-weight: 700;
+  background: #fee2e2;
+  color: #b91c1c;
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+
+.pbs-col-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+}
+
+.pbs-m {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #64748b;
+}
+
+.pbs-m strong {
+  color: #0f172a;
+}
+
+/* ===================================================
+   CARD CREATIVE VISUAL PREVIEW & COPYWRITING
+   =================================================== */
+.card-creative-preview {
+  display: flex;
+  gap: 12px;
+  background: #f8fafc;
+  border: 1px solid #f1f5f9;
+  border-radius: 10px;
+  padding: 8px;
+  min-height: 94px;
+}
+
+.creative-media-box {
+  position: relative;
+  width: 90px;
+  height: 90px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #0f172a;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.creative-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.2s;
+}
+
+.creative-media-box:hover .creative-img {
+  transform: scale(1.05);
+}
+
+.creative-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background: #e2e8f0;
+}
+
+.format-badge {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  font-size: 9px;
+  font-weight: 800;
+  color: #ffffff;
+  padding: 1px 6px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.media-hover-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.creative-media-box:hover .media-hover-overlay {
+  opacity: 1;
+}
+
+.creative-text-box {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 0;
+  flex: 1;
+}
+
+.creative-headline {
+  font-size: 12.5px;
+  font-weight: 750;
+  color: #0f172a;
+  line-height: 1.3;
+  margin-bottom: 2px;
+}
+
+.creative-body-snippet {
+  font-size: 11px;
+  color: #475569;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+.creative-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.creative-copy-btn,
+.creative-view-details-btn {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #475569;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 2px 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: background 0.15s, color 0.15s;
+}
+
+.creative-copy-btn:hover,
+.creative-view-details-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.creative-fb-link {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #2563eb;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  padding: 2px 8px;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  transition: background 0.15s;
+}
+
+.creative-fb-link:hover {
+  background: #dbeafe;
+}
+
+/* ===================================================
+   CARD PLACEMENTS BREAKDOWN CHIPS
+   =================================================== */
+.card-placements-chips {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  padding-top: 2px;
+}
+
+.pl-badge {
+  font-size: 10px;
+  font-weight: 600;
+  color: #475569;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 2px 6px;
+  display: flex;
+  align-items: center;
+}
+
+.pl-badge.pl-waste {
+  background: #fef2f2;
+  color: #dc2626;
+  border-color: #fca5a5;
+}
+
+.pl-highlight {
+  color: #16a34a;
+  font-weight: 700;
+  margin-left: 2px;
+}
+
+/* ===================================================
+   TABLE VIEW CREATIVE THUMBNAIL
+   =================================================== */
+.table-thumb-box {
+  position: relative;
+  width: 42px;
+  height: 42px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #0f172a;
+  cursor: pointer;
+}
+
+.table-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.table-format-tag {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.table-fb-link {
+  color: #2563eb;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+.table-fb-link:hover {
+  color: #1d4ed8;
+}
+
+/* ===================================================
+   FULL CREATIVE & PLACEMENT MODAL
+   =================================================== */
+.creative-modal-layout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 20px;
+}
+
+@media (max-width: 768px) {
+  .creative-modal-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.modal-phone-viewport {
+  display: flex;
+  flex-direction: column;
+}
+
+.phone-screen-frame {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+.phone-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: #ffffff;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.phone-body-text {
+  padding: 10px 12px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: #1e293b;
+  max-height: 100px;
+  overflow-y: auto;
+}
+
+.phone-media-container {
+  width: 100%;
+  background: #0f172a;
+  min-height: 220px;
+  max-height: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.phone-media-img {
+  width: 100%;
+  height: 100%;
+  max-height: 320px;
+  object-fit: cover;
+}
+
+.phone-media-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+}
+
+.phone-cta-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+}
+
+.phone-cta-text {
+  min-width: 0;
+  flex: 1;
+  padding-right: 8px;
+  font-size: 11px;
+}
+
+.phone-cta-text small {
+  font-size: 9.5px;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+.modal-placements-detail {
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-placements-table-wrap {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.modal-placements-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.modal-placements-table th {
+  background: #f8fafc;
+  padding: 8px 12px;
+  font-weight: 700;
+  color: #475569;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.modal-placements-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #1e293b;
+}
+
+.modal-placements-table tr:last-child td {
+  border-bottom: none;
+}
+
+.modal-placements-table tr.row-wasted td {
+  background: #fff5f5;
+  color: #dc2626;
+}
+
+.ad-copy-display-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: #334155;
+  max-height: 140px;
+  overflow-y: auto;
+  white-space: pre-wrap;
 }
 </style>

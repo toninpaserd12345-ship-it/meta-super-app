@@ -238,6 +238,19 @@ export interface MetaInsightResult {
   cost?: number
 }
 
+export interface MetaPlacementMetric {
+  publisherPlatform: string
+  platformPosition: string
+  spend?: number
+  impressions?: number
+  reach?: number
+  linkClicks?: number
+  messagesCount?: number
+  costPerMessage?: number
+  purchasesCount?: number
+  costPerPurchase?: number
+}
+
 export interface MetaInsightItem {
   entityType: 'account' | 'campaign' | 'adset' | 'ad'
   entityId: string
@@ -272,6 +285,14 @@ export interface MetaInsightItem {
   lifetimeBudget?: number
   createdTime?: string
   updatedTime?: string
+  thumbnailUrl?: string
+  imageUrl?: string
+  creativeTitle?: string
+  creativeBody?: string
+  videoId?: string
+  effectiveObjectStoryId?: string
+  permalinkUrl?: string
+  placements?: MetaPlacementMetric[]
   trend?: MetaInsightPoint[]
   hourly?: MetaInsightHourlyPoint[]
 }

@@ -101,6 +101,19 @@ type MetaInsightResult struct {
 	Cost  *float64 `json:"cost,omitempty"`
 }
 
+type MetaPlacementMetric struct {
+	PublisherPlatform string   `json:"publisherPlatform"`
+	PlatformPosition  string   `json:"platformPosition"`
+	Spend             *float64 `json:"spend,omitempty"`
+	Impressions       *float64 `json:"impressions,omitempty"`
+	Reach             *float64 `json:"reach,omitempty"`
+	LinkClicks        *float64 `json:"linkClicks,omitempty"`
+	MessagesCount     *float64 `json:"messagesCount,omitempty"`
+	CostPerMessage    *float64 `json:"costPerMessage,omitempty"`
+	PurchasesCount    *float64 `json:"purchasesCount,omitempty"`
+	CostPerPurchase   *float64 `json:"costPerPurchase,omitempty"`
+}
+
 type MetaInsightItem struct {
 	EntityType            string            `json:"entityType"`
 	EntityID              string            `json:"entityId"`
@@ -135,6 +148,14 @@ type MetaInsightItem struct {
 	LifetimeBudget        *float64                   `json:"lifetimeBudget,omitempty"`
 	CreatedTime           string                     `json:"createdTime,omitempty"`
 	UpdatedTime           string                     `json:"updatedTime,omitempty"`
+	ThumbnailURL          string                     `json:"thumbnailUrl,omitempty"`
+	ImageURL              string                     `json:"imageUrl,omitempty"`
+	CreativeTitle         string                     `json:"creativeTitle,omitempty"`
+	CreativeBody          string                     `json:"creativeBody,omitempty"`
+	VideoID               string                     `json:"videoId,omitempty"`
+	EffectiveObjectStoryID string                    `json:"effectiveObjectStoryId,omitempty"`
+	PermalinkURL          string                     `json:"permalinkUrl,omitempty"`
+	Placements            []MetaPlacementMetric      `json:"placements,omitempty"`
 	Trend                 []MetaInsightPoint         `json:"trend,omitempty"`
 	Hourly                []MetaInsightHourlyPoint   `json:"hourly,omitempty"`
 }
