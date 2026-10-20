@@ -2,18 +2,7 @@
 definePageMeta({ middleware: 'auth' })
 const { l } = useLocale()
 
-const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost' | 'scripts'>('routine')
-const copiedIndex = ref<number | null>(null)
-
-function copyScript(text: string, index: number) {
-  if (navigator?.clipboard) {
-    navigator.clipboard.writeText(text)
-    copiedIndex.value = index
-    setTimeout(() => {
-      copiedIndex.value = null
-    }, 2500)
-  }
-}
+const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
 </script>
 
 <template>
@@ -90,16 +79,6 @@ function copyScript(text: string, index: number) {
         <span class="tab-icon">👻</span>
         <span>4. ວິທີຈັດການ "ທັກຜີ" & ມືຫຼົງກົດ</span>
       </button>
-
-      <button
-        type="button"
-        class="nav-tab-btn"
-        :class="{ active: activeTab === 'scripts' }"
-        @click="activeTab = 'scripts'"
-      >
-        <span class="tab-icon">💬</span>
-        <span>5. ບົດຕອບແຊັດປິດການຂາຍ</span>
-      </button>
     </nav>
 
     <!-- MAIN CONTENT -->
@@ -145,7 +124,7 @@ function copyScript(text: string, index: number) {
               <h4>ສິ່ງທີ່ຕ້ອງເຮັດ:</h4>
               <ul>
                 <li><strong>Speed to Lead:</strong> ຕອບແຊັດໃຫ້ໄວພາຍໃນ 60 ວິນາທີ ເພາະລູກຄ້າເລື່ອນເບິ່ງຫຼາຍເພຈພ້ອມກັນ.</li>
-                <li><strong>ກົດ 15 ນາທີແຍກທັກຜີ:</strong> ສົ່ງລາຄາ 210,000 ₭ + ໂປຣສົ່ງຟຣີ. ຖ້າເຂົາອ່ານແລ້ວມິດເກີນ 15 ນາທີ ➔ <strong>Move on ທັນທີ</strong> ບໍ່ຕ້ອງນັ່ງຖ້າ.</li>
+                <li><strong>ກົດ 15 ນາທີແຍກທັກຜີ:</strong> ສົ່ງລາຄາສິນຄ້າ + ໂປຣໂມຊັ່ນສົ່ງຟຣີ. ຖ້າເຂົາອ່ານແລ້ວມິດເກີນ 15 ນາທີ ➔ <strong>Move on ທັນທີ</strong> ບໍ່ຕ້ອງນັ່ງຖ້າ.</li>
                 <li><strong>ລູກຄ້າແທ້:</strong> ເມື່ອລູກຄ້າໃຫ້ເບີໂທ ➔ ກົດສ້າງອໍເດີໃນລະບົບທັນທີ ເພື່ອສົ່ງສັນຍານ CAPI ບອກ Facebook.</li>
               </ul>
               <div class="rule-box info">
@@ -387,9 +366,9 @@ function copyScript(text: string, index: number) {
           <div class="ghost-step-card">
             <div class="g-num">2</div>
             <div class="g-body">
-              <h4>🏷️ ໃສ່ລາຄາ "210,000 ກີບ" ຕົວໃຫຍ່ໆໃສ່ໜ້າປົກຮູບ ຫຼື ຄລິບແອດ</h4>
+              <h4>🏷️ ໃສ່ລາຄາສິນຄ້າຕົວໃຫຍ່ໆໃສ່ໜ້າປົກຮູບ ຫຼື ຄລິບແອດ</h4>
               <p>
-                ຢ່າປິດບັງລາຄາ! ຄົນທີ່ທັກມາຖາມວ່າ <em>"ລາຄາເທົ່າໃດ?"</em> ແລ້ວມິດງຽບ ເພາະເຂົາຄິດວ່າລາຄາ 30,000-50,000 ກີບ. ຖ້າໃສ່ລາຄາ 210,000 ກີບ ໂຊຈະແຈ້ງ, ຄົນທີ່ທັກມາຈະເປັນຄົນທີ່ <strong>"ພ້ອມຈ່າຍ 210,000 ກີບແລ້ວ"</strong> ເທົ່ານັ້ນ!
+                ຢ່າປິດບັງລາຄາ! ຄົນທີ່ທັກມາຖາມວ່າ <em>"ລາຄາເທົ່າໃດ?"</em> ແລ້ວມິດງຽບ ເພາະເຂົາຄິດວ່າລາຄາຖືກກວ່ານັ້ນ. ຖ້າໃສ່ລາຄາສິນຄ້າໂຊຈະແຈ້ງ, ຄົນທີ່ທັກມາຈະເປັນຄົນທີ່ <strong>"ພ້ອມຈ່າຍແລ້ວ"</strong> ເທົ່ານັ້ນ!
               </p>
             </div>
           </div>
@@ -419,90 +398,7 @@ function copyScript(text: string, index: number) {
         </div>
       </section>
 
-      <!-- ========================================== -->
-      <!-- TAB 5: ບົດຕອບແຊັດປິດການຂາຍ -->
-      <!-- ========================================== -->
-      <section v-if="activeTab === 'scripts'" class="tab-section">
-        <div class="section-header">
-          <h2>💬 ບົດຕອບແຊັດປິດການຂາຍພາສາລາວ (ເພີ່ມ Close Rate ຈາກ 18% ເປັນ 40%)</h2>
-          <p class="section-lead">
-            ຄັດລອກບົດຕອບ 3 ຂັ້ນຕອນນີ້ໄປໃຊ້ໃນ Auto-Reply ຫຼື ໃຫ້ແອັດມິນໃຊ້ຕອບລູກຄ້າທັນທີ:
-          </p>
-        </div>
 
-        <div class="scripts-container">
-          <!-- Script 1 -->
-          <div class="script-card">
-            <div class="script-header">
-              <div>
-                <span class="script-badge step1">ຂັ້ນຕອນທີ 1</span>
-                <h4>ບົດຕອບຮັບທັນທີພາຍໃນ 1 ນາທີ (Welcome & Special Offer)</h4>
-              </div>
-              <v-btn
-                size="small"
-                color="primary"
-                variant="flat"
-                prepend-icon="mdi-content-copy"
-                @click="copyScript(`ສະບາຍດີເຈົ້າ H9 MAX Smartwatch ລຸ້ນໃໝ່ຫຼ້າສຸດ ໂປຣໂມຊັ່ນພິເສດມື້ນີ້ພຽງ 210,000 ກີບ (ຈາກປົກກະຕິ 280,000 ກີບ) ✨\n✅ ແຖມຟຣີ: ສາຍປ່ຽນຊິລິໂຄນ + ສາຍສາກແມ່ເຫຼັກ\n✅ ຮັບປະກັນສິນຄ້າ 3 ເດືອນເຕັມ (ມີບັນຫາປ່ຽນໃໝ່ທັນທີ)\n🚚 ສົ່ງຟຣີຮອດໜ້າບ້ານ + ເກັບເງິນປາຍທາງ (ກວດເຄື່ອງກ່ອນຈ່າຍໄດ້ເລີຍເຈົ້າ)\n\n👉 ລູກຄ້າຮັບ 1 ເຮືອນ ຫຼື 2 ເຮືອນດີເຈົ້າ?`, 1)"
-              >
-                {{ copiedIndex === 1 ? 'ຄັດລອກແລ້ວ! ✅' : 'ຄັດລອກບົດຕອບນີ້' }}
-              </v-btn>
-            </div>
-            <pre class="script-box">ສະບາຍດີເຈົ້າ H9 MAX Smartwatch ລຸ້ນໃໝ່ຫຼ້າສຸດ ໂປຣໂມຊັ່ນພິເສດມື້ນີ້ພຽງ 210,000 ກີບ (ຈາກປົກກະຕິ 280,000 ກີບ) ✨
-✅ ແຖມຟຣີ: ສາຍປ່ຽນຊິລິໂຄນ + ສາຍສາກແມ່ເຫຼັກ
-✅ ຮັບປະກັນສິນຄ້າ 3 ເດືອນເຕັມ (ມີບັນຫາປ່ຽນໃໝ່ທັນທີ)
-🚚 ສົ່ງຟຣີຮອດໜ້າບ້ານ + ເກັບເງິນປາຍທາງ (ກວດເຄື່ອງກ່ອນຈ່າຍໄດ້ເລີຍເຈົ້າ)
-
-👉 ລູກຄ້າຮັບ 1 ເຮືອນ ຫຼື 2 ເຮືອນດີເຈົ້າ?</pre>
-          </div>
-
-          <!-- Script 2 -->
-          <div class="script-card">
-            <div class="script-header">
-              <div>
-                <span class="script-badge step2">ຂັ້ນຕອນທີ 2</span>
-                <h4>ບົດລັອກສິດໂປຣໂມຊັ່ນ ແລະ ຂໍເບີໂທຈັດສົ່ງ (Closing Hook)</h4>
-              </div>
-              <v-btn
-                size="small"
-                color="success"
-                variant="flat"
-                prepend-icon="mdi-content-copy"
-                @click="copyScript(`ເພື່ອລັອກສິດໂປຣໂມຊັ່ນສົ່ງຟຣີ ແລະ ຂອງແຖມມື້ນີ້ ລູກຄ້າແຈ້ງ:\n📍 ຊື່:\n📞 ເບີໂທ:\n🏠 ທີ່ຢູ່/ແຂວງ:\n\nທາງຮ້ານຈະແພັກເຄື່ອງຈັດສົ່ງໃຫ້ດ່ວນເລີຍເຈົ້າ! ຂອບໃຈຫຼາຍໆເຈົ້າ 🙏`, 2)"
-              >
-                {{ copiedIndex === 2 ? 'ຄັດລອກແລ້ວ! ✅' : 'ຄັດລອກບົດຕອບນີ້' }}
-              </v-btn>
-            </div>
-            <pre class="script-box">ເພື່ອລັອກສິດໂປຣໂມຊັ່ນສົ່ງຟຣີ ແລະ ຂອງແຖມມື້ນີ້ ລູກຄ້າແຈ້ງ:
-📍 ຊື່:
-📞 ເບີໂທ:
-🏠 ທີ່ຢູ່/ແຂວງ:
-
-ທາງຮ້ານຈະແພັກເຄື່ອງຈັດສົ່ງໃຫ້ດ່ວນເລີຍເຈົ້າ! ຂອບໃຈຫຼາຍໆເຈົ້າ 🙏</pre>
-          </div>
-
-          <!-- Script 3 -->
-          <div class="script-card">
-            <div class="script-header">
-              <div>
-                <span class="script-badge step3">ຂັ້ນຕອນທີ 3</span>
-                <h4>ບົດຕິດຕາມລູກຄ້າທີ່ມິດງຽບ 24h (Follow-up 24 Hours)</h4>
-              </div>
-              <v-btn
-                size="small"
-                color="info"
-                variant="outlined"
-                prepend-icon="mdi-content-copy"
-                @click="copyScript(`ສະບາຍດີເຈົ້າ ທາງຮ້ານຍັງເຫຼືອໂຄຕ້າສົ່ງຟຣີ + ຂອງແຖມອີກພຽງ 3 ຊຸດສຸດທ້າຍເຈົ້າ ✨\nລູກຄ້າສະດວກຮັບໄວ້ເລີຍບໍ່ເຈົ້າ? ທາງຮ້ານຈະເກັບສິດໂປຣໂມຊັ່ນນີ້ໄວ້ໃຫ້ເລີຍເຈົ້າ 😊`, 3)"
-              >
-                {{ copiedIndex === 3 ? 'ຄັດລອກແລ້ວ! ✅' : 'ຄັດລອກບົດຕອບນີ້' }}
-              </v-btn>
-            </div>
-            <pre class="script-box">ສະບາຍດີເຈົ້າ ທາງຮ້ານຍັງເຫຼືອໂຄຕ້າສົ່ງຟຣີ + ຂອງແຖມອີກພຽງ 3 ຊຸດສຸດທ້າຍເຈົ້າ ✨
-ລູກຄ້າສະດວກຮັບໄວ້ເລີຍບໍ່ເຈົ້າ? ທາງຮ້ານຈະເກັບສິດໂປຣໂມຊັ່ນນີ້ໄວ້ໃຫ້ເລີຍເຈົ້າ 😊</pre>
-          </div>
-        </div>
-      </section>
     </main>
   </div>
 </template>
@@ -936,61 +832,7 @@ function copyScript(text: string, index: number) {
   line-height: 1.6;
 }
 
-/* Scripts */
-.scripts-container {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
 
-.script-card {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 14px;
-  padding: 18px 20px;
-}
-
-.script-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 10px;
-}
-
-.script-badge {
-  font-size: 12px;
-  font-weight: 800;
-  text-transform: uppercase;
-  padding: 2px 8px;
-  border-radius: 4px;
-  display: inline-block;
-  margin-bottom: 4px;
-}
-
-.script-badge.step1 { background: #eff6ff; color: #2563eb; }
-.script-badge.step2 { background: #f0fdf4; color: #16a34a; }
-.script-badge.step3 { background: #ecfeff; color: #0891b2; }
-
-.script-header h4 {
-  font-size: 15px;
-  font-weight: 800;
-  color: #0f172a;
-  margin: 0;
-}
-
-.script-box {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  padding: 14px;
-  font-family: inherit;
-  font-size: 13.5px;
-  line-height: 1.6;
-  color: #1e293b;
-  white-space: pre-wrap;
-  margin: 0;
-}
 
 @media (max-width: 768px) {
   .playbook-hero {
