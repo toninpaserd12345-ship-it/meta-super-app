@@ -251,6 +251,40 @@ export interface MetaPlacementMetric {
   costPerPurchase?: number
 }
 
+export interface MetaDemographicMetric {
+  key: string
+  label: string
+  category: string
+  subCategory?: string
+  spend?: number
+  impressions?: number
+  reach?: number
+  linkClicks?: number
+  messagesCount?: number
+  costPerMessage?: number
+  purchasesCount?: number
+  costPerPurchase?: number
+}
+
+export interface MetaDemographicsReport {
+  currency: string
+  since: string
+  until: string
+  age: MetaDemographicMetric[]
+  gender: MetaDemographicMetric[]
+  ageGender?: MetaDemographicMetric[]
+  devices: MetaDemographicMetric[]
+  regions: MetaDemographicMetric[]
+  placements: MetaPlacementMetric[]
+  summary?: {
+    bestAge?: string
+    bestGender?: string
+    bestDevice?: string
+    bestRegion?: string
+    wastedTarget?: string
+  }
+}
+
 export interface MetaInsightItem {
   entityType: 'account' | 'campaign' | 'adset' | 'ad'
   entityId: string

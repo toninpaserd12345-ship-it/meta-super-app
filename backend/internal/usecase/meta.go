@@ -109,6 +109,12 @@ func (u *Meta) AdsInsights(ctx context.Context, userID, accountID, adAccountID, 
 	}
 	return u.connector.AdsInsights(ctx, userID, accountID, adAccountID, level, since, until)
 }
+func (u *Meta) Demographics(ctx context.Context, userID, accountID, adAccountID, level, since, until string) (*domain.MetaDemographicsReport, error) {
+	if strings.TrimSpace(adAccountID) == "" {
+		return nil, errors.New("ad account is required")
+	}
+	return u.connector.Demographics(ctx, userID, accountID, adAccountID, level, since, until)
+}
 func (u *Meta) AudienceAnalysis(ctx context.Context, userID, accountID, adAccountID, adSetID string) (*domain.MetaAudienceAnalysis, error) {
 	if strings.TrimSpace(adAccountID) == "" || strings.TrimSpace(adSetID) == "" {
 		return nil, errors.New("ad account and ad set are required")

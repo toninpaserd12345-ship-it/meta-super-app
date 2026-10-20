@@ -2643,6 +2643,10 @@ type graphInsightRow struct {
 	DateStop               string               `json:"date_stop"`
 	PublisherPlatform      string               `json:"publisher_platform"`
 	PlatformPosition       string               `json:"platform_position"`
+	Age                    string               `json:"age"`
+	Gender                 string               `json:"gender"`
+	ImpressionDevice       string               `json:"impression_device"`
+	Region                 string               `json:"region"`
 	HourlyStats            string               `json:"hourly_stats_aggregated_by_advertiser_time_zone"`
 	Spend                  string               `json:"spend"`
 	Impressions            string               `json:"impressions"`
@@ -4307,4 +4311,334 @@ func graphResponseError(status int, value *graphError) error {
 
 func (g *GraphConnector) SetProductRepo(r domain.ProductRepository) {
 	g.productRepo = r
+}
+
+func (g *GraphConnector) fetchBreakdownInsightRows(ctx context.Context, token, adAccountID, level, since, until, breakdowns string) ([]graphInsightRow, error) {
+	fields := "spend,impressions,reach,inline_link_clicks,actions,cost_per_action_type"
+	query := url.Values{
+		"fields":       {fields},
+		"breakdowns":   {breakdowns},
+		"time_range":   {fmt.Sprintf(`{"since":"%s","until":"%s"}`, since, until)},
+		"limit":        {"500"},
+		"access_token": {token},
+	}
+	if level != "" && level != "account" {
+		query.Set("level", level)
+	}
+	endpoint := "https://graph.facebook.com/" + g.cfg.Version + "/" + url.PathEscape(adAccountID) + "/insights?" + query.Encode()
+	rows := make([]graphInsightRow, 0)
+	pageCount := 0
+	for endpoint != "" && pageCount < 5 {
+		pageCount++
+		var response struct {
+			Data   []graphInsightRow `json:"data"`
+			Paging struct {
+				Next string `json:"next"`
+			} `json:"paging"`
+		}
+		if err := g.getJSON(ctx, endpoint, &response); err != nil {
+			return nil, err
+		}
+		rows = append(rows, response.Data...)
+		endpoint = response.Paging.Next
+	}
+	return rows, nil
+}
+
+func (g *GraphConnector) Demographics(ctx context.Context, _ string, accountID, adAccountID, level, since, until string) (*domain.MetaDemographicsReport, error) {
+	token, err := g.userToken(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+	if !strings.HasPrefix(adAccountID, "act_") {
+		adAccountID = "act_" + adAccountID
+	}
+	if since == "" || until == "" {
+		now := time.Now()
+		until = now.Format("2006-01-02")
+		since = now.AddDate(0, 0, -30).Format("2006-01-02")
+	}
+
+	var (
+		account struct {
+			Currency string `json:"currency"`
+		}
+		ageGenderRows []graphInsightRow
+		deviceRows    []graphInsightRow
+		placementRows []graphInsightRow
+		regionRows    []graphInsightRow
+		wg            sync.WaitGroup
+	)
+
+	wg.Add(5)
+	go func() {
+		defer wg.Done()
+		accountQuery := url.Values{"fields": {"currency"}, "access_token": {token}}
+		_ = g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/"+url.PathEscape(adAccountID)+"?"+accountQuery.Encode(), &account)
+	}()
+	go func() {
+		defer wg.Done()
+		ageGenderRows, _ = g.fetchBreakdownInsightRows(ctx, token, adAccountID, level, since, until, "age,gender")
+	}()
+	go func() {
+		defer wg.Done()
+		deviceRows, _ = g.fetchBreakdownInsightRows(ctx, token, adAccountID, level, since, until, "impression_device")
+	}()
+	go func() {
+		defer wg.Done()
+		placementRows, _ = g.fetchBreakdownInsightRows(ctx, token, adAccountID, level, since, until, "publisher_platform,platform_position")
+	}()
+	go func() {
+		defer wg.Done()
+		regionRows, _ = g.fetchBreakdownInsightRows(ctx, token, adAccountID, level, since, until, "region")
+	}()
+	wg.Wait()
+
+	report := &domain.MetaDemographicsReport{
+		Currency:   account.Currency,
+		Since:      since,
+		Until:      until,
+		Age:        make([]domain.MetaDemographicMetric, 0),
+		Gender:     make([]domain.MetaDemographicMetric, 0),
+		AgeGender:  make([]domain.MetaDemographicMetric, 0),
+		Devices:    make([]domain.MetaDemographicMetric, 0),
+		Regions:    make([]domain.MetaDemographicMetric, 0),
+		Placements: make([]domain.MetaPlacementMetric, 0),
+	}
+
+	type aggMetric struct {
+		Spend       float64
+		Impressions float64
+		Reach       float64
+		Clicks      float64
+		Messages    float64
+		Purchases   float64
+	}
+
+	ageMap := make(map[string]*aggMetric)
+	genderMap := make(map[string]*aggMetric)
+	ageGenderMap := make(map[string]*aggMetric)
+
+	for _, row := range ageGenderRows {
+		sp := 0.0
+		if s := numberPointer(row.Spend); s != nil { sp = *s }
+		imp := 0.0
+		if i := numberPointer(row.Impressions); i != nil { imp = *i }
+		rch := 0.0
+		if r := numberPointer(row.Reach); r != nil { rch = *r }
+		clk := 0.0
+		if c := numberPointer(row.InlineLinkClicks); c != nil { clk = *c }
+		msgCount, _ := extractMessagingMetric(row.Actions, row.CostPerActionType)
+		msg := 0.0
+		if msgCount != nil { msg = *msgCount }
+		purCount, _ := extractPurchaseMetric(row.Actions, row.CostPerActionType)
+		pur := 0.0
+		if purCount != nil { pur = *purCount }
+
+		if row.Age != "" {
+			if _, ok := ageMap[row.Age]; !ok { ageMap[row.Age] = &aggMetric{} }
+			ageMap[row.Age].Spend += sp
+			ageMap[row.Age].Impressions += imp
+			ageMap[row.Age].Reach += rch
+			ageMap[row.Age].Clicks += clk
+			ageMap[row.Age].Messages += msg
+			ageMap[row.Age].Purchases += pur
+		}
+
+		if row.Gender != "" {
+			if _, ok := genderMap[row.Gender]; !ok { genderMap[row.Gender] = &aggMetric{} }
+			genderMap[row.Gender].Spend += sp
+			genderMap[row.Gender].Impressions += imp
+			genderMap[row.Gender].Reach += rch
+			genderMap[row.Gender].Clicks += clk
+			genderMap[row.Gender].Messages += msg
+			genderMap[row.Gender].Purchases += pur
+		}
+
+		if row.Age != "" && row.Gender != "" {
+			comboKey := row.Age + " " + row.Gender
+			if _, ok := ageGenderMap[comboKey]; !ok { ageGenderMap[comboKey] = &aggMetric{} }
+			ageGenderMap[comboKey].Spend += sp
+			ageGenderMap[comboKey].Impressions += imp
+			ageGenderMap[comboKey].Reach += rch
+			ageGenderMap[comboKey].Clicks += clk
+			ageGenderMap[comboKey].Messages += msg
+			ageGenderMap[comboKey].Purchases += pur
+		}
+	}
+
+	ageOrder := []string{"18-24", "25-34", "35-44", "45-54", "55-64", "65+"}
+	for _, a := range ageOrder {
+		if agg, ok := ageMap[a]; ok {
+			var costPerMsg, costPerPur *float64
+			if agg.Messages > 0 { c := agg.Spend / agg.Messages; costPerMsg = &c }
+			if agg.Purchases > 0 { c := agg.Spend / agg.Purchases; costPerPur = &c }
+			spCopy, impCopy, rchCopy, clkCopy, msgCopy, purCopy := agg.Spend, agg.Impressions, agg.Reach, agg.Clicks, agg.Messages, agg.Purchases
+			report.Age = append(report.Age, domain.MetaDemographicMetric{
+				Key:             a,
+				Label:           a + " ປີ",
+				Category:        "age",
+				Spend:           &spCopy,
+				Impressions:     &impCopy,
+				Reach:           &rchCopy,
+				LinkClicks:      &clkCopy,
+				MessagesCount:   &msgCopy,
+				CostPerMessage:  costPerMsg,
+				PurchasesCount:  &purCopy,
+				CostPerPurchase: costPerPur,
+			})
+		}
+	}
+
+	genderLabels := map[string]string{
+		"male":    "ຜູ້ຊາຍ (Men)",
+		"female":  "ຜູ້ຍິງ (Women)",
+		"unknown": "ບໍ່ລະບຸ (Unknown)",
+	}
+	for _, gKey := range []string{"male", "female", "unknown"} {
+		if agg, ok := genderMap[gKey]; ok {
+			var costPerMsg, costPerPur *float64
+			if agg.Messages > 0 { c := agg.Spend / agg.Messages; costPerMsg = &c }
+			if agg.Purchases > 0 { c := agg.Spend / agg.Purchases; costPerPur = &c }
+			label := genderLabels[gKey]
+			if label == "" { label = gKey }
+			spCopy, impCopy, rchCopy, clkCopy, msgCopy, purCopy := agg.Spend, agg.Impressions, agg.Reach, agg.Clicks, agg.Messages, agg.Purchases
+			report.Gender = append(report.Gender, domain.MetaDemographicMetric{
+				Key:             gKey,
+				Label:           label,
+				Category:        "gender",
+				Spend:           &spCopy,
+				Impressions:     &impCopy,
+				Reach:           &rchCopy,
+				LinkClicks:      &clkCopy,
+				MessagesCount:   &msgCopy,
+				CostPerMessage:  costPerMsg,
+				PurchasesCount:  &purCopy,
+				CostPerPurchase: costPerPur,
+			})
+		}
+	}
+
+	deviceLabels := map[string]string{
+		"android_smartphone": "Android Smartphone",
+		"iphone":             "Apple iPhone (iOS)",
+		"desktop":            "Computer / Desktop",
+		"android_tablet":     "Android Tablet",
+		"ipad":               "Apple iPad",
+	}
+	deviceMap := make(map[string]*aggMetric)
+	for _, row := range deviceRows {
+		dev := row.ImpressionDevice
+		if dev == "" { continue }
+		sp := 0.0
+		if s := numberPointer(row.Spend); s != nil { sp = *s }
+		imp := 0.0
+		if i := numberPointer(row.Impressions); i != nil { imp = *i }
+		rch := 0.0
+		if r := numberPointer(row.Reach); r != nil { rch = *r }
+		clk := 0.0
+		if c := numberPointer(row.InlineLinkClicks); c != nil { clk = *c }
+		msgCount, _ := extractMessagingMetric(row.Actions, row.CostPerActionType)
+		msg := 0.0
+		if msgCount != nil { msg = *msgCount }
+		purCount, _ := extractPurchaseMetric(row.Actions, row.CostPerActionType)
+		pur := 0.0
+		if purCount != nil { pur = *purCount }
+
+		if _, ok := deviceMap[dev]; !ok { deviceMap[dev] = &aggMetric{} }
+		deviceMap[dev].Spend += sp
+		deviceMap[dev].Impressions += imp
+		deviceMap[dev].Reach += rch
+		deviceMap[dev].Clicks += clk
+		deviceMap[dev].Messages += msg
+		deviceMap[dev].Purchases += pur
+	}
+	for devKey, agg := range deviceMap {
+		var costPerMsg, costPerPur *float64
+		if agg.Messages > 0 { c := agg.Spend / agg.Messages; costPerMsg = &c }
+		if agg.Purchases > 0 { c := agg.Spend / agg.Purchases; costPerPur = &c }
+		lbl := deviceLabels[devKey]
+		if lbl == "" { lbl = devKey }
+		spCopy, impCopy, rchCopy, clkCopy, msgCopy, purCopy := agg.Spend, agg.Impressions, agg.Reach, agg.Clicks, agg.Messages, agg.Purchases
+		report.Devices = append(report.Devices, domain.MetaDemographicMetric{
+			Key:             devKey,
+			Label:           lbl,
+			Category:        "device",
+			Spend:           &spCopy,
+			Impressions:     &impCopy,
+			Reach:           &rchCopy,
+			LinkClicks:      &clkCopy,
+			MessagesCount:   &msgCopy,
+			CostPerMessage:  costPerMsg,
+			PurchasesCount:  &purCopy,
+			CostPerPurchase: costPerPur,
+		})
+	}
+
+	regionMap := make(map[string]*aggMetric)
+	for _, row := range regionRows {
+		reg := row.Region
+		if reg == "" { continue }
+		sp := 0.0
+		if s := numberPointer(row.Spend); s != nil { sp = *s }
+		imp := 0.0
+		if i := numberPointer(row.Impressions); i != nil { imp = *i }
+		rch := 0.0
+		if r := numberPointer(row.Reach); r != nil { rch = *r }
+		clk := 0.0
+		if c := numberPointer(row.InlineLinkClicks); c != nil { clk = *c }
+		msgCount, _ := extractMessagingMetric(row.Actions, row.CostPerActionType)
+		msg := 0.0
+		if msgCount != nil { msg = *msgCount }
+		purCount, _ := extractPurchaseMetric(row.Actions, row.CostPerActionType)
+		pur := 0.0
+		if purCount != nil { pur = *purCount }
+
+		if _, ok := regionMap[reg]; !ok { regionMap[reg] = &aggMetric{} }
+		regionMap[reg].Spend += sp
+		regionMap[reg].Impressions += imp
+		regionMap[reg].Reach += rch
+		regionMap[reg].Clicks += clk
+		regionMap[reg].Messages += msg
+		regionMap[reg].Purchases += pur
+	}
+	for regKey, agg := range regionMap {
+		var costPerMsg, costPerPur *float64
+		if agg.Messages > 0 { c := agg.Spend / agg.Messages; costPerMsg = &c }
+		if agg.Purchases > 0 { c := agg.Spend / agg.Purchases; costPerPur = &c }
+		spCopy, impCopy, rchCopy, clkCopy, msgCopy, purCopy := agg.Spend, agg.Impressions, agg.Reach, agg.Clicks, agg.Messages, agg.Purchases
+		report.Regions = append(report.Regions, domain.MetaDemographicMetric{
+			Key:             regKey,
+			Label:           regKey,
+			Category:        "region",
+			Spend:           &spCopy,
+			Impressions:     &impCopy,
+			Reach:           &rchCopy,
+			LinkClicks:      &clkCopy,
+			MessagesCount:   &msgCopy,
+			CostPerMessage:  costPerMsg,
+			PurchasesCount:  &purCopy,
+			CostPerPurchase: costPerPur,
+		})
+	}
+
+	for _, row := range placementRows {
+		if row.PublisherPlatform == "" && row.PlatformPosition == "" { continue }
+		msgCount, msgCost := extractMessagingMetric(row.Actions, row.CostPerActionType)
+		purCount, purCost := extractPurchaseMetric(row.Actions, row.CostPerActionType)
+		report.Placements = append(report.Placements, domain.MetaPlacementMetric{
+			PublisherPlatform: row.PublisherPlatform,
+			PlatformPosition:  row.PlatformPosition,
+			Spend:             numberPointer(row.Spend),
+			Impressions:       numberPointer(row.Impressions),
+			Reach:             numberPointer(row.Reach),
+			LinkClicks:        numberPointer(row.InlineLinkClicks),
+			MessagesCount:     msgCount,
+			CostPerMessage:    msgCost,
+			PurchasesCount:    purCount,
+			CostPerPurchase:   purCost,
+		})
+	}
+
+	return report, nil
 }

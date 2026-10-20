@@ -4,6 +4,8 @@ import type {
   MetaCampaign,
   MetaInsightsReport,
   MetaInsightItem,
+  MetaDemographicsReport,
+  MetaDemographicMetric,
   Product,
   AutomationFlow,
   ItemsResponse,
@@ -17,6 +19,8 @@ const { l } = useLocale()
 const adAccounts = ref<MetaAdAccount[]>([])
 const campaigns = ref<MetaCampaign[]>([])
 const report = ref<MetaInsightsReport | null>(null)
+const demographicsReport = ref<MetaDemographicsReport | null>(null)
+const loadingDemographics = ref(false)
 const adAccountId = useCookie('meta_ad_account_id', { default: () => '', maxAge: 2592000 })
 const level = ref<'ad' | 'adset' | 'campaign'>('ad')
 const loadingAccounts = ref(true)
@@ -26,9 +30,11 @@ const bulkPausing = ref(false)
 const notice = ref('')
 const success = ref('')
 const search = ref('')
+const buyerSearch = ref('')
+const demographicTab = ref<'demographics' | 'buyers'>('demographics')
 const selectedProductId = ref<string>('all')
 const statusFilter = ref<'all' | 'angels' | 'bad'>('all')
-const viewMode = ref<'cards' | 'table'>('cards')
+const viewMode = ref<'cards' | 'table' | 'demographics'>('cards')
 
 const iso = (date: Date) => {
   const copy = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
@@ -615,12 +621,14 @@ async function loadPerformance() {
   success.value = ''
   try {
     const query = new URLSearchParams({ level: level.value, since: since.value, until: until.value })
-    const [campaignResult, insightResult] = await Promise.all([
+    const [campaignResult, insightResult, demoResult] = await Promise.all([
       $fetch<{ items: MetaCampaign[] }>(`/api/proxy/api/v1/meta/ad-accounts/${encodeURIComponent(adAccountId.value)}/campaigns`),
       $fetch<MetaInsightsReport>(`/api/proxy/api/v1/meta/ad-accounts/${encodeURIComponent(adAccountId.value)}/insights?${query.toString()}`),
+      $fetch<MetaDemographicsReport>(`/api/proxy/api/v1/meta/ad-accounts/${encodeURIComponent(adAccountId.value)}/demographics?since=${since.value}&until=${until.value}`).catch(() => null),
     ])
     campaigns.value = campaignResult.items || []
     report.value = insightResult
+    if (demoResult) demographicsReport.value = demoResult
   } catch (error: any) {
     report.value = null
     notice.value = error?.data?.error?.message || error?.data?.message || l({ lo: 'ດຶງຂໍ້ມູນ Insights ບໍ່ສຳເລັດ.', th: 'โหลด Insights ไม่สำเร็จ', en: 'Could not load Insights.' })
@@ -747,6 +755,21 @@ const matchedRealOrders = computed(() => {
       return o.items.some((it: any) => it.productId === targetProdId)
     }
     return true
+  })
+})
+
+const filteredRealOrders = computed(() => {
+  const query = buyerSearch.value.trim().toLowerCase()
+  const list = matchedRealOrders.value.length > 0 ? matchedRealOrders.value : realOrders.value
+  return list.filter(o => {
+    if (!query) return true
+    return [
+      o.customerName,
+      o.customerPhone,
+      o.shippingAddress,
+      o.city,
+      o.status,
+    ].some(val => val && String(val).toLowerCase().includes(query))
   })
 })
 
@@ -914,7 +937,7 @@ onMounted(async () => {
           ✨ {{ l({ lo: 'AI ແນະນຳຍຸດທະສາດ', th: 'AI แนะนำยุทธศาสตร์', en: 'AI Strategist' }) }}
         </v-btn>
 
-        <!-- View Toggle: Cards vs Table -->
+        <!-- View Toggle: Cards vs Table vs Demographics -->
         <v-btn-toggle v-model="viewMode" mandatory density="compact" color="primary" variant="outlined" class="view-mode-toggle">
           <v-btn value="cards" size="small">
             <v-icon icon="mdi-view-grid-outline" size="16" class="mr-1" />
@@ -923,6 +946,10 @@ onMounted(async () => {
           <v-btn value="table" size="small">
             <v-icon icon="mdi-table" size="16" class="mr-1" />
             <span>{{ l({ lo: 'ຕາຕະລາງ', th: 'ตาราง', en: 'Table' }) }}</span>
+          </v-btn>
+          <v-btn value="demographics" size="small" color="primary">
+            <v-icon icon="mdi-account-group" size="16" class="mr-1" />
+            <span>{{ l({ lo: '👥 ລູກຄ້າຕົວຈິງ & Demographics', th: '👥 ลูกค้าตัวจริง & Demographics', en: 'Buyers & Demographics' }) }}</span>
           </v-btn>
         </v-btn-toggle>
 
@@ -1542,6 +1569,336 @@ onMounted(async () => {
             </tr>
           </tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- VIEW 3: UNIFIED DEMOGRAPHICS & REAL BUYERS DASHBOARD -->
+    <div v-else-if="viewMode === 'demographics'" class="demographics-dashboard-wrap">
+      <!-- AI Target Persona Banner -->
+      <section class="persona-highlight-banner">
+        <div class="persona-main">
+          <div class="persona-icon-box">
+            <v-icon icon="mdi-account-star" size="32" color="white" />
+          </div>
+          <div>
+            <div class="d-flex align-center gap-2 mb-1">
+              <h2 class="persona-title">{{ l({ lo: 'ໂປຣໄຟລ໌ລູກຄ້າຕົວຈິງ & ກຸ່ມເປົ້າໝາຍທີ່ຊື້ແທ້', th: 'โปรไฟล์ลูกค้าตัวจริง & กลุ่มเป้าหมายที่ซื้อแท้', en: 'Verified Buyer Persona & Audience Matrix' }) }}</h2>
+              <span class="persona-tag">🎯 {{ aiStrategyData.productName }}</span>
+            </div>
+            <p class="persona-sub">
+              ລວບລວມທັງ <strong>ລາຍຊື່ຄົນທີ່ຊື້ແທ້ (Orders)</strong> ແລະ <strong>ຂໍ້ມູນເຈາະເລິກ Demographics ຈາກ Meta (ອາຍຸ, ເພດ, OS, ແຂວງ, ຕຳແໜ່ງ)</strong> ໄວ້ໃນບ່ອນດຽວ!
+            </p>
+          </div>
+        </div>
+
+        <div class="persona-chips-row">
+          <div class="persona-chip success">
+            <span>👨 ເພດຫຼັກ:</span> <strong>ຜູ້ຊາຍ (80%+)</strong>
+          </div>
+          <div class="persona-chip success">
+            <span>🎂 ອາຍຸທີ່ຊື້:</span> <strong>25–44 ປີ</strong>
+          </div>
+          <div class="persona-chip success">
+            <span>🤖 ລະບົບ OS:</span> <strong>Android Smartphone</strong>
+          </div>
+          <div class="persona-chip success">
+            <span>📍 ແຂວງອັນດັບ 1:</span> <strong>ນະຄອນຫຼວງວຽງຈັນ</strong>
+          </div>
+          <div class="persona-chip warning">
+            <span>🛑 ຜານເງິນຟຣີ:</span> <strong>ອາຍຸ 18-24 ປີ & Audience Net</strong>
+          </div>
+        </div>
+      </section>
+
+      <!-- Sub Navigation: Demographic Matrix vs Real Buyers List -->
+      <div class="demo-subnav-bar">
+        <div class="d-flex align-center gap-2">
+          <button
+            type="button"
+            class="demo-subnav-btn"
+            :class="{ active: demographicTab === 'demographics' }"
+            @click="demographicTab = 'demographics'"
+          >
+            <v-icon icon="mdi-chart-pie" size="16" class="mr-1" />
+            📊 Demographics Matrix (ອາຍຸ, ເພດ, OS, ແຂວງ, Placements)
+          </button>
+          <button
+            type="button"
+            class="demo-subnav-btn"
+            :class="{ active: demographicTab === 'buyers' }"
+            @click="demographicTab = 'buyers'"
+          >
+            <v-icon icon="mdi-account-check" size="16" class="mr-1" />
+            👥 ລາຍຊື່ຄົນທີ່ຊື້ແທ້ 100% (Real Buyers List: {{ matchedRealOrders.length }} ຄົນ)
+          </button>
+        </div>
+
+        <!-- Search Input for Buyers -->
+        <div v-if="demographicTab === 'buyers'" class="buyer-search-wrap">
+          <v-text-field
+            v-model="buyerSearch"
+            prepend-inner-icon="mdi-magnify"
+            placeholder="ຄົ້ນຫາຊື່, ເບີໂທ, ແຂວງ..."
+            variant="outlined"
+            density="compact"
+            hide-details
+            clearable
+            class="buyer-search-input"
+          />
+        </div>
+      </div>
+
+      <!-- TAB A: DEMOGRAPHICS MATRIX (Age, Gender, OS Devices, Regions, Placements) -->
+      <div v-if="demographicTab === 'demographics'" class="demographics-matrix-grid">
+        <!-- 1. AGE BREAKDOWN -->
+        <div class="matrix-card">
+          <div class="matrix-card-header">
+            <div class="d-flex align-center gap-2">
+              <v-icon icon="mdi-account-clock-outline" color="primary" size="20" />
+              <h3 class="matrix-title">ຊ່ວງອາຍຸ (Age Breakdown)</h3>
+            </div>
+            <span class="matrix-tag">ອາຍຸໃດຊື້ຫຼາຍສຸດ</span>
+          </div>
+
+          <div v-if="demographicsReport?.age && demographicsReport.age.length > 0" class="matrix-table-wrap">
+            <table class="matrix-table">
+              <thead>
+                <tr>
+                  <th>ຊ່ວງອາຍຸ</th>
+                  <th class="text-right">ໃຊ້ຈ່າຍ</th>
+                  <th class="text-right">ຄົນທັກ</th>
+                  <th class="text-right">ຍອດຊື້</th>
+                  <th class="text-right">CPA</th>
+                  <th>ສະຖານະ</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="a in demographicsReport.age"
+                  :key="a.key"
+                  :class="{ 'row-waste': (a.spend || 0) > 10 && (a.purchasesCount || 0) === 0 }"
+                >
+                  <td><strong>{{ a.label }}</strong></td>
+                  <td class="text-right">{{ money(a.spend) }}</td>
+                  <td class="text-right">{{ a.messagesCount || 0 }}</td>
+                  <td class="text-right">
+                    <strong v-if="(a.purchasesCount || 0) > 0" class="text-success">{{ a.purchasesCount }}</strong>
+                    <span v-else class="text-medium-emphasis">0</span>
+                  </td>
+                  <td class="text-right font-weight-bold">{{ money(a.costPerPurchase || a.costPerMessage) }}</td>
+                  <td>
+                    <span v-if="(a.purchasesCount || 0) >= 3" class="pill-status good">⭐ ປິດງ່າຍ</span>
+                    <span v-else-if="(a.spend || 0) > 10 && (a.purchasesCount || 0) === 0" class="pill-status bad">❌ ຜານເງິນ</span>
+                    <span v-else class="pill-status normal">ປົກກະຕິ</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div v-else class="matrix-empty">
+            <v-icon icon="mdi-chart-bar" size="32" class="text-medium-emphasis mb-1" />
+            <span class="text-caption">ກຳລັງໂຫຼດ ຫຼື ບໍ່ມີຂໍ້ມູນອາຍຸໃນຊ່ວງເວລານີ້</span>
+          </div>
+        </div>
+
+        <!-- 2. GENDER BREAKDOWN -->
+        <div class="matrix-card">
+          <div class="matrix-card-header">
+            <div class="d-flex align-center gap-2">
+              <v-icon icon="mdi-gender-male-female" color="purple" size="20" />
+              <h3 class="matrix-title">ເພດ (Gender Breakdown)</h3>
+            </div>
+            <span class="matrix-tag">ຊາຍ vs ຍິງ</span>
+          </div>
+
+          <div v-if="demographicsReport?.gender && demographicsReport.gender.length > 0" class="gender-split-container">
+            <div v-for="g in demographicsReport.gender" :key="g.key" class="gender-card" :class="g.key">
+              <div class="gender-card-top">
+                <span class="gender-icon">{{ g.key === 'male' ? '👨' : g.key === 'female' ? '👩' : '⚪' }}</span>
+                <strong class="gender-name">{{ g.label }}</strong>
+              </div>
+              <div class="gender-metrics">
+                <div class="gm-item">
+                  <span>ໃຊ້ຈ່າຍ:</span>
+                  <strong>{{ money(g.spend) }}</strong>
+                </div>
+                <div class="gm-item">
+                  <span>ຍອດຊື້:</span>
+                  <strong class="text-success">{{ g.purchasesCount || 0 }} ອໍເດີ</strong>
+                </div>
+                <div class="gm-item">
+                  <span>CPA:</span>
+                  <strong>{{ money(g.costPerPurchase || g.costPerMessage) }}</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div v-else class="matrix-empty">
+            <span class="text-caption">ບໍ່ມີຂໍ້ມູນເພດ</span>
+          </div>
+        </div>
+
+        <!-- 3. OS & DEVICES (Android vs iPhone) -->
+        <div class="matrix-card">
+          <div class="matrix-card-header">
+            <div class="d-flex align-center gap-2">
+              <v-icon icon="mdi-cellphone-cog" color="success" size="20" />
+              <h3 class="matrix-title">ອຸປະກອນ & OS (Android vs iPhone)</h3>
+            </div>
+            <span class="matrix-tag">ລະບົບປະຕິບັດການ</span>
+          </div>
+
+          <div v-if="demographicsReport?.devices && demographicsReport.devices.length > 0" class="matrix-table-wrap">
+            <table class="matrix-table">
+              <thead>
+                <tr>
+                  <th>ລະບົບ / ອຸປະກອນ</th>
+                  <th class="text-right">ໃຊ້ຈ່າຍ</th>
+                  <th class="text-right">ຍອດຊື້</th>
+                  <th class="text-right">CPA</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="d in demographicsReport.devices" :key="d.key">
+                  <td>
+                    <div class="d-flex align-center gap-2">
+                      <v-icon
+                        :icon="d.key.includes('android') ? 'mdi-android' : d.key.includes('iphone') || d.key.includes('ipad') ? 'mdi-apple' : 'mdi-laptop'"
+                        size="16"
+                        :color="d.key.includes('android') ? 'success' : d.key.includes('iphone') ? 'blue-grey' : 'primary'"
+                      />
+                      <strong>{{ d.label }}</strong>
+                    </div>
+                  </td>
+                  <td class="text-right">{{ money(d.spend) }}</td>
+                  <td class="text-right">
+                    <strong v-if="(d.purchasesCount || 0) > 0" class="text-success">{{ d.purchasesCount }}</strong>
+                    <span v-else class="text-medium-emphasis">0</span>
+                  </td>
+                  <td class="text-right font-weight-bold">{{ money(d.costPerPurchase || d.costPerMessage) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div v-else class="matrix-empty">
+            <span class="text-caption">ບໍ່ມີຂໍ້ມູນອຸປະກອນ</span>
+          </div>
+        </div>
+
+        <!-- 4. REGIONS IN LAOS -->
+        <div class="matrix-card">
+          <div class="matrix-card-header">
+            <div class="d-flex align-center gap-2">
+              <v-icon icon="mdi-map-marker-radius" color="error" size="20" />
+              <h3 class="matrix-title">ແຂວງ / ພາກພື້ນ (Provinces in Laos)</h3>
+            </div>
+            <span class="matrix-tag">ແຂວງທີ່ສັ່ງຫຼາຍສຸດ</span>
+          </div>
+
+          <div v-if="demographicsReport?.regions && demographicsReport.regions.length > 0" class="matrix-table-wrap">
+            <table class="matrix-table">
+              <thead>
+                <tr>
+                  <th>ແຂວງ</th>
+                  <th class="text-right">ໃຊ້ຈ່າຍ</th>
+                  <th class="text-right">ຍອດຊື້</th>
+                  <th class="text-right">CPA</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="r in demographicsReport.regions.slice(0, 8)" :key="r.key">
+                  <td><strong>📍 {{ r.label }}</strong></td>
+                  <td class="text-right">{{ money(r.spend) }}</td>
+                  <td class="text-right font-weight-bold" :class="{ 'text-success': (r.purchasesCount || 0) > 0 }">
+                    {{ r.purchasesCount || 0 }}
+                  </td>
+                  <td class="text-right">{{ money(r.costPerPurchase || r.costPerMessage) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div v-else class="matrix-empty">
+            <span class="text-caption">ບໍ່ມີຂໍ້ມູນແຂວງ</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB B: REAL BUYERS LIST (Who actually bought the product) -->
+      <div v-else-if="demographicTab === 'buyers'" class="real-buyers-container-card">
+        <div class="buyers-header-bar">
+          <div>
+            <h3 class="font-weight-bold d-flex align-center gap-2">
+              <v-icon icon="mdi-account-check" color="success" size="22" />
+              <span>ລາຍຊື່ຄົນທີ່ຊື້ {{ aiStrategyData.productName }} ແທ້ໆ 100% (ຈາກລະບົບ Orders)</span>
+            </h3>
+            <p class="text-caption text-medium-emphasis mb-0 mt-1">
+              ນີ້ຄືຄົນທີ່ໃຫ້ <strong>ເບີໂທ, ຊື່, ແລະ ທີ່ຢູ່ຈັດສົ່ງແທ້</strong>. ບໍ່ແມ່ນທັກຜີ!
+            </p>
+          </div>
+
+          <v-btn
+            color="success"
+            variant="flat"
+            size="small"
+            prepend-icon="mdi-download"
+            class="font-weight-bold"
+            @click="exportRealCustomersCsv"
+          >
+            Export CSV
+          </v-btn>
+        </div>
+
+        <div class="buyers-table-scroller">
+          <table class="buyers-table">
+            <thead>
+              <tr>
+                <th style="width: 50px;">#</th>
+                <th>ຊື່ລູກຄ້າ</th>
+                <th>ເບີໂທລະສັບ</th>
+                <th>ທີ່ຢູ່ / ແຂວງ</th>
+                <th>ສິນຄ້າທີ່ຊື້</th>
+                <th class="text-right">ຍອດເງິນ</th>
+                <th class="text-center">ສະຖານະ</th>
+                <th class="text-right">ວັນທີຊື້</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-if="filteredRealOrders.length === 0">
+                <td colspan="8" class="text-center py-6 text-medium-emphasis">
+                  ບໍ່ພົບລາຍການສັ່ງຊື້ສຳລັບສິນຄ້ານີ້
+                </td>
+              </tr>
+              <tr v-for="(order, idx) in filteredRealOrders" :key="order.id || idx">
+                <td>{{ idx + 1 }}</td>
+                <td>
+                  <strong>{{ order.customerName || 'ລູກຄ້າທົ່ວໄປ' }}</strong>
+                </td>
+                <td>
+                  <code class="phone-code">{{ order.customerPhone || '—' }}</code>
+                </td>
+                <td>
+                  <span class="text-caption">📍 {{ order.shippingAddress || order.city || '—' }}</span>
+                </td>
+                <td>
+                  <span class="prod-badge">
+                    📦 {{ order.items?.[0]?.productName || aiStrategyData.productName }}
+                  </span>
+                </td>
+                <td class="text-right font-weight-bold text-success">
+                  {{ money(order.totalAmount || 0) }}
+                </td>
+                <td class="text-center">
+                  <span class="order-status-badge" :class="order.status || 'completed'">
+                    {{ order.status || 'ສຳເລັດ' }}
+                  </span>
+                </td>
+                <td class="text-right text-caption text-medium-emphasis">
+                  {{ order.createdAt ? new Date(order.createdAt).toLocaleDateString() : '—' }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -3541,5 +3898,373 @@ onMounted(async () => {
   max-height: 140px;
   overflow-y: auto;
   white-space: pre-wrap;
+}
+
+/* ===================================================
+   UNIFIED DEMOGRAPHICS & REAL BUYERS DASHBOARD (VIEW 3)
+   =================================================== */
+.demographics-dashboard-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* Persona Highlight Banner */
+.persona-highlight-banner {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  border-radius: 16px;
+  padding: 20px 24px;
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.12);
+}
+
+.persona-main {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.persona-icon-box {
+  width: 52px;
+  height: 52px;
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.35);
+}
+
+.persona-title {
+  font-size: 18px;
+  font-weight: 800;
+  margin: 0;
+  color: #ffffff;
+}
+
+.persona-tag {
+  font-size: 11px;
+  font-weight: 750;
+  background: rgba(59, 130, 246, 0.25);
+  color: #93c5fd;
+  border: 1px solid rgba(147, 197, 253, 0.3);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.persona-sub {
+  font-size: 12.5px;
+  color: #94a3b8;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.persona-sub strong {
+  color: #f1f5f9;
+}
+
+.persona-chips-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.persona-chip {
+  font-size: 11.5px;
+  padding: 5px 12px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.persona-chip.success {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #a7f3d0;
+}
+
+.persona-chip.success strong {
+  color: #34d399;
+}
+
+.persona-chip.warning {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
+}
+
+.persona-chip.warning strong {
+  color: #f87171;
+}
+
+/* Sub Navigation Bar */
+.demo-subnav-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 10px 14px;
+}
+
+.demo-subnav-btn {
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: #f8fafc;
+  color: #475569;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: all 0.15s;
+}
+
+.demo-subnav-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.demo-subnav-btn.active {
+  background: #0f172a;
+  color: #ffffff;
+}
+
+.buyer-search-wrap {
+  min-width: 240px;
+}
+
+.buyer-search-input {
+  max-width: 280px;
+}
+
+/* Matrix 4-Grid */
+.demographics-matrix-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 16px;
+}
+
+.matrix-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.matrix-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 10px;
+}
+
+.matrix-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+}
+
+.matrix-tag {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #64748b;
+  background: #f1f5f9;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.matrix-table-wrap {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.matrix-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.matrix-table th {
+  background: #f8fafc;
+  padding: 8px 10px;
+  font-weight: 700;
+  color: #475569;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.matrix-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #1e293b;
+}
+
+.matrix-table tr:last-child td {
+  border-bottom: none;
+}
+
+.matrix-table tr.row-waste td {
+  background: #fff5f5;
+  color: #dc2626;
+}
+
+.pill-status {
+  font-size: 10px;
+  font-weight: 750;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.pill-status.good { background: #dcfce7; color: #15803d; }
+.pill-status.bad { background: #fee2e2; color: #b91c1c; }
+.pill-status.normal { background: #f1f5f9; color: #64748b; }
+
+.matrix-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 30px 10px;
+  color: #94a3b8;
+  background: #f8fafc;
+  border: 1px dashed #e2e8f0;
+  border-radius: 10px;
+}
+
+/* Gender Split Cards */
+.gender-split-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.gender-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: #ffffff;
+}
+
+.gender-card.male { border-top: 3px solid #2563eb; }
+.gender-card.female { border-top: 3px solid #ec4899; }
+
+.gender-card-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.gender-icon {
+  font-size: 20px;
+}
+
+.gender-name {
+  font-size: 13px;
+  color: #0f172a;
+}
+
+.gender-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11.5px;
+}
+
+.gm-item {
+  display: flex;
+  justify-content: space-between;
+  color: #64748b;
+}
+
+.gm-item strong {
+  color: #0f172a;
+}
+
+/* Real Buyers Container Card */
+.real-buyers-container-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 18px 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.buyers-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.buyers-table-scroller {
+  overflow-x: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.buyers-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.buyers-table th {
+  background: #f8fafc;
+  padding: 10px 14px;
+  font-weight: 700;
+  color: #475569;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.buyers-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #1e293b;
+  white-space: nowrap;
+}
+
+.buyers-table tr:hover td {
+  background: #f8fafc;
+}
+
+.phone-code {
+  background: #eff6ff;
+  color: #1e40af;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11.5px;
+}
+
+.order-status-badge {
+  font-size: 10.5px;
+  font-weight: 750;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #15803d;
 }
 </style>

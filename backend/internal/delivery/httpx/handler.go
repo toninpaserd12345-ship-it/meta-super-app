@@ -130,6 +130,7 @@ func (h *Handler) App() *fiber.App {
 	auth.Get("/api/v1/meta/ad-accounts", requireAccount(h.auth, domain.ClaimPagesRead), h.metaAdAccounts)
 	auth.Get("/api/v1/meta/ad-accounts/:adAccountID/campaigns", requireAccount(h.auth, domain.ClaimPagesRead), h.metaCampaigns)
 	auth.Get("/api/v1/meta/ad-accounts/:adAccountID/insights", requireAccount(h.auth, domain.ClaimPagesRead), h.metaAdsInsights)
+	auth.Get("/api/v1/meta/ad-accounts/:adAccountID/demographics", requireAccount(h.auth, domain.ClaimPagesRead), h.metaDemographics)
 	auth.Get("/api/v1/meta/ad-accounts/:adAccountID/audience/:adSetID", requireAccount(h.auth, domain.ClaimPagesRead), h.metaAudienceAnalysis)
 	auth.Get("/api/v1/meta/campaigns/:campaignID/ads", requireAccount(h.auth, domain.ClaimPagesRead), h.metaAds)
 	auth.Patch("/api/v1/meta/ads/:entityType/:entityID/status", requireAccount(h.auth, domain.ClaimPagesConnect), h.metaAdStatus)
@@ -523,6 +524,20 @@ func (h *Handler) metaAdsInsights(c fiber.Ctx) error {
 		}
 		slog.Warn("Meta Ads Insights request failed", "ad_account_id", c.Params("adAccountID"), "level", c.Query("level"), "error", err)
 		return fail(c, fiber.StatusBadGateway, "meta_insights_failed", "Meta could not load Ads Insights. Confirm ads_read access, the selected ad account, and the date range, then retry.")
+	}
+	c.Set(fiber.HeaderCacheControl, "no-store")
+	return c.JSON(report)
+}
+func (h *Handler) metaDemographics(c fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(c.Context(), 60*time.Second)
+	defer cancel()
+	report, err := h.meta.Demographics(ctx, userID(c), c.Locals("accountID").(string), c.Params("adAccountID"), c.Query("level", "account"), c.Query("since"), c.Query("until"))
+	if err != nil {
+		if errors.Is(err, domain.ErrMetaReconnectRequired) {
+			return usecaseError(c, err)
+		}
+		slog.Warn("Meta demographics request failed", "ad_account_id", c.Params("adAccountID"), "error", err)
+		return fail(c, fiber.StatusBadGateway, "meta_demographics_failed", "Meta could not load demographics breakdown. Confirm ads_read access, then retry.")
 	}
 	c.Set(fiber.HeaderCacheControl, "no-store")
 	return c.JSON(report)

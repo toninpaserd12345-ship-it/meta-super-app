@@ -114,6 +114,40 @@ type MetaPlacementMetric struct {
 	CostPerPurchase   *float64 `json:"costPerPurchase,omitempty"`
 }
 
+type MetaDemographicMetric struct {
+	Key             string   `json:"key"`
+	Label           string   `json:"label"`
+	Category        string   `json:"category"`
+	SubCategory     string   `json:"subCategory,omitempty"`
+	Spend           *float64 `json:"spend,omitempty"`
+	Impressions     *float64 `json:"impressions,omitempty"`
+	Reach           *float64 `json:"reach,omitempty"`
+	LinkClicks      *float64 `json:"linkClicks,omitempty"`
+	MessagesCount   *float64 `json:"messagesCount,omitempty"`
+	CostPerMessage  *float64 `json:"costPerMessage,omitempty"`
+	PurchasesCount  *float64 `json:"purchasesCount,omitempty"`
+	CostPerPurchase *float64 `json:"costPerPurchase,omitempty"`
+}
+
+type MetaDemographicsReport struct {
+	Currency   string                   `json:"currency"`
+	Since      string                   `json:"since"`
+	Until      string                   `json:"until"`
+	Age        []MetaDemographicMetric  `json:"age"`
+	Gender     []MetaDemographicMetric  `json:"gender"`
+	AgeGender  []MetaDemographicMetric  `json:"ageGender"`
+	Devices    []MetaDemographicMetric  `json:"devices"`
+	Regions    []MetaDemographicMetric  `json:"regions"`
+	Placements []MetaPlacementMetric    `json:"placements"`
+	Summary    struct {
+		BestAge      string `json:"bestAge,omitempty"`
+		BestGender   string `json:"bestGender,omitempty"`
+		BestDevice   string `json:"bestDevice,omitempty"`
+		BestRegion   string `json:"bestRegion,omitempty"`
+		WastedTarget string `json:"wastedTarget,omitempty"`
+	} `json:"summary"`
+}
+
 type MetaInsightItem struct {
 	EntityType            string            `json:"entityType"`
 	EntityID              string            `json:"entityId"`
@@ -309,6 +343,7 @@ type MetaConnector interface {
 	ListCampaigns(context.Context, string, string, string) ([]MetaCampaign, error)
 	ListAds(context.Context, string, string, string) ([]MetaAd, error)
 	AdsInsights(context.Context, string, string, string, string, string, string) (*MetaInsightsReport, error)
+	Demographics(context.Context, string, string, string, string, string, string) (*MetaDemographicsReport, error)
 	AudienceAnalysis(context.Context, string, string, string, string) (*MetaAudienceAnalysis, error)
 	UpdateAdEntityStatus(context.Context, string, string, string, string) error
 	UpdateAdEntityBudget(ctx context.Context, userID, accountID, entityID string, dailyBudget int64) error
