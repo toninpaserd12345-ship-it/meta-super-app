@@ -853,7 +853,7 @@ onUnmounted(() => {
   box-shadow: 0 4px 14px rgba(0,0,0,0.04);
 }
 .lead-card.unread {
-  border-left: 4px solid var(--color-primary);
+  border-color: rgba(var(--color-primary-rgb, 59, 130, 246), 0.5);
   background: var(--color-primary-soft);
 }
 

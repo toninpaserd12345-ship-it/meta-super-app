@@ -2773,7 +2773,7 @@ onMounted(async () => {
 
             <!-- Stats Comparison Grid -->
             <div class="bottlenecks-grid mb-3">
-              <div class="bottleneck-card" style="border-left: 4px solid #10b981;">
+              <div class="bottleneck-card success">
                 <div class="d-flex align-center justify-space-between">
                   <span class="bn-badge" style="background: #dcfce7; color: #166534;">🟢 ລູກຄ້າແທ້ (Real Verified Buyers)</span>
                   <strong class="text-success text-h6">{{ aiStrategyData.totalOrders }} ຄົນ</strong>
@@ -3126,8 +3126,14 @@ onMounted(async () => {
 .kpi-icon.emerald { background: #ecfdf5; color: #059669; }
 .kpi-icon.rose { background: #fff1f2; color: #e11d48; }
 
-.kpi-box.kpi-profit-pos { border-left: 3px solid #10b981; }
-.kpi-box.kpi-profit-neg { border-left: 3px solid #ef4444; }
+.kpi-box.kpi-profit-pos {
+  border-color: rgba(16, 185, 129, 0.35);
+  background: rgba(16, 185, 129, 0.03);
+}
+.kpi-box.kpi-profit-neg {
+  border-color: rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.03);
+}
 
 .kpi-text {
   display: flex;
@@ -3243,11 +3249,13 @@ onMounted(async () => {
 }
 
 .clean-ad-card.card-angel {
-  border-left: 4px solid #10b981;
+  border-color: rgba(16, 185, 129, 0.45);
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.08);
 }
 
 .clean-ad-card.card-bad {
-  border-left: 4px solid #ef4444;
+  border-color: rgba(239, 68, 68, 0.45);
+  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.08);
 }
 
 .clean-ad-card.card-paused {
@@ -3628,8 +3636,18 @@ onMounted(async () => {
   gap: 8px;
 }
 
-.bottleneck-card.warn { border-left: 4px solid #f59e0b; }
-.bottleneck-card.danger { border-left: 4px solid #ef4444; }
+.bottleneck-card.success {
+  border-color: rgba(16, 185, 129, 0.35);
+  background: rgba(220, 252, 231, 0.2);
+}
+.bottleneck-card.warn {
+  border-color: rgba(245, 158, 11, 0.35);
+  background: rgba(254, 243, 199, 0.2);
+}
+.bottleneck-card.danger {
+  border-color: rgba(239, 68, 68, 0.35);
+  background: rgba(254, 226, 226, 0.2);
+}
 
 .bn-badge {
   font-size: 11.5px;
@@ -3651,8 +3669,8 @@ onMounted(async () => {
 }
 
 .guide-banner {
-  background: #f1f5f9;
-  border-left: 4px solid #3b82f6;
+  background: rgba(59, 130, 246, 0.05);
+  border: 1px solid rgba(59, 130, 246, 0.25);
   border-radius: 8px;
   padding: 10px 14px;
   font-size: 13px;
@@ -3878,11 +3896,11 @@ onMounted(async () => {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
 }
 
-.pbs-col.feed-col { border-top: 3px solid #2563eb; }
-.pbs-col.reels-col { border-top: 3px solid #e11d48; }
-.pbs-col.story-col { border-top: 3px solid #06b6d4; }
-.pbs-col.audience-col { border-top: 3px solid #94a3b8; }
-.pbs-col.pbs-ghost-alert { border-top: 3px solid #ef4444; background: #fffafb; }
+.pbs-col.feed-col { border-color: rgba(37, 99, 235, 0.35); }
+.pbs-col.reels-col { border-color: rgba(225, 29, 72, 0.35); }
+.pbs-col.story-col { border-color: rgba(6, 182, 212, 0.35); }
+.pbs-col.audience-col { border-color: rgba(148, 163, 184, 0.35); }
+.pbs-col.pbs-ghost-alert { border-color: rgba(239, 68, 68, 0.4); background: #fffafb; }
 
 .pbs-col-header {
   display: flex;
@@ -4566,8 +4584,14 @@ onMounted(async () => {
   background: #ffffff;
 }
 
-.gender-card.male { border-top: 3px solid #2563eb; }
-.gender-card.female { border-top: 3px solid #ec4899; }
+.gender-card.male {
+  border-color: rgba(37, 99, 235, 0.3);
+  background: rgba(37, 99, 235, 0.02);
+}
+.gender-card.female {
+  border-color: rgba(236, 72, 153, 0.3);
+  background: rgba(236, 72, 153, 0.02);
+}
 
 .gender-card-top {
   display: flex;

@@ -2408,8 +2408,8 @@ const aggregatedMetrics = computed(() => {
 }
 
 .tooltip-header {
-  border-left: 3px solid #38bdf8;
-  padding-left: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  padding-bottom: 6px;
   margin-bottom: 6px;
 }
 

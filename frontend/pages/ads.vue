@@ -4811,10 +4811,12 @@ onMounted(async () => {
   border-radius: 10px;
 }
 .autopilot-log-entry.scale {
-  border-left: 4px solid #22c55e;
+  border-color: rgba(34, 197, 94, 0.35);
+  background: rgba(34, 197, 94, 0.03);
 }
 .autopilot-log-entry.pause {
-  border-left: 4px solid #ef4444;
+  border-color: rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.03);
 }
 .log-content-col {
   flex: 1;
@@ -4946,22 +4948,22 @@ onMounted(async () => {
   transition: all 0.2s ease;
 }
 .mockup-element-box.kpi-card-mockup {
-  border-left-width: 5px;
+  border-color: var(--color-border);
 }
 .mockup-element-box.kpi-card-mockup.info {
-  border-left-color: #0284c7;
+  border-color: rgba(2, 132, 199, 0.4);
   background: rgba(2, 132, 199, 0.05);
 }
 .mockup-element-box.kpi-card-mockup.winner {
-  border-left-color: #10b981;
+  border-color: rgba(16, 185, 129, 0.4);
   background: rgba(16, 185, 129, 0.05);
 }
 .mockup-element-box.kpi-card-mockup.loser {
-  border-left-color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.4);
   background: rgba(239, 68, 68, 0.05);
 }
 .mockup-element-box.kpi-card-mockup.warning {
-  border-left-color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.4);
   background: rgba(245, 158, 11, 0.05);
 }
 .mock-input-label {
@@ -5110,14 +5112,14 @@ onMounted(async () => {
   line-height: 1.3;
 }
 .bounce-up {
-  animation: bounce-up 1.5s infinite ease-in-out;
+  animation: subtle-float 2.4s infinite cubic-bezier(0.16, 1, 0.3, 1);
 }
-@keyframes bounce-up {
+@keyframes subtle-float {
   0%, 100% {
     transform: translateY(0);
   }
   50% {
-    transform: translateY(-4px);
+    transform: translateY(-3px);
   }
 }
 @keyframes slide-up-fade {
@@ -5246,8 +5248,8 @@ onMounted(async () => {
 
 /* Angel Ad Row & Callout Styling */
 .performance-row.is-angel-ad {
-  border-left: 4px solid #f59e0b !important;
-  background: linear-gradient(90deg, rgba(245, 158, 11, 0.06) 0%, transparent 35%);
+  background: linear-gradient(90deg, rgba(245, 158, 11, 0.08) 0%, transparent 35%);
+  box-shadow: inset 2px 0 0 rgba(245, 158, 11, 0.8);
 }
 .entity-icon.angel-avatar {
   background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%) !important;

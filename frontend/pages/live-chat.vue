@@ -2021,7 +2021,7 @@ const formatTime = (ts: string) => {
 
 .conv-item.active {
   background: var(--color-primary-soft);
-  border-left: 3px solid var(--color-primary);
+  color: var(--color-primary-dark, inherit);
 }
 
 .conv-avatar {

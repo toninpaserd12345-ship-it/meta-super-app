@@ -838,9 +838,18 @@ function copyScript(text: string, index: number) {
   padding: 18px 22px;
 }
 
-.decision-card.kill { border-left: 5px solid #ef4444; }
-.decision-card.hold { border-left: 5px solid #f59e0b; }
-.decision-card.scale { border-left: 5px solid #10b981; }
+.decision-card.kill {
+  border-color: rgba(239, 68, 68, 0.35);
+  background: linear-gradient(180deg, rgba(239, 68, 68, 0.03) 0%, #ffffff 100%);
+}
+.decision-card.hold {
+  border-color: rgba(245, 158, 11, 0.35);
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.03) 0%, #ffffff 100%);
+}
+.decision-card.scale {
+  border-color: rgba(16, 185, 129, 0.35);
+  background: linear-gradient(180deg, rgba(16, 185, 129, 0.03) 0%, #ffffff 100%);
+}
 
 .decision-header {
   display: flex;
