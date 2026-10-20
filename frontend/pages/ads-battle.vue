@@ -1313,6 +1313,22 @@ onMounted(async () => {
 
 <template>
   <div class="ads-battle-page">
+    <!-- Shared Ads Suite Navigation -->
+    <nav class="app-sub-nav" aria-label="Ads suite navigation">
+      <NuxtLink to="/ads" class="app-sub-nav-item">
+        <v-icon icon="mdi-bullhorn-outline" size="18" />
+        <span>{{ l({ lo: '1. Ads Manager (ນຳສົ່ງ & ຄ່າແອດ)', th: '1. Ads Manager (นำส่ง & ค่าแอด)', en: '1. Ads Manager' }) }}</span>
+      </NuxtLink>
+      <NuxtLink to="/ads-intelligence" class="app-sub-nav-item">
+        <v-icon icon="mdi-chart-timeline-variant-shimmer" size="18" />
+        <span>{{ l({ lo: '2. Ads Intelligence (ກຳໄລ, Real CPA & SOP)', th: '2. Ads Intelligence (กำไร, Real CPA & SOP)', en: '2. Ads Intelligence' }) }}</span>
+      </NuxtLink>
+      <NuxtLink to="/ads-battle" class="app-sub-nav-item active">
+        <v-icon icon="mdi-scale-balance" size="18" />
+        <span>{{ l({ lo: '3. Ads Battle (ປຽບທຽບ A/B & ຜູ້ຊື້)', th: '3. Ads Battle (เปรียบเทียบ A/B & ผู้ซื้อ)', en: '3. Ads Battle' }) }}</span>
+      </NuxtLink>
+    </nav>
+
     <!-- Top Header -->
     <header class="page-top-header">
       <div>
@@ -1356,12 +1372,6 @@ onMounted(async () => {
         <NuxtLink to="/ads-playbook">
           <v-btn variant="tonal" size="small" prepend-icon="mdi-book-open-page-variant" color="indigo">
             📖 {{ l({ lo: 'ຄູ່ມື SOP ປະຈຳວັນ', th: 'คู่มือ SOP ประจำวัน', en: 'Daily SOP' }) }}
-          </v-btn>
-        </NuxtLink>
-
-        <NuxtLink to="/ads">
-          <v-btn variant="text" size="small" prepend-icon="mdi-arrow-left">
-            {{ l({ lo: 'ໜ້າ Ads ຫຼັກ', th: 'หน้า Ads หลัก', en: 'Main Ads' }) }}
           </v-btn>
         </NuxtLink>
       </div>

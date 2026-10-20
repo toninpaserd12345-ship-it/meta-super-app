@@ -463,11 +463,15 @@ onMounted(async () => {
   <nav class="app-sub-nav" aria-label="Ads suite navigation">
     <NuxtLink to="/ads" class="app-sub-nav-item">
       <v-icon icon="mdi-bullhorn-outline" size="18" />
-      <span>{{ l({ lo: '1. Ads Manager (ນຳສົ່ງ & ຄ່າແອດ)', th: '1. Ads Manager (นำส่ง & ค่าแอด)', en: '1. Ads Manager (Delivery & Creatives)' }) }}</span>
+      <span>{{ l({ lo: '1. Ads Manager (ນຳສົ່ງ & ຄ່າແອດ)', th: '1. Ads Manager (นำส่ง & ค่าแอด)', en: '1. Ads Manager' }) }}</span>
     </NuxtLink>
     <NuxtLink to="/ads-intelligence" class="app-sub-nav-item active">
       <v-icon icon="mdi-chart-timeline-variant-shimmer" size="18" />
-      <span>{{ l({ lo: '2. Ads Intelligence (ກຳໄລ, Real CPA & SOP)', th: '2. Ads Intelligence (กำไร, Real CPA & SOP)', en: '2. Ads Intelligence (Real CPA & SOP)' }) }}</span>
+      <span>{{ l({ lo: '2. Ads Intelligence (ກຳໄລ, Real CPA & SOP)', th: '2. Ads Intelligence (กำไร, Real CPA & SOP)', en: '2. Ads Intelligence' }) }}</span>
+    </NuxtLink>
+    <NuxtLink to="/ads-battle" class="app-sub-nav-item">
+      <v-icon icon="mdi-scale-balance" size="18" />
+      <span>{{ l({ lo: '3. Ads Battle (ປຽບທຽບ A/B & ຜູ້ຊື້)', th: '3. Ads Battle (เปรียบเทียบ A/B & ผู้ซื้อ)', en: '3. Ads Battle' }) }}</span>
     </NuxtLink>
   </nav>
 

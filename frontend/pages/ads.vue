@@ -2019,11 +2019,15 @@ onMounted(async () => {
   <nav class="app-sub-nav" aria-label="Ads suite navigation">
     <NuxtLink to="/ads" class="app-sub-nav-item active">
       <v-icon icon="mdi-bullhorn-outline" size="18" />
-      <span>{{ l({ lo: '1. Ads Manager (ນຳສົ່ງ & ຄ່າແອດ)', th: '1. Ads Manager (นำส่ง & ค่าแอด)', en: '1. Ads Manager (Delivery & Creatives)' }) }}</span>
+      <span>{{ l({ lo: '1. Ads Manager (ນຳສົ່ງ & ຄ່າແອດ)', th: '1. Ads Manager (นำส่ง & ค่าแอด)', en: '1. Ads Manager' }) }}</span>
     </NuxtLink>
     <NuxtLink to="/ads-intelligence" class="app-sub-nav-item">
       <v-icon icon="mdi-chart-timeline-variant-shimmer" size="18" />
-      <span>{{ l({ lo: '2. Ads Intelligence (ກຳໄລ, Real CPA & SOP)', th: '2. Ads Intelligence (กำไร, Real CPA & SOP)', en: '2. Ads Intelligence (Real CPA & SOP)' }) }}</span>
+      <span>{{ l({ lo: '2. Ads Intelligence (ກຳໄລ, Real CPA & SOP)', th: '2. Ads Intelligence (กำไร, Real CPA & SOP)', en: '2. Ads Intelligence' }) }}</span>
+    </NuxtLink>
+    <NuxtLink to="/ads-battle" class="app-sub-nav-item">
+      <v-icon icon="mdi-scale-balance" size="18" />
+      <span>{{ l({ lo: '3. Ads Battle (ປຽບທຽບ A/B & ຜູ້ຊື້)', th: '3. Ads Battle (เปรียบเทียบ A/B & ผู้ซื้อ)', en: '3. Ads Battle' }) }}</span>
     </NuxtLink>
   </nav>
 
@@ -2038,26 +2042,23 @@ onMounted(async () => {
       <p>{{ l({ lo: 'ຕິດຕາມຜົນງານການນຳສົ່ງ, CTR, Impressions, Frequency, ປະສິດທິພາບແອດ ແລະ ຄວບຄຸມສະຖານະ.', th: 'ติดตามผลการนำส่ง CTR, Impressions, Frequency, ประสิทธิภาพแอด และควบคุมสถานะ', en: 'Track ad delivery, CTR, impressions, frequency, creative metrics, and toggle campaign status.' }) }}</p>
     </div>
     <div class="head-actions">
-      <!-- Live On-Page Tour Button -->
+      <!-- Live Tour & Guide -->
       <v-btn
         color="primary"
-        variant="flat"
+        variant="tonal"
         prepend-icon="mdi-crosshairs-gps"
         class="font-weight-bold"
         @click="startLiveTour"
       >
-        {{ l({ lo: '🎯 ພາທົວໜ້າເວັບແທ້ (Live Tour)', th: '🎯 พาทัวร์หน้าเว็บจริง (Live Tour)', en: '🎯 Live Tour' }) }}
+        {{ l({ lo: '🎯 ພາທົວ (Tour)', th: '🎯 พาทัวร์ (Tour)', en: '🎯 Live Tour' }) }}
       </v-btn>
 
-      <!-- Interactive Visual Guide Dialog Button -->
       <v-btn
-        color="info"
-        variant="tonal"
+        variant="outlined"
         prepend-icon="mdi-book-open-page-variant-outline"
-        class="font-weight-bold"
         @click="guideModalOpen = true; guideStep = 1"
       >
-        {{ l({ lo: '📖 ຄູ່ມືເລີ່ມຕົ້ນ (Guide)', th: '📖 คู่มือเริ่มต้น (Guide)', en: '📖 Quick Guide' }) }}
+        {{ l({ lo: '📖 ຄູ່ມື (Guide)', th: '📖 คู่มือ (Guide)', en: '📖 Guide' }) }}
       </v-btn>
 
       <!-- Auto-Pilot Toggle & Modal Trigger Button -->
@@ -2068,29 +2069,19 @@ onMounted(async () => {
         class="autopilot-head-btn font-weight-bold"
         @click="autoPilotModalOpen = true"
       >
-        <span>{{ autoPilotConfig.enabled ? l({ lo: 'Auto-Pilot: ເປີດ (ON)', th: 'Auto-Pilot: เปิด (ON)', en: 'Auto-Pilot: ON' }) : l({ lo: 'Auto-Pilot: ປິດ (OFF)', th: 'Auto-Pilot: ปิด (OFF)', en: 'Auto-Pilot: OFF' }) }}</span>
+        <span>{{ autoPilotConfig.enabled ? l({ lo: 'Auto-Pilot: ON', th: 'Auto-Pilot: เปิด', en: 'Auto-Pilot: ON' }) : l({ lo: 'Auto-Pilot: OFF', th: 'Auto-Pilot: ปิด', en: 'Auto-Pilot: OFF' }) }}</span>
         <span v-if="autoPilotConfig.enabled" class="autopilot-dot-pulse" />
       </v-btn>
 
-      <v-btn color="warning" variant="tonal" prepend-icon="mdi-shield-check-outline" :disabled="!report" @click="openActionPlan">
-        {{ l({ lo: `ກວດແຜນປັບ Ads (${actionCandidates.length})`, th: `ตรวจแผนปรับ Ads (${actionCandidates.length})`, en: `Review action plan (${actionCandidates.length})` }) }}
+      <v-btn v-if="actionCandidates.length > 0" color="warning" variant="tonal" prepend-icon="mdi-shield-check-outline" @click="openActionPlan">
+        {{ l({ lo: `ກວດແຜນປັບ Ads (${actionCandidates.length})`, th: `ตรวจแผนปรับ Ads (${actionCandidates.length})`, en: `Review plan (${actionCandidates.length})` }) }}
       </v-btn>
       <v-btn variant="outlined" prepend-icon="mdi-tune-variant" @click="openStrategyModal">
-        {{ l({ lo: '🎯 ຕັ້ງຄ່າຍຸດທະສາດ (Strategy)', th: '🎯 ตั้งค่ายุทธศาสตร์ (Strategy)', en: '🎯 Setup Strategy' }) }}
+        {{ l({ lo: 'ຍຸດທະສາດ (Strategy)', th: 'ยุทธศาสตร์ (Strategy)', en: 'Strategy' }) }}
       </v-btn>
       <v-btn color="primary" variant="flat" prepend-icon="mdi-refresh" :loading="loadingReport" :disabled="!adAccountId" @click="loadPerformance">
-        {{ l({ lo: 'ອັບເດດຂໍ້ມູນ', th: 'อัปเดตข้อมูล', en: 'Refresh' }) }}
+        {{ l({ lo: 'ອັບເດດ', th: 'อัปเดต', en: 'Refresh' }) }}
       </v-btn>
-      <NuxtLink to="/ads-battle">
-        <v-btn
-          color="amber-darken-3"
-          variant="flat"
-          prepend-icon="mdi-scale-balance"
-          class="font-weight-bold elevation-1"
-        >
-          {{ l({ lo: '⚖️ ວິເຄາະປຽບທຽບ (Battle)', th: '⚖️ วิเคราะห์เปรียบเทียบ (Battle)', en: '⚖️ Ads Battle' }) }}
-        </v-btn>
-      </NuxtLink>
     </div>
   </section>
 
