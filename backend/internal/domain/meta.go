@@ -129,21 +129,37 @@ type MetaDemographicMetric struct {
 	CostPerPurchase *float64 `json:"costPerPurchase,omitempty"`
 }
 
+type MetaVideoFunnelMetric struct {
+	TotalImpressions *float64 `json:"totalImpressions,omitempty"`
+	Views3s          *float64 `json:"views3s,omitempty"`
+	Thruplay         *float64 `json:"thruplay,omitempty"`
+	P25              *float64 `json:"p25,omitempty"`
+	P50              *float64 `json:"p50,omitempty"`
+	P75              *float64 `json:"p75,omitempty"`
+	P100             *float64 `json:"p100,omitempty"`
+	HookRate         *float64 `json:"hookRate,omitempty"`
+	HoldRate         *float64 `json:"holdRate,omitempty"`
+}
+
 type MetaDemographicsReport struct {
-	Currency   string                   `json:"currency"`
-	Since      string                   `json:"since"`
-	Until      string                   `json:"until"`
-	Age        []MetaDemographicMetric  `json:"age"`
-	Gender     []MetaDemographicMetric  `json:"gender"`
-	AgeGender  []MetaDemographicMetric  `json:"ageGender"`
-	Devices    []MetaDemographicMetric  `json:"devices"`
-	Regions    []MetaDemographicMetric  `json:"regions"`
-	Placements []MetaPlacementMetric    `json:"placements"`
-	Summary    struct {
+	Currency    string                   `json:"currency"`
+	Since       string                   `json:"since"`
+	Until       string                   `json:"until"`
+	Age         []MetaDemographicMetric  `json:"age"`
+	Gender      []MetaDemographicMetric  `json:"gender"`
+	AgeGender   []MetaDemographicMetric  `json:"ageGender"`
+	Devices     []MetaDemographicMetric  `json:"devices"`
+	Regions     []MetaDemographicMetric  `json:"regions"`
+	Placements  []MetaPlacementMetric    `json:"placements"`
+	Hourly      []MetaInsightHourlyPoint `json:"hourly,omitempty"`
+	VideoFunnel *MetaVideoFunnelMetric   `json:"videoFunnel,omitempty"`
+	Summary     struct {
 		BestAge      string `json:"bestAge,omitempty"`
 		BestGender   string `json:"bestGender,omitempty"`
 		BestDevice   string `json:"bestDevice,omitempty"`
 		BestRegion   string `json:"bestRegion,omitempty"`
+		BestHours    string `json:"bestHours,omitempty"`
+		WastedHours  string `json:"wastedHours,omitempty"`
 		WastedTarget string `json:"wastedTarget,omitempty"`
 	} `json:"summary"`
 }
@@ -186,9 +202,17 @@ type MetaInsightItem struct {
 	ImageURL              string                     `json:"imageUrl,omitempty"`
 	CreativeTitle         string                     `json:"creativeTitle,omitempty"`
 	CreativeBody          string                     `json:"creativeBody,omitempty"`
-	VideoID               string                     `json:"videoId,omitempty"`
-	EffectiveObjectStoryID string                    `json:"effectiveObjectStoryId,omitempty"`
+	VideoID                string                     `json:"videoId,omitempty"`
+	EffectiveObjectStoryID string                     `json:"effectiveObjectStoryId,omitempty"`
 	PermalinkURL          string                     `json:"permalinkUrl,omitempty"`
+	VideoViews3s          *float64                   `json:"videoViews3s,omitempty"`
+	VideoThruplay         *float64                   `json:"videoThruplay,omitempty"`
+	VideoP25              *float64                   `json:"videoP25,omitempty"`
+	VideoP50              *float64                   `json:"videoP50,omitempty"`
+	VideoP75              *float64                   `json:"videoP75,omitempty"`
+	VideoP100             *float64                   `json:"videoP100,omitempty"`
+	HookRate              *float64                   `json:"hookRate,omitempty"`
+	HoldRate              *float64                   `json:"holdRate,omitempty"`
 	Placements            []MetaPlacementMetric      `json:"placements,omitempty"`
 	Trend                 []MetaInsightPoint         `json:"trend,omitempty"`
 	Hourly                []MetaInsightHourlyPoint   `json:"hourly,omitempty"`
@@ -206,14 +230,16 @@ type MetaInsightPoint struct {
 }
 
 type MetaInsightHourlyPoint struct {
-	Hour           string   `json:"hour"`
-	Spend          *float64 `json:"spend,omitempty"`
-	Results        *float64 `json:"results,omitempty"`
-	Cost           *float64 `json:"costPerResult,omitempty"`
-	MessagesCount  *float64 `json:"messagesCount,omitempty"`
-	CostPerMessage *float64 `json:"costPerMessage,omitempty"`
-	LinkCTR        *float64 `json:"linkCtr,omitempty"`
-	Impressions    *float64 `json:"impressions,omitempty"`
+	Hour            string   `json:"hour"`
+	Spend           *float64 `json:"spend,omitempty"`
+	Results         *float64 `json:"results,omitempty"`
+	Cost            *float64 `json:"costPerResult,omitempty"`
+	MessagesCount   *float64 `json:"messagesCount,omitempty"`
+	CostPerMessage  *float64 `json:"costPerMessage,omitempty"`
+	PurchasesCount  *float64 `json:"purchasesCount,omitempty"`
+	CostPerPurchase *float64 `json:"costPerPurchase,omitempty"`
+	LinkCTR         *float64 `json:"linkCtr,omitempty"`
+	Impressions     *float64 `json:"impressions,omitempty"`
 }
 
 type MetaInsightsReport struct {

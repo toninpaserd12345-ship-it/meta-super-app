@@ -266,6 +266,18 @@ export interface MetaDemographicMetric {
   costPerPurchase?: number
 }
 
+export interface MetaVideoFunnelMetric {
+  totalImpressions?: number
+  views3s?: number
+  thruplay?: number
+  p25?: number
+  p50?: number
+  p75?: number
+  p100?: number
+  hookRate?: number
+  holdRate?: number
+}
+
 export interface MetaDemographicsReport {
   currency: string
   since: string
@@ -276,11 +288,15 @@ export interface MetaDemographicsReport {
   devices: MetaDemographicMetric[]
   regions: MetaDemographicMetric[]
   placements: MetaPlacementMetric[]
+  hourly?: MetaInsightHourlyPoint[]
+  videoFunnel?: MetaVideoFunnelMetric
   summary?: {
     bestAge?: string
     bestGender?: string
     bestDevice?: string
     bestRegion?: string
+    bestHours?: string
+    wastedHours?: string
     wastedTarget?: string
   }
 }
@@ -326,6 +342,14 @@ export interface MetaInsightItem {
   videoId?: string
   effectiveObjectStoryId?: string
   permalinkUrl?: string
+  videoViews3s?: number
+  videoThruplay?: number
+  videoP25?: number
+  videoP50?: number
+  videoP75?: number
+  videoP100?: number
+  hookRate?: number
+  holdRate?: number
   placements?: MetaPlacementMetric[]
   trend?: MetaInsightPoint[]
   hourly?: MetaInsightHourlyPoint[]
