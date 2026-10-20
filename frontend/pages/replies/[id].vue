@@ -358,6 +358,7 @@ async function saveChanges() {
                     type="file"
                     :accept="acceptFor(item.type)"
                     style="display: none"
+                    aria-label="Upload media file"
                     @change="uploadMedia($event, index)"
                   />
                   <v-btn

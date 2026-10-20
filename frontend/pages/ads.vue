@@ -2380,7 +2380,7 @@ onMounted(async () => {
             class="sort-select"
             style="min-width: 175px; max-width: 215px;"
           />
-          <v-text-field v-model="search" density="compact" variant="outlined" prepend-inner-icon="mdi-magnify" :placeholder="l({lo:'ຄົ້ນຫາ...',th:'ค้นหา...',en:'Search...'})" hide-details clearable />
+          <v-text-field v-model="search" density="compact" variant="outlined" prepend-inner-icon="mdi-magnify" :label="l({lo:'ຄົ້ນຫາ...',th:'ค้นหา...',en:'Search...'})" hide-details clearable />
         </div>
       </div>
       <div class="detail-toolbar">

@@ -1089,7 +1089,7 @@ const aggregatedMetrics = computed(() => {
       <!-- Single Ad Isolator / Spotlight Dropdown -->
       <div class="ad-spotlight-select">
         <label>{{ l({ lo: '🔍 ເຈາະຈົງແອດດຽວ:', th: '🔍 เจาะจงแอดเดียว:', en: 'Focus Ad:' }) }}</label>
-        <select v-model="focusedAdId" class="ad-select-dropdown">
+        <select v-model="focusedAdId" class="ad-select-dropdown" :aria-label="l({ lo: 'ເຈາະຈົງແອດດຽວ', th: 'เจาะจงแอดเดียว', en: 'Focus Ad' })">
           <option value="all">{{ l({ lo: '— ສະແດງທັງໝົດ —', th: '— แสดงทั้งหมด —', en: '— Show All —' }) }}</option>
           <option v-for="s in activeAdSeries" :key="s.id" :value="s.id">
             {{ s.isAngel ? '🟢 ນາງຟ້າ: ' : s.isBad ? '🔴 ໝົດກຳລັງ: ' : '🔘 ທົ່ວໄປ: ' }}{{ s.name }}

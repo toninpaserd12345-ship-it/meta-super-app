@@ -1421,6 +1421,7 @@ const formatTime = (ts: string) => {
             v-model="inputMessage"
             @keyup.enter="sendReply()"
             type="text"
+            :aria-label="l({ lo: 'ພິມຂໍ້ຄວາມຕອບກັບ', th: 'พิมพ์ข้อความตอบกลับ', en: 'Type a message to reply' })"
             :placeholder="l({
               lo: 'ພິມຂໍ້ຄວາມ ຫຼື ໂຄ້ດຊຸດຂໍ້ຄວາມ (#P01, ຊຸດ1)...',
               th: 'พิมพ์ข้อความ หรือ โค้ดชุดข้อความ (#P01, ชุด1)...',
@@ -1473,6 +1474,7 @@ const formatTime = (ts: string) => {
               <input
                 v-model="leadForm.name"
                 class="name-input"
+                :aria-label="l({ lo: 'ຊື່ລູກຄ້າ', th: 'ชื่อลูกค้า', en: 'Customer Name' })"
                 :placeholder="l({lo:'ຊື່ລູກຄ້າ...',th:'ชื่อลูกค้า...',en:'Customer name...'})"
                 @blur="saveLeadInfo"
               />
@@ -1520,6 +1522,7 @@ const formatTime = (ts: string) => {
           <div class="staff-select-wrapper">
             <select
               :value="leadForm.assignedUserId"
+              :aria-label="l({ lo: 'ແອດມິນຜູ້ຮັບຜິດຊອບ', th: 'แอดมินผู้รับผิดชอบ', en: 'Assigned Staff' })"
               @change="onAssignStaff(($event.target as HTMLSelectElement).value)"
               class="staff-select"
             >
@@ -1550,6 +1553,7 @@ const formatTime = (ts: string) => {
               v-model="leadForm.phone"
               type="tel"
               class="crm-input"
+              :aria-label="l({ lo: 'ເບີໂທລະສັບ', th: 'เบอร์โทรศัพท์', en: 'Phone Number' })"
               :placeholder="l({lo:'ປ້ອນເບີໂທ (ເຊັ່ນ 020...)',th:'เบอร์โทรศัพท์ (เช่น 08...)',en:'Phone number...'})"
               @blur="saveLeadInfo"
             />
@@ -1568,6 +1572,7 @@ const formatTime = (ts: string) => {
             v-model="leadForm.address"
             rows="2"
             class="crm-textarea"
+            :aria-label="l({ lo: 'ທີ່ຢູ່ຈັດສົ່ງ', th: 'ที่อยู่จัดส่ง', en: 'Delivery Address' })"
             :placeholder="l({lo:'ບ້ານ, ເມືອງ, ແຂວງ, ຈຸດສັງເກດ...',th:'ที่อยู่จัดส่ง, ตำบล/อำเภอ/จังหวัด...',en:'Delivery address details...'})"
             @blur="saveLeadInfo"
           ></textarea>
@@ -1605,6 +1610,7 @@ const formatTime = (ts: string) => {
             v-model="leadForm.notes"
             rows="3"
             class="crm-textarea"
+            :aria-label="l({ lo: 'ໝາຍເຫດພາຍໃນ', th: 'บันทึกภายใน', en: 'Internal Notes' })"
             :placeholder="l({lo:'ບັນທຶກຂໍ້ມູນພິເສດ, ປະຫວັດການສັ່ງ...',th:'บันทึกรายละเอียดเพิ่มเติม, ความต้องการ...',en:'Staff notes, order history memo...'})"
             @blur="saveLeadInfo"
           ></textarea>
@@ -1792,9 +1798,9 @@ const formatTime = (ts: string) => {
             <div class="order-form-group flex-1">
               <label class="order-label">{{ l({lo:'ຈຳນວນ',th:'จำนวน',en:'Quantity'}) }}</label>
               <div class="qty-stepper">
-                <button type="button" @click="quickOrderForm.quantity = Math.max(1, quickOrderForm.quantity - 1)">-</button>
-                <input v-model.number="quickOrderForm.quantity" type="number" min="1" class="qty-input"/>
-                <button type="button" @click="quickOrderForm.quantity = quickOrderForm.quantity + 1">+</button>
+                <button type="button" :aria-label="l({ lo: 'ຫຼຸດຈຳນວນ', th: 'ลดจำนวน', en: 'Decrease' })" @click="quickOrderForm.quantity = Math.max(1, quickOrderForm.quantity - 1)">-</button>
+                <input v-model.number="quickOrderForm.quantity" type="number" min="1" :aria-label="l({ lo: 'ຈຳນວນ', th: 'จำนวน', en: 'Quantity' })" class="qty-input"/>
+                <button type="button" :aria-label="l({ lo: 'ເພີ່ມຈຳນວນ', th: 'เพิ่มจำนวน', en: 'Increase' })" @click="quickOrderForm.quantity = quickOrderForm.quantity + 1">+</button>
               </div>
             </div>
             <div class="order-form-group flex-1" v-if="selectedOrderProduct">
@@ -1806,7 +1812,7 @@ const formatTime = (ts: string) => {
           <div class="order-form-row mt-2">
             <div class="order-form-group flex-1">
               <label class="order-label">{{ l({lo:'ບໍລິສັດຂົນສົ່ງ',th:'บริษัทขนส่ง',en:'Courier'}) }}</label>
-              <select v-model="quickOrderForm.deliveryCourier" class="order-select">
+              <select v-model="quickOrderForm.deliveryCourier" :aria-label="l({lo:'ບໍລິສັດຂົນສົ່ງ',th:'บริษัทขนส่ง',en:'Courier'})" class="order-select">
                 <option value="Anousith Express">Anousith Express (ອານຸສິດ)</option>
                 <option value="HAL Logistics">HAL Logistics (ຮຸ່ງອາລຸນ)</option>
                 <option value="Houngaloun">Houngaloun (ຮຸ່ງອາລຸນ)</option>
@@ -1817,7 +1823,7 @@ const formatTime = (ts: string) => {
             </div>
             <div class="order-form-group flex-1">
               <label class="order-label">{{ l({lo:'ຄ່າຈັດສົ່ງ',th:'ค่าจัดส่ง',en:'Shipping Fee'}) }}</label>
-              <input v-model.number="quickOrderForm.shippingFee" type="number" min="0" class="order-input"/>
+              <input v-model.number="quickOrderForm.shippingFee" type="number" min="0" :aria-label="l({lo:'ຄ່າຈັດສົ່ງ',th:'ค่าจัดส่ง',en:'Shipping Fee'})" class="order-input"/>
             </div>
           </div>
 
@@ -1827,6 +1833,7 @@ const formatTime = (ts: string) => {
               v-model="quickOrderForm.deliveryTracking"
               type="text"
               class="order-input"
+              :aria-label="l({ lo: 'ເລກພັດສະດຸ', th: 'เลขพัสดุ', en: 'Tracking Number' })"
               placeholder="AN123456..."
             />
           </div>
@@ -1837,6 +1844,7 @@ const formatTime = (ts: string) => {
               v-model="quickOrderForm.notes"
               type="text"
               class="order-input"
+              :aria-label="l({ lo: 'ໝາຍເຫດອໍເດີ', th: 'หมายเหตุออเดอร์', en: 'Order Note' })"
               :placeholder="l({lo:'ເຊັ່ນ: ໄຊສ໌ M, ສີຂາວ, ສົ່ງດ່ວນ...',th:'เช่น ไซส์ M, สีขาว, ส่งด่วน...',en:'e.g. Size M, Color White...'})"
             />
           </div>

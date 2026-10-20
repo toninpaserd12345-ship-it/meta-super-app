@@ -112,7 +112,13 @@ onMounted(() => {
             <td>{{ member.user.name }}</td>
             <td>{{ member.user.email }}</td>
             <td>
-              <select class="role-select" :value="member.role" :disabled="!can('users:update') || updatingMember===member.user.id" @change="updateRole(member, ($event.target as HTMLSelectElement).value)">
+              <select 
+                class="role-select" 
+                :value="member.role" 
+                :aria-label="l({ lo: 'ປ່ຽນບົດບາດ', th: 'เปลี่ยนบทบาท', en: 'Change Role' })"
+                :disabled="!can('users:update') || updatingMember===member.user.id" 
+                @change="updateRole(member, ($event.target as HTMLSelectElement).value)"
+              >
                 <option value="admin">Admin</option>
                 <option value="manager">Manager</option>
                 <option value="employee">Employee</option>
@@ -147,21 +153,45 @@ onMounted(() => {
         </div>
 
         <form v-else @submit.prevent="submitInvite" class="invite-form">
-          <div v-if="inviteError" class="error-msg">{{ inviteError }}</div>
-          
-          <div class="form-group">
-            <label>{{ l({lo:'ຊື່',th:'ชื่อ',en:'Name'}) }}</label>
-            <input type="text" v-model="inviteForm.name" required placeholder="Full name" />
+          <div v-if="inviteError" class="error-msg">
+            <v-icon icon="mdi-alert-circle-outline" size="18" class="mr-1" />
+            <span>{{ inviteError }}</span>
           </div>
           
           <div class="form-group">
-            <label>{{ l({lo:'ອີເມວ',th:'อีเมล',en:'Email Address'}) }}</label>
-            <input type="email" v-model="inviteForm.email" required placeholder="Email address" />
+            <label for="invite-name">{{ l({lo:'ຊື່',th:'ชื่อ',en:'Name'}) }}</label>
+            <input 
+              id="invite-name" 
+              type="text" 
+              v-model="inviteForm.name" 
+              required 
+              placeholder="Full name" 
+              :class="{ 'input-error': !!inviteError }"
+              :aria-invalid="!!inviteError"
+            />
           </div>
           
           <div class="form-group">
-            <label>{{ l({lo:'ບົດບາດ',th:'บทบาท',en:'Role'}) }}</label>
-            <select v-model="inviteForm.role">
+            <label for="invite-email">{{ l({lo:'ອີເມວ',th:'อีเมล',en:'Email Address'}) }}</label>
+            <input 
+              id="invite-email" 
+              type="email" 
+              v-model="inviteForm.email" 
+              required 
+              placeholder="Email address" 
+              :class="{ 'input-error': !!inviteError }"
+              :aria-invalid="!!inviteError"
+            />
+          </div>
+          
+          <div class="form-group">
+            <label for="invite-role">{{ l({lo:'ບົດບາດ',th:'บทบาท',en:'Role'}) }}</label>
+            <select 
+              id="invite-role" 
+              v-model="inviteForm.role"
+              :class="{ 'input-error': !!inviteError }"
+              :aria-invalid="!!inviteError"
+            >
               <option value="admin">Admin</option>
               <option value="manager">Manager</option>
               <option value="employee">Employee</option>

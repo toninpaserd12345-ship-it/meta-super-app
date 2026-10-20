@@ -47,7 +47,7 @@ async function changeAccount(event: Event) {
       </div>
 
       <div class="account-select-wrapper">
-        <select :value="activeAccount?.id" @change="changeAccount">
+        <select :value="activeAccount?.id" :aria-label="l({ lo: 'ເລືອກບັນຊີ', th: 'เลือกบัญชี', en: 'Select Account' })" @change="changeAccount">
           <option v-for="item in user?.accounts" :key="item.account.id" :value="item.account.id">
             {{ item.account.name }} ({{ item.role }})
           </option>

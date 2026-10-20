@@ -1494,7 +1494,7 @@ onMounted(async () => {
         <v-text-field
           v-model="search"
           prepend-inner-icon="mdi-magnify"
-          :placeholder="l({ lo: 'ຄົ້ນຫາຊື່ແອດ...', th: 'ค้นหาชื่อแอด...', en: 'Search ads...' })"
+          :label="l({ lo: 'ຄົ້ນຫາຊື່ແອດ...', th: 'ค้นหาชื่อแอด...', en: 'Search ads...' })"
           variant="outlined"
           density="compact"
           hide-details
@@ -2180,7 +2180,7 @@ onMounted(async () => {
               density="compact"
               variant="outlined"
               hide-details
-              placeholder="ຄົ້ນຫາຊື່, ເບີໂທ, ແຂວງ..."
+              :label="l({ lo: 'ຄົ້ນຫາຊື່, ເບີໂທ, ແຂວງ...', th: 'ค้นหาชื่อ, เบอร์โทร, จังหวัด...', en: 'Search name, phone, province...' })"
               prepend-inner-icon="mdi-magnify"
               style="max-width: 260px;"
             />

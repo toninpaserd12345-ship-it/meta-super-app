@@ -766,7 +766,7 @@ function goToProductAds(productId: string) {
               <v-btn variant="outlined" size="small" prepend-icon="mdi-upload" :loading="uploading" @click="fileInput?.click()">
                 {{ l({ lo: 'ອັບໂຫຼດຮູບ', th: 'อัปโหลดรูป', en: 'Upload image' }) }}
               </v-btn>
-              <input ref="fileInput" type="file" accept="image/*" hidden @change="uploadProductImage"/>
+              <input ref="fileInput" type="file" accept="image/*" hidden :aria-label="l({ lo: 'ອັບໂຫຼດຮູບ', th: 'อัปโหลดรูป', en: 'Upload image' })" @change="uploadProductImage"/>
               <div class="text-caption text-grey mt-1">{{ l({ lo: 'ຫຼືວາງ URL ດ້ານລຸ່ມ', th: 'หรือวาง URL ด้านล่าง', en: 'Or paste a URL below:' }) }}</div>
             </div>
           </div>

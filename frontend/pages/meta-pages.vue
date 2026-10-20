@@ -359,7 +359,12 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
             <div class="pc-main-title">ເລືອກເພຈເພື່ອເປີດໃຊ້ງານ</div>
             <div class="pc-search-box">
               <v-icon size="18" color="grey">mdi-magnify</v-icon>
-              <input type="text" v-model="search" placeholder="ຄົ້ນຫາໜ້າ" />
+              <input 
+                type="text" 
+                v-model="search" 
+                :aria-label="l({ lo: 'ຄົ້ນຫາໜ້າ', th: 'ค้นหาเพจ', en: 'Search pages' })"
+                :placeholder="l({ lo: 'ຄົ້ນຫາໜ້າ', th: 'ค้นหาเพจ', en: 'Search pages' })" 
+              />
             </div>
           </div>
           

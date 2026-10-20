@@ -743,7 +743,7 @@ async function saveStatusUpdate() {
       </div>
 
       <div class="search-filters">
-        <select v-model="selectedWarehouseFilter" class="warehouse-select">
+        <select v-model="selectedWarehouseFilter" :aria-label="l({ lo: 'ກັ່ນຕອງຕາມສາງ', th: 'กรองตามคลัง', en: 'Filter by Location' })" class="warehouse-select">
           <option value="all">{{ l({ lo: 'ທຸກສາງ / ໜ້າຮ້ານ', th: 'ทุกคลัง / หน้าร้าน', en: 'All Locations' }) }}</option>
           <option v-for="w in warehouses" :key="w.id" :value="w.id">
             {{ w.name }} ({{ w.code }})
@@ -1063,12 +1063,12 @@ async function saveStatusUpdate() {
                 </div>
               </div>
               <div class="item-qty-input">
-                <button type="button" class="qty-btn" @click="it.quantity > 1 ? it.quantity-- : removeFormItem(idx)">-</button>
-                <input v-model.number="it.quantity" type="number" min="1" class="qty-num"/>
-                <button type="button" class="qty-btn" @click="it.quantity++">+</button>
+                <button type="button" class="qty-btn" :aria-label="l({ lo: 'ຫຼຸດຈຳນວນ', th: 'ลดจำนวน', en: 'Decrease' })" @click="it.quantity > 1 ? it.quantity-- : removeFormItem(idx)">-</button>
+                <input v-model.number="it.quantity" type="number" min="1" :aria-label="l({ lo: 'ຈຳນວນ', th: 'จำนวน', en: 'Quantity' })" class="qty-num"/>
+                <button type="button" class="qty-btn" :aria-label="l({ lo: 'ເພີ່ມຈຳນວນ', th: 'เพิ่มจำนวน', en: 'Increase' })" @click="it.quantity++">+</button>
               </div>
               <div class="item-unit-price">
-                <input v-model.number="it.unitPrice" type="number" class="price-input" min="0"/>
+                <input v-model.number="it.unitPrice" type="number" :aria-label="l({ lo: 'ລາຄາຕໍ່ໜ່ວຍ', th: 'ราคาต่อหน่วย', en: 'Unit Price' })" class="price-input" min="0"/>
                 <small>{{ orderForm.currency }}</small>
               </div>
               <div class="item-total">
