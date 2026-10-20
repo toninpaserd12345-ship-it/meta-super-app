@@ -1824,7 +1824,7 @@ const aggregatedMetrics = computed(() => {
   border: 1px solid var(--color-border, #e2e8f0);
   border-radius: 16px;
   padding: 20px 24px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--shadow-card);
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -1859,7 +1859,7 @@ const aggregatedMetrics = computed(() => {
   display: inline-flex;
   align-items: center;
   background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border);
   padding: 4px 10px;
   line-height: 1.4;
   border-radius: 6px;
@@ -1908,7 +1908,7 @@ const aggregatedMetrics = computed(() => {
   padding: 8px 12px;
   background: #f8fafc;
   border-radius: 10px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border);
 }
 
 .filter-label {
@@ -1931,7 +1931,7 @@ const aggregatedMetrics = computed(() => {
   font-weight: 700;
   padding: 4px 10px;
   border-radius: 999px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--color-border);
   background: #ffffff;
   color: #475569;
   cursor: pointer;
@@ -1964,7 +1964,7 @@ const aggregatedMetrics = computed(() => {
   background: #1e293b;
   color: #ffffff;
   border-color: #0f172a;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow-xs);
 }
 
 .pill-btn.angel.active {
@@ -2002,7 +2002,7 @@ const aggregatedMetrics = computed(() => {
   font-weight: 600;
   padding: 4px 10px;
   border-radius: 6px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--color-border);
   background: #ffffff;
   color: #0f172a;
   max-width: 240px;
@@ -2032,18 +2032,18 @@ const aggregatedMetrics = computed(() => {
 
 .ad-solo-card {
   background: #ffffff;
-  border: 1.5px solid #e2e8f0;
+  border: 1px solid var(--color-border);
   border-radius: 14px;
   padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+  box-shadow: var(--shadow-xs);
   transition: all 0.2s ease-in-out;
 }
 
 .ad-solo-card:hover {
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--shadow-sm);
 }
 
 /* Strict Semantic Themes */
@@ -2100,7 +2100,7 @@ const aggregatedMetrics = computed(() => {
 .semantic-pill.neutral {
   background: #f1f5f9;
   color: #475569;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--color-border);
 }
 
 .trajectory-pill {
@@ -2236,7 +2236,7 @@ const aggregatedMetrics = computed(() => {
   background: #f8fafc;
   padding: 8px;
   border-radius: 8px;
-  border: 1px solid #f1f5f9;
+  border: 1px solid var(--color-border);
 }
 
 .stat-cell {
@@ -2268,7 +2268,7 @@ const aggregatedMetrics = computed(() => {
   height: 135px;
   background: #fafafa;
   border-radius: 8px;
-  border: 1px solid #f1f5f9;
+  border: 1px solid var(--color-border);
   overflow: hidden;
   position: relative;
   padding: 4px;
@@ -2306,7 +2306,7 @@ const aggregatedMetrics = computed(() => {
   padding: 6px 6px;
   background: #f8fafc;
   border-radius: 6px;
-  border: 1px solid #f1f5f9;
+  border: 1px solid var(--color-border);
   font-size: 12px;
   line-height: 1.4;
   text-align: center;
@@ -2406,7 +2406,7 @@ const aggregatedMetrics = computed(() => {
   color: #ffffff;
   padding: 10px 12px;
   border-radius: 10px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-modal);
   font-size: 12px;
   z-index: 20;
   transform: translate(-50%, -115%);
@@ -2487,7 +2487,7 @@ const aggregatedMetrics = computed(() => {
   align-items: center;
   gap: 4px;
   background: #ffffff;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 4px 8px;
   line-height: 1.4;
@@ -2616,7 +2616,7 @@ const aggregatedMetrics = computed(() => {
 /* ========================================================================= */
 .ad-product-financial-card {
   background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border);
   border-radius: 12px;
   padding: 10px 14px;
   display: flex;
@@ -2649,7 +2649,7 @@ const aggregatedMetrics = computed(() => {
   height: 28px;
   border-radius: 6px;
   object-fit: cover;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--color-border);
   flex-shrink: 0;
 }
 
@@ -2738,7 +2738,7 @@ const aggregatedMetrics = computed(() => {
   background: #ffffff;
   padding: 8px 10px;
   border-radius: 8px;
-  border: 1px solid #edf2f7;
+  border: 1px solid var(--color-border);
 }
 
 @media (max-width: 600px) {
@@ -2780,7 +2780,7 @@ const aggregatedMetrics = computed(() => {
 /* ========================================================================= */
 .today-time-slots-card {
   background: #ffffff;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border);
   border-radius: 12px;
   padding: 10px 12px;
   display: flex;
@@ -2845,7 +2845,7 @@ const aggregatedMetrics = computed(() => {
 
 .daypart-cell {
   background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 6px 8px;
   display: flex;
@@ -3001,7 +3001,7 @@ const aggregatedMetrics = computed(() => {
   justify-content: space-between;
   gap: 20px;
   flex-wrap: wrap;
-  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
+  box-shadow: var(--shadow-sm);
   margin-bottom: 6px;
 }
 

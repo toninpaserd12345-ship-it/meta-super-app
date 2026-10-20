@@ -3296,7 +3296,7 @@ onMounted(async () => {
 
 .kpi-box {
   background: #ffffff;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border);
   border-radius: 14px;
   padding: 14px 18px;
   display: flex;
@@ -3352,7 +3352,7 @@ onMounted(async () => {
 /* Simple Filter Bar */
 .simple-controls-bar {
   background: #ffffff;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border);
   border-radius: 14px;
   padding: 12px 16px;
   display: flex;
@@ -3395,7 +3395,7 @@ onMounted(async () => {
   font-weight: 700;
   padding: 5px 12px;
   border-radius: 999px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--color-border);
   background: #f8fafc;
   color: #475569;
   cursor: pointer;
@@ -3429,7 +3429,7 @@ onMounted(async () => {
 
 .clean-ad-card {
   background: #ffffff;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border);
   border-radius: 14px;
   padding: 16px;
   display: flex;
@@ -3536,7 +3536,7 @@ onMounted(async () => {
   grid-template-columns: repeat(5, 1fr);
   gap: 6px;
   background: #f8fafc;
-  border: 1px solid #f1f5f9;
+  border: 1px solid var(--color-border);
   border-radius: 10px;
   padding: 8px 10px;
   text-align: center;
@@ -3652,7 +3652,7 @@ onMounted(async () => {
 /* Budget Preview Box */
 .budget-preview-box {
   background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border);
   border-radius: 10px;
   padding: 12px 14px;
 }
@@ -3729,7 +3729,7 @@ onMounted(async () => {
 
 .ai-stat-pill {
   background: #ffffff;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 4px 10px;
   display: flex;
@@ -3822,7 +3822,7 @@ onMounted(async () => {
 
 .bottleneck-card {
   background: #ffffff;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border);
   border-radius: 12px;
   padding: 14px 16px;
   display: flex;
@@ -3879,7 +3879,7 @@ onMounted(async () => {
 
 .rule-item {
   background: #ffffff;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border);
   border-radius: 12px;
   padding: 14px 16px;
   display: flex;
@@ -3917,7 +3917,7 @@ onMounted(async () => {
 
 .sop-card {
   background: #ffffff;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border);
   border-radius: 12px;
   padding: 14px 16px;
   position: relative;
@@ -3941,7 +3941,7 @@ onMounted(async () => {
 
 .creative-formula {
   background: #f8fafc;
-  border: 1px solid #f1f5f9;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 10px 12px;
   font-size: 12.5px;
@@ -3953,7 +3953,7 @@ onMounted(async () => {
 
 .script-box {
   background: #ffffff;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border);
   border-radius: 12px;
   padding: 14px 16px;
 }
@@ -3973,7 +3973,7 @@ onMounted(async () => {
 
 .script-text {
   background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 12px;
   font-family: inherit;
@@ -3991,7 +3991,7 @@ onMounted(async () => {
   gap: 12px;
   padding: 12px 16px;
   background: #ffffff;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border);
   border-radius: 10px;
   margin-bottom: 8px;
 }
@@ -4028,7 +4028,7 @@ onMounted(async () => {
    =================================================== */
 .placement-battle-summary-card {
   background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--color-border);
   border-radius: 14px;
   padding: 14px 18px;
   margin-bottom: 20px;
@@ -4081,7 +4081,7 @@ onMounted(async () => {
 
 .pbs-col {
   background: #ffffff;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border);
   border-radius: 10px;
   padding: 10px 14px;
   display: flex;
@@ -4147,7 +4147,7 @@ onMounted(async () => {
   display: flex;
   gap: 12px;
   background: #f8fafc;
-  border: 1px solid #f1f5f9;
+  border: 1px solid var(--color-border);
   border-radius: 10px;
   padding: 8px;
   min-height: 94px;
@@ -4261,7 +4261,7 @@ onMounted(async () => {
   font-weight: 600;
   color: #475569;
   background: #ffffff;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--color-border);
   border-radius: 6px;
   padding: 2px 8px;
   cursor: pointer;
@@ -4310,7 +4310,7 @@ onMounted(async () => {
   font-weight: 600;
   color: #475569;
   background: #f1f5f9;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border);
   border-radius: 6px;
   padding: 4px 8px;
   display: flex;
@@ -4506,7 +4506,7 @@ onMounted(async () => {
 
 .ad-copy-display-box {
   background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 10px 12px;
   font-size: 12px;
@@ -4628,7 +4628,7 @@ onMounted(async () => {
   flex-wrap: wrap;
   gap: 12px;
   background: #ffffff;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border);
   border-radius: 12px;
   padding: 10px 14px;
 }
@@ -4674,7 +4674,7 @@ onMounted(async () => {
 
 .matrix-card {
   background: #ffffff;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border);
   border-radius: 14px;
   padding: 16px;
   display: flex;
@@ -4771,7 +4771,7 @@ onMounted(async () => {
 }
 
 .gender-card {
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border);
   border-radius: 10px;
   padding: 12px 14px;
   background: #ffffff;
@@ -4874,7 +4874,7 @@ onMounted(async () => {
 .quality-pill.quality-avg {
   background: #f8fafc;
   color: #475569;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border);
 }
 
 .quality-pill.quality-below {
@@ -4961,7 +4961,7 @@ onMounted(async () => {
   height: 110px;
   padding: 10px 8px 10px 8px;
   background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border);
   border-radius: 10px;
   overflow-x: auto;
 }
@@ -5033,7 +5033,7 @@ onMounted(async () => {
 
 .funnel-step-box {
   background: #ffffff;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border);
   border-radius: 10px;
   padding: 12px 14px;
   display: flex;
