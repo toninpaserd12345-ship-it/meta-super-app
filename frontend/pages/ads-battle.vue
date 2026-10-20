@@ -801,7 +801,7 @@ const activeDemographics = computed<DynamicDemographics>(() => {
     } : null
   }
 
-  const hookRateText = hookRate > 0 ? `${fmt(hookRate, 1)}% (${hookRate >= 25 ? 'ຢຸດຕາຄົນດີ ⭐' : 'ຄວນປັບ Hook'})` : 'ບໍ່ມີວິດີໂອ'
+  const hookRateText = hookRate > 0 ? `${fmt(hookRate, 1)}% (${hookRate >= 25 ? 'ຢຸດຕາຄົນດີ' : 'ຄວນປັບ Hook'})` : 'ບໍ່ມີວິດີໂອ'
 
   // 8. 24-Hour Timeline from real Meta API
   let hourly: MetaInsightHourlyPoint[] = []
@@ -897,8 +897,8 @@ function getAdFatigueStatus(freq?: number): { label: string; class: string; icon
 function formatQualityRanking(rank?: string): { label: string; class: string } | null {
   if (!rank || rank === 'UNKNOWN') return null
   const r = rank.toUpperCase()
-  if (r.includes('ABOVE')) return { label: '⭐ ຄຸນນະພາບສູງ (Above Avg)', class: 'quality-above' }
-  if (r.includes('AVERAGE') && !r.includes('BELOW')) return { label: '⭐ ຄຸນນະພາບປານກາງ', class: 'quality-avg' }
+  if (r.includes('ABOVE')) return { label: 'ຄຸນນະພາບສູງ (Above Avg)', class: 'quality-above' }
+  if (r.includes('AVERAGE') && !r.includes('BELOW')) return { label: 'ຄຸນນະພາບປານກາງ', class: 'quality-avg' }
   if (r.includes('BELOW')) return { label: '⚠️ ຄຸນນະພາບຕ່ຳກວ່າຄູ່ແຂ່ງ', class: 'quality-below' }
   return null
 }
@@ -1593,7 +1593,7 @@ onMounted(async () => {
           <div class="pbs-col-header">
             <v-icon icon="mdi-video-vintage" size="16" class="mr-1" style="color: #e11d48;" />
             <strong>Reels (FB & IG Reels)</strong>
-            <span v-if="placementBattleStats.reels.cpa && placementBattleStats.feed.cpa && placementBattleStats.reels.cpa < placementBattleStats.feed.cpa" class="win-tag">ຖືກກວ່າ ⭐</span>
+            <span v-if="placementBattleStats.reels.cpa && placementBattleStats.feed.cpa && placementBattleStats.reels.cpa < placementBattleStats.feed.cpa" class="win-tag">ຖືກກວ່າ</span>
           </div>
           <div class="pbs-col-metrics">
             <div class="pbs-m"><span>ໃຊ້ຈ່າຍ:</span> <strong>{{ money(placementBattleStats.reels.spend) }}</strong></div>
@@ -1638,10 +1638,11 @@ onMounted(async () => {
     <!-- Accessible Section Landmark for Ads -->
     <h2 class="sr-only">ລາຍການແອດທັງໝົດ</h2>
 
-    <!-- Loading State -->
-    <div v-if="loadingReport" class="simple-loading">
-      <v-progress-circular indeterminate color="primary" size="40" />
-      <span class="mt-2 text-caption text-medium-emphasis">ກຳລັງໂຫຼດຂໍ້ມູນ...</span>
+    <!-- Skeleton Loading State -->
+    <div v-if="loadingReport" class="cards-layout">
+      <div v-for="i in 6" :key="i" class="clean-ad-card skeleton-card">
+        <v-skeleton-loader type="article, actions" />
+      </div>
     </div>
 
     <!-- Empty State -->
@@ -1804,9 +1805,10 @@ onMounted(async () => {
           </div>
         </div>
 
-        <!-- Creative Quality, Fatigue & Video Hook Rate Bar -->
-        <div class="card-quality-fatigue-bar">
+        <!-- Critical Signal Bar: Only show when action is required -->
+        <div v-if="(item.frequency || 0) >= 2.2 || (item.qualityRanking && item.qualityRanking.includes('BELOW')) || item.hookRate" class="card-quality-fatigue-bar">
           <span
+            v-if="(item.frequency || 0) >= 2.2"
             class="fatigue-pill"
             :class="getAdFatigueStatus(item.frequency).class"
             :title="getAdFatigueStatus(item.frequency).tip"
@@ -1816,46 +1818,38 @@ onMounted(async () => {
           </span>
 
           <span
-            v-if="formatQualityRanking(item.qualityRanking)"
-            class="quality-pill"
-            :class="formatQualityRanking(item.qualityRanking)?.class"
+            v-if="item.qualityRanking && item.qualityRanking.includes('BELOW')"
+            class="quality-pill quality-below"
           >
             {{ formatQualityRanking(item.qualityRanking)?.label }}
           </span>
 
           <span
-            v-if="item.hookRate || item.videoViews3s"
+            v-if="item.hookRate"
             class="hook-pill"
             :title="`Hook 3s: ${Math.round(item.hookRate || 32)}% | Hold ThruPlay: ${Math.round(item.holdRate || 40)}%`"
           >
-            <v-icon icon="mdi-hook" size="11" class="mr-1" />
             Hook 3s: <strong>{{ Math.round(item.hookRate || 32) }}%</strong>
           </span>
         </div>
 
-        <!-- Placements Breakdown Chips (Feed vs Reels vs Audience Net) -->
-        <div v-if="item.placements && item.placements.length > 0" class="card-placements-chips">
-          <span
-            v-for="pl in item.placements"
-            :key="pl.publisherPlatform + '_' + pl.platformPosition"
-            class="pl-badge"
-            :class="{
-              'pl-waste': (pl.spend || 0) > 1 && (pl.purchasesCount || 0) === 0 && (pl.messagesCount || 0) === 0 && (pl.publisherPlatform || '').toLowerCase() === 'audience_network'
-            }"
-            :title="`Spend: ${money(pl.spend)}, Purchases: ${pl.purchasesCount || 0}, Messages: ${pl.messagesCount || 0}`"
-          >
-            <v-icon :icon="formatPlacementBadge(pl).icon" size="11" class="mr-1" />
-            {{ formatPlacementBadge(pl).label }}: {{ money(pl.spend) }}
-            <template v-if="(pl.purchasesCount || 0) > 0">
-              <strong class="pl-highlight">({{ pl.purchasesCount }} ຊື້)</strong>
-            </template>
-            <template v-else-if="(pl.messagesCount || 0) > 0">
-              ({{ pl.messagesCount }} ທັກ)
-            </template>
-            <template v-else-if="(pl.spend || 0) > 1 && (pl.publisherPlatform || '').toLowerCase() === 'audience_network'">
-              <span class="text-error font-weight-bold">(❌ 0 ຊື້)</span>
-            </template>
-          </span>
+        <!-- Critical Placements: Only highlight wasted spend or top converting placement -->
+        <div v-if="item.placements && item.placements.some(pl => (pl.purchasesCount || 0) > 0 || ((pl.spend || 0) > 1 && (pl.publisherPlatform || '').toLowerCase() === 'audience_network'))" class="card-placements-chips">
+          <template v-for="pl in item.placements" :key="pl.publisherPlatform + '_' + pl.platformPosition">
+            <span
+              v-if="(pl.purchasesCount || 0) > 0 || ((pl.spend || 0) > 1 && (pl.publisherPlatform || '').toLowerCase() === 'audience_network' && (pl.purchasesCount || 0) === 0)"
+              class="pl-badge"
+              :class="{
+                'pl-waste': (pl.spend || 0) > 1 && (pl.purchasesCount || 0) === 0 && (pl.messagesCount || 0) === 0 && (pl.publisherPlatform || '').toLowerCase() === 'audience_network'
+              }"
+              :title="`Spend: ${money(pl.spend)}, Purchases: ${pl.purchasesCount || 0}`"
+            >
+              <v-icon :icon="formatPlacementBadge(pl).icon" size="11" class="mr-1" />
+              {{ formatPlacementBadge(pl).label }}: {{ money(pl.spend) }}
+              <strong v-if="(pl.purchasesCount || 0) > 0" class="pl-highlight">({{ pl.purchasesCount }} ຊື້)</strong>
+              <span v-else-if="(pl.spend || 0) > 1 && (pl.publisherPlatform || '').toLowerCase() === 'audience_network'" class="text-error font-weight-bold">(0 ຊື້)</span>
+            </span>
+          </template>
         </div>
 
         <!-- Bottom: Sparkline Trend + Quick Action Button -->
@@ -2259,8 +2253,8 @@ onMounted(async () => {
                   </td>
                   <td class="text-right font-weight-bold">{{ money(a.costPerPurchase || a.costPerMessage) }}</td>
                   <td>
-                    <span v-if="(a.purchasesCount || 0) >= 3" class="pill-status good">⭐ ປິດງ່າຍ</span>
-                    <span v-else-if="(a.spend || 0) > 10 && (a.purchasesCount || 0) === 0" class="pill-status bad">❌ ຜານເງິນ</span>
+                    <span v-if="(a.purchasesCount || 0) >= 3" class="pill-status good">ປິດງ່າຍ</span>
+                    <span v-else-if="(a.spend || 0) > 10 && (a.purchasesCount || 0) === 0" class="pill-status bad">ຜານເງິນ</span>
                     <span v-else class="pill-status normal">ປົກກະຕິ</span>
                   </td>
                 </tr>
@@ -2460,7 +2454,7 @@ onMounted(async () => {
               <div class="fs-icon"><v-icon icon="mdi-hook" size="20" color="success" /></div>
               <div class="fs-label">2. ຢຸດເບິ່ງ 3s (Hook Rate)</div>
               <div class="fs-num">{{ (activeDemographics.videoFunnel.views3s || 0).toLocaleString() }}</div>
-              <div class="fs-pct text-success font-weight-bold">{{ fmt(activeDemographics.videoFunnel.hookRate || 0, 1) }}% (ຜ່ານເກນ > 25% ⭐)</div>
+              <div class="fs-pct text-success font-weight-bold">{{ fmt(activeDemographics.videoFunnel.hookRate || 0, 1) }}% (ຜ່ານເກນ > 25%)</div>
             </div>
 
             <!-- Step 3: Mid-Video (50%) -->
@@ -2476,7 +2470,7 @@ onMounted(async () => {
               <div class="fs-icon"><v-icon icon="mdi-trophy-outline" size="20" color="purple" /></div>
               <div class="fs-label">4. ເບິ່ງຈົບ / ThruPlay (Hold)</div>
               <div class="fs-num">{{ (activeDemographics.videoFunnel.thruplay || 0).toLocaleString() }}</div>
-              <div class="fs-pct text-purple font-weight-bold">{{ fmt(activeDemographics.videoFunnel.holdRate || 0, 1) }}% Hold Rate ⭐</div>
+              <div class="fs-pct text-purple font-weight-bold">{{ fmt(activeDemographics.videoFunnel.holdRate || 0, 1) }}% Hold Rate</div>
             </div>
           </div>
 
@@ -2566,9 +2560,9 @@ onMounted(async () => {
               <v-icon icon="mdi-lightbulb-on-outline" size="22" color="white" />
             </div>
             <div>
-              <div class="text-h6 font-weight-bold d-flex align-center gap-2">
+              <h2 class="text-h6 font-weight-bold d-flex align-center gap-2">
                 <span>{{ l({ lo: 'AI Ads Strategist: ວິເຄາະຍຸດທະສາດໂຄສະນາ & ແກ້ໄຂແອດແພງ', th: 'AI Ads Strategist: วิเคราะห์ยุทธศาสตร์โฆษณา & แก้แอดแพง', en: 'AI Ads Strategist & Optimization Advisor' }) }}</span>
-              </div>
+              </h2>
               <div class="text-caption text-medium-emphasis">
                 {{ l({ lo: 'ວິເຄາະສະເພາະ:', th: 'วิเคราะห์เฉพาะ:', en: 'Scope:' }) }}
                 <strong>{{ aiStrategyData.productName }}</strong> ·
@@ -2676,7 +2670,7 @@ onMounted(async () => {
             <div class="ai-verdict-card mb-4">
               <div class="verdict-icon">💡</div>
               <div class="verdict-content">
-                <h4 class="verdict-title">ຄວາມຈິງກ່ຽວກັບຄ່າແອດຂອງ {{ aiStrategyData.productName }}</h4>
+                <h3 class="verdict-title">ຄວາມຈິງກ່ຽວກັບຄ່າແອດຂອງ {{ aiStrategyData.productName }}</h3>
                 <p class="verdict-desc">
                   ແອດຂອງທ່ານ <strong>ບໍ່ໄດ້ແພງເລີຍ!</strong> ຕົ້ນທຶນຕໍ່ຄົນທັກ (Cost per message) ພຽງ
                   <span class="text-success font-weight-bold">{{ money(aiStrategyData.avgCostPerMsg) }} ຕໍ່ຄົນ</span>
@@ -2729,7 +2723,7 @@ onMounted(async () => {
               <div class="rule-item">
                 <div class="rule-icon">👥</div>
                 <div class="rule-content">
-                  <h5>1. ການກຳນົດອາຍຸ (Age Filter): ປັບເປັນ 23 - 48 ປີ</h5>
+                  <h4>1. ການກຳນົດອາຍຸ (Age Filter): ປັບເປັນ 23 - 48 ປີ</h4>
                   <p>
                     <strong>ເຫດຜົນ:</strong> ກຸ່ມອາຍຸ 23-48 ປີ ເປັນໄວເຮັດວຽກທີ່ມີເງິນເດືອນ, ມີກຳລັງຊື້, ແລະ ພ້ອມຮັບເຄື່ອງແບບເກັບເງິນປາຍທາງ (COD).
                   </p>
@@ -2742,7 +2736,7 @@ onMounted(async () => {
               <div class="rule-item">
                 <div class="rule-icon">📱</div>
                 <div class="rule-content">
-                  <h5>2. ຕຳແໜ່ງຈັດວາງ (Placements): ເລືອກສະເພາະ Mobile Devices</h5>
+                  <h4>2. ຕຳແໜ່ງຈັດວາງ (Placements): ເລືອກສະເພາະ Mobile Devices</h4>
                   <p>
                     ໃນລາວ ລູກຄ້າຫຼາຍກວ່າ 98% ສັ່ງຊື້ຜ່ານໂທລະສັບມືຖື. ໃຫ້ເລືອກ Manual Placements:
                   </p>
@@ -2758,7 +2752,7 @@ onMounted(async () => {
               <div class="rule-item">
                 <div class="rule-icon">💎</div>
                 <div class="rule-content">
-                  <h5>3. ຂຸມຊັບ Custom Audiences & Lookalike (ຍິງຫາຄົນທີ່ເຄີຍສົນໃຈ)</h5>
+                  <h4>3. ຂຸມຊັບ Custom Audiences & Lookalike (ຍິງຫາຄົນທີ່ເຄີຍສົນໃຈ)</h4>
                   <p>ຢ່າຍິງແຕ່ກຸ່ມເປົ້າໝາຍກວ້າງ (Broad) ຢ່າງດຽວ, ໃຫ້ສ້າງ 2 ກຸ່ມນີ້:</p>
                   <ol class="steps-sub">
                     <li><strong>Custom Audience (Message Engagement):</strong> ສ້າງກຸ່ມຄົນທີ່ເຄີຍສົ່ງຂໍ້ຄວາມຫາເພຈໃນ 60 ມື້ຜ່ານມາ.</li>
@@ -2779,7 +2773,7 @@ onMounted(async () => {
             <div class="sop-cards">
               <div class="sop-card">
                 <div class="sop-number">SOP 1</div>
-                <h4>ກົດຫ້າມປິດແອດໄວ (No Micro-Pausing)</h4>
+                <h3>ກົດຫ້າມປິດແອດໄວ (No Micro-Pausing)</h3>
                 <p>
                   ເມື່ອສ້າງແອດໃໝ່, ລະບົບ Meta AI ຕ້ອງໃຊ້ເວລາ 48-72 ຊົ່ວໂມງ ໃນການຊອກຫາຜູ້ຊື້ (Learning Phase).
                   ຖ້າແອດໃຊ້ງົບໄປພຽງ $1 - $3 ແລ້ວຍັງບໍ່ມີອໍເດີ <strong>ຫ້າມປິດເດັດຂາດ!</strong>
@@ -2791,7 +2785,7 @@ onMounted(async () => {
 
               <div class="sop-card">
                 <div class="sop-number">SOP 2</div>
-                <h4>ກົດການ Scale ງົບ +15% ຫາ +20% (Budget Scaling)</h4>
+                <h3>ກົດການ Scale ງົບ +15% ຫາ +20% (Budget Scaling)</h3>
                 <p>
                   ເມື່ອເຈີແອດນາງຟ້າທີ່ມີ CPA ຕ່ຳກວ່າເປົ້າໝາຍ (ເຊັ່ນ <code>h9maxx3 - ສຳເນົາ</code> CPA $1.04):
                 </p>
@@ -2803,7 +2797,7 @@ onMounted(async () => {
 
               <div class="sop-card">
                 <div class="sop-number">SOP 3</div>
-                <h4>ໂຄງສ້າງວິດີໂອສັ້ນ 15-30 ວິນາທີ ທີ່ CTR ສູງ ແລະ ຄ່າແອດຖືກ</h4>
+                <h3>ໂຄງສ້າງວິດີໂອສັ້ນ 15-30 ວິນາທີ ທີ່ CTR ສູງ ແລະ ຄ່າແອດຖືກ</h3>
                 <p>
                   Creative ຂອງ H9 MAX ມີ CTR ດີຢູ່ແລ້ວ (1.5% - 3.7%). ຖ້າຢາກໃຫ້ຄ່າແອດຖືກລົງອີກ:
                 </p>
@@ -2831,12 +2825,12 @@ onMounted(async () => {
                   variant="flat"
                   color="primary"
                   prepend-icon="mdi-content-copy"
-                  @click="copyScript(`ສະບາຍດີເຈົ້າ H9 MAX Smartwatch ລຸ້ນໃໝ່ຫຼ້າສຸດ ໂປຣໂມຊັ່ນພິເສດມື້ນີ້ພຽງ 210,000 ກີບ (ຈາກປົກກະຕິ 280,000 ກີບ) ✨\n✅ ແຖມຟຣີ: ສາຍປ່ຽນຊິລິໂຄນ + ສາຍສາກແມ່ເຫຼັກ\n✅ ຮັບປະກັນສິນຄ້າ 3 ເດືອນເຕັມ (ມີບັນຫາປ່ຽນໃໝ່ທັນທີ)\n🚚 ສົ່ງຟຣີຮອດໜ້າບ້ານ + ເກັບເງິນປາຍທາງ (ກວດເຄື່ອງກ່ອນຈ່າຍໄດ້ເລີຍເຈົ້າ)\n\n👉 ລູກຄ້າຮັບ 1 ເຮືອນ ຫຼື 2 ເຮືອນດີເຈົ້າ?`)"
+                  @click="copyScript(`ສະບາຍດີເຈົ້າ H9 MAX Smartwatch ລຸ້ນໃໝ່ຫຼ້າສຸດ ໂປຣໂມຊັ່ນພິເສດມື້ນີ້ພຽງ 210,000 ກີບ (ຈາກປົກກະຕິ 280,000 ກີບ)\n✅ ແຖມຟຣີ: ສາຍປ່ຽນຊິລິໂຄນ + ສາຍສາກແມ່ເຫຼັກ\n✅ ຮັບປະກັນສິນຄ້າ 3 ເດືອນເຕັມ (ມີບັນຫາປ່ຽນໃໝ່ທັນທີ)\n🚚 ສົ່ງຟຣີຮອດໜ້າບ້ານ + ເກັບເງິນປາຍທາງ (ກວດເຄື່ອງກ່ອນຈ່າຍໄດ້ເລີຍເຈົ້າ)\n\n👉 ລູກຄ້າຮັບ 1 ເຮືອນ ຫຼື 2 ເຮືອນດີເຈົ້າ?`)"
                 >
                   {{ copiedScript ? 'ຄັດລອກແລ້ວ! ✅' : 'ຄັດລອກບົດຕອບນີ້' }}
                 </v-btn>
               </div>
-              <pre class="script-text">ສະບາຍດີເຈົ້າ H9 MAX Smartwatch ລຸ້ນໃໝ່ຫຼ້າສຸດ ໂປຣໂມຊັ່ນພິເສດມື້ນີ້ພຽງ 210,000 ກີບ (ຈາກປົກກະຕິ 280,000 ກີບ) ✨
+              <pre class="script-text">ສະບາຍດີເຈົ້າ H9 MAX Smartwatch ລຸ້ນໃໝ່ຫຼ້າສຸດ ໂປຣໂມຊັ່ນພິເສດມື້ນີ້ພຽງ 210,000 ກີບ (ຈາກປົກກະຕິ 280,000 ກີບ)
 ✅ ແຖມຟຣີ: ສາຍປ່ຽນຊິລິໂຄນ + ສາຍສາກແມ່ເຫຼັກ
 ✅ ຮັບປະກັນສິນຄ້າ 3 ເດືອນເຕັມ (ມີບັນຫາປ່ຽນໃໝ່ທັນທີ)
 🚚 ສົ່ງຟຣີຮອດໜ້າບ້ານ + ເກັບເງິນປາຍທາງ (ກວດເຄື່ອງກ່ອນຈ່າຍໄດ້ເລີຍເຈົ້າ)
@@ -2874,12 +2868,12 @@ onMounted(async () => {
                   size="small"
                   variant="outlined"
                   prepend-icon="mdi-content-copy"
-                  @click="copyScript(`ສະບາຍດີເຈົ້າ ທາງຮ້ານຍັງເຫຼືອໂຄຕ້າສົ່ງຟຣີ + ຂອງແຖມອີກພຽງ 3 ຊຸດສຸດທ້າຍເຈົ້າ ✨\nລູກຄ້າສະດວກຮັບໄວ້ເລີຍບໍ່ເຈົ້າ? ທາງຮ້ານຈະເກັບສິດໂປຣໂມຊັ່ນນີ້ໄວ້ໃຫ້ເລີຍເຈົ້າ 😊`)"
+                  @click="copyScript(`ສະບາຍດີເຈົ້າ ທາງຮ້ານຍັງເຫຼືອໂຄຕ້າສົ່ງຟຣີ + ຂອງແຖມອີກພຽງ 3 ຊຸດສຸດທ້າຍເຈົ້າ\nລູກຄ້າສະດວກຮັບໄວ້ເລີຍບໍ່ເຈົ້າ? ທາງຮ້ານຈະເກັບສິດໂປຣໂມຊັ່ນນີ້ໄວ້ໃຫ້ເລີຍເຈົ້າ 😊`)"
                 >
                   ຄັດລອກບົດຕອບນີ້
                 </v-btn>
               </div>
-              <pre class="script-text">ສະບາຍດີເຈົ້າ ທາງຮ້ານຍັງເຫຼືອໂຄຕ້າສົ່ງຟຣີ + ຂອງແຖມອີກພຽງ 3 ຊຸດສຸດທ້າຍເຈົ້າ ✨
+              <pre class="script-text">ສະບາຍດີເຈົ້າ ທາງຮ້ານຍັງເຫຼືອໂຄຕ້າສົ່ງຟຣີ + ຂອງແຖມອີກພຽງ 3 ຊຸດສຸດທ້າຍເຈົ້າ
 ລູກຄ້າສະດວກຮັບໄວ້ເລີຍບໍ່ເຈົ້າ? ທາງຮ້ານຈະເກັບສິດໂປຣໂມຊັ່ນນີ້ໄວ້ໃຫ້ເລີຍເຈົ້າ 😊</pre>
             </div>
           </div>
@@ -2891,10 +2885,10 @@ onMounted(async () => {
             </div>
 
             <div class="mb-4">
-              <h4 class="text-subtitle-1 font-weight-bold mb-2 d-flex align-center gap-2">
+              <h3 class="text-subtitle-1 font-weight-bold mb-2 d-flex align-center gap-2">
                 <span>🟢 ແອດນາງຟ້າທີ່ຄວນເປີດຄືນທັນທີ (Paused Winning Ads)</span>
                 <v-chip size="x-small" color="success">{{ aiStrategyData.pausedAngels.length }} ໂຕ</v-chip>
-              </h4>
+              </h3>
 
               <div v-if="aiStrategyData.pausedAngels.length === 0" class="pa-4 text-center text-medium-emphasis border rounded-lg">
                 🎉 ບໍ່ມີແອດນາງຟ້າທີ່ຖືກປິດຢູ່ ທຸກແອດທີ່ດີກຳລັງແລ່ນຢູ່ແລ້ວ!
@@ -2930,10 +2924,10 @@ onMounted(async () => {
 
             <!-- Underperforming Action -->
             <div>
-              <h4 class="text-subtitle-1 font-weight-bold mb-2 d-flex align-center gap-2">
+              <h3 class="text-subtitle-1 font-weight-bold mb-2 d-flex align-center gap-2">
                 <span>🔴 ແອດໝົດກຳລັງທີ່ຄວນປິດ (Underperforming Ads)</span>
                 <v-chip size="x-small" color="error">{{ aiStrategyData.activeBads.length }} ໂຕ</v-chip>
-              </h4>
+              </h3>
 
               <div v-if="aiStrategyData.activeBads.length === 0" class="pa-4 text-center text-medium-emphasis border rounded-lg">
                 ✅ ບໍ່ມີແອດໝົດກຳລັງທີ່ກຳລັງກິນເງິນຢູ່!
@@ -3006,12 +3000,12 @@ onMounted(async () => {
             <!-- 3 Steps to Kill Ghost Inquiries -->
             <div class="sop-card">
               <div class="sop-number">Action</div>
-              <h4>🛡️ 3 ວິທີປິດກັ້ນ "ທັກຜີ" ບໍ່ໃຫ້ມາແດກຄ່າແອດໃນ Meta Ads Manager</h4>
+              <h3>🛡️ 3 ວິທີປິດກັ້ນ "ທັກຜີ" ບໍ່ໃຫ້ມາແດກຄ່າແອດໃນ Meta Ads Manager</h3>
               <div class="rules-list mt-3">
                 <div class="rule-item">
                   <div class="rule-icon">🎮</div>
                   <div class="rule-content">
-                    <h5>1. ປິດ "Audience Network" ໃນ Ad Set ທັນທີ</h5>
+                    <h4>1. ປິດ "Audience Network" ໃນ Ad Set ທັນທີ</h4>
                     <p>
                       ໃນ Ad Set ➔ Placements ➔ Manual Placements: <strong>ຕິກເອົາ Audience Network ອອກ!</strong> ເພາະເກືອບທັງໝົດຂອງທັກຜີ ແມ່ນຄົນຫຼິ້ນເກມມືຖືແລ້ວພະຍາຍາມກົດປິດໂຄສະນາແຕ່ມືໄປໂດນປຸ່ມ Message!
                     </p>
@@ -3021,7 +3015,7 @@ onMounted(async () => {
                 <div class="rule-item">
                   <div class="rule-icon">🏷️</div>
                   <div class="rule-content">
-                    <h5>2. ໃສ່ລາຄາ "210,000 ກີບ" ຕົວໃຫຍ່ໆໃສ່ໜ້າປົກຮູບ ຫຼື ຄລິບແອດ</h5>
+                    <h4>2. ໃສ່ລາຄາ "210,000 ກີບ" ຕົວໃຫຍ່ໆໃສ່ໜ້າປົກຮູບ ຫຼື ຄລິບແອດ</h4>
                     <p>
                       ຢ່າປິດບັງລາຄາ! ຄົນທີ່ທັກມາຖາມວ່າ <em>"ລາຄາເທົ່າໃດ?"</em> ແລ້ວມິດງຽບ ເພາະເຂົາຄິດວ່າລາຄາ 30,000-50,000 ກີບ. ຖ້າໃສ່ລາຄາ 210,000 ກີບ ໂຊຈະແຈ້ງ, ຄົນທີ່ທັກມາຈະເປັນຄົນທີ່ <strong>"ພ້ອມຈ່າຍ 210,000 ກີບແລ້ວ"</strong> ເທົ່ານັ້ນ!
                     </p>
@@ -3031,7 +3025,7 @@ onMounted(async () => {
                 <div class="rule-item">
                   <div class="rule-icon">⚙️</div>
                   <div class="rule-content">
-                    <h5>3. ປັບ Message Template: ປິດປຸ່ມ Icebreaker ທີ່ກົດງ່າຍເກີນໄປ</h5>
+                    <h4>3. ປັບ Message Template: ປິດປຸ່ມ Icebreaker ທີ່ກົດງ່າຍເກີນໄປ</h4>
                     <p>
                       ປິດປຸ່ມທີ່ Facebook ສ້າງໃຫ້ ເຊັ່ນ <em>"ສະບາຍດີ! ມີໃຜພ້ອມສົນທະນາບໍ່?"</em>. ໃຫ້ປ່ຽນເປັນຄຳຖາມບັງຄັບພິມ: <em>"ສະບາຍດີເຈົ້າ H9 MAX ພ້ອມສົ່ງ 210,000 ₭ ລູກຄ້າຮັບສີໃດດີເຈົ້າ? ແຈ້ງເບີໂທຈັດສົ່ງໄດ້ເລີຍເຈົ້າ"</em>.
                     </p>
@@ -3060,9 +3054,9 @@ onMounted(async () => {
         <v-card-title class="d-flex align-center justify-space-between px-5 py-4 border-b">
           <div class="d-flex align-center gap-2" style="min-width: 0; flex: 1;">
             <v-icon :icon="getAdFormatType(previewAdItem).icon" :color="getAdFormatType(previewAdItem).color" size="22" />
-            <span class="font-weight-bold text-h6 text-truncate" style="max-width: 500px;">
+            <h2 class="font-weight-bold text-h6 text-truncate" style="max-width: 500px; margin: 0;">
               {{ previewAdItem.entityName }}
-            </span>
+            </h2>
           </div>
           <v-btn icon="mdi-close" variant="text" size="small" @click="previewModalOpen = false" />
         </v-card-title>
@@ -3138,7 +3132,7 @@ onMounted(async () => {
 
             <!-- Right: Placement Breakdown Performance -->
             <div class="modal-placements-detail">
-              <h4 class="font-weight-bold mb-3 d-flex align-center">
+              <h3 class="font-weight-bold mb-3 d-flex align-center">
                 <v-icon icon="mdi-chart-box-outline" size="18" class="mr-2 text-primary" />
                 ຜົນງານແຍກຕາມຊ່ອງທາງ (Placement Breakdown)
               </h4>
@@ -3393,16 +3387,26 @@ onMounted(async () => {
 .cat-tab {
   font-size: 12px;
   font-weight: 700;
-  padding: 5px 12px;
+  padding: 6px 14px;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 999px;
   border: 1px solid var(--color-border);
   background: #f8fafc;
   color: #475569;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: transform 150ms ease, background 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
 }
 
-.cat-tab:hover { background: #f1f5f9; }
+.cat-tab:hover {
+  background: #f1f5f9;
+  transform: translateY(-1px);
+}
+.cat-tab:active {
+  transform: scale(0.98);
+}
 .cat-tab.active { background: #0f172a; color: #ffffff; border-color: #0f172a; }
 .cat-tab.green.active { background: #10b981; color: #ffffff; border-color: #059669; }
 .cat-tab.red.active { background: #ef4444; color: #ffffff; border-color: #dc2626; }
@@ -3416,7 +3420,7 @@ onMounted(async () => {
   justify-content: center;
   padding: 60px 20px;
   background: #ffffff;
-  border: 1px dashed #cbd5e1;
+  border: 1px dashed rgba(0, 0, 0, 0.12);
   border-radius: 14px;
 }
 
@@ -3436,11 +3440,16 @@ onMounted(async () => {
   flex-direction: column;
   gap: 12px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-  transition: transform 0.15s, box-shadow 0.15s;
+  transition: transform 150ms ease, box-shadow 150ms ease;
 }
 
 .clean-ad-card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.07);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.clean-ad-card:active {
+  transform: scale(0.99);
 }
 
 .clean-ad-card.card-angel {
@@ -3615,7 +3624,7 @@ onMounted(async () => {
   text-align: left;
   padding: 10px 14px;
   background: #f8fafc;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
   font-weight: 700;
   color: #475569;
   font-size: 12px;
@@ -3624,7 +3633,7 @@ onMounted(async () => {
 
 .clean-table td {
   padding: 10px 14px;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
   color: #1e293b;
   vertical-align: middle;
 }
@@ -3665,7 +3674,7 @@ onMounted(async () => {
 
 .ai-modal-header {
   background: #ffffff;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
   padding: 16px 20px;
   display: flex;
   align-items: center;
@@ -3680,12 +3689,12 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 6px rgba(79, 70, 229, 0.3);
+  box-shadow: 0 2px 6px rgba(79, 70, 229, 0.2);
 }
 
 .ai-kpi-strip {
   background: #f8fafc;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
   padding: 10px 20px;
   display: flex;
   flex-wrap: wrap;
@@ -3698,7 +3707,7 @@ onMounted(async () => {
   align-items: center;
   gap: 8px;
   padding-right: 12px;
-  border-right: 1px solid #cbd5e1;
+  border-right: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 .ai-health-num {
@@ -4019,7 +4028,7 @@ onMounted(async () => {
 
 .ai-modal-footer {
   background: #ffffff;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
   padding: 12px 20px;
 }
 
@@ -4184,7 +4193,7 @@ onMounted(async () => {
   justify-content: center;
   width: 100%;
   height: 100%;
-  background: #e2e8f0;
+  background: rgba(0, 0, 0, 0.06);
 }
 
 .format-badge {
@@ -4450,7 +4459,7 @@ onMounted(async () => {
   justify-content: space-between;
   padding: 10px 12px;
   background: #f8fafc;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .phone-cta-text {
@@ -4486,7 +4495,7 @@ onMounted(async () => {
   padding: 8px 12px;
   font-weight: 700;
   color: #475569;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .modal-placements-table td {
@@ -4722,12 +4731,12 @@ onMounted(async () => {
   padding: 8px 10px;
   font-weight: 700;
   color: #475569;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .matrix-table td {
   padding: 8px 10px;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
   color: #1e293b;
 }
 
@@ -4757,9 +4766,9 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   padding: 30px 10px;
-  color: #94a3b8;
+  color: var(--color-text-secondary);
   background: #f8fafc;
-  border: 1px dashed #e2e8f0;
+  border: 1px dashed rgba(0, 0, 0, 0.1);
   border-radius: 10px;
 }
 
@@ -4771,19 +4780,17 @@ onMounted(async () => {
 }
 
 .gender-card {
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm, 8px);
   padding: 12px 14px;
-  background: #ffffff;
+  background: var(--color-surface-soft);
 }
 
 .gender-card.male {
-  border-color: rgba(37, 99, 235, 0.3);
-  background: rgba(37, 99, 235, 0.02);
+  background: rgba(37, 99, 235, 0.04);
 }
 .gender-card.female {
-  border-color: rgba(236, 72, 153, 0.3);
-  background: rgba(236, 72, 153, 0.02);
+  background: rgba(236, 72, 153, 0.04);
 }
 
 .gender-card-top {
@@ -5007,7 +5014,7 @@ onMounted(async () => {
 }
 
 .hourly-bar-col.normal .h-bar-fill {
-  background: #cbd5e1;
+  background: rgba(0, 0, 0, 0.12);
 }
 
 .h-hour-label {
@@ -5111,7 +5118,7 @@ onMounted(async () => {
 
 .bp-pill small {
   font-size: 12px;
-  color: #94a3b8;
+  color: #cbd5e1;
   text-transform: uppercase;
   font-weight: 700;
 }
@@ -5119,5 +5126,12 @@ onMounted(async () => {
 .bp-pill strong {
   font-size: 12px;
   color: #f8fafc;
+}
+
+@media (max-width: 640px) {
+  .cat-tab {
+    min-height: 44px;
+    padding: 8px 16px;
+  }
 }
 </style>

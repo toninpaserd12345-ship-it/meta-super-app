@@ -1424,9 +1424,9 @@ const aggregatedMetrics = computed(() => {
               </defs>
 
               <!-- Subtle grid lines -->
-              <line x1="40" y1="25" x2="480" y2="25" stroke="#f1f5f9" stroke-width="1" />
-              <line x1="40" y1="65" x2="480" y2="65" stroke="#f1f5f9" stroke-width="1" />
-              <line x1="40" y1="105" x2="480" y2="105" stroke="#e2e8f0" stroke-width="1" />
+              <line x1="40" y1="25" x2="480" y2="25" stroke="rgba(0, 0, 0, 0.04)" stroke-width="1" />
+              <line x1="40" y1="65" x2="480" y2="65" stroke="rgba(0, 0, 0, 0.04)" stroke-width="1" />
+              <line x1="40" y1="105" x2="480" y2="105" stroke="rgba(0, 0, 0, 0.08)" stroke-width="1" />
 
               <!-- Area Fill Under Curve -->
               <path
@@ -1821,7 +1821,7 @@ const aggregatedMetrics = computed(() => {
 <style scoped>
 .ad-strength-chart-card {
   background: var(--color-surface, #ffffff);
-  border: 1px solid var(--color-border, #e2e8f0);
+  border: 1px solid var(--color-border, rgba(0, 0, 0, 0.06));
   border-radius: 16px;
   padding: 20px 24px;
   box-shadow: var(--shadow-card);
@@ -2058,7 +2058,7 @@ const aggregatedMetrics = computed(() => {
 }
 
 .ad-solo-card.theme-neutral {
-  border-color: #cbd5e1;
+  border-color: rgba(0, 0, 0, 0.12);
   background: linear-gradient(180deg, #f8fafc 0%, #ffffff 42px);
 }
 
@@ -2336,7 +2336,7 @@ const aggregatedMetrics = computed(() => {
 
 .d-spend-label {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--color-text-secondary);
 }
 
 .card-bottom-actions {
@@ -2429,7 +2429,7 @@ const aggregatedMetrics = computed(() => {
 
 .tooltip-date {
   font-size: 12px;
-  color: #94a3b8;
+  color: #cbd5e1;
 }
 
 .tooltip-metric-val {
@@ -2495,7 +2495,7 @@ const aggregatedMetrics = computed(() => {
 }
 
 .legend-chip-card:hover {
-  border-color: #cbd5e1;
+  border-color: rgba(0, 0, 0, 0.12);
   background: #f1f5f9;
 }
 
@@ -2657,7 +2657,7 @@ const aggregatedMetrics = computed(() => {
   width: 28px;
   height: 28px;
   border-radius: 6px;
-  background: #e2e8f0;
+  background: rgba(0, 0, 0, 0.06);
   color: #64748b;
   display: flex;
   align-items: center;
@@ -2679,7 +2679,7 @@ const aggregatedMetrics = computed(() => {
   background: transparent;
   border: none;
   cursor: pointer;
-  color: #94a3b8;
+  color: var(--color-text-secondary);
   padding: 2px;
   border-radius: 4px;
   display: flex;
@@ -3099,7 +3099,7 @@ const aggregatedMetrics = computed(() => {
 
 .cluster-cell small {
   font-size: 12px;
-  color: #94a3b8;
+  color: #cbd5e1;
   font-weight: 600;
 }
 
