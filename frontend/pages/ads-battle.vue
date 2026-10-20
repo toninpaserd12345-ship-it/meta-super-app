@@ -787,6 +787,12 @@ onMounted(async () => {
           </v-btn>
         </v-btn-toggle>
 
+        <NuxtLink to="/ads-playbook">
+          <v-btn variant="tonal" size="small" prepend-icon="mdi-book-open-page-variant" color="indigo">
+            📖 {{ l({ lo: 'ຄູ່ມື SOP ປະຈຳວັນ', th: 'คู่มือ SOP ประจำวัน', en: 'Daily SOP' }) }}
+          </v-btn>
+        </NuxtLink>
+
         <NuxtLink to="/ads">
           <v-btn variant="text" size="small" prepend-icon="mdi-arrow-left">
             {{ l({ lo: 'ໜ້າ Ads ຫຼັກ', th: 'หน้า Ads หลัก', en: 'Main Ads' }) }}

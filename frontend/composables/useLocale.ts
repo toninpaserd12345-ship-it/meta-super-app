@@ -2,7 +2,7 @@ export type AppLocale = 'lo' | 'th' | 'en'
 
 const messages = {
   lo: {
-    'nav.ads': 'ຈັດການໂຄສະນາ', 'nav.adsBattle': 'ວິເຄາະປຽບທຽບ (Battle)', 'nav.adsStrategy': 'ສູນວິເຄາະຍຸດທະສາດ', 'nav.overview': 'ພາບລວມ', 'nav.chat': 'ສົນທະນາ',
+    'nav.ads': 'ຈັດການໂຄສະນາ', 'nav.adsBattle': 'ວິເຄາະປຽບທຽບ (Battle)', 'nav.adsStrategy': 'ສູນວິເຄາະຍຸດທະສາດ', 'nav.adsPlaybook': 'ຄູ່ມືຍິງແອດ (SOP)', 'nav.overview': 'ພາບລວມ', 'nav.chat': 'ສົນທະນາ',
     'nav.channels': 'ເພຈ ແລະ WhatsApp', 'nav.products': 'ສິນຄ້າ', 'nav.replies': 'ຊຸດຂໍ້ຄວາມ',
     'nav.automation': 'ຕອບກັບອັດຕະໂນມັດ', 'nav.guide': 'ຄູ່ມື Automation', 'nav.analytics': 'ລາຍງານ',
     'nav.customers': 'ລູກຄ້າ', 'nav.leads': 'ຈັດການ Lead', 'nav.orders': 'ຄຳສັ່ງຊື້', 'nav.warehouses': 'ສາງ ແລະ ຮ້ານຄ້າ', 'nav.settings': 'ຕັ້ງຄ່າ',
@@ -36,7 +36,7 @@ const messages = {
     'guide.title': 'ຄູ່ມືສ້າງ Automation', 'guide.subtitle': 'ຈາກການກຽມຂໍ້ມູນ ຫາການທົດສອບຂໍ້ຄວາມຈິງ',
   },
   th: {
-    'nav.ads': 'จัดการโฆษณา', 'nav.adsBattle': 'วิเคราะห์เปรียบเทียบ (Battle)', 'nav.adsStrategy': 'ศูนย์วิเคราะห์ยุทธศาสตร์', 'nav.overview': 'ภาพรวม', 'nav.chat': 'แชตสด',
+    'nav.ads': 'จัดการโฆษณา', 'nav.adsBattle': 'วิเคราะห์เปรียบเทียบ (Battle)', 'nav.adsStrategy': 'ศูนย์วิเคราะห์ยุทธศาสตร์', 'nav.adsPlaybook': 'คู่มือยิงแอด (SOP)', 'nav.overview': 'ภาพรวม', 'nav.chat': 'แชตสด',
     'nav.channels': 'เพจและ WhatsApp', 'nav.products': 'สินค้า', 'nav.replies': 'ชุดข้อความ',
     'nav.automation': 'ตอบกลับอัตโนมัติ', 'nav.guide': 'คู่มือ Automation', 'nav.analytics': 'รายงาน',
     'nav.customers': 'ลูกค้า', 'nav.leads': 'จัดการ Lead', 'nav.orders': 'คำสั่งซื้อ', 'nav.warehouses': 'คลังสินค้าและหน้าร้าน', 'nav.settings': 'การตั้งค่า',
@@ -70,7 +70,7 @@ const messages = {
     'guide.title': 'คู่มือสร้าง Automation', 'guide.subtitle': 'ตั้งแต่เตรียมข้อมูลจนถึงทดสอบข้อความจริง',
   },
   en: {
-    'nav.ads': 'Ads Manager', 'nav.adsBattle': 'Ads Battle & Audit', 'nav.adsStrategy': 'Ads Intelligence', 'nav.overview': 'Overview', 'nav.chat': 'Live Chat', 'nav.channels': 'Pages & WhatsApp',
+    'nav.ads': 'Ads Manager', 'nav.adsBattle': 'Ads Battle & Audit', 'nav.adsStrategy': 'Ads Intelligence', 'nav.adsPlaybook': 'Ads Playbook & SOP', 'nav.overview': 'Overview', 'nav.chat': 'Live Chat', 'nav.channels': 'Pages & WhatsApp',
     'nav.products': 'Products', 'nav.replies': 'Reply Sets', 'nav.automation': 'Auto Replies', 'nav.guide': 'Automation Guide',
     'nav.analytics': 'Analytics', 'nav.customers': 'Customers', 'nav.leads': 'Lead Management', 'nav.orders': 'Orders', 'nav.warehouses': 'Warehouses & Shops', 'nav.settings': 'Settings',
     'nav.groups.core': 'Core', 'nav.groups.crm': 'Conversations & CRM', 'nav.groups.marketing': 'Marketing & Ads', 'nav.groups.commerce': 'Commerce & Orders', 'nav.groups.automation': 'Automation & System',

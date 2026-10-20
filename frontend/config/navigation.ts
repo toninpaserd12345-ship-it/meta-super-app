@@ -35,6 +35,7 @@ export const appNavigation: NavigationItem[] = [
   { labelKey: 'nav.ads', icon: 'mdi-bullhorn-outline', to: '/ads', claim: 'pages:read', sectionKey: 'marketing' },
   { labelKey: 'nav.adsBattle', icon: 'mdi-scale-balance', to: '/ads-battle', claim: 'pages:read', sectionKey: 'marketing' },
   { labelKey: 'nav.adsStrategy', icon: 'mdi-chart-timeline-variant-shimmer', to: '/ads-intelligence', claim: 'pages:read', sectionKey: 'marketing' },
+  { labelKey: 'nav.adsPlaybook', icon: 'mdi-book-open-page-variant', to: '/ads-playbook', claim: 'pages:read', sectionKey: 'marketing' },
 
   // COMMERCE & ORDERS
   { labelKey: 'nav.products', icon: 'mdi-package-variant-closed', to: '/products', claim: 'pages:read', sectionKey: 'commerce' },
