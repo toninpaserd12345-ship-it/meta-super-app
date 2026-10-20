@@ -1421,7 +1421,7 @@ onMounted(async () => {
         </div>
       </div>
 
-      <div class="kpi-box" :class="activeKpiStats.totalNetProfit >= 0 ? 'kpi-profit-pos' : 'kpi-profit-neg'">
+      <div class="kpi-box">
         <div class="kpi-icon" :class="activeKpiStats.totalNetProfit >= 0 ? 'emerald' : 'rose'">
           <v-icon :icon="activeKpiStats.totalNetProfit >= 0 ? 'mdi-trending-up' : 'mdi-trending-down'" size="20" />
         </div>
@@ -1440,7 +1440,8 @@ onMounted(async () => {
 
     <!-- Clean Filter Bar -->
     <section class="simple-controls-bar">
-      <div class="filter-left-fields">
+      <!-- Upper Row: Context Controls -->
+      <div class="filter-primary-row">
         <!-- Ad Account -->
         <v-select
           v-model="adAccountId"
@@ -1489,7 +1490,10 @@ onMounted(async () => {
           <v-btn value="adset" size="small">Set</v-btn>
           <v-btn value="campaign" size="small">Camp</v-btn>
         </v-btn-toggle>
+      </div>
 
+      <!-- Lower Row: Search and Status Action Tabs -->
+      <div class="filter-secondary-row">
         <!-- Search Input -->
         <v-text-field
           v-model="search"
@@ -1499,50 +1503,50 @@ onMounted(async () => {
           density="compact"
           hide-details
           clearable
-          class="filter-ctl search-ctl"
+          class="filter-search-field"
         />
-      </div>
 
-      <!-- Category Filter Tabs (Follows Product & Search!) -->
-      <div class="filter-right-tabs">
-        <button
-          type="button"
-          class="cat-tab"
-          :class="{ active: statusFilter === 'all' }"
-          @click="statusFilter = 'all'"
-        >
-          {{ l({ lo: 'ທັງໝົດ', th: 'ทั้งหมด', en: 'All' }) }} ({{ filteredBaseItems.length }})
-        </button>
-        <button
-          type="button"
-          class="cat-tab green"
-          :class="{ active: statusFilter === 'angels' }"
-          @click="statusFilter = 'angels'"
-        >
-          🟢 {{ l({ lo: 'Ads ນາງຟ້າ', th: 'แอดนางฟ้า', en: 'Angel' }) }} ({{ angelCount }})
-        </button>
-        <button
-          type="button"
-          class="cat-tab red"
-          :class="{ active: statusFilter === 'bad' }"
-          @click="statusFilter = 'bad'"
-        >
-          🔴 {{ l({ lo: 'ໝົດກຳລັງ', th: 'หมดกำลัง', en: 'Fatigued' }) }} ({{ badCount }})
-        </button>
+        <!-- Category Filter Tabs (Follows Product & Search!) -->
+        <div class="filter-right-tabs">
+          <button
+            type="button"
+            class="cat-tab"
+            :class="{ active: statusFilter === 'all' }"
+            @click="statusFilter = 'all'"
+          >
+            {{ l({ lo: 'ທັງໝົດ', th: 'ทั้งหมด', en: 'All' }) }} ({{ filteredBaseItems.length }})
+          </button>
+          <button
+            type="button"
+            class="cat-tab green"
+            :class="{ active: statusFilter === 'angels' }"
+            @click="statusFilter = 'angels'"
+          >
+            🟢 {{ l({ lo: 'Ads ນາງຟ້າ', th: 'แอดนางฟ้า', en: 'Angel' }) }} ({{ angelCount }})
+          </button>
+          <button
+            type="button"
+            class="cat-tab red"
+            :class="{ active: statusFilter === 'bad' }"
+            @click="statusFilter = 'bad'"
+          >
+            🔴 {{ l({ lo: 'ໝົດກຳລັງ', th: 'หมดกำลัง', en: 'Fatigued' }) }} ({{ badCount }})
+          </button>
 
-        <!-- 1-Click Pause All Bad Ads -->
-        <v-btn
-          v-if="statusFilter === 'bad' || badCount > 0"
-          color="error"
-          variant="flat"
-          size="small"
-          prepend-icon="mdi-pause-circle-outline"
-          :loading="bulkPausing"
-          class="ml-1 font-weight-bold"
-          @click="pauseAllBadAds"
-        >
-          {{ l({ lo: '⏸️ ປິດແອດທີ່ບໍ່ດີທັງໝົດ', th: '⏸️ ปิดแอดที่ไม่ดีทั้งหมด', en: 'Pause All Bad Ads' }) }}
-        </v-btn>
+          <!-- 1-Click Pause All Bad Ads -->
+          <v-btn
+            v-if="statusFilter === 'bad' || badCount > 0"
+            color="error"
+            variant="flat"
+            size="small"
+            prepend-icon="mdi-pause-circle-outline"
+            :loading="bulkPausing"
+            class="ml-1 font-weight-bold"
+            @click="pauseAllBadAds"
+          >
+            {{ l({ lo: '⏸️ ປິດແອດທີ່ບໍ່ດີທັງໝົດ', th: '⏸️ ปิดแอดที่ไม่ดีทั้งหมด', en: 'Pause All Bad Ads' }) }}
+          </v-btn>
+        </div>
       </div>
     </section>
 
@@ -2045,30 +2049,38 @@ onMounted(async () => {
           </div>
         </div>
 
-        <div class="persona-chips-row">
-          <div class="persona-chip success">
-            <span>👨 ເພດຫຼັກ:</span> <strong>{{ activeDemographics.bestGender }}</strong>
+        <div class="audience-metric-grid">
+          <div class="audience-metric-card">
+            <span class="am-label"><v-icon icon="mdi-account-outline" size="14" class="mr-1" />ເພດຫຼັກ</span>
+            <strong class="am-value emerald">{{ activeDemographics.bestGender }}</strong>
           </div>
-          <div class="persona-chip success">
-            <span>🎂 ອາຍຸທີ່ຊື້:</span> <strong>{{ activeDemographics.bestAge }}</strong>
+          <div class="audience-metric-card">
+            <span class="am-label"><v-icon icon="mdi-cake-variant-outline" size="14" class="mr-1" />ອາຍຸທີ່ຊື້</span>
+            <strong class="am-value emerald">{{ activeDemographics.bestAge }}</strong>
           </div>
-          <div class="persona-chip success">
-            <span>⏰ ຊ່ວງໂມງຄຳ:</span> <strong>{{ activeDemographics.bestHours }}</strong>
+          <div class="audience-metric-card">
+            <span class="am-label"><v-icon icon="mdi-clock-outline" size="14" class="mr-1" />ຊ່ວງໂມງຄຳ</span>
+            <strong class="am-value emerald">{{ activeDemographics.bestHours }}</strong>
           </div>
-          <div class="persona-chip success">
-            <span>🎬 Hook Rate 3s:</span> <strong>{{ activeDemographics.hookRateText }}</strong>
+          <div class="audience-metric-card">
+            <span class="am-label"><v-icon icon="mdi-movie-play-outline" size="14" class="mr-1" />Hook Rate 3s</span>
+            <strong class="am-value emerald">{{ activeDemographics.hookRateText }}</strong>
           </div>
-          <div class="persona-chip success">
-            <span>🤖 ລະບົບ OS:</span> <strong>{{ activeDemographics.bestDevice }}</strong>
+          <div class="audience-metric-card">
+            <span class="am-label"><v-icon icon="mdi-cellphone" size="14" class="mr-1" />ລະບົບ OS</span>
+            <strong class="am-value emerald">{{ activeDemographics.bestDevice }}</strong>
           </div>
-          <div class="persona-chip success">
-            <span>📺 ຕຳແໜ່ງທີ່ດີ:</span> <strong>{{ activeDemographics.bestPlacement }}</strong>
+          <div class="audience-metric-card">
+            <span class="am-label"><v-icon icon="mdi-monitor-cellphone" size="14" class="mr-1" />ຕຳແໜ່ງທີ່ດີ</span>
+            <strong class="am-value emerald">{{ activeDemographics.bestPlacement }}</strong>
           </div>
-          <div class="persona-chip success">
-            <span>📍 ແຂວງອັນດັບ 1:</span> <strong>{{ activeDemographics.bestRegion }}</strong>
+          <div class="audience-metric-card">
+            <span class="am-label"><v-icon icon="mdi-map-marker-outline" size="14" class="mr-1" />ແຂວງອັນດັບ 1</span>
+            <strong class="am-value emerald">{{ activeDemographics.bestRegion }}</strong>
           </div>
-          <div class="persona-chip warning">
-            <span>🛑 ຜານເງິນຟຣີ:</span> <strong>{{ activeDemographics.wastedText }}</strong>
+          <div class="audience-metric-card warning">
+            <span class="am-label"><v-icon icon="mdi-alert-circle-outline" size="14" class="mr-1" />ຈຸດຜານເງິນຟຣີ</span>
+            <strong class="am-value rose">{{ activeDemographics.wastedText }}</strong>
           </div>
         </div>
 
@@ -2082,14 +2094,14 @@ onMounted(async () => {
               </strong>
             </div>
             <v-btn
-              color="primary"
-              variant="flat"
+              color="white"
+              variant="tonal"
               size="small"
               prepend-icon="mdi-content-copy"
               class="font-weight-bold text-caption"
               @click="copyTargetingSettings"
             >
-              {{ copiedTargeting ? 'ຄັດລອກແລ້ວ! ✅' : '📋 ຄັດລອກຄ່າ Targeting ໄປຕັ້ງໃນ Meta' }}
+              {{ copiedTargeting ? 'ຄັດລອກແລ້ວ! ✅' : 'ຄັດລອກຄ່າ Targeting ໄປຕັ້ງໃນ Meta' }}
             </v-btn>
           </div>
 
@@ -2123,28 +2135,26 @@ onMounted(async () => {
       </section>
 
       <!-- Sub-Navigation: Demographics vs Real Buyers -->
-      <div class="d-flex align-center justify-space-between mb-4 flex-wrap gap-2">
-        <div class="d-flex align-center gap-2">
-          <v-btn
-            size="small"
-            :variant="demographicTab === 'demographics' ? 'flat' : 'outlined'"
-            :color="demographicTab === 'demographics' ? 'primary' : 'default'"
-            prepend-icon="mdi-chart-box-outline"
-            class="font-weight-bold"
+      <div class="demographics-subnav-bar">
+        <div class="subnav-pill-group">
+          <button
+            type="button"
+            class="subnav-pill"
+            :class="{ active: demographicTab === 'demographics' }"
             @click="demographicTab = 'demographics'"
           >
-            📊 6 ມິຕິ Demographics & ພຶດຕິກຳ (Insights Matrix)
-          </v-btn>
-          <v-btn
-            size="small"
-            :variant="demographicTab === 'buyers' ? 'flat' : 'outlined'"
-            :color="demographicTab === 'buyers' ? 'success' : 'default'"
-            prepend-icon="mdi-account-check-outline"
-            class="font-weight-bold"
+            <v-icon icon="mdi-chart-box-outline" size="16" class="mr-1" />
+            <span>6 ມິຕິ Demographics & ພຶດຕິກຳ (Insights Matrix)</span>
+          </button>
+          <button
+            type="button"
+            class="subnav-pill"
+            :class="{ active: demographicTab === 'buyers' }"
             @click="demographicTab = 'buyers'; loadOrders()"
           >
-            👥 ລູກຄ້າຕົວຈິງ (Real Buyers: {{ filteredRealOrders.length }} ຄົນ)
-          </v-btn>
+            <v-icon icon="mdi-account-check-outline" size="16" class="mr-1" />
+            <span>ລູກຄ້າຕົວຈິງ (Real Buyers: {{ filteredRealOrders.length }} ຄົນ)</span>
+          </button>
         </div>
 
         <v-btn
@@ -2277,30 +2287,47 @@ onMounted(async () => {
             <span class="matrix-tag">ຊາຍ vs ຍິງ</span>
           </div>
 
-          <div v-if="activeDemographics.gender && activeDemographics.gender.length > 0" class="gender-split-container">
-            <div v-for="g in activeDemographics.gender" :key="g.key" class="gender-card" :class="g.key">
-              <div class="gender-card-top">
-                <span class="gender-icon">{{ g.key === 'male' ? '👨' : g.key === 'female' ? '👩' : '⚪' }}</span>
-                <strong class="gender-name">{{ g.label }}</strong>
-              </div>
-              <div class="gender-metrics">
-                <div class="gm-item">
-                  <span>ໃຊ້ຈ່າຍ:</span>
-                  <strong>{{ money(g.spend) }}</strong>
-                </div>
-                <div class="gm-item">
-                  <span>ຍອດຊື້:</span>
-                  <strong class="text-success">{{ g.purchasesCount || 0 }} ອໍເດີ</strong>
-                </div>
-                <div class="gm-item">
-                  <span>CPA:</span>
-                  <strong>{{ money(g.costPerPurchase || g.costPerMessage) }}</strong>
-                </div>
-              </div>
-            </div>
+          <div v-if="activeDemographics.gender && activeDemographics.gender.length > 0" class="matrix-table-wrap">
+            <table class="matrix-table">
+              <thead>
+                <tr>
+                  <th>ເພດ (Gender)</th>
+                  <th class="text-right">ໃຊ້ຈ່າຍ</th>
+                  <th class="text-right">ຍອດຊື້</th>
+                  <th class="text-right">CPA</th>
+                  <th>ສະຖານະ</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="g in activeDemographics.gender" :key="g.key">
+                  <td>
+                    <div class="d-flex align-center gap-2 font-weight-bold">
+                      <v-icon
+                        :icon="g.key === 'male' ? 'mdi-gender-male' : g.key === 'female' ? 'mdi-gender-female' : 'mdi-gender-male-female'"
+                        :color="g.key === 'male' ? 'primary' : g.key === 'female' ? 'pink' : 'grey'"
+                        size="18"
+                      />
+                      <span>{{ g.label }}</span>
+                    </div>
+                  </td>
+                  <td class="text-right">{{ money(g.spend) }}</td>
+                  <td class="text-right">
+                    <strong v-if="(g.purchasesCount || 0) > 0" class="text-success">{{ g.purchasesCount }}</strong>
+                    <span v-else class="text-medium-emphasis">0</span>
+                  </td>
+                  <td class="text-right font-weight-bold">{{ money(g.costPerPurchase || g.costPerMessage) }}</td>
+                  <td>
+                    <span v-if="(g.purchasesCount || 0) >= 3" class="pill-status good">ກຸ່ມຫຼັກ</span>
+                    <span v-else-if="(g.spend || 0) > 10 && (g.purchasesCount || 0) === 0" class="pill-status bad">ຜານເງິນ</span>
+                    <span v-else class="pill-status normal">ປົກກະຕິ</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
           <div v-else class="matrix-empty">
-            <span class="text-caption">ບໍ່ມີຂໍ້ມູນເພດ</span>
+            <v-icon icon="mdi-gender-male-female" size="32" class="text-medium-emphasis mb-1" />
+            <span class="text-caption">ບໍ່ມີຂໍ້ມູນເພດໃນຊ່ວງເວລານີ້</span>
           </div>
         </div>
 
@@ -3348,23 +3375,29 @@ onMounted(async () => {
   background: #ffffff;
   border: 1px solid var(--color-border);
   border-radius: 14px;
-  padding: 12px 16px;
+  padding: 14px 18px;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 12px;
   margin-bottom: 20px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
-.filter-left-fields {
+.filter-primary-row {
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-  flex: 1;
-  min-width: 260px;
+}
+
+.filter-secondary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding-top: 10px;
+  border-top: 1px solid rgba(0, 0, 0, 0.04);
 }
 
 .filter-ctl {
@@ -3375,7 +3408,7 @@ onMounted(async () => {
 .filter-ctl.account-ctl { max-width: 200px; }
 .filter-ctl.date-ctl { max-width: 160px; }
 .filter-ctl.product-ctl { max-width: 190px; }
-.filter-ctl.search-ctl { min-width: 180px; flex: 1; }
+.filter-search-field { min-width: 220px; max-width: 380px; flex: 1; }
 
 .filter-right-tabs {
   display: flex;
@@ -4593,44 +4626,57 @@ onMounted(async () => {
   color: #f1f5f9;
 }
 
-.persona-chips-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+.audience-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
 }
 
-.persona-chip {
+@media (max-width: 900px) {
+  .audience-metric-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.audience-metric-card {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.audience-metric-card.warning {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
+.am-label {
   font-size: 12px;
-  padding: 5px 12px;
-  border-radius: 8px;
+  font-weight: 600;
+  color: #94a3b8;
   display: flex;
   align-items: center;
-  gap: 6px;
 }
 
-.persona-chip.success {
-  background: rgba(16, 185, 129, 0.15);
-  border: 1px solid rgba(16, 185, 129, 0.35);
-  color: #a7f3d0;
+.am-value {
+  font-size: 13px;
+  font-weight: 750;
+  color: #f8fafc;
 }
 
-.persona-chip.success strong {
+.am-value.emerald {
   color: #34d399;
 }
 
-.persona-chip.warning {
-  background: rgba(239, 68, 68, 0.15);
-  border: 1px solid rgba(239, 68, 68, 0.35);
-  color: #fca5a5;
-}
-
-.persona-chip.warning strong {
+.am-value.rose {
   color: #f87171;
 }
 
 /* Sub Navigation Bar */
-.demo-subnav-bar {
+.demographics-subnav-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -4639,31 +4685,42 @@ onMounted(async () => {
   background: #ffffff;
   border: 1px solid var(--color-border);
   border-radius: 12px;
-  padding: 10px 14px;
+  padding: 8px 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
-.demo-subnav-btn {
-  font-size: 12.5px;
-  font-weight: 700;
-  padding: 7px 14px;
-  border-radius: 8px;
-  border: 1px solid transparent;
-  background: #f8fafc;
-  color: #475569;
-  cursor: pointer;
+.subnav-pill-group {
   display: flex;
   align-items: center;
-  transition: all 0.15s;
+  gap: 6px;
+  background: #f1f5f9;
+  padding: 4px;
+  border-radius: 10px;
 }
 
-.demo-subnav-btn:hover {
-  background: #f1f5f9;
+.subnav-pill {
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 6px 14px;
+  min-height: 36px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  transition: all 150ms ease;
+}
+
+.subnav-pill:hover {
   color: #0f172a;
 }
 
-.demo-subnav-btn.active {
-  background: #0f172a;
-  color: #ffffff;
+.subnav-pill.active {
+  background: #ffffff;
+  color: #0f172a;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 .buyer-search-wrap {
@@ -4772,59 +4829,7 @@ onMounted(async () => {
   border-radius: 10px;
 }
 
-/* Gender Split Cards */
-.gender-split-container {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
 
-.gender-card {
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm, 8px);
-  padding: 12px 14px;
-  background: var(--color-surface-soft);
-}
-
-.gender-card.male {
-  background: rgba(37, 99, 235, 0.04);
-}
-.gender-card.female {
-  background: rgba(236, 72, 153, 0.04);
-}
-
-.gender-card-top {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-
-.gender-icon {
-  font-size: 20px;
-}
-
-.gender-name {
-  font-size: 13px;
-  color: #0f172a;
-}
-
-.gender-metrics {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 12px;
-}
-
-.gm-item {
-  display: flex;
-  justify-content: space-between;
-  color: #64748b;
-}
-
-.gm-item strong {
-  color: #0f172a;
-}
 
 /* Card Quality & Fatigue Bar */
 .card-quality-fatigue-bar {
@@ -5096,7 +5101,7 @@ onMounted(async () => {
   margin-top: 14px;
   background: rgba(15, 23, 42, 0.45);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 12px;
+  border-radius: 10px;
   padding: 12px 16px;
   backdrop-filter: blur(8px);
 }
