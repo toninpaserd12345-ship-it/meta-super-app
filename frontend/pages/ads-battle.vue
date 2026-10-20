@@ -1346,11 +1346,11 @@ onMounted(async () => {
           color="primary"
           variant="flat"
           size="small"
-          prepend-icon="mdi-creation"
+          prepend-icon="mdi-lightbulb-on-outline"
           class="ai-strategist-btn font-weight-bold"
           @click="openAiStrategistModal"
         >
-          ✨ {{ l({ lo: 'AI ແນະນຳຍຸດທະສາດ', th: 'AI แนะนำยุทธศาสตร์', en: 'AI Strategist' }) }}
+          {{ l({ lo: 'ຍຸດທະສາດອັດສະລິຍະ', th: 'ยุทธศาสตร์อัจฉริยะ', en: 'Smart Strategy' }) }}
         </v-btn>
 
         <!-- View Toggle: Cards vs Table vs Demographics -->
@@ -2563,7 +2563,7 @@ onMounted(async () => {
         <v-card-title class="ai-modal-header">
           <div class="d-flex align-center gap-3">
             <div class="ai-header-badge">
-              <v-icon icon="mdi-creation" size="22" color="white" />
+              <v-icon icon="mdi-lightbulb-on-outline" size="22" color="white" />
             </div>
             <div>
               <div class="text-h6 font-weight-bold d-flex align-center gap-2">
@@ -4394,10 +4394,10 @@ onMounted(async () => {
 
 .phone-screen-frame {
   background: #ffffff;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--color-border);
   border-radius: 18px;
   overflow: hidden;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
 }
 
 .phone-header {
@@ -4535,7 +4535,7 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.12);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.06);
 }
 
 .persona-main {
@@ -4553,7 +4553,7 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.35);
+  box-shadow: 0 1px 3px rgba(59, 130, 246, 0.2);
 }
 
 .persona-title {

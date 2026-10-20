@@ -242,7 +242,7 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
       density="compact"
       variant="outlined"
       prepend-inner-icon="mdi-magnify"
-      placeholder="ຄົ້ນຫາເພຈຕາມຊື່ ຫຼື ID..."
+      label="ຄົ້ນຫາເພຈຕາມຊື່ ຫຼື ID..."
       hide-details
       clearable
       style="max-width: 360px; min-width: 220px;"

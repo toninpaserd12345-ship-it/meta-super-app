@@ -755,6 +755,7 @@ async function saveStatusUpdate() {
           <input
             v-model="searchQuery"
             type="text"
+            :aria-label="l({ lo: 'ຄົ້ນຫາອໍເດີ', th: 'ค้นหาออเดอร์', en: 'Search Orders' })"
             :placeholder="l({ lo: 'ຄົ້ນຫາເລກອໍເດີ, ຊື່, ເບີໂທ, tracking...', th: 'ค้นหารหัสออเดอร์, ชื่อ, เบอร์โทร, tracking...', en: 'Search order #, customer, phone, tracking...' })"
           />
           <button v-if="searchQuery" class="clear-btn" @click="searchQuery = ''">

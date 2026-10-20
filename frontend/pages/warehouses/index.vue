@@ -261,6 +261,7 @@ async function deleteWarehouse() {
         <input
           v-model="searchQuery"
           type="text"
+          :aria-label="l({ lo: 'ຄົ້ນຫາສາງ', th: 'ค้นหาคลัง', en: 'Search Locations' })"
           :placeholder="l({ lo: 'ຄົ້ນຫາຊື່ສາງ, ລະຫັດ, ທີ່ຢູ່...', th: 'ค้นหาชื่อคลัง, รหัส, ที่อยู่...', en: 'Search location name, code, address...' })"
         />
         <button v-if="searchQuery" class="clear-btn" @click="searchQuery = ''">

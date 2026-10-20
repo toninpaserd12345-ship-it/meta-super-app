@@ -1081,6 +1081,7 @@ const formatTime = (ts: string) => {
           <input
             v-model="searchQuery"
             type="text"
+            :aria-label="l({lo:'ຄົ້ນຫາການສົນທະນາ',th:'ค้นหาการสนทนา',en:'Search conversations'})"
             :placeholder="l({lo:'ຄົ້ນຫາຊື່, ເບີ, ຂໍ້ຄວາມ...',th:'ค้นหาชื่อ, เบอร์, ข้อความ...',en:'Search name, phone, msg...'})"
           />
           <button v-if="searchQuery" class="clear-search-btn" @click="searchQuery = ''" type="button">

@@ -150,7 +150,7 @@ function computeStrengthScore(purchases: number, cpa: number | null, ctr: number
 
 function getStrengthLabel(score: number): { label: string; color: string; icon: string } {
   if (score >= 80) return { label: l({ lo: '🔥 ແຮງຫຼາຍ (Angel)', th: '🔥 แรงมาก (Angel)', en: '🔥 Super Strong' }), color: '#10b981', icon: 'mdi-star-face' }
-  if (score >= 65) return { label: l({ lo: '✨ ແຂງແກ່ນ', th: '✨ แข็งแกร่ง', en: '✨ Strong' }), color: '#059669', icon: 'mdi-shield-check' }
+  if (score >= 65) return { label: l({ lo: 'ແຂງແກ່ນ (Strong)', th: 'แข็งแกร่ง (Strong)', en: 'Strong' }), color: '#059669', icon: 'mdi-shield-check' }
   if (score >= 45) return { label: l({ lo: '🟡 ປານກາງ', th: '🟡 ปานกลาง', en: '🟡 Moderate' }), color: '#3b82f6', icon: 'mdi-minus-circle' }
   if (score >= 30) return { label: l({ lo: '⚠️ ເລີ່ມຕົກ', th: '⚠️ เริ่มตก', en: '⚠️ Weakening' }), color: '#ef4444', icon: 'mdi-trending-down' }
   return { label: l({ lo: '🛑 ໝົດກຳລັງ (Fatigued)', th: '🛑 หมดกำลัง (Fatigued)', en: '🛑 Fatigued' }), color: '#dc2626', icon: 'mdi-alert-octagon' }
@@ -1072,7 +1072,7 @@ const aggregatedMetrics = computed(() => {
             :class="{ active: currentFilter === 'top3' }"
             @click="filterSeries('top3')"
           >
-            ✨ {{ l({ lo: 'ທຽບ ນາງຟ້າ VS ໂຕບໍ່ດີ', th: 'เทียบ นางฟ้า VS ตัวไม่ดี', en: 'Battle Top 3' }) }}
+            {{ l({ lo: 'ທຽບ ນາງຟ້າ VS ໂຕບໍ່ດີ', th: 'เทียบ นางฟ้า VS ตัวไม่ดี', en: 'Battle Top 3' }) }}
           </button>
           <button
             v-if="props.isToday"

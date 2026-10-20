@@ -822,15 +822,15 @@ function isAngelAd(item: MetaInsightItem): { isAngel: boolean; score: number; re
     }
   }
 
-  // 2. Strong Performer (✨): High purchase intent (at least 1 order and good ROAS or high buying opportunity)
+  // 2. Strong Performer: High purchase intent (at least 1 order and good ROAS or high buying opportunity)
   if (purchases >= 1 && (roas >= 2.0 || opp.level === 'high' || (cost != null && cost <= targetCpa))) {
     return {
       isAngel: true,
       score: 85,
       reason: l({
-        lo: `✨ Ads ດາວເດັ່ນ: ປິດໄດ້ ${purchases} ອໍເດີ${roas > 0 ? ` · ROAS ${fmt(roas, 2)}x` : ''} (ໂອກາດຊື້ສູງ / ພ້ອມຂະຫຍາຍງົບ)`,
-        th: `✨ แอดดาวเด่น: ปิดได้ ${purchases} ออเดอร์${roas > 0 ? ` · ROAS ${fmt(roas, 2)}x` : ''} (โอกาสซื้อสูง / พร้อมขยายงบ)`,
-        en: `✨ Winning Ad: ${purchases} orders closed${roas > 0 ? ` · ROAS ${fmt(roas, 2)}x` : ''} (High conversion / Scale candidate)`,
+        lo: `🌟 Ads ດາວເດັ່ນ: ປິດໄດ້ ${purchases} ອໍເດີ${roas > 0 ? ` · ROAS ${fmt(roas, 2)}x` : ''} (ໂອກາດຊື້ສູງ / ພ້ອມຂະຫຍາຍງົບ)`,
+        th: `🌟 แอดดาวเด่น: ปิดได้ ${purchases} ออเดอร์${roas > 0 ? ` · ROAS ${fmt(roas, 2)}x` : ''} (โอกาสซื้อสูง / พร้อมขยายงบ)`,
+        en: `🌟 Winning Ad: ${purchases} orders closed${roas > 0 ? ` · ROAS ${fmt(roas, 2)}x` : ''} (High conversion / Scale candidate)`,
       }),
     }
   }
@@ -1203,9 +1203,9 @@ function autoCalculateProductStrategy(productId: string) {
 
   saveProductStrategies()
   success.value = l({
-    lo: `✨ ຄິດໄລ່ຍຸດທະສາດສຳເລັດ: ລາຄາ ${money(price)}, ເປົ້າ CPA ${money(targetCpa)}, Scale CPA <= ${money(scaleCpa)}, Stop Loss >= ${money(stopSpend)}`,
-    th: `✨ คำนวณยุทธศาสตร์สำเร็จ: ราคา ${money(price)}, เป้า CPA ${money(targetCpa)}, Scale CPA <= ${money(scaleCpa)}, Stop Loss >= ${money(stopSpend)}`,
-    en: `✨ Auto-calculated strategy: Price ${money(price)}, Target CPA ${money(targetCpa)}, Scale CPA <= ${money(scaleCpa)}, Stop Loss >= ${money(stopSpend)}`
+    lo: `ຄິດໄລ່ຍຸດທະສາດສຳເລັດ: ລາຄາ ${money(price)}, ເປົ້າ CPA ${money(targetCpa)}, Scale CPA <= ${money(scaleCpa)}, Stop Loss >= ${money(stopSpend)}`,
+    th: `คำนวณยุทธศาสตร์สำเร็จ: ราคา ${money(price)}, เป้า CPA ${money(targetCpa)}, Scale CPA <= ${money(scaleCpa)}, Stop Loss >= ${money(stopSpend)}`,
+    en: `Auto-calculated strategy: Price ${money(price)}, Target CPA ${money(targetCpa)}, Scale CPA <= ${money(scaleCpa)}, Stop Loss >= ${money(stopSpend)}`
   })
 }
 
@@ -2369,7 +2369,7 @@ onMounted(async () => {
               { title: l({ lo: '💬 ຄົນທັກຫຼາຍສຸດ', th: '💬 ทักแชตสูงสุด', en: 'Most messages' }), value: 'messages' },
               { title: l({ lo: '⚡ ໃຊ້ຈ່າຍສູງສຸດ', th: '⚡ ใช้จ่ายสูงสุด', en: 'Highest spend' }), value: 'spend' },
               { title: l({ lo: '📈 ROAS ສູງສຸດ', th: '📈 ROAS สูงสุด', en: 'Highest ROAS' }), value: 'roas' },
-              { title: l({ lo: '✨ ສ້າງໃໝ່ສຸດ', th: '✨ สร้างใหม่ล่าสุด', en: 'Newest created' }), value: 'newest' },
+              { title: l({ lo: 'ສ້າງໃໝ່ສຸດ', th: 'สร้างใหม่ล่าสุด', en: 'Newest created' }), value: 'newest' },
               { title: l({ lo: '🔤 ຊື່ (A-Z)', th: '🔤 ชื่อ (A-Z)', en: 'Name (A-Z)' }), value: 'name' }
             ]"
             item-title="title"
@@ -2894,7 +2894,7 @@ onMounted(async () => {
                       class="font-weight-bold"
                       @click="autoCalculateProductStrategy(currentStrategyProduct.id)"
                     >
-                      {{ l({ lo: '✨ ຄິດໄລ່ໃຫ້ທັນທີ', th: '✨ คำนวณให้ทันที', en: '✨ Auto-Fill' }) }}
+                      {{ l({ lo: 'ຄິດໄລ່ໃຫ້ທັນທີ', th: 'คำนวณให้ทันที', en: 'Auto-Calculate' }) }}
                     </v-btn>
                   </div>
 

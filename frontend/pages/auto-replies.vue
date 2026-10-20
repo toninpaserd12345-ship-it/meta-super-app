@@ -325,7 +325,7 @@ watch(adAccountId, loadCampaigns)
             <v-btn value="active" size="small" color="success">{{ locale==='lo'?'ເປີດຢູ່':'Active' }} ({{ flows.filter(f => f.isActive).length }})</v-btn>
             <v-btn value="paused" size="small">{{ locale==='lo'?'ປິດຢູ່':'Paused' }} ({{ flows.filter(f => !f.isActive).length }})</v-btn>
           </v-btn-toggle>
-          <v-text-field v-model="search" density="compact" variant="outlined" prepend-inner-icon="mdi-magnify" :placeholder="t('auto.search')" hide-details clearable style="min-width: 200px;"/>
+          <v-text-field v-model="search" :label="t('auto.search')" density="compact" variant="outlined" prepend-inner-icon="mdi-magnify" hide-details clearable style="min-width: 200px;"/>
         </div>
       </div>
       <div v-if="filteredFlows.length" class="rule-list">
@@ -432,7 +432,7 @@ watch(adAccountId, loadCampaigns)
         <div v-if="loading" class="loading"><v-progress-circular indeterminate color="primary"/></div>
         <div v-else-if="targetType==='post'">
           <div class="d-flex align-center gap-2 mb-3 flex-wrap">
-            <v-text-field v-model="postSearch" density="compact" variant="outlined" prepend-inner-icon="mdi-magnify" :placeholder="locale==='lo'?'ຄົ້ນຫາໂພສຕາມແຄັບຊັນ ຫຼື ID...':'Search posts by message or ID...'" hide-details clearable style="max-width: 360px; min-width: 200px;"/>
+            <v-text-field v-model="postSearch" :label="locale==='lo'?'ຄົ້ນຫາໂພສ...':'Search posts...'" density="compact" variant="outlined" prepend-inner-icon="mdi-magnify" hide-details clearable style="max-width: 360px; min-width: 200px;"/>
             <v-btn size="small" variant="tonal" color="primary" prepend-icon="mdi-checkbox-multiple-marked-outline" @click="selectAllAvailablePosts">{{ locale==='lo'?'ເລືອກທຸກໂພສທີ່ວ່າງ':'Select all available' }}</v-btn>
             <v-btn size="small" variant="text" :disabled="!targets.filter(t=>t.type==='post').length" @click="targets = targets.filter(t=>t.type!=='post')">{{ locale==='lo'?'ລ້າງໂພສ':'Clear posts' }}</v-btn>
             <v-spacer/>
@@ -449,7 +449,7 @@ watch(adAccountId, loadCampaigns)
         <div v-else-if="targetType==='campaign'">
           <div class="d-flex align-center gap-2 mb-3 flex-wrap">
             <v-select v-model="adAccountId" :items="adAccounts.map(item=>({...item,label:`${item.accountType==='business'?'Business':'Personal'} · ${item.name}`}))" item-title="label" item-value="id" :label="t('auto.adAccount')" variant="outlined" density="compact" hide-details style="max-width: 320px;"/>
-            <v-text-field v-model="campaignSearch" density="compact" variant="outlined" prepend-inner-icon="mdi-magnify" :placeholder="locale==='lo'?'ຄົ້ນຫາແຄມເປນ...':'Search campaigns...'" hide-details clearable style="max-width: 320px;"/>
+            <v-text-field v-model="campaignSearch" :label="locale==='lo'?'ຄົ້ນຫາແຄມເປນ...':'Search campaigns...'" density="compact" variant="outlined" prepend-inner-icon="mdi-magnify" hide-details clearable style="max-width: 320px;"/>
             <v-spacer/>
             <span class="text-caption text-medium-emphasis">{{ targets.filter(t=>t.type==='campaign').length }} {{ locale==='lo'?'ແຄມເປນຖືກເລືອກ':'campaigns selected' }}</span>
           </div>
@@ -464,15 +464,15 @@ watch(adAccountId, loadCampaigns)
           <div class="mb-4 pa-3" style="background: var(--color-surface-soft); border-radius: 12px; border: 1px solid var(--color-border);">
             <div class="text-subtitle-2 mb-2"><strong>{{ locale==='lo' ? 'ເພີ່ມ Ad ID ໂດຍກົງ' : 'Add Ad ID directly' }}</strong></div>
             <div class="d-flex align-center gap-2 flex-wrap">
-              <v-text-field v-model="manualAdId" density="compact" variant="outlined" :placeholder="locale==='lo'?'ປ້ອນ Ad ID (ຕົວຢ່າງ: 2381234567890)':'Enter Ad ID (e.g. 2381234567890)'" hide-details style="max-width: 280px; min-width: 200px;"/>
-              <v-text-field v-model="manualAdName" density="compact" variant="outlined" :placeholder="locale==='lo'?'ຊື່ໂຄສະນາ (ເລືອກໃສ່ໄດ້)':'Ad Name (optional)'" hide-details style="max-width: 240px; min-width: 160px;"/>
+              <v-text-field v-model="manualAdId" :label="locale==='lo'?'Ad ID':'Ad ID'" density="compact" variant="outlined" hide-details style="max-width: 280px; min-width: 200px;"/>
+              <v-text-field v-model="manualAdName" :label="locale==='lo'?'ຊື່ໂຄສະນາ':'Ad Name'" density="compact" variant="outlined" hide-details style="max-width: 240px; min-width: 160px;"/>
               <v-btn color="primary" size="small" prepend-icon="mdi-plus" :disabled="!manualAdId.trim()" @click="addManualAd">{{ locale==='lo' ? 'ເພີ່ມ Ad ID' : 'Add Ad' }}</v-btn>
             </div>
           </div>
           <div class="d-flex align-center gap-2 mb-3 flex-wrap">
             <v-select v-model="adAccountId" :items="adAccounts.map(item=>({...item,label:`${item.accountType==='business'?'Business':'Personal'} · ${item.name}`}))" item-title="label" item-value="id" :label="t('auto.adAccount')" variant="outlined" density="compact" hide-details style="max-width: 260px;"/>
             <v-select v-model="selectedCampaignIdForAds" :items="campaigns" item-title="name" item-value="id" :label="locale==='lo'?'ເລືອກແຄມເປນເພື່ອດຶງໂຄສະນາ':'Select Campaign for Ads'" variant="outlined" density="compact" hide-details style="max-width: 280px;"/>
-            <v-text-field v-model="adSearch" density="compact" variant="outlined" prepend-inner-icon="mdi-magnify" :placeholder="locale==='lo'?'ຄົ້ນຫາໂຄສະນາ...':'Search ads...'" hide-details clearable style="max-width: 220px;"/>
+            <v-text-field v-model="adSearch" :label="locale==='lo'?'ຄົ້ນຫາໂຄສະນາ...':'Search ads...'" density="compact" variant="outlined" prepend-inner-icon="mdi-magnify" hide-details clearable style="max-width: 220px;"/>
             <v-spacer/>
             <span class="text-caption text-medium-emphasis">{{ targets.filter(t=>t.type==='ad').length }} {{ locale==='lo'?'ໂຄສະນາຖືກເລືອກ':'ads selected' }}</span>
           </div>

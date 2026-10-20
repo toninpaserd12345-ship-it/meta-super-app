@@ -357,6 +357,7 @@ onUnmounted(() => {
           <input 
             v-model="searchQuery" 
             type="text" 
+            :aria-label="l({ lo: 'ຄົ້ນຫາ Lead', th: 'ค้นหา Lead', en: 'Search Leads' })"
             :placeholder="l({ lo: 'ຄົ້ນຫາ Sender ID, ຊື່, ລະຫັດ Page, Ad ID...', th: 'ค้นหา Sender ID, ชื่อ, รหัส Page, Ad ID...', en: 'Search Sender ID, name, Page ID, Ad ID...' })"
           />
           <button v-if="searchQuery" class="clear-btn" @click="searchQuery = ''"><v-icon icon="mdi-close" size="14"/></button>

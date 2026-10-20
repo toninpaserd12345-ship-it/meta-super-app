@@ -488,9 +488,9 @@ function autoCalcCurrentStrategy() {
   Object.assign(strategyForm, calc)
   noticeType.value = 'success'
   notice.value = l({
-    lo: '✨ ຄິດໄລ່ຍຸດທະສາດໂຄສະນາອັດຕະໂນມັດຈາກລາຄາສິນຄ້າແລ້ວ!',
-    th: '✨ คำนวณยุทธศาสตร์โฆษณาอัตโนมัติจากราคาสินค้าแล้ว!',
-    en: '✨ Auto-calculated ad strategy from product price!',
+    lo: 'ຄິດໄລ່ຍຸດທະສາດໂຄສະນາອັດຕະໂນມັດຈາກລາຄາສິນຄ້າແລ້ວ!',
+    th: 'คำนวณยุทธศาสตร์โฆษณาอัตโนมัติจากราคาสินค้าแล้ว!',
+    en: 'Auto-calculated ad strategy from product price!',
   })
 }
 
@@ -587,6 +587,7 @@ function goToProductAds(productId: string) {
         <input
           v-model="searchQuery"
           type="text"
+          :aria-label="l({ lo: 'ຄົ້ນຫາສິນຄ້າ', th: 'ค้นหาสินค้า', en: 'Search Products' })"
           :placeholder="l({ lo: 'ຄົ້ນຫາຊື່ສິນຄ້າ, ໂຄ້ດ (#P01), ບາໂຄ້ດ, ໝວດໝູ່...', th: 'ค้นหาชื่อสินค้า, โค้ด (#P01), บาร์โค้ด, หมวดหมู่...', en: 'Search product name, code (#P01), barcode, category...' })"
         />
         <button v-if="searchQuery" class="clear-btn" @click="searchQuery = ''">
@@ -868,10 +869,10 @@ function goToProductAds(productId: string) {
                 <span></span>
               </div>
               <div v-for="(v, idx) in variantsList" :key="idx" class="variant-table-row">
-                <input v-model="v.color" type="text" class="variant-input" :placeholder="l({ lo: 'ສີ', th: 'สี', en: 'Color' })" @input="syncVariants"/>
-                <input v-model="v.size" type="text" class="variant-input" :placeholder="l({ lo: 'ເບີ', th: 'เบอร์', en: 'Size' })" @input="syncVariants"/>
-                <input v-model.number="v.quantity" type="number" min="0" class="variant-input qty-box" @input="syncVariants"/>
-                <input v-model="v.sku" type="text" class="variant-input" placeholder="SKU" @input="syncVariants"/>
+                <input v-model="v.color" type="text" class="variant-input" :aria-label="l({ lo: 'ສີ', th: 'สี', en: 'Color' })" :placeholder="l({ lo: 'ສີ', th: 'สี', en: 'Color' })" @input="syncVariants"/>
+                <input v-model="v.size" type="text" class="variant-input" :aria-label="l({ lo: 'ເບີ', th: 'เบอร์', en: 'Size' })" :placeholder="l({ lo: 'ເບີ', th: 'เบอร์', en: 'Size' })" @input="syncVariants"/>
+                <input v-model.number="v.quantity" type="number" min="0" class="variant-input qty-box" :aria-label="l({ lo: 'ຈຳນວນ', th: 'จำนวน', en: 'Qty' })" @input="syncVariants"/>
+                <input v-model="v.sku" type="text" class="variant-input" aria-label="SKU" placeholder="SKU" @input="syncVariants"/>
                 <button type="button" class="btn-del-variant" @click="removeVariant(idx)" :title="l({ lo: 'ລຶບແຖວ', th: 'ลบแถว', en: 'Remove' })">
                   <v-icon icon="mdi-trash-can-outline" size="14"/>
                 </button>
@@ -1302,7 +1303,7 @@ function goToProductAds(productId: string) {
               prepend-icon="mdi-calculator-variant"
               @click="autoCalcCurrentStrategy"
             >
-              {{ l({ lo: '✨ ຄິດໄລ່ອັດຕະໂນມັດ', th: '✨ คำนวณอัตโนมัติ', en: '✨ Auto-Calculate' }) }}
+              {{ l({ lo: 'ຄິດໄລ່ອັດຕະໂນມັດ', th: 'คำนวณอัตโนมัติ', en: 'Auto-Calculate' }) }}
             </v-btn>
           </div>
 

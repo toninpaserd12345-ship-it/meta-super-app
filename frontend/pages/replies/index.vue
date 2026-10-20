@@ -121,7 +121,7 @@ async function deleteSet() {
         density="compact"
         variant="outlined"
         prepend-inner-icon="mdi-magnify"
-        :placeholder="locale==='lo'?'ຄົ້ນຫາຊຸດຂໍ້ຄວາມ...':'Search reply sets by name...'"
+        :label="locale==='lo'?'ຄົ້ນຫາຊຸດຂໍ້ຄວາມ...':'Search reply sets...'"
         hide-details
         clearable
         style="max-width: 400px; min-width: 240px;"
