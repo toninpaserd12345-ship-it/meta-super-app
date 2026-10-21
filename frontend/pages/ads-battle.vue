@@ -2687,8 +2687,8 @@ onMounted(async () => {
 .simple-tag {
   font-size: 12px;
   font-weight: 700;
-  background: #e0e7ff;
-  color: #4338ca;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
   padding: 2px 8px;
   border-radius: 999px;
 }

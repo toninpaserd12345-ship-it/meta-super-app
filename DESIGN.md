@@ -59,7 +59,7 @@ Every meaningful image has alt text derived from the real record name. Decorativ
 
 ## 5. Visual direction: Omnichannel Workbench
 
-The product is an operational workbench, not a collection of promotional cards. Its visual model is a calm control room: a dark navigation rail, a warm-neutral canvas, bright working surfaces, dense but readable rows, and one indigo action color. Product truth, status, and relationships have priority over decoration.
+The product is an operational workbench, not a collection of promotional cards. Its visual model is a calm control room matching the Meta / Facebook enterprise language: a dark navigation rail (`#1C1E21`), a Facebook canvas (`#F0F2F5`), bright white working surfaces, dense but readable rows, and the canonical Meta Blue (`#0866FF`) primary action color. Product truth, status, and relationships have priority over decoration.
 
 - Avoid the “AI dashboard” look: no rainbow metric tiles, icon-heading-text card grids, ornamental gradients, floating glass navigation, fake sparklines, decorative badges, or cards nested inside cards.
 - One Material Design Icons family is used throughout. Icons are 18–22 px in controls and 16–18 px in dense rows. A colored icon tile is only valid when it communicates a real state.

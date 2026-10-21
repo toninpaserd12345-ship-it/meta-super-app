@@ -253,7 +253,7 @@ onMounted(() => {
   text-transform: capitalize;
 }
 .badge.admin { background: var(--color-error-soft); color: var(--color-error); }
-.badge.manager { background: #e0e7ff; color: #3730a3; }
+.badge.manager { background: var(--color-primary-soft); color: var(--color-primary); }
 .badge.employee { background: var(--color-success-soft); color: var(--color-success); }
 
 .text-danger { color: var(--color-error); }

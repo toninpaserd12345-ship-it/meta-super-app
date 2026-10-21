@@ -4678,9 +4678,9 @@ onMounted(async () => {
   border: 1px solid rgba(34, 197, 94, 0.35);
 }
 .mode-pill.manual {
-  background: rgba(99, 102, 241, 0.12);
-  color: #6366f1;
-  border: 1px solid rgba(99, 102, 241, 0.25);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  border: 1px solid var(--color-info-border);
 }
 .mode-desc {
   display: grid;

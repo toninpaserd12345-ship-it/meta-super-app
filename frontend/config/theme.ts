@@ -1,9 +1,9 @@
-/** JavaScript theme values. Keep component logic semantic: use `primary`, not raw hex. */
+/** JavaScript theme values for Meta Facebook styling. */
 export const themeColors = {
-  primary: '#5B50E6',
-  secondary: '#10B981',
-  background: '#F6F7FB',
+  primary: '#0866FF',
+  secondary: '#31A24C',
+  background: '#F0F2F5',
   surface: '#FFFFFF',
-  text: '#171927',
-  error: '#E5484D',
+  text: '#050505',
+  error: '#FA383E',
 } as const

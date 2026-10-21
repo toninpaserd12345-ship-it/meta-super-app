@@ -1615,15 +1615,15 @@ function goToProductAds(productId: string) {
   border: 1px solid var(--color-purple-soft);
 }
 .tag-autoreply {
-  background: #eef2ff;
-  color: #4338ca;
-  border: 1px solid #c7d2fe;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  border: 1px solid var(--color-info-border);
   display: inline-flex;
   align-items: center;
   transition: all .15s ease;
 }
 .tag-autoreply:hover {
-  background: #e0e7ff;
+  background: var(--color-primary-softer);
 }
 .tag-strategy {
   background: var(--color-purple-soft);
