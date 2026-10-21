@@ -55,49 +55,49 @@ const STATUS_OPTIONS: StatusOption[] = [
   {
     key: 'new',
     label: { lo: 'ໃໝ່', th: 'ลูกค้าใหม่', en: 'New' },
-    color: '#2563eb',
-    bg: '#eff6ff',
-    border: '#bfdbfe',
+    color: 'var(--color-primary)',
+    bg: 'var(--color-primary-soft)',
+    border: 'var(--color-info-border)',
     icon: 'mdi-account-plus',
   },
   {
     key: 'in_progress',
     label: { lo: 'ກຳລັງລົມ', th: 'กำลังคุย', en: 'Chatting' },
-    color: '#7c3aed',
-    bg: '#f5f3ff',
-    border: '#ddd6fe',
+    color: 'var(--color-purple)',
+    bg: 'var(--color-purple-soft)',
+    border: 'var(--color-purple-border)',
     icon: 'mdi-chat-processing-outline',
   },
   {
     key: 'pending_payment',
     label: { lo: 'ລໍຖ້າໂອນ', th: 'รอโอนเงิน', en: 'Pending Payment' },
-    color: '#ea580c',
-    bg: '#fff7ed',
-    border: '#fed7aa',
+    color: 'var(--color-warning)',
+    bg: 'var(--color-warning-soft)',
+    border: 'var(--color-warning-border)',
     icon: 'mdi-clock-outline',
   },
   {
     key: 'purchased',
     label: { lo: 'ປິດການຂາຍ', th: 'ซื้อแล้ว / ปิดการขาย', en: 'Purchased' },
-    color: '#16a34a',
-    bg: '#f0fdf4',
-    border: '#bbf7d0',
+    color: 'var(--color-success)',
+    bg: 'var(--color-success-soft)',
+    border: 'var(--color-success-border)',
     icon: 'mdi-check-circle',
   },
   {
     key: 'follow_up',
     label: { lo: 'ຕິດຕາມຕໍ່', th: 'ติดตามต่อ', en: 'Follow-up' },
-    color: '#0891b2',
-    bg: '#ecfeff',
-    border: '#a5f3fc',
+    color: 'var(--color-info)',
+    bg: 'var(--color-info-soft)',
+    border: 'var(--color-info-border)',
     icon: 'mdi-calendar-clock',
   },
   {
     key: 'cancelled',
     label: { lo: 'ຍົກເລີກ / ບໍ່ຊື້', th: 'ยกเลิก / ไม่ซื้อ', en: 'Cancelled' },
-    color: '#64748b',
-    bg: '#f8fafc',
-    border: '#e2e8f0',
+    color: 'var(--color-text-muted)',
+    bg: 'var(--color-background)',
+    border: 'var(--color-border)',
     icon: 'mdi-close-circle-outline',
   },
 ]
@@ -107,9 +107,9 @@ const getStatusInfo = (status?: string): StatusOption => {
   return STATUS_OPTIONS.find(s => s.key === norm) || {
     key: norm,
     label: { lo: norm, th: norm, en: norm },
-    color: '#64748b',
-    bg: '#f1f5f9',
-    border: '#cbd5e1',
+    color: 'var(--color-text-muted)',
+    bg: 'var(--color-surface-soft)',
+    border: 'var(--color-border-strong)',
     icon: 'mdi-tag-outline',
   }
 }
@@ -259,7 +259,7 @@ onMounted(() => {
     try {
       const parsed = JSON.parse(e.data)
       if (parsed.type === 'lead_alert') {
-        notice.value = l({ lo: '🎉 ມີ Lead ໃໝ່ເຂົ້າມາທັນທີ!', th: '🎉 มี Lead ใหม่เข้ามาทันที!', en: '🎉 New lead incoming!' })
+        notice.value = l({ lo: ' ມີ Lead ໃໝ່ເຂົ້າມາທັນທີ!', th: ' มี Lead ใหม่เข้ามาทันที!', en: ' New lead incoming!' })
         void refresh()
       }
     } catch {}
@@ -319,7 +319,7 @@ onUnmounted(() => {
         <div class="kpi-icon new"><v-icon icon="mdi-account-plus" size="24"/></div>
         <div class="kpi-content">
           <small>{{ l({ lo: 'ລູກຄ້າໃໝ່', th: 'ลูกค้าใหม่', en: 'New Leads' }) }}</small>
-          <strong style="color: #2563eb;">{{ statusCounts.new || 0 }}</strong>
+          <strong class="count-new">{{ statusCounts.new || 0 }}</strong>
         </div>
       </div>
 
@@ -327,7 +327,7 @@ onUnmounted(() => {
         <div class="kpi-icon in_progress"><v-icon icon="mdi-chat-processing-outline" size="24"/></div>
         <div class="kpi-content">
           <small>{{ l({ lo: 'ກຳລັງລົມ', th: 'กำลังคุย', en: 'Chatting' }) }}</small>
-          <strong style="color: #7c3aed;">{{ statusCounts.in_progress || 0 }}</strong>
+          <strong class="count-progress">{{ statusCounts.in_progress || 0 }}</strong>
         </div>
       </div>
 
@@ -335,7 +335,7 @@ onUnmounted(() => {
         <div class="kpi-icon pending_payment"><v-icon icon="mdi-clock-outline" size="24"/></div>
         <div class="kpi-content">
           <small>{{ l({ lo: 'ລໍຖ້າໂອນ', th: 'รอโอนเงิน', en: 'Pending Payment' }) }}</small>
-          <strong style="color: #ea580c;">{{ statusCounts.pending_payment || 0 }}</strong>
+          <strong class="count-pending">{{ statusCounts.pending_payment || 0 }}</strong>
         </div>
       </div>
 
@@ -343,7 +343,7 @@ onUnmounted(() => {
         <div class="kpi-icon purchased"><v-icon icon="mdi-check-circle" size="24"/></div>
         <div class="kpi-content">
           <small>{{ l({ lo: 'ປິດການຂາຍແລ້ວ (CAPI)', th: 'ปิดการขายแล้ว (CAPI)', en: 'Purchased (CAPI)' }) }}</small>
-          <strong style="color: #16a34a;">{{ statusCounts.purchased || 0 }}</strong>
+          <strong class="count-purchased">{{ statusCounts.purchased || 0 }}</strong>
         </div>
       </div>
     </section>
@@ -360,7 +360,7 @@ onUnmounted(() => {
             :aria-label="l({ lo: 'ຄົ້ນຫາ Lead', th: 'ค้นหา Lead', en: 'Search Leads' })"
             :placeholder="l({ lo: 'ຄົ້ນຫາ Sender ID, ຊື່, ລະຫັດ Page, Ad ID...', th: 'ค้นหา Sender ID, ชื่อ, รหัส Page, Ad ID...', en: 'Search Sender ID, name, Page ID, Ad ID...' })"
           />
-          <button v-if="searchQuery" class="clear-btn" @click="searchQuery = ''"><v-icon icon="mdi-close" size="14"/></button>
+          <button v-if="searchQuery" class="clear-btn" :aria-label="l({ lo: 'ລ້າງການຄົ້ນຫາ', th: 'ล้างการค้นหา', en: 'Clear search' })" @click="searchQuery = ''"><v-icon icon="mdi-close" size="14"/></button>
         </div>
 
         <!-- Horizontal Status Filter Tabs -->
@@ -473,7 +473,7 @@ onUnmounted(() => {
                     {{ l(opt.label) }}
                   </v-list-item-title>
                   <template #append v-if="(lead.status || 'new') === opt.key">
-                    <v-icon icon="mdi-check" size="16" :color="opt.color"/>
+                    <v-icon icon="mdi-check" size="16" :style="{ color: opt.color }"/>
                   </template>
                 </v-list-item>
               </v-list>
@@ -603,7 +603,7 @@ onUnmounted(() => {
                   hide-details
                   style="max-width: 140px;"
                 />
-                <v-btn icon="mdi-delete-outline" color="error" variant="text" size="small" @click="steps.splice(i, 1)"/>
+                <v-btn icon="mdi-delete-outline" color="error" variant="text" size="small" aria-label="Remove follow-up step" @click="steps.splice(i, 1)"/>
               </div>
               <v-textarea 
                 v-model="step.message" 
@@ -638,9 +638,9 @@ onUnmounted(() => {
   align-items: center;
   gap: 24px;
   padding: 26px 28px;
-  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  background: linear-gradient(135deg, var(--color-text) 0%, var(--color-text) 100%);
   border-radius: var(--radius-lg);
-  color: #fff;
+  color: var(--color-surface);
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 .hero-tag {
@@ -656,7 +656,7 @@ onUnmounted(() => {
 }
 .hero-text p {
   margin: 0;
-  color: #94a3b8;
+  color: var(--color-text-faint);
   font-size: 13.5px;
   max-width: 640px;
   line-height: 1.5;
@@ -677,7 +677,7 @@ onUnmounted(() => {
 .capi-health-icon{width:42px;height:42px;display:grid;place-items:center;border-radius:12px;color:var(--color-primary);background:var(--color-primary-soft)}
 .capi-health-copy{display:grid;min-width:0}.capi-health-copy small{color:var(--color-text-muted);font-size: 12px;font-weight:800;letter-spacing:.09em}.capi-health-copy strong{font-size:14px}.capi-health-copy span{overflow:hidden;color:var(--color-text-secondary);font-size: 12px;text-overflow:ellipsis;white-space:nowrap}
 .capi-health-metrics{display:flex;gap:8px}.capi-health-metrics>div{display:grid;min-width:70px;padding:8px 10px;border-radius:10px;background:var(--color-background)}.capi-health-metrics small{color:var(--color-text-muted);font-size: 12px}.capi-health-metrics strong{font-size:15px}
-.capi-health.healthy{border-color:rgba(22,163,74,.3)}.capi-health.healthy .capi-health-icon{color:#167a4b;background:rgba(22,163,74,.1)}.capi-health.failing{border-color:rgba(239,68,68,.35)}.capi-health.failing .capi-health-icon{color:var(--color-error);background:rgba(239,68,68,.1)}
+.capi-health.healthy{border-color:rgba(22,163,74,.3)}.capi-health.healthy .capi-health-icon{color:var(--color-success);background:rgba(22,163,74,.1)}.capi-health.failing{border-color:rgba(239,68,68,.35)}.capi-health.failing .capi-health-icon{color:var(--color-error);background:rgba(239,68,68,.1)}
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -700,8 +700,8 @@ onUnmounted(() => {
   border-color: var(--color-primary);
 }
 .kpi-card.highlight-purchased {
-  border-color: #86efac;
-  background: #f0fdf4;
+  border-color: var(--color-success-border);
+  background: var(--color-success-soft);
 }
 .kpi-icon {
   width: 44px;
@@ -710,11 +710,11 @@ onUnmounted(() => {
   display: grid;
   place-items: center;
 }
-.kpi-icon.all { background: #f1f5f9; color: #475569; }
-.kpi-icon.new { background: #eff6ff; color: #2563eb; }
-.kpi-icon.in_progress { background: #f5f3ff; color: #7c3aed; }
-.kpi-icon.pending_payment { background: #fff7ed; color: #ea580c; }
-.kpi-icon.purchased { background: #dcfce7; color: #16a34a; }
+.kpi-icon.all { background: var(--color-surface-soft); color: var(--color-text-secondary); }
+.kpi-icon.new { background: var(--color-primary-soft); color: var(--color-primary); }
+.kpi-icon.in_progress { background: var(--color-purple-soft); color: var(--color-purple); }
+.kpi-icon.pending_payment { background: var(--color-warning-soft); color: var(--color-warning); }
+.kpi-icon.purchased { background: var(--color-success-soft); color: var(--color-success); }
 .kpi-content {
   display: flex;
   flex-direction: column;
@@ -813,7 +813,7 @@ onUnmounted(() => {
 .tab-btn.active {
   background: var(--color-primary);
   border-color: var(--color-primary);
-  color: #fff !important;
+  color: var(--color-surface) !important;
 }
 .count-badge {
   padding: 1px 6px;
@@ -823,7 +823,7 @@ onUnmounted(() => {
 }
 .tab-btn.active .count-badge {
   background: rgba(255,255,255,0.25);
-  color: #fff;
+  color: var(--color-surface);
 }
 .status-dot {
   width: 7px;
@@ -936,8 +936,8 @@ onUnmounted(() => {
   background: var(--color-surface);
   border: 1px solid var(--color-border-subtle);
 }
-.meta-pill.ad { background: #fff7ed; color: #c2410c; }
-.meta-pill.page { background: #eff6ff; color: #1d4ed8; }
+.meta-pill.ad { background: var(--color-warning-soft); color: var(--color-warning); }
+.meta-pill.page { background: var(--color-primary-soft); color: var(--color-primary-hover); }
 .meta-pill.time { color: var(--color-text-muted); }
 
 /* Lead Actions Column */
@@ -965,8 +965,8 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  background: #16a34a;
-  color: #fff;
+  background: var(--color-success);
+  color: var(--color-surface);
   border: none;
   padding: 6px 12px;
   border-radius: 18px;
@@ -975,15 +975,15 @@ onUnmounted(() => {
   cursor: pointer;
   transition: background 0.15s ease;
 }
-.quick-buy-btn:hover { background: #15803d; }
+.quick-buy-btn:hover { background: var(--color-success); }
 
 .purchased-badge {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  background: #dcfce7;
-  color: #166534;
-  border: 1px solid #bbf7d0;
+  background: var(--color-success-soft);
+  color: var(--color-success);
+  border: 1px solid var(--color-success-border);
   padding: 5px 10px;
   border-radius: 18px;
   font-size: 12px;
@@ -995,7 +995,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 4px;
   background: var(--color-primary);
-  color: #fff;
+  color: var(--color-surface);
   border: none;
   padding: 6px 12px;
   border-radius: 18px;
@@ -1076,6 +1076,7 @@ onUnmounted(() => {
   padding: 4px 8px;
   border-radius: 6px;
 }
+.count-new{color:var(--color-info)}.count-progress{color:var(--color-purple)}.count-pending{color:var(--color-warning)}.count-purchased{color:var(--color-success)}
 
 @media (max-width: 760px) {
   .capi-health { grid-template-columns: auto 1fr; align-items: start; }

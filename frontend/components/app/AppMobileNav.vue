@@ -46,18 +46,16 @@ const isChatActiveOnMobile = computed(() => {
     display: none !important;
   }
   .mobile-nav {
-    height: 60px;
+    height: 64px;
     display: flex;
     position: fixed;
     z-index: 80;
-    inset: auto 10px max(8px, env(safe-area-inset-bottom)) 10px;
-    padding: 4px;
-    background: rgba(255, 255, 255, 0.96);
-    border: 1px solid var(--color-border);
-    border-radius: 16px;
-    box-shadow: 0 10px 30px rgba(31, 35, 75, 0.14);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
+    inset: auto 0 0 0;
+    padding: 4px 6px calc(4px + env(safe-area-inset-bottom));
+    background: var(--color-surface);
+    border-top: 1px solid var(--color-border);
+    border-radius: 0;
+    box-shadow: 0 -8px 24px -22px rgba(23,32,51,.5);
   }
   .mobile-nav a,
   .mobile-nav > button {
@@ -69,7 +67,7 @@ const isChatActiveOnMobile = computed(() => {
     align-items: center;
     justify-content: center;
     gap: 3px;
-    border-radius: 14px;
+    border-radius: 8px;
     color: var(--color-text-secondary);
     background: none;
     text-decoration: none;

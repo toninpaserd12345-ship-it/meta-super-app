@@ -8,7 +8,7 @@ definePageMeta({ middleware: 'auth' })
     <div class="page-header">
       <div>
         <h1>{{ t('nav.settings') }}</h1>
-        <p>{{ l({lo:'ຈັດການບັນຊີ, ສະມາຊິກທີມ ແລະການຊຳລະເງິນ',th:'จัดการบัญชี สมาชิกทีม และการเรียกเก็บเงิน',en:'Manage your account, team members, and billing'}) }}</p>
+ <p>{{ l({lo:'ຈັດການບັນຊີ, ການແຈ້ງເຕືອນ, ສະມາຊິກທີມ ແລະການຊຳລະເງິນ',th:'จัดการบัญชี การแจ้งเตือน สมาชิกทีม และการเรียกเก็บเงิน',en:'Manage your account, notifications, team members, and billing'}) }}</p>
       </div>
     </div>
     
@@ -20,6 +20,9 @@ definePageMeta({ middleware: 'auth' })
         <NuxtLink to="/settings/team" class="nav-item" exact-active-class="active">
           <v-icon icon="mdi-account-multiple-outline" /> {{ l({lo:'ສະມາຊິກທີມ',th:'สมาชิกทีม',en:'Team Members'}) }}
         </NuxtLink>
+ <NuxtLink to="/settings/notifications" class="nav-item" exact-active-class="active">
+ <v-icon icon="mdi-bell-outline" /> {{ l({lo:'ການແຈ້ງເຕືອນ',th:'การแจ้งเตือน',en:'Notifications'}) }}
+ </NuxtLink>
         <NuxtLink to="/settings/billing" class="nav-item" exact-active-class="active">
           <v-icon icon="mdi-credit-card-outline" /> {{ l({lo:'ການຊຳລະ ແລະແພັກເກດ',th:'การเรียกเก็บเงินและแพ็กเกจ',en:'Billing & Plans'}) }}
         </NuxtLink>
@@ -33,86 +36,5 @@ definePageMeta({ middleware: 'auth' })
 </template>
 
 <style scoped>
-.page-header {
-  margin-bottom: 32px;
-}
-.page-header h1 {
-  font-size: 28px;
-  font-weight: 800;
-  color: var(--color-text);
-  margin-bottom: 4px;
-}
-.page-header p {
-  color: var(--color-text-secondary);
-  font-size: 15px;
-}
-
-.settings-layout {
-  display: flex;
-  gap: 32px;
-  align-items: flex-start;
-}
-
-.settings-nav {
-  width: 240px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  background: var(--color-surface);
-  padding: 16px;
-  border-radius: 16px;
-  border: 1px solid var(--color-border);
-}
-
-.nav-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 16px;
-  border-radius: 10px;
-  color: var(--color-text-secondary);
-  text-decoration: none;
-  font-weight: 600;
-  font-size: 14px;
-  transition: all 0.2s ease;
-}
-
-.nav-item:hover {
-  background: var(--color-surface-hover);
-  color: var(--color-text);
-}
-
-.nav-item.active {
-  background: var(--color-primary-soft);
-  color: var(--color-primary);
-}
-
-.settings-content {
-  flex: 1;
-  min-width: 0;
-  background: var(--color-surface);
-  border-radius: 16px;
-  border: 1px solid var(--color-border);
-  padding: 32px;
-  min-height: 400px;
-}
-
-@media (max-width: 768px) {
-  .settings-layout {
-    flex-direction: column;
-  }
-  .settings-nav {
-    width: 100%;
-    flex-direction: row;
-    overflow-x: auto;
-    padding: 8px;
-  }
-  .nav-item {
-    white-space: nowrap;
-  }
-  .settings-content {
-    padding: 20px;
-  }
-}
+.page-header{margin-bottom:20px}.page-header h1{margin:0 0 5px;font-size:var(--text-display);font-weight:780}.page-header p{margin:0;color:var(--color-text-secondary);font-size:13px}.settings-layout{display:grid;gap:16px}.settings-nav{display:flex;gap:2px;overflow-x:auto;padding:3px;border:1px solid var(--color-border);border-radius:11px;background:var(--color-surface);scrollbar-width:none}.settings-nav::-webkit-scrollbar{display:none}.nav-item{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:0 13px;border-radius:8px;color:var(--color-text-secondary);text-decoration:none;white-space:nowrap;font-size:13px;font-weight:650}.nav-item:hover{color:var(--color-text);background:var(--color-surface-soft)}.nav-item.active{color:var(--color-primary);background:var(--color-primary-soft)}.settings-content{min-width:0;min-height:420px;padding:24px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:12px}@media(max-width:640px){.settings-content{padding:18px 15px}.nav-item{flex:1 0 auto;justify-content:center;padding:0 10px}}
 </style>

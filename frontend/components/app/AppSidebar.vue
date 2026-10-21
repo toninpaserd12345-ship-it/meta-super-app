@@ -36,7 +36,7 @@ watch(() => route.path, () => {
           <span>M</span>
           <div class="brand-text">
             <strong>Meta Super App</strong>
-            <small>Commerce & AI Ads</small>
+            <small>{{ t('nav.dashboard') }}</small>
           </div>
         </NuxtLink>
         <button class="drawer-close-btn" :aria-label="t('common.close')" @click="close">
@@ -67,7 +67,6 @@ watch(() => route.path, () => {
           <button :class="{ active: locale === 'th' }" @click="setLocale('th')">ไทย</button>
           <button :class="{ active: locale === 'en' }" @click="setLocale('en')">EN</button>
         </div>
-        <div class="version-badge">Version 1.1.0 · Pro</div>
         <button class="signout" @click="logout">
           <v-icon icon="mdi-logout" size="18"/>
           <span>{{ t('common.signOut') }}</span>
@@ -88,8 +87,6 @@ watch(() => route.path, () => {
     inset: 0;
     z-index: 89;
     background: rgba(15, 23, 42, 0.45);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
   }
 }
 
@@ -126,9 +123,9 @@ watch(() => route.path, () => {
   position: fixed;
   inset: 0 auto 0 0;
   z-index: 90;
-  padding: 16px 14px 14px;
-  background: var(--color-surface);
-  border-right: 1px solid var(--color-border);
+  padding: 18px 13px 14px;
+  background: var(--color-rail);
+  border-right: 0;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
@@ -139,7 +136,7 @@ watch(() => route.path, () => {
   align-items: center;
   gap: 10px;
   padding: 2px 4px;
-  color: var(--color-text);
+  color: var(--color-surface);
   text-decoration: none;
 }
 .brand span {
@@ -148,12 +145,12 @@ watch(() => route.path, () => {
   border-radius: 10px;
   display: grid;
   place-items: center;
-  color: #fff;
-  background: var(--gradient-brand);
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
   font-weight: 850;
   font-size: 17px;
   flex-shrink: 0;
-  box-shadow: 0 4px 10px rgba(79, 70, 229, 0.28);
+  box-shadow: none;
 }
 .brand-text {
   display: flex;
@@ -166,8 +163,8 @@ watch(() => route.path, () => {
   letter-spacing: -0.02em;
 }
 .brand-text small {
-  font-size: 10px;
-  color: var(--color-text-muted);
+  font-size: 12px;
+  color: var(--color-rail-muted);
   font-weight: 600;
 }
 
@@ -188,11 +185,11 @@ watch(() => route.path, () => {
   margin-bottom: 8px;
 }
 .nav-group-title {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--color-text-faint);
+  color: var(--color-rail-muted);
   padding: 6px 10px 4px;
 }
 
@@ -203,7 +200,7 @@ watch(() => route.path, () => {
   align-items: center;
   gap: 10px;
   padding: 6px 10px;
-  color: var(--color-text-secondary);
+  color: var(--color-rail-text);
   text-decoration: none;
   font-size: 12.5px;
   font-weight: 600;
@@ -211,12 +208,12 @@ watch(() => route.path, () => {
   flex-shrink: 0;
 }
 .app-sidebar nav a:hover {
-  color: var(--color-text);
-  background: var(--color-surface-soft);
+  color: var(--color-surface);
+  background: rgba(255,255,255,.07);
 }
 .app-sidebar nav a.active {
-  color: var(--color-primary);
-  background: var(--color-primary-soft);
+  color: var(--color-surface);
+  background: var(--color-primary);
   font-weight: 750;
 }
 
@@ -226,7 +223,7 @@ watch(() => route.path, () => {
   flex-direction: column;
   gap: 6px;
   padding-top: 10px;
-  border-top: 1px solid var(--color-border-subtle);
+  border-top: 1px solid rgba(255,255,255,.12);
   flex-shrink: 0;
 }
 
@@ -235,7 +232,7 @@ watch(() => route.path, () => {
   grid-template-columns: repeat(3, 1fr);
   gap: 3px;
   padding: 3px;
-  background: var(--color-background);
+  background: rgba(255,255,255,.06);
   border-radius: 9px;
 }
 .language button {
@@ -243,21 +240,21 @@ watch(() => route.path, () => {
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: var(--color-text-secondary);
-  font-size: 11px;
+  color: var(--color-rail-text);
+  font-size: 12px;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.12s ease;
 }
 .language button.active {
-  color: var(--color-primary);
+  color: var(--color-rail);
   background: var(--color-surface);
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+  box-shadow: none;
 }
 
 .version-badge {
   text-align: center;
-  font-size: 9.5px;
+  font-size: 12px;
   color: var(--color-text-faint);
   font-weight: 600;
 }
@@ -271,14 +268,14 @@ watch(() => route.path, () => {
   align-items: center;
   gap: 10px;
   padding: 6px 10px;
-  color: var(--color-text-secondary);
+  color: var(--color-rail-text);
   font-size: 12.5px;
   font-weight: 600;
   transition: all 0.14s ease;
 }
 .signout:hover {
-  color: var(--color-error);
-  background: var(--color-error-soft);
+  color: var(--color-surface);
+  background: rgba(255,255,255,.07);
 }
 
 /* Tablet compact view (641px to 1023px) */
@@ -315,8 +312,8 @@ watch(() => route.path, () => {
     padding: 2px;
   }
   .language button {
-    min-height: 24px;
-    font-size: 9px;
+    min-height: 28px;
+    font-size: 12px;
   }
   .signout {
     justify-content: center;
@@ -331,7 +328,7 @@ watch(() => route.path, () => {
     max-width: 86vw;
     transform: translateX(-100%);
     transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
-    box-shadow: 0 20px 60px rgba(15, 23, 42, 0.25);
+    box-shadow: 16px 0 40px rgba(15,23,42,.24);
     padding: calc(16px + env(safe-area-inset-top)) 14px calc(16px + env(safe-area-inset-bottom));
   }
   .app-sidebar.drawer-open {

@@ -290,9 +290,9 @@ const productOptions = computed(() => {
   const list = [
     {
       title: l({
-        lo: `ທຸກສິນຄ້າ (${allList.length} · 🟢${totalAngels} · 🔴${totalBad})`,
-        th: `สินค้าทั้งหมด (${allList.length} · 🟢${totalAngels} · 🔴${totalBad})`,
-        en: `All Products (${allList.length} · 🟢${totalAngels} · 🔴${totalBad})`,
+        lo: `ທຸກສິນຄ້າ (${allList.length} · ${totalAngels} · ${totalBad})`,
+        th: `สินค้าทั้งหมด (${allList.length} · ${totalAngels} · ${totalBad})`,
+        en: `All Products (${allList.length} · ${totalAngels} · ${totalBad})`,
       }),
       value: 'all',
     },
@@ -301,7 +301,7 @@ const productOptions = computed(() => {
   for (const [pId, pData] of Object.entries(countsByProduct)) {
     if (pData.count > 0 || products.value.length <= 12) {
       list.push({
-        title: `📦 ${pData.name} (${pData.count}${pData.angels > 0 ? ` · 🟢${pData.angels}` : ''}${pData.bad > 0 ? ` · 🔴${pData.bad}` : ''})`,
+        title: ` ${pData.name} (${pData.count}${pData.angels > 0 ? ` · ${pData.angels}` : ''}${pData.bad > 0 ? ` · ${pData.bad}` : ''})`,
         value: pId,
       })
     }
@@ -309,7 +309,7 @@ const productOptions = computed(() => {
 
   if (unlinkedCount > 0) {
     list.push({
-      title: l({ lo: `⚠️ ຍັງບໍ່ຜູກສິນຄ້າ (${unlinkedCount})`, th: `⚠️ ยังไม่ผูกสินค้า (${unlinkedCount})`, en: `⚠️ Unlinked (${unlinkedCount})` }),
+      title: l({ lo: ` ຍັງບໍ່ຜູກສິນຄ້າ (${unlinkedCount})`, th: ` ยังไม่ผูกสินค้า (${unlinkedCount})`, en: ` Unlinked (${unlinkedCount})` }),
       value: 'unlinked',
     })
   }
@@ -508,7 +508,7 @@ function getAdFormatType(item: MetaInsightItem): { label: string; icon: string; 
   if (item.videoId || (item.placements && item.placements.some(p => (p.platformPosition || '').toLowerCase().includes('reel')))) {
     return { label: 'Reels / Video', icon: 'mdi-video-vintage', color: '#e11d48' }
   }
-  return { label: 'Feed Post', icon: 'mdi-newspaper-variant-outline', color: '#2563eb' }
+  return { label: 'Feed Post', icon: 'mdi-newspaper-variant-outline', color: 'var(--color-primary)' }
 }
 
 // Creative Preview Modal & Copy Text States
@@ -880,17 +880,17 @@ function copyTargetingSettings() {
   const bp = activeDemographics.value.blueprint
   const prodName = activeDemographics.value.productName
   const text = `ສິນຄ້າ: ${prodName}
-🎯 ກຸ່ມເປົ້າໝາຍທີ່ແນະນຳໃນ Meta Ads (Target Audience Blueprint):
+ ກຸ່ມເປົ້າໝາຍທີ່ແນະນຳໃນ Meta Ads (Target Audience Blueprint):
 - ອາຍຸ (Age): ${bp.age}
 - ເພດ (Gender): ${bp.gender}
 - ຕຳແໜ່ງ (Placements): ${bp.placements}
 - ອຸປະກອນ (OS): ${bp.devices}
 - ສະຖານທີ່ (Locations): ${bp.locations}
-- ⏰ ຊ່ວງເວລາແລ່ນແອດ (Ad Schedule): ${bp.schedule}`
+-  ຊ່ວງເວລາແລ່ນແອດ (Ad Schedule): ${bp.schedule}`
   if (navigator?.clipboard) {
     navigator.clipboard.writeText(text)
     copiedTargeting.value = true
-    copyToast.value = 'ຄັດລອກຄ່າ Targeting ສຳເລັດ! 📋'
+    copyToast.value = 'ຄັດລອກຄ່າ Targeting ສຳເລັດ! '
     copyToastOpen.value = true
     setTimeout(() => { copiedTargeting.value = false; copyToastOpen.value = false }, 2500)
   }
@@ -898,10 +898,10 @@ function copyTargetingSettings() {
 
 // Ad Fatigue & Frequency status
 function getAdFatigueStatus(freq?: number): { label: string; class: string; icon: string; tip: string } {
-  if (!freq || freq < 1.0) return { label: '🟢 ສົດໃໝ່ (1.0x)', class: 'freq-fresh', icon: 'mdi-check-circle', tip: 'ລູກຄ້າຫາກໍ່ເຫັນ' }
-  if (freq < 1.8) return { label: `🟢 ສົດໃໝ່ (${freq.toFixed(1)}x)`, class: 'freq-fresh', icon: 'mdi-check-circle', tip: 'ຄວາມຖີ່ຕ່ຳ ບໍ່ຕັນ' }
-  if (freq <= 2.8) return { label: `🟡 ປົກກະຕິ (${freq.toFixed(1)}x)`, class: 'freq-normal', icon: 'mdi-clock-outline', tip: 'ເຫັນຊ້ຳໃນເກນພໍດີ' }
-  return { label: `🔴 ແອດເລີ່ມຕັນ (${freq.toFixed(1)}x)`, class: 'freq-fatigue', icon: 'mdi-alert-circle', tip: 'ເຫັນຊ້ຳຫຼາຍເກີນໄປ ຄວນປ່ຽນຄລິບ' }
+  if (!freq || freq < 1.0) return { label: ' ສົດໃໝ່ (1.0x)', class: 'freq-fresh', icon: 'mdi-check-circle', tip: 'ລູກຄ້າຫາກໍ່ເຫັນ' }
+  if (freq < 1.8) return { label: ` ສົດໃໝ່ (${freq.toFixed(1)}x)`, class: 'freq-fresh', icon: 'mdi-check-circle', tip: 'ຄວາມຖີ່ຕ່ຳ ບໍ່ຕັນ' }
+  if (freq <= 2.8) return { label: ` ປົກກະຕິ (${freq.toFixed(1)}x)`, class: 'freq-normal', icon: 'mdi-clock-outline', tip: 'ເຫັນຊ້ຳໃນເກນພໍດີ' }
+  return { label: ` ແອດເລີ່ມຕັນ (${freq.toFixed(1)}x)`, class: 'freq-fatigue', icon: 'mdi-alert-circle', tip: 'ເຫັນຊ້ຳຫຼາຍເກີນໄປ ຄວນປ່ຽນຄລິບ' }
 }
 
 // Quality Ranking display
@@ -910,7 +910,7 @@ function formatQualityRanking(rank?: string): { label: string; class: string } |
   const r = rank.toUpperCase()
   if (r.includes('ABOVE')) return { label: 'ຄຸນນະພາບສູງ (Above Avg)', class: 'quality-above' }
   if (r.includes('AVERAGE') && !r.includes('BELOW')) return { label: 'ຄຸນນະພາບປານກາງ', class: 'quality-avg' }
-  if (r.includes('BELOW')) return { label: '⚠️ ຄຸນນະພາບຕ່ຳກວ່າຄູ່ແຂ່ງ', class: 'quality-below' }
+  if (r.includes('BELOW')) return { label: ' ຄຸນນະພາບຕ່ຳກວ່າຄູ່ແຂ່ງ', class: 'quality-below' }
   return null
 }
 
@@ -918,12 +918,12 @@ function getHourSlotType(hourStr?: string): { type: 'peak' | 'normal' | 'waste';
   const part = (hourStr || '00:00').split(':')[0] || '0'
   const h = parseInt(part, 10)
   if ((h >= 11 && h <= 13) || (h >= 19 && h <= 22)) {
-    return { type: 'peak', label: 'ໂມງຄຳ 🔥', badge: 'peak' }
+    return { type: 'peak', label: 'ໂມງຄຳ ', badge: 'peak' }
   }
   if (h >= 1 && h <= 5) {
-    return { type: 'waste', label: 'ຜານງົບ 🛑', badge: 'waste' }
+    return { type: 'waste', label: 'ຜານງົບ ', badge: 'waste' }
   }
-  return { type: 'normal', label: 'ປົກກະຕິ 🟡', badge: 'normal' }
+  return { type: 'normal', label: 'ປົກກະຕິ ', badge: 'normal' }
 }
 
 function openPreviewModal(item: MetaInsightItem) {
@@ -935,7 +935,7 @@ async function copyAdCopy(text?: string) {
   if (!text) return
   try {
     await navigator.clipboard.writeText(text)
-    copyToast.value = 'ຄັດລອກແຄັບຊັ່ນສຳເລັດ! 📋'
+    copyToast.value = 'ຄັດລອກແຄັບຊັ່ນສຳເລັດ! '
     copyToastOpen.value = true
     setTimeout(() => { copyToastOpen.value = false; copyToast.value = '' }, 2500)
   } catch {}
@@ -1244,7 +1244,7 @@ onMounted(async () => {
     <header class="page-top-header">
       <div>
         <h1 class="page-heading">
-          <span>⚡ Ads Performance & Battle</span>
+          <span> Ads Performance & Battle</span>
         </h1>
         <p class="page-sub">
           {{ l({ lo: 'ເບິ່ງຄວາມແຮງ, ກຳໄລ ແລະ ປິດແອດທີ່ກິນເງິນລ້າໆແບບງ່າຍດາຍ', th: 'ดูความแรง กำไร และปิดแอดที่กินเงินเปล่าอย่างง่ายดาย', en: 'Monitor momentum, profit, and pause money-wasting ads easily' }) }}
@@ -1264,13 +1264,13 @@ onMounted(async () => {
           </v-btn>
           <v-btn value="demographics" size="small" color="primary">
             <v-icon icon="mdi-account-group" size="16" class="mr-1" />
-            <span>{{ l({ lo: '👥 ລູກຄ້າຕົວຈິງ & Demographics', th: '👥 ลูกค้าตัวจริง & Demographics', en: 'Buyers & Demographics' }) }}</span>
+            <span>{{ l({ lo: ' ລູກຄ້າຕົວຈິງ & Demographics', th: ' ลูกค้าตัวจริง & Demographics', en: 'Buyers & Demographics' }) }}</span>
           </v-btn>
         </v-btn-toggle>
 
         <NuxtLink to="/ads-playbook">
           <v-btn variant="tonal" size="small" prepend-icon="mdi-book-open-page-variant" color="indigo">
-            📖 {{ l({ lo: 'ຄູ່ມື SOP ປະຈຳວັນ', th: 'คู่มือ SOP ประจำวัน', en: 'Daily SOP' }) }}
+             {{ l({ lo: 'ຄູ່ມື SOP ປະຈຳວັນ', th: 'คู่มือ SOP ประจำวัน', en: 'Daily SOP' }) }}
           </v-btn>
         </NuxtLink>
       </div>
@@ -1286,8 +1286,8 @@ onMounted(async () => {
         <div class="kpi-icon blue"><v-icon icon="mdi-cash-multiple" size="20" /></div>
         <div class="kpi-text">
           <span class="kpi-lbl">
-            <template v-if="statusFilter === 'angels'">💸 ງົບໃຊ້ໃນ Ads ນາງຟ້າ</template>
-            <template v-else-if="statusFilter === 'bad'">💸 ງົບເສຍໃນແອດໝົດກຳລັງ</template>
+            <template v-if="statusFilter === 'angels'"> ງົບໃຊ້ໃນ Ads ນາງຟ້າ</template>
+            <template v-else-if="statusFilter === 'bad'"> ງົບເສຍໃນແອດໝົດກຳລັງ</template>
             <template v-else>{{ l({ lo: 'ງົບໃຊ້ຈ່າຍລວມ', th: 'งบใช้จ่ายรวม', en: 'Total Spend' }) }}</template>
           </span>
           <strong class="kpi-val" :class="{ 'text-error': statusFilter === 'bad' }">
@@ -1300,8 +1300,8 @@ onMounted(async () => {
         <div class="kpi-icon green"><v-icon icon="mdi-cart-check" size="20" /></div>
         <div class="kpi-text">
           <span class="kpi-lbl">
-            <template v-if="statusFilter === 'angels'">🛒 ຍອດຊື້ຈາກ Ads ນາງຟ້າ</template>
-            <template v-else-if="statusFilter === 'bad'">🛒 ຍອດຊື້</template>
+            <template v-if="statusFilter === 'angels'"> ຍອດຊື້ຈາກ Ads ນາງຟ້າ</template>
+            <template v-else-if="statusFilter === 'bad'"> ຍອດຊື້</template>
             <template v-else>{{ l({ lo: 'ຍອດສັ່ງຊື້ລວມ', th: 'ยอดสั่งซื้อรวม', en: 'Total Orders' }) }}</template>
           </span>
           <strong class="kpi-val text-success">{{ activeKpiStats.totalPurchases }} ອໍເດີ</strong>
@@ -1312,8 +1312,8 @@ onMounted(async () => {
         <div class="kpi-icon purple"><v-icon icon="mdi-target" size="20" /></div>
         <div class="kpi-text">
           <span class="kpi-lbl">
-            <template v-if="statusFilter === 'angels'">🎯 CPA ຂອງ Ads ນາງຟ້າ</template>
-            <template v-else-if="statusFilter === 'bad'">🎯 CPA</template>
+            <template v-if="statusFilter === 'angels'"> CPA ຂອງ Ads ນາງຟ້າ</template>
+            <template v-else-if="statusFilter === 'bad'"> CPA</template>
             <template v-else>{{ l({ lo: 'CPA ສະເລ່ຍ/ອໍເດີ', th: 'CPA เฉลี่ย/ออเดอร์', en: 'Avg CPA' }) }}</template>
           </span>
           <strong class="kpi-val text-primary">{{ money(activeKpiStats.overallCPA) }}</strong>
@@ -1326,8 +1326,8 @@ onMounted(async () => {
         </div>
         <div class="kpi-text">
           <span class="kpi-lbl">
-            <template v-if="statusFilter === 'angels'">💎 ກຳໄລສຸດທິ (Ads ນາງຟ້າ)</template>
-            <template v-else-if="statusFilter === 'bad'">🛑 ຍອດເສຍງົບ (ແອດໝົດກຳລັງ)</template>
+            <template v-if="statusFilter === 'angels'"> ກຳໄລສຸດທິ (Ads ນາງຟ້າ)</template>
+            <template v-else-if="statusFilter === 'bad'"> ຍອດເສຍງົບ (ແອດໝົດກຳລັງ)</template>
             <template v-else>{{ l({ lo: 'ກຳໄລແອດສຸດທິ', th: 'กำไรแอดสุทธิ', en: 'Net Ad Profit' }) }}</template>
           </span>
           <strong class="kpi-val" :class="activeKpiStats.totalNetProfit >= 0 ? 'text-success' : 'text-error'">
@@ -1357,8 +1357,8 @@ onMounted(async () => {
         <v-select
           :model-value="datePreset"
           :items="[
-            { title: '⚡ ມື້ນີ້ (Today)', value: 'today' },
-            { title: '📅 ມື້ວານນີ້ (Yesterday)', value: 'yesterday' },
+            { title: ' ມື້ນີ້ (Today)', value: 'today' },
+            { title: ' ມື້ວານນີ້ (Yesterday)', value: 'yesterday' },
             { title: '7 ມື້ຫຼ້າສຸດ', value: '7' },
             { title: '30 ມື້ຫຼ້າສຸດ', value: '30' },
           ]"
@@ -1421,7 +1421,7 @@ onMounted(async () => {
             :class="{ active: statusFilter === 'angels' }"
             @click="statusFilter = 'angels'"
           >
-            🟢 {{ l({ lo: 'Ads ນາງຟ້າ', th: 'แอดนางฟ้า', en: 'Angel' }) }} ({{ angelCount }})
+             {{ l({ lo: 'Ads ນາງຟ້າ', th: 'แอดนางฟ้า', en: 'Angel' }) }} ({{ angelCount }})
           </button>
           <button
             type="button"
@@ -1429,7 +1429,7 @@ onMounted(async () => {
             :class="{ active: statusFilter === 'bad' }"
             @click="statusFilter = 'bad'"
           >
-            🔴 {{ l({ lo: 'ໝົດກຳລັງ', th: 'หมดกำลัง', en: 'Fatigued' }) }} ({{ badCount }})
+             {{ l({ lo: 'ໝົດກຳລັງ', th: 'หมดกำลัง', en: 'Fatigued' }) }} ({{ badCount }})
           </button>
 
           <!-- 1-Click Pause All Bad Ads -->
@@ -1443,7 +1443,7 @@ onMounted(async () => {
             class="ml-1 font-weight-bold"
             @click="pauseAllBadAds"
           >
-            {{ l({ lo: '⏸️ ປິດແອດທີ່ບໍ່ດີທັງໝົດ', th: '⏸️ ปิดแอดที่ไม่ดีทั้งหมด', en: 'Pause All Bad Ads' }) }}
+            {{ l({ lo: ' ປິດແອດທີ່ບໍ່ດີທັງໝົດ', th: ' ปิดแอดที่ไม่ดีทั้งหมด', en: 'Pause All Bad Ads' }) }}
           </v-btn>
         </div>
       </div>
@@ -1460,10 +1460,10 @@ onMounted(async () => {
         </div>
         <div class="d-flex align-center gap-2">
           <div v-if="placementBattleStats.reels.cpa && placementBattleStats.feed.cpa && placementBattleStats.reels.cpa < placementBattleStats.feed.cpa" class="pbs-smart-badge reels-win">
-            🔥 Reels ປິດການຂາຍຖືກກວ່າ Feed {{ Math.round((1 - placementBattleStats.reels.cpa / placementBattleStats.feed.cpa) * 100) }}%!
+             Reels ປິດການຂາຍຖືກກວ່າ Feed {{ Math.round((1 - placementBattleStats.reels.cpa / placementBattleStats.feed.cpa) * 100) }}%!
           </div>
           <div v-else-if="placementBattleStats.audienceNetwork.isWasted" class="pbs-smart-badge audience-waste">
-            ⚠️ ພົບ Audience Network ຜານເງິນຟຣີ! ແນະນຳໃຫ້ປິດໃນ Ad Set
+             ພົບ Audience Network ຜານເງິນຟຣີ! ແນະນຳໃຫ້ປິດໃນ Ad Set
           </div>
           <v-btn
             size="x-small"
@@ -1523,7 +1523,7 @@ onMounted(async () => {
           <div class="pbs-col-header">
             <v-icon icon="mdi-lan-disconnect" size="16" class="mr-1 text-error" />
             <strong>Audience Network</strong>
-            <span v-if="placementBattleStats.audienceNetwork.isWasted" class="ghost-tag">ຜານເງິນ ❌</span>
+            <span v-if="placementBattleStats.audienceNetwork.isWasted" class="ghost-tag">ຜານເງິນ </span>
           </div>
           <div class="pbs-col-metrics">
             <div class="pbs-m"><span>ໃຊ້ຈ່າຍ:</span> <strong :class="{ 'text-error': placementBattleStats.audienceNetwork.isWasted }">{{ money(placementBattleStats.audienceNetwork.spend) }}</strong></div>
@@ -1584,7 +1584,7 @@ onMounted(async () => {
               <div class="ad-subline">
                 <code>ID: {{ item.entityId }}</code>
                 <span v-if="getLinkedProduct(item)" class="prod-badge">
-                  📦 {{ getLinkedProduct(item)?.product.name }}
+                   {{ getLinkedProduct(item)?.product.name }}
                 </span>
               </div>
             </div>
@@ -1592,13 +1592,13 @@ onMounted(async () => {
 
           <div class="ad-badge-wrap">
             <span v-if="isAngelAd(item).isAngel" class="pill-badge angel">
-              🟢 ນາງຟ້າ
+               ນາງຟ້າ
             </span>
             <span v-else-if="isBadAd(item).isBad" class="pill-badge bad">
-              🔴 ໝົດກຳລັງ
+               ໝົດກຳລັງ
             </span>
             <span v-else class="pill-badge neutral">
-              ⚪ ທົ່ວໄປ
+               ທົ່ວໄປ
             </span>
           </div>
         </div>
@@ -1768,7 +1768,7 @@ onMounted(async () => {
                 v-if="getSparklineSvg(item).linePath"
                 :d="getSparklineSvg(item).linePath"
                 fill="none"
-                :stroke="isAngelAd(item).isAngel ? '#10b981' : isBadAd(item).isBad ? '#ef4444' : '#3b82f6'"
+                :stroke="isAngelAd(item).isAngel ? 'var(--color-success)' : isBadAd(item).isBad ? 'var(--color-error)' : 'var(--color-primary)'"
                 stroke-width="2"
                 stroke-linecap="round"
               />
@@ -1797,10 +1797,10 @@ onMounted(async () => {
               :loading="updatingId === item.entityId"
               @click="changeStatus(item, 'PAUSED', true)"
             >
-              {{ l({ lo: '⏸️ ປິດແອດ', th: '⏸️ ปิดแอด', en: 'Pause' }) }}
+              {{ l({ lo: ' ປິດແອດ', th: ' ปิดแอด', en: 'Pause' }) }}
             </v-btn>
             <span v-else-if="isItemPaused(item)" class="paused-status-text">
-              ⏸️ ປິດຢູ່
+               ປິດຢູ່
             </span>
           </div>
         </div>
@@ -1870,14 +1870,14 @@ onMounted(async () => {
               </td>
               <td>
                 <span v-if="getLinkedProduct(item)" class="prod-badge">
-                  📦 {{ getLinkedProduct(item)?.product.name }}
+                   {{ getLinkedProduct(item)?.product.name }}
                 </span>
                 <span v-else class="text-medium-emphasis">—</span>
               </td>
               <td>
-                <span v-if="isAngelAd(item).isAngel" class="pill-badge angel">🟢 ນາງຟ້າ</span>
-                <span v-else-if="isBadAd(item).isBad" class="pill-badge bad">🔴 ໝົດກຳລັງ</span>
-                <span v-else class="pill-badge neutral">⚪ ທົ່ວໄປ</span>
+                <span v-if="isAngelAd(item).isAngel" class="pill-badge angel"> ນາງຟ້າ</span>
+                <span v-else-if="isBadAd(item).isBad" class="pill-badge bad"> ໝົດກຳລັງ</span>
+                <span v-else class="pill-badge neutral"> ທົ່ວໄປ</span>
               </td>
               <td class="text-right font-weight-bold">{{ money(item.spend) }}</td>
               <td class="text-right font-weight-bold" :class="{ 'text-success': getPurchasesCount(item) > 0 }">
@@ -1894,7 +1894,7 @@ onMounted(async () => {
                     v-if="getSparklineSvg(item).linePath"
                     :d="getSparklineSvg(item).linePath"
                     fill="none"
-                    :stroke="isAngelAd(item).isAngel ? '#10b981' : isBadAd(item).isBad ? '#ef4444' : '#3b82f6'"
+                    :stroke="isAngelAd(item).isAngel ? 'var(--color-success)' : isBadAd(item).isBad ? 'var(--color-error)' : 'var(--color-primary)'"
                     stroke-width="2"
                   />
                 </svg>
@@ -1940,7 +1940,7 @@ onMounted(async () => {
           <div>
             <div class="d-flex align-center gap-2 mb-1">
               <h2 class="persona-title">{{ l({ lo: 'ສະຫຼຸບກຸ່ມລູກຄ້າຂອງສິນຄ້າ (Product Audience Profile)', th: 'สรุปกลุ่มลูกค้าของสินค้า (Product Audience Profile)', en: 'Product Audience Profile' }) }}</h2>
-              <span class="persona-tag">🎯 {{ activeProductName }}</span>
+              <span class="persona-tag"> {{ activeProductName }}</span>
             </div>
             <p class="persona-sub">
               ວິເຄາະລວມຈາກຂໍ້ມູນ <strong>Meta Ads Insights ແທ້ 100%</strong>: ຮູ້ຊັດເຈນວ່າສິນຄ້ານີ້ <strong>ໃຜຊື້ຫຼາຍສຸດ, ເພດໃດ, ອາຍຸທໍ່ໃດ, ໃຊ້ OS Android ຫຼື iPhone, ແລະ ແຂວງໃດ!</strong>
@@ -2000,7 +2000,7 @@ onMounted(async () => {
               class="font-weight-bold text-caption"
               @click="copyTargetingSettings"
             >
-              {{ copiedTargeting ? 'ຄັດລອກແລ້ວ! ✅' : 'ຄັດລອກຄ່າ Targeting ໄປຕັ້ງໃນ Meta' }}
+              {{ copiedTargeting ? 'ຄັດລອກແລ້ວ! ' : 'ຄັດລອກຄ່າ Targeting ໄປຕັ້ງໃນ Meta' }}
             </v-btn>
           </div>
 
@@ -2299,7 +2299,7 @@ onMounted(async () => {
               </thead>
               <tbody>
                 <tr v-for="r in activeDemographics.regions.slice(0, 8)" :key="r.key">
-                  <td><strong>📍 {{ r.label }}</strong></td>
+                  <td><strong> {{ r.label }}</strong></td>
                   <td class="text-right">{{ money(r.spend) }}</td>
                   <td class="text-right font-weight-bold" :class="{ 'text-success': (r.purchasesCount || 0) > 0 }">
                     {{ r.purchasesCount || 0 }}
@@ -2319,19 +2319,19 @@ onMounted(async () => {
           <div class="matrix-card-header">
             <div class="d-flex align-center gap-2">
               <v-icon icon="mdi-clock-time-four-outline" color="amber-darken-3" size="20" />
-              <h3 class="matrix-title">5. ⏰ ຊ່ວງໂມງຄຳ & ເວລາທີ່ຄົນສັ່ງຊື້ (Peak Hours & Dayparting)</h3>
+              <h3 class="matrix-title">5.  ຊ່ວງໂມງຄຳ & ເວລາທີ່ຄົນສັ່ງຊື້ (Peak Hours & Dayparting)</h3>
             </div>
             <span class="matrix-tag">ຄວນຍິງຕອນຈັກໂມງ</span>
           </div>
 
           <div class="hourly-highlight-banner">
             <div class="hh-block golden">
-              <div class="hh-badge">🔥 ຊ່ວງໂມງຄຳ (Golden Hours)</div>
+              <div class="hh-badge"> ຊ່ວງໂມງຄຳ (Golden Hours)</div>
               <div class="hh-hours">11:00 - 14:00 & 19:00 - 23:30</div>
               <p class="hh-desc">ຄົນລາວພັກທ່ຽງ ແລະ ຫຼັງເລີກວຽກ: ມີຍອດສັ່ງຊື້ສູງສຸດ ແລະ CPA ຖືກສຸດ!</p>
             </div>
             <div class="hh-block waste">
-              <div class="hh-badge">🛑 ຊ່ວງຜານເງິນ (Off-Hours)</div>
+              <div class="hh-badge"> ຊ່ວງຜານເງິນ (Off-Hours)</div>
               <div class="hh-hours">01:00 - 05:30 (ຕອນເດິກ)</div>
               <p class="hh-desc">ຄົນກົດຫຼິ້ນ/ມືລັ່ນ ແຕ່ບໍ່ຊື້: ແນະນຳຕັ້ງ Dayparting ປິດແອດຊ່ວງນີ້ ປະຢັດງົບ 25-35%</p>
             </div>
@@ -2361,7 +2361,7 @@ onMounted(async () => {
           <div class="matrix-card-header">
             <div class="d-flex align-center gap-2">
               <v-icon icon="mdi-video-check" color="error" size="20" />
-              <h3 class="matrix-title">6. 🎬 ພຶດຕິກຳການເບິ່ງຄລິບວິດີໂອ (Video Drop-off & Retention)</h3>
+              <h3 class="matrix-title">6.  ພຶດຕິກຳການເບິ່ງຄລິບວິດີໂອ (Video Drop-off & Retention)</h3>
             </div>
             <span class="matrix-tag">ວັດຜົນຄລິບ Reels / Video</span>
           </div>
@@ -2419,7 +2419,7 @@ onMounted(async () => {
             <v-icon icon="mdi-rocket-launch" color="success" class="mr-1" />
             Scale ງົບປະມານໂຄສະນາ
           </span>
-          <v-btn icon="mdi-close" variant="text" size="small" @click="budgetModalOpen = false" />
+          <v-btn icon="mdi-close" variant="text" size="small" aria-label="Close budget editor" @click="budgetModalOpen = false" />
         </v-card-title>
 
         <v-card-text class="pt-2">
@@ -2457,7 +2457,7 @@ onMounted(async () => {
 
           <div class="mt-3 pa-2 rounded bg-surface-variant d-flex align-center gap-2 text-caption">
             <v-icon icon="mdi-shield-check-outline" color="success" size="18" />
-            <span>💡 <strong>ປອດໄພ:</strong> ການ Scale +{{ selectedPercent }}% ບໍ່ເຮັດໃຫ້ Meta Reset Learning Phase.</span>
+            <span> <strong>ປອດໄພ:</strong> ການ Scale +{{ selectedPercent }}% ບໍ່ເຮັດໃຫ້ Meta Reset Learning Phase.</span>
           </div>
         </v-card-text>
 
@@ -2483,12 +2483,12 @@ onMounted(async () => {
       <v-card v-if="previewAdItem" class="pa-0 rounded-xl overflow-hidden">
         <v-card-title class="d-flex align-center justify-space-between px-5 py-4 border-b">
           <div class="d-flex align-center gap-2" style="min-width: 0; flex: 1;">
-            <v-icon :icon="getAdFormatType(previewAdItem).icon" :color="getAdFormatType(previewAdItem).color" size="22" />
+            <v-icon :icon="getAdFormatType(previewAdItem).icon" :style="{ color: getAdFormatType(previewAdItem).color }" size="22" />
             <h2 class="font-weight-bold text-h6 text-truncate" style="max-width: 500px; margin: 0;">
               {{ previewAdItem.entityName }}
             </h2>
           </div>
-          <v-btn icon="mdi-close" variant="text" size="small" @click="previewModalOpen = false" />
+          <v-btn icon="mdi-close" variant="text" size="small" aria-label="Close preview" @click="previewModalOpen = false" />
         </v-card-title>
 
         <v-card-text class="pa-5">
@@ -2565,7 +2565,7 @@ onMounted(async () => {
               <h3 class="font-weight-bold mb-3 d-flex align-center">
                 <v-icon icon="mdi-chart-box-outline" size="18" class="mr-2 text-primary" />
                 ຜົນງານແຍກຕາມຊ່ອງທາງ (Placement Breakdown)
-              </h4>
+ </h3>
 
               <div v-if="previewAdItem.placements && previewAdItem.placements.length > 0" class="modal-placements-table-wrap">
                 <table class="modal-placements-table">
@@ -2631,7 +2631,7 @@ onMounted(async () => {
                   <div>
                     <span class="text-caption text-medium-emphasis">ສະຖານະແອດ:</span>
                     <strong class="ml-1" :class="!isItemPaused(previewAdItem) ? 'text-success' : 'text-medium-emphasis'">
-                      {{ !isItemPaused(previewAdItem) ? '🟢 ກຳລັງເປີດ' : '⏸️ ປິດຢູ່' }}
+                      {{ !isItemPaused(previewAdItem) ? ' ກຳລັງເປີດ' : ' ປິດຢູ່' }}
                     </strong>
                   </div>
                   <v-btn
@@ -2640,7 +2640,7 @@ onMounted(async () => {
                     size="small"
                     @click="changeStatus(previewAdItem, !isItemPaused(previewAdItem) ? 'PAUSED' : 'ACTIVE')"
                   >
-                    {{ !isItemPaused(previewAdItem) ? '⏸️ ປິດແອດນີ້' : '▶️ ເປີດແອດນີ້' }}
+                    {{ !isItemPaused(previewAdItem) ? ' ປິດແອດນີ້' : ' ເປີດແອດນີ້' }}
                   </v-btn>
                 </div>
               </div>
@@ -2677,7 +2677,7 @@ onMounted(async () => {
 .page-heading {
   font-size: 22px;
   font-weight: 800;
-  color: #0f172a;
+  color: var(--color-text);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -2695,7 +2695,7 @@ onMounted(async () => {
 
 .page-sub {
   font-size: 13px;
-  color: #64748b;
+  color: var(--color-text-muted);
   margin: 0;
 }
 
@@ -2706,7 +2706,7 @@ onMounted(async () => {
 }
 
 .view-mode-toggle {
-  background: #ffffff;
+  background: var(--color-surface);
   border-radius: 8px;
 }
 
@@ -2719,7 +2719,7 @@ onMounted(async () => {
 }
 
 .kpi-box {
-  background: #ffffff;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 14px;
   padding: 14px 18px;
@@ -2739,10 +2739,10 @@ onMounted(async () => {
   flex-shrink: 0;
 }
 
-.kpi-icon.blue { background: #eff6ff; color: #2563eb; }
-.kpi-icon.green { background: #f0fdf4; color: #16a34a; }
-.kpi-icon.purple { background: #faf5ff; color: #9333ea; }
-.kpi-icon.emerald { background: #ecfdf5; color: #059669; }
+.kpi-icon.blue { background: var(--color-primary-soft); color: var(--color-primary); }
+.kpi-icon.green { background: var(--color-success-soft); color: var(--color-success); }
+.kpi-icon.purple { background: var(--color-purple-soft); color: #9333ea; }
+.kpi-icon.emerald { background: var(--color-success-soft); color: var(--color-success); }
 .kpi-icon.rose { background: #fff1f2; color: #e11d48; }
 
 .kpi-box.kpi-profit-pos {
@@ -2762,7 +2762,7 @@ onMounted(async () => {
 
 .kpi-lbl {
   font-size: 12px;
-  color: #64748b;
+  color: var(--color-text-muted);
   font-weight: 600;
   margin-bottom: 2px;
 }
@@ -2770,12 +2770,12 @@ onMounted(async () => {
 .kpi-val {
   font-size: 18px;
   font-weight: 800;
-  color: #0f172a;
+  color: var(--color-text);
 }
 
 /* Simple Filter Bar */
 .simple-controls-bar {
-  background: #ffffff;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 14px;
   padding: 14px 18px;
@@ -2830,22 +2830,22 @@ onMounted(async () => {
   justify-content: center;
   border-radius: 999px;
   border: 1px solid var(--color-border);
-  background: #f8fafc;
-  color: #475569;
+  background: var(--color-background);
+  color: var(--color-text-secondary);
   cursor: pointer;
   transition: transform 150ms ease, background 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
 }
 
 .cat-tab:hover {
-  background: #f1f5f9;
+  background: var(--color-surface-soft);
   transform: translateY(-1px);
 }
 .cat-tab:active {
   transform: scale(0.98);
 }
-.cat-tab.active { background: #0f172a; color: #ffffff; border-color: #0f172a; }
-.cat-tab.green.active { background: #10b981; color: #ffffff; border-color: #059669; }
-.cat-tab.red.active { background: #ef4444; color: #ffffff; border-color: #dc2626; }
+.cat-tab.active { background: var(--color-text); color: var(--color-surface); border-color: var(--color-text); }
+.cat-tab.green.active { background: var(--color-success); color: var(--color-surface); border-color: var(--color-success); }
+.cat-tab.red.active { background: var(--color-error); color: var(--color-surface); border-color: var(--color-error); }
 
 /* Loading & Empty */
 .simple-loading,
@@ -2855,7 +2855,7 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   padding: 60px 20px;
-  background: #ffffff;
+  background: var(--color-surface);
   border: 1px dashed rgba(0, 0, 0, 0.12);
   border-radius: 14px;
 }
@@ -2868,7 +2868,7 @@ onMounted(async () => {
 }
 
 .clean-ad-card {
-  background: #ffffff;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 14px;
   padding: 16px;
@@ -2899,7 +2899,7 @@ onMounted(async () => {
 }
 
 .clean-ad-card.card-paused {
-  background: #f8fafc;
+  background: var(--color-background);
   opacity: 0.72;
 }
 
@@ -2931,7 +2931,7 @@ onMounted(async () => {
 .ad-title {
   font-size: 14px;
   font-weight: 750;
-  color: #0f172a;
+  color: var(--color-text);
   margin: 0;
   white-space: nowrap;
   overflow: hidden;
@@ -2943,12 +2943,12 @@ onMounted(async () => {
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  color: #64748b;
+  color: var(--color-text-muted);
   margin-top: 2px;
 }
 
 .ad-subline code {
-  background: #f1f5f9;
+  background: var(--color-surface-soft);
   padding: 1px 4px;
   border-radius: 4px;
   font-size: 12px;
@@ -2957,7 +2957,7 @@ onMounted(async () => {
 .prod-badge {
   font-size: 12px;
   font-weight: 600;
-  color: #0284c7;
+  color: var(--color-info);
   background: #e0f2fe;
   padding: 1px 6px;
   border-radius: 4px;
@@ -2971,16 +2971,16 @@ onMounted(async () => {
   white-space: nowrap;
 }
 
-.pill-badge.angel { background: #dcfce7; color: #15803d; }
-.pill-badge.bad { background: #fee2e2; color: #b91c1c; }
-.pill-badge.neutral { background: #f1f5f9; color: #64748b; }
+.pill-badge.angel { background: var(--color-success-soft); color: var(--color-success); }
+.pill-badge.bad { background: var(--color-error-soft); color: var(--color-error); }
+.pill-badge.neutral { background: var(--color-surface-soft); color: var(--color-text-muted); }
 
 /* Card Metric Row (5 in 1 row) */
 .card-metric-row {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 6px;
-  background: #f8fafc;
+  background: var(--color-background);
   border: 1px solid var(--color-border);
   border-radius: 10px;
   padding: 8px 10px;
@@ -2994,7 +2994,7 @@ onMounted(async () => {
 
 .m-k {
   font-size: 12px;
-  color: #64748b;
+  color: var(--color-text-muted);
   font-weight: 600;
   margin-bottom: 2px;
 }
@@ -3002,7 +3002,7 @@ onMounted(async () => {
 .m-v {
   font-size: 12.5px;
   font-weight: 750;
-  color: #0f172a;
+  color: var(--color-text);
 }
 
 /* Card Bottom Bar */
@@ -3034,13 +3034,13 @@ onMounted(async () => {
 
 .paused-status-text {
   font-size: 12px;
-  color: #64748b;
+  color: var(--color-text-muted);
   font-weight: 600;
 }
 
 /* Table View */
 .table-container-card {
-  background: #ffffff;
+  background: var(--color-surface);
   border-radius: 14px;
   overflow: hidden;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
@@ -3059,10 +3059,10 @@ onMounted(async () => {
 .clean-table th {
   text-align: left;
   padding: 10px 14px;
-  background: #f8fafc;
+  background: var(--color-background);
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
   font-weight: 700;
-  color: #475569;
+  color: var(--color-text-secondary);
   font-size: 12px;
   white-space: nowrap;
 }
@@ -3070,17 +3070,17 @@ onMounted(async () => {
 .clean-table td {
   padding: 10px 14px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.04);
-  color: #1e293b;
+  color: var(--color-text);
   vertical-align: middle;
 }
 
 .clean-table tr.row-paused {
-  background: #fafafa;
+  background: var(--color-surface-soft);
   opacity: 0.65;
 }
 
 .clean-table tr:hover {
-  background: #f8fafc;
+  background: var(--color-background);
 }
 
 .ad-cell {
@@ -3091,12 +3091,12 @@ onMounted(async () => {
 
 .ad-cell-name {
   font-size: 13px;
-  color: #0f172a;
+  color: var(--color-text);
 }
 
 /* Budget Preview Box */
 .budget-preview-box {
-  background: #f8fafc;
+  background: var(--color-background);
   border: 1px solid var(--color-border);
   border-radius: 10px;
   padding: 12px 14px;
@@ -3106,7 +3106,7 @@ onMounted(async () => {
    PLACEMENT BATTLE SUMMARY CARD
    =================================================== */
 .placement-battle-summary-card {
-  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  background: linear-gradient(135deg, var(--color-background) 0%, var(--color-surface-soft) 100%);
   border: 1px solid var(--color-border);
   border-radius: 14px;
   padding: 14px 18px;
@@ -3126,7 +3126,7 @@ onMounted(async () => {
 .pbs-title {
   font-size: 13.5px;
   font-weight: 800;
-  color: #0f172a;
+  color: var(--color-text);
   display: flex;
   align-items: center;
 }
@@ -3147,9 +3147,9 @@ onMounted(async () => {
 }
 
 .pbs-smart-badge.audience-waste {
-  background: #fee2e2;
-  color: #b91c1c;
-  border: 1px solid #fca5a5;
+  background: var(--color-error-soft);
+  color: var(--color-error);
+  border: 1px solid var(--color-error-border);
 }
 
 .pbs-grid {
@@ -3159,7 +3159,7 @@ onMounted(async () => {
 }
 
 .pbs-col {
-  background: #ffffff;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 10px;
   padding: 10px 14px;
@@ -3180,7 +3180,7 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   font-size: 12px;
-  color: #0f172a;
+  color: var(--color-text);
 }
 
 .win-tag {
@@ -3195,8 +3195,8 @@ onMounted(async () => {
 .ghost-tag {
   font-size: 12px;
   font-weight: 700;
-  background: #fee2e2;
-  color: #b91c1c;
+  background: var(--color-error-soft);
+  color: var(--color-error);
   padding: 1px 6px;
   border-radius: 999px;
 }
@@ -3212,11 +3212,11 @@ onMounted(async () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  color: #64748b;
+  color: var(--color-text-muted);
 }
 
 .pbs-m strong {
-  color: #0f172a;
+  color: var(--color-text);
 }
 
 /* ===================================================
@@ -3225,7 +3225,7 @@ onMounted(async () => {
 .card-creative-preview {
   display: flex;
   gap: 12px;
-  background: #f8fafc;
+  background: var(--color-background);
   border: 1px solid var(--color-border);
   border-radius: 10px;
   padding: 8px;
@@ -3239,7 +3239,7 @@ onMounted(async () => {
   flex-shrink: 0;
   border-radius: 8px;
   overflow: hidden;
-  background: #0f172a;
+  background: var(--color-text);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -3272,7 +3272,7 @@ onMounted(async () => {
   left: 4px;
   font-size: 12px;
   font-weight: 800;
-  color: #ffffff;
+  color: var(--color-surface);
   padding: 1px 6px;
   border-radius: 999px;
   display: flex;
@@ -3284,7 +3284,7 @@ onMounted(async () => {
   position: absolute;
   inset: 0;
   background: rgba(15, 23, 42, 0.6);
-  color: #ffffff;
+  color: var(--color-surface);
   font-size: 12px;
   font-weight: 700;
   display: flex;
@@ -3311,14 +3311,14 @@ onMounted(async () => {
 .creative-headline {
   font-size: 12.5px;
   font-weight: 750;
-  color: #0f172a;
+  color: var(--color-text);
   line-height: 1.3;
   margin-bottom: 2px;
 }
 
 .creative-body-snippet {
   font-size: 12px;
-  color: #475569;
+  color: var(--color-text-secondary);
   line-height: 1.4;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -3338,8 +3338,8 @@ onMounted(async () => {
 .creative-view-details-btn {
   font-size: 12px;
   font-weight: 600;
-  color: #475569;
-  background: #ffffff;
+  color: var(--color-text-secondary);
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 6px;
   padding: 2px 8px;
@@ -3351,16 +3351,16 @@ onMounted(async () => {
 
 .creative-copy-btn:hover,
 .creative-view-details-btn:hover {
-  background: #f1f5f9;
-  color: #0f172a;
+  background: var(--color-surface-soft);
+  color: var(--color-text);
 }
 
 .creative-fb-link {
   font-size: 12px;
   font-weight: 700;
-  color: #2563eb;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
+  border: 1px solid var(--color-info-border);
   border-radius: 6px;
   padding: 2px 8px;
   text-decoration: none;
@@ -3370,7 +3370,7 @@ onMounted(async () => {
 }
 
 .creative-fb-link:hover {
-  background: #dbeafe;
+  background: var(--color-primary-soft);
 }
 
 /* ===================================================
@@ -3387,8 +3387,8 @@ onMounted(async () => {
 .pl-badge {
   font-size: 12px;
   font-weight: 600;
-  color: #475569;
-  background: #f1f5f9;
+  color: var(--color-text-secondary);
+  background: var(--color-surface-soft);
   border: 1px solid var(--color-border);
   border-radius: 6px;
   padding: 4px 8px;
@@ -3398,13 +3398,13 @@ onMounted(async () => {
 }
 
 .pl-badge.pl-waste {
-  background: #fef2f2;
-  color: #dc2626;
-  border-color: #fca5a5;
+  background: var(--color-error-soft);
+  color: var(--color-error);
+  border-color: var(--color-error-border);
 }
 
 .pl-highlight {
-  color: #16a34a;
+  color: var(--color-success);
   font-weight: 700;
   margin-left: 2px;
 }
@@ -3418,7 +3418,7 @@ onMounted(async () => {
   height: 42px;
   border-radius: 6px;
   overflow: hidden;
-  background: #0f172a;
+  background: var(--color-text);
   cursor: pointer;
 }
 
@@ -3441,14 +3441,14 @@ onMounted(async () => {
 }
 
 .table-fb-link {
-  color: #2563eb;
+  color: var(--color-primary);
   text-decoration: none;
   display: inline-flex;
   align-items: center;
 }
 
 .table-fb-link:hover {
-  color: #1d4ed8;
+  color: var(--color-primary-hover);
 }
 
 /* ===================================================
@@ -3472,7 +3472,7 @@ onMounted(async () => {
 }
 
 .phone-screen-frame {
-  background: #ffffff;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 18px;
   overflow: hidden;
@@ -3484,22 +3484,22 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   padding: 10px 12px;
-  background: #ffffff;
-  border-bottom: 1px solid #f1f5f9;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-surface-soft);
 }
 
 .phone-body-text {
   padding: 10px 12px;
   font-size: 12px;
   line-height: 1.45;
-  color: #1e293b;
+  color: var(--color-text);
   max-height: 100px;
   overflow-y: auto;
 }
 
 .phone-media-container {
   width: 100%;
-  background: #0f172a;
+  background: var(--color-text);
   min-height: 220px;
   max-height: 320px;
   display: flex;
@@ -3528,7 +3528,7 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   padding: 10px 12px;
-  background: #f8fafc;
+  background: var(--color-background);
   border-top: 1px solid rgba(0, 0, 0, 0.06);
 }
 
@@ -3541,7 +3541,7 @@ onMounted(async () => {
 
 .phone-cta-text small {
   font-size: 12px;
-  color: #64748b;
+  color: var(--color-text-muted);
   text-transform: uppercase;
 }
 
@@ -3561,17 +3561,17 @@ onMounted(async () => {
 }
 
 .modal-placements-table th {
-  background: #f8fafc;
+  background: var(--color-background);
   padding: 8px 12px;
   font-weight: 700;
-  color: #475569;
+  color: var(--color-text-secondary);
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .modal-placements-table td {
   padding: 8px 12px;
-  border-bottom: 1px solid #f1f5f9;
-  color: #1e293b;
+  border-bottom: 1px solid var(--color-surface-soft);
+  color: var(--color-text);
 }
 
 .modal-placements-table tr:last-child td {
@@ -3580,11 +3580,11 @@ onMounted(async () => {
 
 .modal-placements-table tr.row-wasted td {
   background: #fff5f5;
-  color: #dc2626;
+  color: var(--color-error);
 }
 
 .ad-copy-display-box {
-  background: #f8fafc;
+  background: var(--color-background);
   border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 10px 12px;
@@ -3607,10 +3607,10 @@ onMounted(async () => {
 
 /* Persona Highlight Banner */
 .persona-highlight-banner {
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  background: linear-gradient(135deg, var(--color-text) 0%, var(--color-text) 100%);
   border-radius: 16px;
   padding: 20px 24px;
-  color: #ffffff;
+  color: var(--color-surface);
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -3626,7 +3626,7 @@ onMounted(async () => {
 .persona-icon-box {
   width: 52px;
   height: 52px;
-  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-hover) 100%);
   border-radius: 14px;
   display: flex;
   align-items: center;
@@ -3639,7 +3639,7 @@ onMounted(async () => {
   font-size: 18px;
   font-weight: 800;
   margin: 0;
-  color: #ffffff;
+  color: var(--color-surface);
 }
 
 .persona-tag {
@@ -3654,13 +3654,13 @@ onMounted(async () => {
 
 .persona-sub {
   font-size: 12.5px;
-  color: #94a3b8;
+  color: var(--color-text-faint);
   margin: 0;
   line-height: 1.5;
 }
 
 .persona-sub strong {
-  color: #f1f5f9;
+  color: var(--color-surface-soft);
 }
 
 .audience-metric-grid {
@@ -3693,7 +3693,7 @@ onMounted(async () => {
 .am-label {
   font-size: 12px;
   font-weight: 600;
-  color: #94a3b8;
+  color: var(--color-text-faint);
   display: flex;
   align-items: center;
 }
@@ -3701,7 +3701,7 @@ onMounted(async () => {
 .am-value {
   font-size: 13px;
   font-weight: 750;
-  color: #f8fafc;
+  color: var(--color-background);
 }
 
 .am-value.emerald {
@@ -3719,7 +3719,7 @@ onMounted(async () => {
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 12px;
-  background: #ffffff;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 12px;
   padding: 8px 12px;
@@ -3730,7 +3730,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 6px;
-  background: #f1f5f9;
+  background: var(--color-surface-soft);
   padding: 4px;
   border-radius: 10px;
 }
@@ -3743,7 +3743,7 @@ onMounted(async () => {
   border-radius: 8px;
   border: none;
   background: transparent;
-  color: #64748b;
+  color: var(--color-text-muted);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -3751,12 +3751,12 @@ onMounted(async () => {
 }
 
 .subnav-pill:hover {
-  color: #0f172a;
+  color: var(--color-text);
 }
 
 .subnav-pill.active {
-  background: #ffffff;
-  color: #0f172a;
+  background: var(--color-surface);
+  color: var(--color-text);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
@@ -3776,7 +3776,7 @@ onMounted(async () => {
 }
 
 .matrix-card {
-  background: #ffffff;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 14px;
   padding: 16px;
@@ -3790,22 +3790,22 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid var(--color-surface-soft);
   padding-bottom: 10px;
 }
 
 .matrix-title {
   font-size: 14px;
   font-weight: 800;
-  color: #0f172a;
+  color: var(--color-text);
   margin: 0;
 }
 
 .matrix-tag {
   font-size: 12px;
   font-weight: 700;
-  color: #64748b;
-  background: #f1f5f9;
+  color: var(--color-text-muted);
+  background: var(--color-surface-soft);
   padding: 2px 8px;
   border-radius: 999px;
 }
@@ -3821,17 +3821,17 @@ onMounted(async () => {
 }
 
 .matrix-table th {
-  background: #f8fafc;
+  background: var(--color-background);
   padding: 8px 10px;
   font-weight: 700;
-  color: #475569;
+  color: var(--color-text-secondary);
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .matrix-table td {
   padding: 8px 10px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.04);
-  color: #1e293b;
+  color: var(--color-text);
 }
 
 .matrix-table tr:last-child td {
@@ -3840,7 +3840,7 @@ onMounted(async () => {
 
 .matrix-table tr.row-waste td {
   background: #fff5f5;
-  color: #dc2626;
+  color: var(--color-error);
 }
 
 .pill-status {
@@ -3850,9 +3850,9 @@ onMounted(async () => {
   border-radius: 4px;
 }
 
-.pill-status.good { background: #dcfce7; color: #15803d; }
-.pill-status.bad { background: #fee2e2; color: #b91c1c; }
-.pill-status.normal { background: #f1f5f9; color: #64748b; }
+.pill-status.good { background: var(--color-success-soft); color: var(--color-success); }
+.pill-status.bad { background: var(--color-error-soft); color: var(--color-error); }
+.pill-status.normal { background: var(--color-surface-soft); color: var(--color-text-muted); }
 
 .matrix-empty {
   display: flex;
@@ -3861,7 +3861,7 @@ onMounted(async () => {
   justify-content: center;
   padding: 30px 10px;
   color: var(--color-text-secondary);
-  background: #f8fafc;
+  background: var(--color-background);
   border: 1px dashed rgba(0, 0, 0, 0.1);
   border-radius: 10px;
 }
@@ -3888,21 +3888,21 @@ onMounted(async () => {
 }
 
 .fatigue-pill.freq-fresh {
-  background: #ecfdf5;
-  color: #059669;
-  border: 1px solid #a7f3d0;
+  background: var(--color-success-soft);
+  color: var(--color-success);
+  border: 1px solid var(--color-success-border);
 }
 
 .fatigue-pill.freq-normal {
-  background: #fffbeb;
-  color: #b45309;
-  border: 1px solid #fde68a;
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+  border: 1px solid var(--color-warning-border);
 }
 
 .fatigue-pill.freq-fatigue {
-  background: #fef2f2;
-  color: #dc2626;
-  border: 1px solid #fecaca;
+  background: var(--color-error-soft);
+  color: var(--color-error);
+  border: 1px solid var(--color-error-border);
   animation: pulse-slow 2s infinite;
 }
 
@@ -3915,14 +3915,14 @@ onMounted(async () => {
 }
 
 .quality-pill.quality-above {
-  background: #eff6ff;
-  color: #1d4ed8;
-  border: 1px solid #bfdbfe;
+  background: var(--color-primary-soft);
+  color: var(--color-primary-hover);
+  border: 1px solid var(--color-info-border);
 }
 
 .quality-pill.quality-avg {
-  background: #f8fafc;
-  color: #475569;
+  background: var(--color-background);
+  color: var(--color-text-secondary);
   border: 1px solid var(--color-border);
 }
 
@@ -3937,9 +3937,9 @@ onMounted(async () => {
   align-items: center;
   padding: 4px 8px;
   border-radius: 6px;
-  background: #f5f3ff;
-  color: #6d28d9;
-  border: 1px solid #ddd6fe;
+  background: var(--color-purple-soft);
+  color: var(--color-purple);
+  border: 1px solid var(--color-purple-border);
   font-weight: 600;
   line-height: 1.4;
 }
@@ -3974,8 +3974,8 @@ onMounted(async () => {
 }
 
 .hh-block.waste {
-  background: #fef2f2;
-  border: 1px solid #fecaca;
+  background: var(--color-error-soft);
+  border: 1px solid var(--color-error-border);
 }
 
 .hh-badge {
@@ -3986,18 +3986,18 @@ onMounted(async () => {
 }
 
 .hh-block.golden .hh-badge { color: #854d0e; }
-.hh-block.waste .hh-badge { color: #991b1b; }
+.hh-block.waste .hh-badge { color: var(--color-error); }
 
 .hh-hours {
   font-size: 16px;
   font-weight: 800;
-  color: #0f172a;
+  color: var(--color-text);
   margin-bottom: 4px;
 }
 
 .hh-desc {
   font-size: 12px;
-  color: #475569;
+  color: var(--color-text-secondary);
   margin: 0;
   line-height: 1.4;
 }
@@ -4009,7 +4009,7 @@ onMounted(async () => {
   gap: 3px;
   height: 110px;
   padding: 10px 8px 10px 8px;
-  background: #f8fafc;
+  background: var(--color-background);
   border: 1px solid var(--color-border);
   border-radius: 10px;
   overflow-x: auto;
@@ -4036,7 +4036,7 @@ onMounted(async () => {
   font-weight: 800;
   height: 16px;
   line-height: 1.4;
-  color: #059669;
+  color: var(--color-success);
 }
 
 .h-bar-fill {
@@ -4047,12 +4047,12 @@ onMounted(async () => {
 }
 
 .hourly-bar-col.peak .h-bar-fill {
-  background: linear-gradient(180deg, #10b981 0%, #059669 100%);
+  background: linear-gradient(180deg, var(--color-success) 0%, var(--color-success) 100%);
   box-shadow: 0 1px 3px rgba(16, 185, 129, 0.3);
 }
 
 .hourly-bar-col.waste .h-bar-fill {
-  background: #fca5a5;
+  background: var(--color-error-border);
 }
 
 .hourly-bar-col.normal .h-bar-fill {
@@ -4062,7 +4062,7 @@ onMounted(async () => {
 .h-hour-label {
   font-size: 12px;
   font-weight: 600;
-  color: #64748b;
+  color: var(--color-text-muted);
   margin-top: 3px;
 }
 
@@ -4081,7 +4081,7 @@ onMounted(async () => {
 }
 
 .funnel-step-box {
-  background: #ffffff;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 10px;
   padding: 12px 14px;
@@ -4091,13 +4091,13 @@ onMounted(async () => {
 }
 
 .funnel-step-box.highlight-success {
-  border-color: #86efac;
-  background: #f0fdf4;
+  border-color: var(--color-success-border);
+  background: var(--color-success-soft);
 }
 
 .funnel-step-box.highlight-winner {
   border-color: #d8b4fe;
-  background: #faf5ff;
+  background: var(--color-purple-soft);
 }
 
 .fs-icon {
@@ -4107,25 +4107,25 @@ onMounted(async () => {
 .fs-label {
   font-size: 12px;
   font-weight: 600;
-  color: #64748b;
+  color: var(--color-text-muted);
 }
 
 .fs-num {
   font-size: 18px;
   font-weight: 850;
-  color: #0f172a;
+  color: var(--color-text);
 }
 
 .fs-pct {
   font-size: 12px;
-  color: #64748b;
+  color: var(--color-text-muted);
 }
 
 .video-funnel-verdict {
   display: flex;
   align-items: center;
-  background: #fffbeb;
-  border: 1px solid #fde68a;
+  background: var(--color-warning-soft);
+  border: 1px solid var(--color-warning-border);
   border-radius: 8px;
   padding: 10px 14px;
   font-size: 12px;
@@ -4140,7 +4140,7 @@ onMounted(async () => {
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 10px;
   padding: 12px 16px;
-  backdrop-filter: blur(8px);
+
 }
 
 .blueprint-pills-grid {
@@ -4160,14 +4160,14 @@ onMounted(async () => {
 
 .bp-pill small {
   font-size: 12px;
-  color: #cbd5e1;
+  color: var(--color-border-strong);
   text-transform: uppercase;
   font-weight: 700;
 }
 
 .bp-pill strong {
   font-size: 12px;
-  color: #f8fafc;
+  color: var(--color-background);
 }
 
 @media (max-width: 640px) {

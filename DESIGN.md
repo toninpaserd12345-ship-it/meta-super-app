@@ -1,4 +1,4 @@
-# Meta Super App — Product Design Standard
+# Meta Super App — Omnichannel Workbench Design Standard
 
 This document is the source of truth for the production UI. It applies to the dashboard, Facebook Pages, WhatsApp, Ads, products, Reply Sets, Automations, live chat, settings, and every new screen.
 
@@ -57,7 +57,32 @@ Every meaningful image has alt text derived from the real record name. Decorativ
 - Tables are used only when comparing at least three columns. On compact screens, convert rows to cards; never depend on horizontal scrolling for the primary action.
 - Sticky action bars must not cover content or mobile navigation.
 
-## 5. Visual system
+## 5. Visual direction: Omnichannel Workbench
+
+The product is an operational workbench, not a collection of promotional cards. Its visual model is a calm control room: a dark navigation rail, a warm-neutral canvas, bright working surfaces, dense but readable rows, and one indigo action color. Product truth, status, and relationships have priority over decoration.
+
+- Avoid the “AI dashboard” look: no rainbow metric tiles, icon-heading-text card grids, ornamental gradients, floating glass navigation, fake sparklines, decorative badges, or cards nested inside cards.
+- One Material Design Icons family is used throughout. Icons are 18–22 px in controls and 16–18 px in dense rows. A colored icon tile is only valid when it communicates a real state.
+- Surfaces use a 12 px radius; controls use 8–10 px. Use borders for containment and soft offset shadow only for overlays.
+- KPI summaries form one divided strip instead of many floating cards. Tables and lists are the default for operational records.
+- Indigo is reserved for primary action, selection, focus, and links. Green, amber, and red only communicate semantic state.
+
+### Anti-AI UI checklist
+
+- [ ] The page has one clear title and one primary action; no eyebrow label above the title.
+- [ ] Information is grouped by workflow, not forced into equal-size cards.
+- [ ] Repeated items share one row anatomy and one action placement.
+- [ ] Icons come from MDI, use a consistent weight/size, and never substitute for a label.
+- [ ] No raw feature color is used where a semantic token exists.
+- [ ] Borders, radius, elevation, spacing, and focus treatment match the shared tokens.
+- [ ] KPI values include context and are presented as a divided strip, not decorative tiles.
+- [ ] Tables have a quiet header, aligned numbers, visible row actions, and an intentional mobile form.
+- [ ] Loading, empty, error, permission, disabled, hover, focus, and success states are present.
+- [ ] Real Page, product, post, ad, and WhatsApp images are shown when available.
+- [ ] Copy names the task and recovery action; it never exposes raw API errors by default.
+- [ ] No illustration, gradient, animation, badge, or shadow exists without a functional reason.
+
+## 6. Visual system
 
 ### Typography
 
@@ -73,7 +98,7 @@ Every meaningful image has alt text derived from the real record name. Decorativ
 
 - Use the 4 px spacing scale: 4, 8, 12, 16, 20, 24, 32, 40, 48.
 - Interactive targets are at least 44 × 44 CSS px; primary row actions use 48 px height.
-- Cards use 12–18 px radius; inputs and buttons use 9–12 px radius.
+- Working surfaces use 12 px radius; inputs and buttons use 8–10 px radius.
 - Avoid nesting more than two bordered cards. Prefer spacing and section headings over extra containers.
 
 ### Color and status
@@ -83,11 +108,11 @@ Every meaningful image has alt text derived from the real record name. Decorativ
 - Status is communicated with icon + text + color. Color alone is never the only signal.
 - Green means active/success, amber means attention or incomplete setup, red means failed/destructive, gray means inactive or unavailable.
 
-## 6. Standard components
+## 7. Standard components
 
 ### Page header
 
-Contains eyebrow, one H1/H2, one concise description, and the primary action aligned right. Actions stack full width on compact screens.
+Contains one H1/H2, one concise description, and the primary action aligned right. Do not add an eyebrow or decorative title icon. Actions stack full width on compact screens.
 
 ### Resource row/card
 
@@ -111,7 +136,7 @@ Order: image/avatar → name and secondary ID → relationship/status → action
 
 Users can return to completed steps without losing input. Disabled “Continue” always has nearby guidance describing what is missing.
 
-## 7. Accessibility acceptance
+## 8. Accessibility acceptance
 
 - Full keyboard operation and visible focus rings.
 - Logical heading order and landmarks.
@@ -120,7 +145,7 @@ Users can return to completed steps without losing input. Disabled “Continue�
 - Motion respects `prefers-reduced-motion`.
 - Text reflows at 200% zoom without clipped primary actions.
 
-## 8. Definition of done for every screen
+## 9. Definition of done for every screen
 
 - [ ] Uses live scoped data and has no demo/assumed content.
 - [ ] Shows available real images and a typed fallback.

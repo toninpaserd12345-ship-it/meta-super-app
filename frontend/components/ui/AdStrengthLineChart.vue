@@ -60,15 +60,15 @@ const hoveredPoint = ref<{
 // BLUE / SLATE = Neutral / Moderate
 function getSemanticColor(isAngel: boolean, isBad: boolean, index: number): string {
   if (isAngel) {
-    const angelPalette = ['#10b981', '#059669', '#047857', '#14b8a6']
-    return angelPalette[index % angelPalette.length] ?? '#10b981'
+    const angelPalette = ['var(--color-success)', 'var(--color-success)', '#047857', '#14b8a6']
+    return angelPalette[index % angelPalette.length] ?? 'var(--color-success)'
   }
   if (isBad) {
-    const badPalette = ['#ef4444', '#dc2626', '#b91c1c', '#e11d48']
-    return badPalette[index % badPalette.length] ?? '#ef4444'
+    const badPalette = ['var(--color-error)', 'var(--color-error)', 'var(--color-error)', '#e11d48']
+    return badPalette[index % badPalette.length] ?? 'var(--color-error)'
   }
-  const neutralPalette = ['#3b82f6', '#2563eb', '#64748b', '#475569']
-  return neutralPalette[index % neutralPalette.length] ?? '#3b82f6'
+  const neutralPalette = ['var(--color-primary)', 'var(--color-primary)', 'var(--color-text-muted)', '#475569']
+  return neutralPalette[index % neutralPalette.length] ?? 'var(--color-primary)'
 }
 
 // Extract dates from accountTrend or synthesize last 7 days
@@ -149,11 +149,11 @@ function computeStrengthScore(purchases: number, cpa: number | null, ctr: number
 }
 
 function getStrengthLabel(score: number): { label: string; color: string; icon: string } {
-  if (score >= 80) return { label: l({ lo: '🔥 ແຮງຫຼາຍ (Angel)', th: '🔥 แรงมาก (Angel)', en: '🔥 Super Strong' }), color: '#10b981', icon: 'mdi-star-face' }
-  if (score >= 65) return { label: l({ lo: 'ແຂງແກ່ນ (Strong)', th: 'แข็งแกร่ง (Strong)', en: 'Strong' }), color: '#059669', icon: 'mdi-shield-check' }
-  if (score >= 45) return { label: l({ lo: '🟡 ປານກາງ', th: '🟡 ปานกลาง', en: '🟡 Moderate' }), color: '#3b82f6', icon: 'mdi-minus-circle' }
-  if (score >= 30) return { label: l({ lo: '⚠️ ເລີ່ມຕົກ', th: '⚠️ เริ่มตก', en: '⚠️ Weakening' }), color: '#ef4444', icon: 'mdi-trending-down' }
-  return { label: l({ lo: '🛑 ໝົດກຳລັງ (Fatigued)', th: '🛑 หมดกำลัง (Fatigued)', en: '🛑 Fatigued' }), color: '#dc2626', icon: 'mdi-alert-octagon' }
+  if (score >= 80) return { label: l({ lo: ' ແຮງຫຼາຍ (Angel)', th: ' แรงมาก (Angel)', en: ' Super Strong' }), color: 'var(--color-success)', icon: 'mdi-star-face' }
+  if (score >= 65) return { label: l({ lo: 'ແຂງແກ່ນ (Strong)', th: 'แข็งแกร่ง (Strong)', en: 'Strong' }), color: 'var(--color-success)', icon: 'mdi-shield-check' }
+  if (score >= 45) return { label: l({ lo: ' ປານກາງ', th: ' ปานกลาง', en: ' Moderate' }), color: 'var(--color-primary)', icon: 'mdi-minus-circle' }
+  if (score >= 30) return { label: l({ lo: ' ເລີ່ມຕົກ', th: ' เริ่มตก', en: ' Weakening' }), color: 'var(--color-error)', icon: 'mdi-trending-down' }
+  return { label: l({ lo: ' ໝົດກຳລັງ (Fatigued)', th: ' หมดกำลัง (Fatigued)', en: ' Fatigued' }), color: 'var(--color-error)', icon: 'mdi-alert-octagon' }
 }
 
 function isItemActive(item: MetaInsightItem): boolean {
@@ -405,7 +405,7 @@ function getAdDayparts(item: MetaInsightItem): { slots: DaypartSlot[]; diagnosti
   const slots: DaypartSlot[] = [
     {
       key: 'morning',
-      name: l({ lo: '🌅 ຕອນເຊົ້າ', th: '🌅 ตอนเช้า', en: '🌅 Morning' }),
+      name: l({ lo: ' ຕອນເຊົ້າ', th: ' ตอนเช้า', en: ' Morning' }),
       sub: '06:00 - 12:00',
       icon: 'mdi-weather-sunset-up',
       timeRange: '06:00 - 12:00',
@@ -420,7 +420,7 @@ function getAdDayparts(item: MetaInsightItem): { slots: DaypartSlot[]; diagnosti
     },
     {
       key: 'afternoon',
-      name: l({ lo: '☀️ ຕອນສວາຍ', th: '☀️ ตอนบ่าย', en: '☀️ Afternoon' }),
+      name: l({ lo: ' ຕອນສວາຍ', th: ' ตอนบ่าย', en: ' Afternoon' }),
       sub: '12:00 - 18:00',
       icon: 'mdi-weather-sunny',
       timeRange: '12:00 - 18:00',
@@ -435,7 +435,7 @@ function getAdDayparts(item: MetaInsightItem): { slots: DaypartSlot[]; diagnosti
     },
     {
       key: 'evening',
-      name: l({ lo: '🌙 ຫົວຄ່ຳ (Prime)', th: '🌙 หัวค่ำ (Prime)', en: '🌙 Evening (Prime)' }),
+      name: l({ lo: ' ຫົວຄ່ຳ (Prime)', th: ' หัวค่ำ (Prime)', en: ' Evening (Prime)' }),
       sub: '18:00 - 24:00',
       icon: 'mdi-weather-night',
       timeRange: '18:00 - 24:00',
@@ -450,7 +450,7 @@ function getAdDayparts(item: MetaInsightItem): { slots: DaypartSlot[]; diagnosti
     },
     {
       key: 'night',
-      name: l({ lo: '🌌 ຕອນເດິກ', th: '🌌 ดึก', en: '🌌 Late Night' }),
+      name: l({ lo: ' ຕອນເດິກ', th: ' ดึก', en: ' Late Night' }),
       sub: '00:00 - 06:00',
       icon: 'mdi-moon-waning-crescent',
       timeRange: '00:00 - 06:00',
@@ -483,52 +483,52 @@ function getAdDayparts(item: MetaInsightItem): { slots: DaypartSlot[]; diagnosti
     diagnostic = {
       type: 'warning',
       icon: 'mdi-fire-alert',
-      title: l({ lo: '⚠️ ງົບໄຫຼຕອນກາງເວັນ ແຕ່ບໍ່ມີຍອດຊື້ (Daytime Drain)', th: '⚠️ งบไหลตอนกลางวันแต่ไม่มีออเดอร์', en: '⚠️ Daytime Budget Drain' }),
+      title: l({ lo: ' ງົບໄຫຼຕອນກາງເວັນ ແຕ່ບໍ່ມີຍອດຊື້ (Daytime Drain)', th: ' งบไหลตอนกลางวันแต่ไม่มีออเดอร์', en: ' Daytime Budget Drain' }),
       message: l({
         lo: `ໃຊ້ງົບໃນຊ່ວງເຊົ້າ-ສວາຍແລ້ວ $${daytimeSpend.toFixed(2)} ແຕ່ຍັງບໍ່ມີອໍເດີ. ຖ້າລູກຄ້າສິນຄ້ານີ້ຊື້ຕອນແລງ, ຄວນຕັ້ງເວລາ Dayparting ຫຼື ພັກແອດໄວ້ກ່ອນ.`,
         th: `ใช้งบตอนเช้า-บ่ายไปแล้ว $${daytimeSpend.toFixed(2)} แต่ยังไม่มีออเดอร์ หากลูกค้าซื้อตอนค่ำ แนะนำตั้ง Dayparting หรือพักแอด`,
         en: `Spent $${daytimeSpend.toFixed(2)} daytime with 0 purchases. Consider dayparting schedule or pausing.`
       }),
-      actionLabel: l({ lo: '⏸️ ພັກແອດກ່ອນ', th: '⏸️ พักแอดก่อน', en: 'Pause Ad' }),
+      actionLabel: l({ lo: ' ພັກແອດກ່ອນ', th: ' พักแอดก่อน', en: 'Pause Ad' }),
       actionType: 'pause',
     }
   } else if (totalPurchases >= 2 && (cpa == null || (margin > 0 ? cpa <= margin : cpa <= 3.0))) {
     diagnostic = {
       type: 'success',
       icon: 'mdi-rocket-launch',
-      title: l({ lo: '🚀 ແອດແຮງມື້ນີ້ ໂອກາດ Scale ງົບຕອນແລງ (Scale Opportunity)', th: '🚀 แอดแรงวันนี้ โอกาส Scale งบตอนค่ำ', en: '🚀 Prime Scale Opportunity' }),
+      title: l({ lo: ' ແອດແຮງມື້ນີ້ ໂອກາດ Scale ງົບຕອນແລງ (Scale Opportunity)', th: ' แอดแรงวันนี้ โอกาส Scale งบตอนค่ำ', en: ' Prime Scale Opportunity' }),
       message: l({
         lo: `ຍອດຊື້ເຂົ້າມາແລ້ວ ${totalPurchases} ອໍເດີ, CPA ຖືກພຽງ $${(cpa || 0).toFixed(2)}. ແນະນຳກົດ Scale ງົບ (+20%) ເພື່ອດັກຈັບຍອດຊ່ວງຫົວຄ່ຳ (18:00 - 24:00)!`,
         th: `ยอดซื้อเข้ามาแล้ว ${totalPurchases} ออเดอร์ CPA ถูกเพียง $${(cpa || 0).toFixed(2)} แนะนำกด Scale งบ (+20%) เพื่อดักยอดช่วงหัวค่ำ`,
         en: `${totalPurchases} orders today, cheap CPA $${(cpa || 0).toFixed(2)}. Recommended to Scale (+20%) for prime time.`
       }),
-      actionLabel: l({ lo: '🚀 Scale ງົບ (+20%)', th: '🚀 Scale งบ (+20%)', en: 'Scale Budget' }),
+      actionLabel: l({ lo: ' Scale ງົບ (+20%)', th: ' Scale งบ (+20%)', en: 'Scale Budget' }),
       actionType: 'scale',
     }
   } else if (totalPurchases > 0 && margin > 0 && cpa != null && cpa > margin) {
     diagnostic = {
       type: 'danger',
       icon: 'mdi-alert-decagram',
-      title: l({ lo: '🛑 ຂາຍໄດ້ແຕ່ຕິດລົບ (CPA > Margin)', th: '🛑 ขายได้แต่ติดลบ (CPA > Margin)', en: '🛑 Loss Per Sale (CPA > Margin)' }),
+      title: l({ lo: ' ຂາຍໄດ້ແຕ່ຕິດລົບ (CPA > Margin)', th: ' ขายได้แต่ติดลบ (CPA > Margin)', en: ' Loss Per Sale (CPA > Margin)' }),
       message: l({
         lo: `ຕົ້ນທຶນແອດ ($${cpa.toFixed(2)}/ອໍເດີ) ສູງກວ່າກຳໄລຕໍ່ຊິ້ນ ($${margin.toFixed(2)}). ຂາຍທຸກອໍເດີຂາດທຶນ -$${(cpa - margin).toFixed(2)}. ຄວນປັບ Creative ຫຼື Up-sell ແພັກຄູ່.`,
         th: `ต้นทุนแอด ($${cpa.toFixed(2)}) สูงกว่ากำไรสินค้า ($${margin.toFixed(2)}) ขายขาดทุน -$${(cpa - margin).toFixed(2)} ต่องวด`,
         en: `Ad cost per order ($${cpa.toFixed(2)}) exceeds product margin ($${margin.toFixed(2)}). Net loss -$${(cpa - margin).toFixed(2)}/sale.`
       }),
-      actionLabel: l({ lo: '⏸️ ປິດຢຸດຂາດທຶນ', th: '⏸️ ปิดหยุดขาดทุน', en: 'Pause Ad' }),
+      actionLabel: l({ lo: ' ປິດຢຸດຂາດທຶນ', th: ' ปิดหยุดขาดทุน', en: 'Pause Ad' }),
       actionType: 'pause',
     }
   } else if (totalSpend >= 3.0 && totalPurchases === 0 && ctr < 1.0) {
     diagnostic = {
       type: 'danger',
       icon: 'mdi-trending-down',
-      title: l({ lo: '🛑 ຄົນບໍ່ຄລິກ CTR ຕ່ຳ (Creative Fatigue)', th: '🛑 คนไม่คลิก CTR ต่ำ', en: '🛑 Creative Fatigue Today' }),
+      title: l({ lo: ' ຄົນບໍ່ຄລິກ CTR ຕ່ຳ (Creative Fatigue)', th: ' คนไม่คลิก CTR ต่ำ', en: ' Creative Fatigue Today' }),
       message: l({
         lo: `Link CTR ພຽງ ${ctr.toFixed(2)}% (ຕ່ຳກວ່າເກນ 1.2%) ແລະ ໃຊ້ງົບໄປແລ້ວ $${totalSpend.toFixed(2)} ໂດຍຍັງບໍ່ມີອໍເດີ. ແນະນຳໃຫ້ປິດພັກແອດເພື່ອບໍ່ໃຫ້ເສຍງົບຟຣີ.`,
         th: `Link CTR เพียง ${ctr.toFixed(2)}% และใช้งบไป $${totalSpend.toFixed(2)} ยังไม่มีออเดอร์ แนะนำพักแอด`,
         en: `Low Link CTR ${ctr.toFixed(2)}% and spent $${totalSpend.toFixed(2)} with 0 orders. Recommended to pause.`
       }),
-      actionLabel: l({ lo: '⏸️ ປິດແອດ', th: '⏸️ ปิดแอด', en: 'Pause Ad' }),
+      actionLabel: l({ lo: ' ປິດແອດ', th: ' ปิดแอด', en: 'Pause Ad' }),
       actionType: 'pause',
     }
   }
@@ -965,11 +965,11 @@ const aggregatedMetrics = computed(() => {
             DAILY AD MOMENTUM
           </span>
           <span class="color-guide-hint">
-            <span class="dot green-dot" /> 🟢 ສີຂຽວ = Ads ນາງຟ້າ
-            <span class="dot red-dot ml-2" /> 🔴 ສີແດງ = ແອດໝົດກຳລັງ
+            <span class="dot green-dot" />  ສີຂຽວ = Ads ນາງຟ້າ
+            <span class="dot red-dot ml-2" />  ສີແດງ = ແອດໝົດກຳລັງ
           </span>
         </div>
-        <h2>{{ l({ lo: '📈 ກຣາຟເສັ້ນຄວາມແຮງ ຂອງແຕ່ລະ Ads (ແຍກລະດັບ Ads ຊັດເຈນ)', th: '📈 กราฟเส้นความแรง ของแต่ละ Ads (แยกระดับ Ads ชัดเจน)', en: 'Daily Ad Momentum (Clean Ad-Level Separation)' }) }}</h2>
+        <h2>{{ l({ lo: ' ກຣາຟເສັ້ນຄວາມແຮງ ຂອງແຕ່ລະ Ads (ແຍກລະດັບ Ads ຊັດເຈນ)', th: ' กราฟเส้นความแรง ของแต่ละ Ads (แยกระดับ Ads ชัดเจน)', en: 'Daily Ad Momentum (Clean Ad-Level Separation)' }) }}</h2>
         <p class="chart-sub">
           {{ l({ lo: 'ກວດເບິ່ງແຮງຂອງແຕ່ລະແອດແບບລາຍມື້, ເຫັນຊື່ແອດຊັດເຈນ, ພ້ອມປຸ່ມ ເປີດ-ປິດ (Open / Close Ads) ໃນແຕ່ລະກາດທັນທີ', th: 'ตรวจดูความแรงของแต่ละแอดแบบรายวัน เห็นชื่อแอดชัดเจน พร้อมปุ่ม เปิด-ปิด (Open / Close Ads) ในแต่ละการ์ดทันที', en: 'Audit ad momentum daily with clear names and direct Open/Close toggles on each card.' }) }}
         </p>
@@ -989,11 +989,11 @@ const aggregatedMetrics = computed(() => {
           >
             <v-btn value="separate">
               <v-icon icon="mdi-view-grid-outline" size="15" class="mr-1 text-primary" />
-              <span>{{ l({ lo: '🔲 ແຍກກາດແຕ່ລະ Ads (ແນະນຳ)', th: '🔲 แยกการ์ดแต่ละ Ads (แนะนำ)', en: '🔲 Separate Cards' }) }}</span>
+              <span>{{ l({ lo: ' ແຍກກາດແຕ່ລະ Ads (ແນະນຳ)', th: ' แยกการ์ดแต่ละ Ads (แนะนำ)', en: ' Separate Cards' }) }}</span>
             </v-btn>
             <v-btn value="combined">
               <v-icon icon="mdi-chart-multiline" size="15" class="mr-1 text-secondary" />
-              <span>{{ l({ lo: '📊 ຮວມກັນໃນກຣາຟດຽວ', th: '📊 รวมกันในกราฟเดียว', en: '📊 Combined View' }) }}</span>
+              <span>{{ l({ lo: ' ຮວມກັນໃນກຣາຟດຽວ', th: ' รวมกันในกราฟเดียว', en: ' Combined View' }) }}</span>
             </v-btn>
           </v-btn-toggle>
         </div>
@@ -1010,23 +1010,23 @@ const aggregatedMetrics = computed(() => {
           >
             <v-btn value="strength">
               <v-icon icon="mdi-lightning-bolt" size="14" class="mr-1 text-amber-darken-3" />
-              <span>{{ l({ lo: '⚡ ຄວາມແຮງ (Score)', th: '⚡ ความแรง (Score)', en: '⚡ Strength' }) }}</span>
+              <span>{{ l({ lo: ' ຄວາມແຮງ (Score)', th: ' ความแรง (Score)', en: ' Strength' }) }}</span>
             </v-btn>
             <v-btn value="purchases">
               <v-icon icon="mdi-cart-check" size="14" class="mr-1 text-success" />
-              <span>{{ l({ lo: '🛒 ອໍເດີ', th: '🛒 ออเดอร์', en: '🛒 Orders' }) }}</span>
+              <span>{{ l({ lo: ' ອໍເດີ', th: ' ออเดอร์', en: ' Orders' }) }}</span>
             </v-btn>
             <v-btn value="cpa">
               <v-icon icon="mdi-target" size="14" class="mr-1 text-primary" />
-              <span>{{ l({ lo: '🎯 CPA', th: '🎯 CPA', en: '🎯 CPA' }) }}</span>
+              <span>{{ l({ lo: ' CPA', th: ' CPA', en: ' CPA' }) }}</span>
             </v-btn>
             <v-btn value="ctr">
               <v-icon icon="mdi-cursor-default-click" size="14" class="mr-1 text-purple" />
-              <span>{{ l({ lo: '📈 CTR %', th: '📈 CTR %', en: '📈 CTR' }) }}</span>
+              <span>{{ l({ lo: ' CTR %', th: ' CTR %', en: ' CTR' }) }}</span>
             </v-btn>
             <v-btn value="spend">
               <v-icon icon="mdi-cash" size="14" class="mr-1 text-error" />
-              <span>{{ l({ lo: '💸 ງົບໃຊ້', th: '💸 ใช้งบ', en: '💸 Spend' }) }}</span>
+              <span>{{ l({ lo: ' ງົບໃຊ້', th: ' ใช้งบ', en: ' Spend' }) }}</span>
             </v-btn>
           </v-btn-toggle>
         </div>
@@ -1048,7 +1048,7 @@ const aggregatedMetrics = computed(() => {
             :class="{ active: currentFilter === 'all' }"
             @click="filterSeries('all')"
           >
-            {{ l({ lo: '📋 ທຸກ Ads', th: '📋 ทุก Ads', en: 'All' }) }}
+            {{ l({ lo: ' ທຸກ Ads', th: ' ทุก Ads', en: 'All' }) }}
           </button>
           <button
             type="button"
@@ -1056,7 +1056,7 @@ const aggregatedMetrics = computed(() => {
             :class="{ active: currentFilter === 'angels' }"
             @click="filterSeries('angels')"
           >
-            🟢 {{ l({ lo: 'ສະເພາະ Ads ນາງຟ້າ', th: 'เฉพาะแอดนางฟ้า', en: 'Angel Ads' }) }}
+             {{ l({ lo: 'ສະເພາະ Ads ນາງຟ້າ', th: 'เฉพาะแอดนางฟ้า', en: 'Angel Ads' }) }}
           </button>
           <button
             type="button"
@@ -1064,7 +1064,7 @@ const aggregatedMetrics = computed(() => {
             :class="{ active: currentFilter === 'bad' }"
             @click="filterSeries('bad')"
           >
-            🔴 {{ l({ lo: 'ສະເພາະ ແອດໝົດກຳລັງ', th: 'เฉพาะแอดหมดกำลัง', en: 'Fatigued Ads' }) }}
+             {{ l({ lo: 'ສະເພາະ ແອດໝົດກຳລັງ', th: 'เฉพาะแอดหมดกำลัง', en: 'Fatigued Ads' }) }}
           </button>
           <button
             type="button"
@@ -1081,18 +1081,18 @@ const aggregatedMetrics = computed(() => {
             :class="{ active: allSlotsExpanded }"
             @click="toggleAllSlots"
           >
-            {{ allSlotsExpanded ? '▲ ຫຍໍ້ 4 ຊ່ວງເວລາ' : '🕒 ເບິ່ງ 4 ຊ່ວງເວລາ' }}
+            {{ allSlotsExpanded ? '▲ ຫຍໍ້ 4 ຊ່ວງເວລາ' : ' ເບິ່ງ 4 ຊ່ວງເວລາ' }}
           </button>
         </div>
       </div>
 
       <!-- Single Ad Isolator / Spotlight Dropdown -->
       <div class="ad-spotlight-select">
-        <label>{{ l({ lo: '🔍 ເຈາະຈົງແອດດຽວ:', th: '🔍 เจาะจงแอดเดียว:', en: 'Focus Ad:' }) }}</label>
+        <label>{{ l({ lo: ' ເຈາະຈົງແອດດຽວ:', th: ' เจาะจงแอดเดียว:', en: 'Focus Ad:' }) }}</label>
         <select v-model="focusedAdId" class="ad-select-dropdown" :aria-label="l({ lo: 'ເຈາະຈົງແອດດຽວ', th: 'เจาะจงแอดเดียว', en: 'Focus Ad' })">
           <option value="all">{{ l({ lo: '— ສະແດງທັງໝົດ —', th: '— แสดงทั้งหมด —', en: '— Show All —' }) }}</option>
           <option v-for="s in activeAdSeries" :key="s.id" :value="s.id">
-            {{ s.isAngel ? '🟢 ນາງຟ້າ: ' : s.isBad ? '🔴 ໝົດກຳລັງ: ' : '🔘 ທົ່ວໄປ: ' }}{{ s.name }}
+            {{ s.isAngel ? ' ນາງຟ້າ: ' : s.isBad ? ' ໝົດກຳລັງ: ' : ' ທົ່ວໄປ: ' }}{{ s.name }}
           </option>
         </select>
       </div>
@@ -1155,7 +1155,7 @@ const aggregatedMetrics = computed(() => {
               :class="isItemActive(series.item) ? 'status-active-box' : 'status-paused-box'"
             >
               <span class="switch-text">
-                {{ isItemActive(series.item) ? '🟢 ເປີດແອດ (Active)' : '⏸️ ປິດແອດ (Paused)' }}
+                {{ isItemActive(series.item) ? ' ເປີດແອດ (Active)' : ' ປິດແອດ (Paused)' }}
               </span>
               <v-switch
                 :model-value="isItemActive(series.item)"
@@ -1197,7 +1197,7 @@ const aggregatedMetrics = computed(() => {
                 <div class="product-info-texts min-w-0">
                   <div class="d-flex align-center gap-1">
                     <span class="product-name-badge" :title="getProductFinancials(series.item).productName || 'ຍັງບໍ່ໄດ້ຜູກສິນຄ້າ'">
-                      📦 {{ getProductFinancials(series.item).productName || 'ຍັງບໍ່ໄດ້ຜູກສິນຄ້າ' }}
+                       {{ getProductFinancials(series.item).productName || 'ຍັງບໍ່ໄດ້ຜູກສິນຄ້າ' }}
                     </span>
                     <v-menu v-if="props.products && props.products.length > 0" location="bottom start">
                       <template #activator="{ props: menuProps }">
@@ -1251,22 +1251,22 @@ const aggregatedMetrics = computed(() => {
             <!-- Pricing & Unit Margin Grid -->
             <div class="product-pricing-grid">
               <div class="price-cell">
-                <span class="p-label">{{ l({ lo: '🏷️ ລາຄາຂາຍ:', th: '🏷️ ราคาขาย:', en: 'Price:' }) }}</span>
+                <span class="p-label">{{ l({ lo: ' ລາຄາຂາຍ:', th: ' ราคาขาย:', en: 'Price:' }) }}</span>
                 <span class="p-val">{{ money(getProductFinancials(series.item).sellingPrice) }}</span>
               </div>
               <div class="price-cell">
-                <span class="p-label">{{ l({ lo: '📦 ຕົ້ນທຶນ:', th: '📦 ต้นทุน:', en: 'Cost:' }) }}</span>
+                <span class="p-label">{{ l({ lo: ' ຕົ້ນທຶນ:', th: ' ต้นทุน:', en: 'Cost:' }) }}</span>
                 <span class="p-val">{{ money(getProductFinancials(series.item).costPrice) }}</span>
               </div>
               <div class="price-cell">
-                <span class="p-label">{{ l({ lo: '💎 ກຳໄລ/ຊິ້ນ:', th: '💎 กำไร/ชิ้น:', en: 'Margin:' }) }}</span>
+                <span class="p-label">{{ l({ lo: ' ກຳໄລ/ຊິ້ນ:', th: ' กำไร/ชิ้น:', en: 'Margin:' }) }}</span>
                 <span class="p-val text-success font-weight-bold">
                   +{{ money(getProductFinancials(series.item).margin) }}
                   <small v-if="getProductFinancials(series.item).marginPercent > 0">({{ getProductFinancials(series.item).marginPercent.toFixed(0) }}%)</small>
                 </span>
               </div>
               <div class="price-cell">
-                <span class="p-label">{{ l({ lo: '📊 ກຳໄລ/ອໍເດີ:', th: '📊 กำไร/ออเดอร์:', en: 'Profit/Order:' }) }}</span>
+                <span class="p-label">{{ l({ lo: ' ກຳໄລ/ອໍເດີ:', th: ' กำไร/ออเดอร์:', en: 'Profit/Order:' }) }}</span>
                 <span
                   class="p-val font-weight-bold"
                   :class="(getProductFinancials(series.item).profitPerOrder ?? 0) >= 0 ? 'text-success' : 'text-error'"
@@ -1310,9 +1310,9 @@ const aggregatedMetrics = computed(() => {
           <div v-if="props.isToday || (series.item.hourly && series.item.hourly.length > 0)" class="today-time-slots-card">
             <div class="today-slots-header cursor-pointer" @click="toggleSlotExpand(series.id)">
               <div class="d-flex align-center gap-1">
-                <svg width="8" height="8" viewBox="0 0 8 8" class="pulse-today-dot mr-1"><circle cx="4" cy="4" r="4" fill="#ef4444"/></svg>
+                <svg width="8" height="8" viewBox="0 0 8 8" class="pulse-today-dot mr-1"><circle cx="4" cy="4" r="4" fill="var(--color-error)"/></svg>
                 <span class="today-slots-title">
-                  {{ l({ lo: '🕒 ຊ່ວງເວລາປະຈຳວັນ (Time Slots)', th: '🕒 ช่วงเวลาประจำวัน (Time Slots)', en: '🕒 Time Slots' }) }}
+                  {{ l({ lo: ' ຊ່ວງເວລາປະຈຳວັນ (Time Slots)', th: ' ช่วงเวลาประจำวัน (Time Slots)', en: ' Time Slots' }) }}
                 </span>
                 <v-chip size="x-small" :color="isSlotExpanded(series.id) ? 'primary' : 'default'" variant="tonal" class="ml-1 font-weight-bold">
                   {{ isSlotExpanded(series.id) ? '▲ ຫຍໍ້ເຂົ້າ' : '▼ ເບິ່ງ 4 ຊ່ວງເວລາ & ແນະນຳ' }}
@@ -1342,8 +1342,8 @@ const aggregatedMetrics = computed(() => {
                         <v-icon :icon="slot.icon" size="13" />
                         <span class="daypart-title">{{ slot.name }}</span>
                       </div>
-                      <span v-if="slot.isCurrentSlot" class="now-badge">🔴 {{ l({ lo: 'ຕອນນີ້', th: 'ตอนนี้', en: 'Now' }) }}</span>
-                      <span v-else-if="slot.isPeak" class="peak-badge">👑 Peak</span>
+                      <span v-if="slot.isCurrentSlot" class="now-badge"> {{ l({ lo: 'ຕອນນີ້', th: 'ตอนนี้', en: 'Now' }) }}</span>
+                      <span v-else-if="slot.isPeak" class="peak-badge"> Peak</span>
                     </div>
                     <div class="daypart-sub-range">{{ slot.sub }}</div>
 
@@ -1474,7 +1474,7 @@ const aggregatedMetrics = computed(() => {
                   :x="pt.x"
                   :y="126"
                   text-anchor="middle"
-                  fill="#64748b"
+                  fill="var(--color-text-muted)"
                   font-size=\"11\"
                   font-weight="600"
                 >
@@ -1528,7 +1528,7 @@ const aggregatedMetrics = computed(() => {
               class="font-weight-bold"
               @click="emit('pause', series.item)"
             >
-              ⏸️ ປິດແອດ (Stop-loss)
+               ປິດແອດ (Stop-loss)
             </v-btn>
             <span v-else-if="!isItemActive(series.item)" class="closed-label">
               <v-icon icon="mdi-pause-circle" size="14" class="mr-1 text-medium-emphasis" />
@@ -1551,12 +1551,12 @@ const aggregatedMetrics = computed(() => {
         >
           <defs>
             <linearGradient id="angelZoneGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#10b981" stop-opacity="0.12" />
-              <stop offset="100%" stop-color="#10b981" stop-opacity="0.0" />
+              <stop offset="0%" stop-color="var(--color-success)" stop-opacity="0.12" />
+              <stop offset="100%" stop-color="var(--color-success)" stop-opacity="0.0" />
             </linearGradient>
             <linearGradient id="badZoneGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#ef4444" stop-opacity="0.0" />
-              <stop offset="100%" stop-color="#ef4444" stop-opacity="0.1" />
+              <stop offset="0%" stop-color="var(--color-error)" stop-opacity="0.0" />
+              <stop offset="100%" stop-color="var(--color-error)" stop-opacity="0.1" />
             </linearGradient>
           </defs>
 
@@ -1585,13 +1585,13 @@ const aggregatedMetrics = computed(() => {
               :y1="getY(80)"
               :x2="padding.left + innerWidth"
               :y2="getY(80)"
-              stroke="#10b981"
+              stroke="var(--color-success)"
               stroke-width="1.2"
               stroke-dasharray="4 4"
               opacity="0.7"
             />
-            <text :x="padding.left + 8" :y="getY(80) - 4" fill="#059669" font-size=\"11\" font-weight="700">
-              🟢 ເກນ Ads ນາງຟ້າ (80+)
+            <text :x="padding.left + 8" :y="getY(80) - 4" fill="var(--color-success)" font-size=\"11\" font-weight="700">
+               ເກນ Ads ນາງຟ້າ (80+)
             </text>
 
             <!-- Bad Threshold Line (40) -->
@@ -1600,13 +1600,13 @@ const aggregatedMetrics = computed(() => {
               :y1="getY(40)"
               :x2="padding.left + innerWidth"
               :y2="getY(40)"
-              stroke="#ef4444"
+              stroke="var(--color-error)"
               stroke-width="1.2"
               stroke-dasharray="4 4"
               opacity="0.7"
             />
-            <text :x="padding.left + 8" :y="getY(40) + 12" fill="#dc2626" font-size=\"11\" font-weight="700">
-              🔴 ເກນໝົດກຳລັງ / ຄວນປິດ (&lt; 40)
+            <text :x="padding.left + 8" :y="getY(40) + 12" fill="var(--color-error)" font-size=\"11\" font-weight="700">
+               ເກນໝົດກຳລັງ / ຄວນປິດ (&lt; 40)
             </text>
           </g>
 
@@ -1619,7 +1619,7 @@ const aggregatedMetrics = computed(() => {
               :y1="padding.top + (innerHeight / 4) * (tick - 1)"
               :x2="padding.left + innerWidth"
               :y2="padding.top + (innerHeight / 4) * (tick - 1)"
-              stroke="#f1f5f9"
+              stroke="var(--color-surface-soft)"
               stroke-width="1"
             />
           </g>
@@ -1648,7 +1648,7 @@ const aggregatedMetrics = computed(() => {
               :x="getX(idx)"
               :y="svgHeight - 12"
               text-anchor="middle"
-              fill="#64748b"
+              fill="var(--color-text-muted)"
               font-size="11"
               font-weight="600"
             >
@@ -1746,14 +1746,14 @@ const aggregatedMetrics = computed(() => {
             <strong :style="{ color: hoveredPoint.color }">{{ hoveredPoint.displayValue }}</strong>
           </div>
           <div class="tooltip-strength-row">
-            <span class="score-chip" :style="{ background: hoveredPoint.strengthScore >= 80 ? '#ecfdf5' : hoveredPoint.strengthScore < 40 ? '#fef2f2' : '#fffbeb' }">
+            <span class="score-chip" :style="{ background: hoveredPoint.strengthScore >= 80 ? 'var(--color-success-soft)' : hoveredPoint.strengthScore < 40 ? 'var(--color-error-soft)' : '#fffbeb' }">
               {{ hoveredPoint.strengthLabel }} ({{ hoveredPoint.strengthScore }}/100)
             </span>
           </div>
           <div class="tooltip-footer">
-            <span>🛒 ອໍເດີ: {{ hoveredPoint.purchases }}</span>
-            <span>🎯 CPA: {{ hoveredPoint.cpa ? `$${hoveredPoint.cpa.toFixed(2)}` : '—' }}</span>
-            <span>📈 CTR: {{ hoveredPoint.ctr }}%</span>
+            <span> ອໍເດີ: {{ hoveredPoint.purchases }}</span>
+            <span> CPA: {{ hoveredPoint.cpa ? `$${hoveredPoint.cpa.toFixed(2)}` : '—' }}</span>
+            <span> CTR: {{ hoveredPoint.ctr }}%</span>
           </div>
         </div>
       </div>
@@ -1780,7 +1780,7 @@ const aggregatedMetrics = computed(() => {
               </span>
             </button>
             <div class="chip-status-badge" :class="isItemActive(series.item) ? 'active' : 'paused'">
-              {{ isItemActive(series.item) ? '🟢' : '⏸️' }}
+              {{ isItemActive(series.item) ? '' : '' }}
             </div>
           </div>
         </div>
@@ -1794,7 +1794,7 @@ const aggregatedMetrics = computed(() => {
           <v-icon icon="mdi-rocket-launch" size="20" />
         </div>
         <div class="box-info">
-          <small>{{ l({ lo: '🟢 ແອດທີ່ແຂງແກ່ນທີ່ສຸດ (Top Momentum)', th: '🟢 แอดที่แข็งแกร่งที่สุด (Top Momentum)', en: 'Strongest Momentum' }) }}</small>
+          <small>{{ l({ lo: ' ແອດທີ່ແຂງແກ່ນທີ່ສຸດ (Top Momentum)', th: ' แอดที่แข็งแกร่งที่สุด (Top Momentum)', en: 'Strongest Momentum' }) }}</small>
           <strong>{{ strongestAd.name }}</strong>
           <span class="insight-badge green">
             Score {{ strongestAd.currentScore }}/100 · {{ getStrengthLabel(strongestAd.currentScore).label }}
@@ -1807,7 +1807,7 @@ const aggregatedMetrics = computed(() => {
           <v-icon icon="mdi-alert-octagon" size="20" />
         </div>
         <div class="box-info">
-          <small>{{ l({ lo: '🔴 ແອດທີ່ເລີ່ມໝົດກຳລັງ (Fatigue Alert)', th: '🔴 แอดที่เริ่มหมดกำลัง (Fatigue Alert)', en: 'Fatigue Alert' }) }}</small>
+          <small>{{ l({ lo: ' ແອດທີ່ເລີ່ມໝົດກຳລັງ (Fatigue Alert)', th: ' แอดที่เริ่มหมดกำลัง (Fatigue Alert)', en: 'Fatigue Alert' }) }}</small>
           <strong>{{ weakestAd.name }}</strong>
           <span class="insight-badge red">
             Score {{ weakestAd.currentScore }}/100 · ຄວນພິຈາລະນາປິດ
@@ -1820,7 +1820,7 @@ const aggregatedMetrics = computed(() => {
 
 <style scoped>
 .ad-strength-chart-card {
-  background: var(--color-surface, #ffffff);
+  background: var(--color-surface, var(--color-surface));
   border: 1px solid var(--color-border, rgba(0, 0, 0, 0.06));
   border-radius: 16px;
   padding: 20px 24px;
@@ -1845,7 +1845,7 @@ const aggregatedMetrics = computed(() => {
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.5px;
-  color: #0284c7;
+  color: var(--color-info);
   background: #e0f2fe;
   padding: 4px 8px;
   line-height: 1.4;
@@ -1855,10 +1855,10 @@ const aggregatedMetrics = computed(() => {
 .color-guide-hint {
   font-size: 12px;
   font-weight: 700;
-  color: #475569;
+  color: var(--color-text-secondary);
   display: inline-flex;
   align-items: center;
-  background: #f8fafc;
+  background: var(--color-background);
   border: 1px solid var(--color-border);
   padding: 4px 10px;
   line-height: 1.4;
@@ -1868,13 +1868,13 @@ const aggregatedMetrics = computed(() => {
 .chart-title-area h2 {
   font-size: clamp(16px, 1.8vw, 20px);
   font-weight: 800;
-  color: var(--color-text, #0f172a);
+  color: var(--color-text, var(--color-text));
   margin: 4px 0;
 }
 
 .chart-sub {
   font-size: 13px;
-  color: #64748b;
+  color: var(--color-text-muted);
   margin: 0;
   max-width: 760px;
 }
@@ -1887,14 +1887,14 @@ const aggregatedMetrics = computed(() => {
 }
 
 .mode-toggle-group {
-  background: #f1f5f9;
+  background: var(--color-surface-soft);
   border-radius: 8px;
   overflow: hidden;
   padding: 4px;
 }
 
 .metric-toggle-group {
-  background: #f8fafc;
+  background: var(--color-background);
   padding: 4px;
 }
 
@@ -1906,7 +1906,7 @@ const aggregatedMetrics = computed(() => {
   gap: 12px;
   flex-wrap: wrap;
   padding: 8px 12px;
-  background: #f8fafc;
+  background: var(--color-background);
   border-radius: 10px;
   border: 1px solid var(--color-border);
 }
@@ -1914,7 +1914,7 @@ const aggregatedMetrics = computed(() => {
 .filter-label {
   font-size: 12px;
   font-weight: 700;
-  color: #64748b;
+  color: var(--color-text-muted);
   display: flex;
   align-items: center;
   gap: 4px;
@@ -1932,26 +1932,26 @@ const aggregatedMetrics = computed(() => {
   padding: 4px 10px;
   border-radius: 999px;
   border: 1px solid var(--color-border);
-  background: #ffffff;
-  color: #475569;
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .pill-btn:hover {
-  background: #f1f5f9;
+  background: var(--color-surface-soft);
 }
 
 .pill-btn.angel {
-  border-color: #86efac;
-  color: #15803d;
-  background: #f0fdf4;
+  border-color: var(--color-success-border);
+  color: var(--color-success);
+  background: var(--color-success-soft);
 }
 
 .pill-btn.bad {
-  border-color: #fca5a5;
-  color: #b91c1c;
-  background: #fef2f2;
+  border-color: var(--color-error-border);
+  color: var(--color-error);
+  background: var(--color-error-soft);
 }
 
 .pill-btn.top3 {
@@ -1961,27 +1961,27 @@ const aggregatedMetrics = computed(() => {
 }
 
 .pill-btn.active {
-  background: #1e293b;
-  color: #ffffff;
-  border-color: #0f172a;
+  background: var(--color-text);
+  color: var(--color-surface);
+  border-color: var(--color-text);
   box-shadow: var(--shadow-xs);
 }
 
 .pill-btn.angel.active {
-  background: #16a34a;
-  color: #ffffff;
-  border-color: #15803d;
+  background: var(--color-success);
+  color: var(--color-surface);
+  border-color: var(--color-success);
 }
 
 .pill-btn.bad.active {
-  background: #dc2626;
-  color: #ffffff;
-  border-color: #b91c1c;
+  background: var(--color-error);
+  color: var(--color-surface);
+  border-color: var(--color-error);
 }
 
 .pill-btn.top3.active {
-  background: #0284c7;
-  color: #ffffff;
+  background: var(--color-info);
+  color: var(--color-surface);
   border-color: #0369a1;
 }
 
@@ -1994,7 +1994,7 @@ const aggregatedMetrics = computed(() => {
 .ad-spotlight-select label {
   font-size: 12px;
   font-weight: 700;
-  color: #475569;
+  color: var(--color-text-secondary);
 }
 
 .ad-select-dropdown {
@@ -2003,8 +2003,8 @@ const aggregatedMetrics = computed(() => {
   padding: 4px 10px;
   border-radius: 6px;
   border: 1px solid var(--color-border);
-  background: #ffffff;
-  color: #0f172a;
+  background: var(--color-surface);
+  color: var(--color-text);
   max-width: 240px;
   cursor: pointer;
 }
@@ -2031,7 +2031,7 @@ const aggregatedMetrics = computed(() => {
 }
 
 .ad-solo-card {
-  background: #ffffff;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 14px;
   padding: 16px;
@@ -2048,18 +2048,18 @@ const aggregatedMetrics = computed(() => {
 
 /* Strict Semantic Themes */
 .ad-solo-card.theme-angel {
-  border-color: #10b981;
-  background: linear-gradient(180deg, #f0fdf4 0%, #ffffff 42px);
+  border-color: var(--color-success);
+  background: linear-gradient(180deg, var(--color-success-soft) 0%, var(--color-surface) 42px);
 }
 
 .ad-solo-card.theme-bad {
-  border-color: #ef4444;
-  background: linear-gradient(180deg, #fef2f2 0%, #ffffff 42px);
+  border-color: var(--color-error);
+  background: linear-gradient(180deg, var(--color-error-soft) 0%, var(--color-surface) 42px);
 }
 
 .ad-solo-card.theme-neutral {
   border-color: rgba(0, 0, 0, 0.12);
-  background: linear-gradient(180deg, #f8fafc 0%, #ffffff 42px);
+  background: linear-gradient(180deg, var(--color-background) 0%, var(--color-surface) 42px);
 }
 
 .ad-solo-card.is-paused-card {
@@ -2086,20 +2086,20 @@ const aggregatedMetrics = computed(() => {
 }
 
 .semantic-pill.angel {
-  background: #dcfce7;
-  color: #15803d;
-  border: 1px solid #86efac;
+  background: var(--color-success-soft);
+  color: var(--color-success);
+  border: 1px solid var(--color-success-border);
 }
 
 .semantic-pill.bad {
-  background: #fee2e2;
-  color: #b91c1c;
-  border: 1px solid #fca5a5;
+  background: var(--color-error-soft);
+  color: var(--color-error);
+  border: 1px solid var(--color-error-border);
 }
 
 .semantic-pill.neutral {
-  background: #f1f5f9;
-  color: #475569;
+  background: var(--color-surface-soft);
+  color: var(--color-text-secondary);
   border: 1px solid var(--color-border);
 }
 
@@ -2114,18 +2114,18 @@ const aggregatedMetrics = computed(() => {
 }
 
 .trajectory-pill.trend-up {
-  background: #dcfce7;
-  color: #15803d;
+  background: var(--color-success-soft);
+  color: var(--color-success);
 }
 
 .trajectory-pill.trend-down {
-  background: #fee2e2;
-  color: #b91c1c;
+  background: var(--color-error-soft);
+  color: var(--color-error);
 }
 
 .trajectory-pill.trend-flat {
-  background: #f8fafc;
-  color: #64748b;
+  background: var(--color-background);
+  color: var(--color-text-muted);
 }
 
 .score-badge-clear {
@@ -2136,18 +2136,18 @@ const aggregatedMetrics = computed(() => {
 }
 
 .score-badge-clear.score-green {
-  background: #dcfce7;
-  color: #15803d;
+  background: var(--color-success-soft);
+  color: var(--color-success);
 }
 
 .score-badge-clear.score-red {
-  background: #fee2e2;
-  color: #b91c1c;
+  background: var(--color-error-soft);
+  color: var(--color-error);
 }
 
 .score-badge-clear.score-blue {
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: var(--color-primary-soft);
+  color: var(--color-primary-hover);
 }
 
 /* OPEN / CLOSE SWITCH CONTAINER */
@@ -2162,13 +2162,13 @@ const aggregatedMetrics = computed(() => {
 }
 
 .ad-switch-container.status-active-box {
-  background: #f0fdf4;
-  border-color: #86efac;
+  background: var(--color-success-soft);
+  border-color: var(--color-success-border);
 }
 
 .ad-switch-container.status-paused-box {
-  background: #fef2f2;
-  border-color: #fca5a5;
+  background: var(--color-error-soft);
+  border-color: var(--color-error-border);
 }
 
 .switch-text {
@@ -2177,11 +2177,11 @@ const aggregatedMetrics = computed(() => {
 }
 
 .status-active-box .switch-text {
-  color: #15803d;
+  color: var(--color-success);
 }
 
 .status-paused-box .switch-text {
-  color: #b91c1c;
+  color: var(--color-error);
 }
 
 .compact-ad-switch {
@@ -2199,7 +2199,7 @@ const aggregatedMetrics = computed(() => {
 .ad-clean-name {
   font-size: 15px;
   font-weight: 800;
-  color: #0f172a;
+  color: var(--color-text);
   margin: 0;
   display: flex;
   align-items: center;
@@ -2216,14 +2216,14 @@ const aggregatedMetrics = computed(() => {
   flex-shrink: 0;
 }
 
-.bg-green { background-color: #10b981; }
-.bg-red { background-color: #ef4444; }
-.bg-blue { background-color: #3b82f6; }
+.bg-green { background-color: var(--color-success); }
+.bg-red { background-color: var(--color-error); }
+.bg-blue { background-color: var(--color-primary); }
 
 .ad-sub-id code {
   font-size: 12px;
-  background: #f1f5f9;
-  color: #64748b;
+  background: var(--color-surface-soft);
+  color: var(--color-text-muted);
   padding: 1px 6px;
   border-radius: 4px;
 }
@@ -2233,7 +2233,7 @@ const aggregatedMetrics = computed(() => {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 6px;
-  background: #f8fafc;
+  background: var(--color-background);
   padding: 8px;
   border-radius: 8px;
   border: 1px solid var(--color-border);
@@ -2249,24 +2249,24 @@ const aggregatedMetrics = computed(() => {
 .stat-cell small {
   font-size: 12px;
   font-weight: 600;
-  color: #64748b;
+  color: var(--color-text-muted);
 }
 
 .stat-cell strong {
   font-size: 12.5px;
   font-weight: 800;
-  color: #0f172a;
+  color: var(--color-text);
 }
 
 .stat-cell.cell-green strong {
-  color: #15803d;
+  color: var(--color-success);
 }
 
 /* Solo SVG Chart */
 .solo-chart-canvas {
   width: 100%;
   height: 135px;
-  background: #fafafa;
+  background: var(--color-surface-soft);
   border-radius: 8px;
   border: 1px solid var(--color-border);
   overflow: hidden;
@@ -2304,7 +2304,7 @@ const aggregatedMetrics = computed(() => {
   flex-direction: column;
   align-items: center;
   padding: 6px 6px;
-  background: #f8fafc;
+  background: var(--color-background);
   border-radius: 6px;
   border: 1px solid var(--color-border);
   font-size: 12px;
@@ -2313,21 +2313,21 @@ const aggregatedMetrics = computed(() => {
 }
 
 .d-col.highlight-order {
-  background: #ecfdf5;
-  border-color: #a7f3d0;
+  background: var(--color-success-soft);
+  border-color: var(--color-success-border);
 }
 
 .d-date-label {
   font-weight: 700;
-  color: #64748b;
+  color: var(--color-text-muted);
 }
 
 .d-score-label {
-  color: #475569;
+  color: var(--color-text-secondary);
 }
 
 .d-score-label b {
-  color: #0f172a;
+  color: var(--color-text);
 }
 
 .d-order-label {
@@ -2349,7 +2349,7 @@ const aggregatedMetrics = computed(() => {
 .closed-label {
   font-size: 12px;
   font-weight: 600;
-  color: #64748b;
+  color: var(--color-text-muted);
   display: inline-flex;
   align-items: center;
 }
@@ -2402,8 +2402,8 @@ const aggregatedMetrics = computed(() => {
 .chart-tooltip {
   position: absolute;
   pointer-events: none;
-  background: #0f172a;
-  color: #ffffff;
+  background: var(--color-text);
+  color: var(--color-surface);
   padding: 10px 12px;
   border-radius: 10px;
   box-shadow: var(--shadow-modal);
@@ -2424,12 +2424,12 @@ const aggregatedMetrics = computed(() => {
   display: block;
   font-size: 12px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--color-surface);
 }
 
 .tooltip-date {
   font-size: 12px;
-  color: #cbd5e1;
+  color: var(--color-border-strong);
 }
 
 .tooltip-metric-val {
@@ -2448,7 +2448,7 @@ const aggregatedMetrics = computed(() => {
   border-radius: 4px;
   font-size: 12px;
   font-weight: 700;
-  color: #0f172a;
+  color: var(--color-text);
 }
 
 .tooltip-footer {
@@ -2457,7 +2457,7 @@ const aggregatedMetrics = computed(() => {
   border-top: 1px solid #334155;
   padding-top: 4px;
   font-size: 12px;
-  color: #cbd5e1;
+  color: var(--color-border-strong);
 }
 
 /* Legend with quick status */
@@ -2465,7 +2465,7 @@ const aggregatedMetrics = computed(() => {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  background: #f8fafc;
+  background: var(--color-background);
   padding: 12px;
   border-radius: 12px;
 }
@@ -2473,7 +2473,7 @@ const aggregatedMetrics = computed(() => {
 .legend-hint {
   font-size: 12px;
   font-weight: 600;
-  color: #64748b;
+  color: var(--color-text-muted);
 }
 
 .legend-chips {
@@ -2486,7 +2486,7 @@ const aggregatedMetrics = computed(() => {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  background: #ffffff;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 4px 8px;
@@ -2496,7 +2496,7 @@ const aggregatedMetrics = computed(() => {
 
 .legend-chip-card:hover {
   border-color: rgba(0, 0, 0, 0.12);
-  background: #f1f5f9;
+  background: var(--color-surface-soft);
 }
 
 .chip-toggle-btn {
@@ -2508,7 +2508,7 @@ const aggregatedMetrics = computed(() => {
   cursor: pointer;
   font-size: 12px;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--color-text);
   padding: 2px 4px;
 }
 
@@ -2524,7 +2524,7 @@ const aggregatedMetrics = computed(() => {
 .legend-score-pill {
   font-size: 12px;
   font-weight: 800;
-  background: #f1f5f9;
+  background: var(--color-surface-soft);
   padding: 1px 5px;
   border-radius: 4px;
 }
@@ -2547,13 +2547,13 @@ const aggregatedMetrics = computed(() => {
 }
 
 .insight-box.winner {
-  background: #f0fdf4;
-  border-color: #bbf7d0;
+  background: var(--color-success-soft);
+  border-color: var(--color-success-border);
 }
 
 .insight-box.loser {
-  background: #fef2f2;
-  border-color: #fecaca;
+  background: var(--color-error-soft);
+  border-color: var(--color-error-border);
 }
 
 .box-icon-circle {
@@ -2567,13 +2567,13 @@ const aggregatedMetrics = computed(() => {
 }
 
 .box-icon-circle.green {
-  background: #dcfce7;
-  color: #16a34a;
+  background: var(--color-success-soft);
+  color: var(--color-success);
 }
 
 .box-icon-circle.red {
-  background: #fee2e2;
-  color: #dc2626;
+  background: var(--color-error-soft);
+  color: var(--color-error);
 }
 
 .box-info {
@@ -2585,13 +2585,13 @@ const aggregatedMetrics = computed(() => {
 .box-info small {
   font-size: 12px;
   font-weight: 700;
-  color: #64748b;
+  color: var(--color-text-muted);
 }
 
 .box-info strong {
   font-size: 13px;
   font-weight: 800;
-  color: #0f172a;
+  color: var(--color-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2604,18 +2604,18 @@ const aggregatedMetrics = computed(() => {
 }
 
 .insight-badge.green {
-  color: #16a34a;
+  color: var(--color-success);
 }
 
 .insight-badge.red {
-  color: #dc2626;
+  color: var(--color-error);
 }
 
 /* ========================================================================= */
 /* PRODUCT FINANCIALS & UNIT MARGIN CARD                                      */
 /* ========================================================================= */
 .ad-product-financial-card {
-  background: #f8fafc;
+  background: var(--color-background);
   border: 1px solid var(--color-border);
   border-radius: 12px;
   padding: 10px 14px;
@@ -2627,13 +2627,13 @@ const aggregatedMetrics = computed(() => {
 }
 
 .theme-angel .ad-product-financial-card {
-  background: #f0fdf4;
-  border-color: #bbf7d0;
+  background: var(--color-success-soft);
+  border-color: var(--color-success-border);
 }
 
 .theme-bad .ad-product-financial-card {
-  background: #fef2f2;
-  border-color: #fecaca;
+  background: var(--color-error-soft);
+  border-color: var(--color-error-border);
 }
 
 .product-header-bar {
@@ -2658,7 +2658,7 @@ const aggregatedMetrics = computed(() => {
   height: 28px;
   border-radius: 6px;
   background: rgba(0, 0, 0, 0.06);
-  color: #64748b;
+  color: var(--color-text-muted);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2668,7 +2668,7 @@ const aggregatedMetrics = computed(() => {
 .product-name-badge {
   font-size: 12px;
   font-weight: 700;
-  color: #1e293b;
+  color: var(--color-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2687,8 +2687,8 @@ const aggregatedMetrics = computed(() => {
 }
 
 .product-change-btn:hover {
-  color: #2563eb;
-  background: #eff6ff;
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
 }
 
 .net-profit-badge {
@@ -2708,34 +2708,34 @@ const aggregatedMetrics = computed(() => {
 }
 
 .net-profit-badge.profit-positive {
-  background: #ecfdf5;
-  border-color: #a7f3d0;
-  color: #065f46;
+  background: var(--color-success-soft);
+  border-color: var(--color-success-border);
+  color: var(--color-success);
 }
 
 .net-profit-badge.profit-positive .profit-number {
   font-size: 15px;
   font-weight: 900;
-  color: #059669;
+  color: var(--color-success);
 }
 
 .net-profit-badge.profit-negative {
-  background: #fef2f2;
-  border-color: #fecaca;
-  color: #991b1b;
+  background: var(--color-error-soft);
+  border-color: var(--color-error-border);
+  color: var(--color-error);
 }
 
 .net-profit-badge.profit-negative .profit-number {
   font-size: 15px;
   font-weight: 900;
-  color: #dc2626;
+  color: var(--color-error);
 }
 
 .product-pricing-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 8px;
-  background: #ffffff;
+  background: var(--color-surface);
   padding: 8px 10px;
   border-radius: 8px;
   border: 1px solid var(--color-border);
@@ -2755,31 +2755,31 @@ const aggregatedMetrics = computed(() => {
 .price-cell .p-label {
   font-size: 12px;
   font-weight: 600;
-  color: #64748b;
+  color: var(--color-text-muted);
 }
 
 .price-cell .p-val {
   font-size: 12px;
   font-weight: 700;
-  color: #0f172a;
+  color: var(--color-text);
 }
 
 .margin-danger-alert {
   display: flex;
   align-items: center;
-  background: #fee2e2;
-  color: #991b1b;
+  background: var(--color-error-soft);
+  color: var(--color-error);
   font-size: 12px;
   padding: 6px 10px;
   border-radius: 6px;
-  border: 1px solid #fca5a5;
+  border: 1px solid var(--color-error-border);
 }
 
 /* ========================================================================= */
 /* TODAY TIME-OF-DAY 4-SLOT BREAKDOWN & DIAGNOSTIC ASSISTANT                 */
 /* ========================================================================= */
 .today-time-slots-card {
-  background: #ffffff;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 12px;
   padding: 10px 12px;
@@ -2823,12 +2823,12 @@ const aggregatedMetrics = computed(() => {
 .today-slots-title {
   font-size: 12px;
   font-weight: 800;
-  color: #0f172a;
+  color: var(--color-text);
 }
 
 .today-slots-sub {
   font-size: 12px;
-  color: #64748b;
+  color: var(--color-text-muted);
 }
 
 .dayparts-grid {
@@ -2844,7 +2844,7 @@ const aggregatedMetrics = computed(() => {
 }
 
 .daypart-cell {
-  background: #f8fafc;
+  background: var(--color-background);
   border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 6px 8px;
@@ -2856,14 +2856,14 @@ const aggregatedMetrics = computed(() => {
 }
 
 .daypart-cell.is-current-time {
-  background: #eff6ff;
+  background: var(--color-primary-soft);
   border-color: #93c5fd;
-  box-shadow: 0 0 0 1px #3b82f6;
+  box-shadow: 0 0 0 1px var(--color-primary);
 }
 
 .daypart-cell.is-peak-orders {
-  background: #f0fdf4;
-  border-color: #86efac;
+  background: var(--color-success-soft);
+  border-color: var(--color-success-border);
 }
 
 .daypart-cell.is-burning-slot {
@@ -2880,14 +2880,14 @@ const aggregatedMetrics = computed(() => {
 .daypart-title {
   font-size: 12px;
   font-weight: 800;
-  color: #1e293b;
+  color: var(--color-text);
 }
 
 .now-badge {
   font-size: 12px;
   font-weight: 800;
-  color: #2563eb;
-  background: #dbeafe;
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
   padding: 1px 5px;
   border-radius: 4px;
 }
@@ -2895,15 +2895,15 @@ const aggregatedMetrics = computed(() => {
 .peak-badge {
   font-size: 12px;
   font-weight: 800;
-  color: #166534;
-  background: #dcfce7;
+  color: var(--color-success);
+  background: var(--color-success-soft);
   padding: 1px 5px;
   border-radius: 4px;
 }
 
 .daypart-sub-range {
   font-size: 12px;
-  color: #64748b;
+  color: var(--color-text-muted);
   margin-bottom: 2px;
 }
 
@@ -2920,11 +2920,11 @@ const aggregatedMetrics = computed(() => {
 }
 
 .dp-k {
-  color: #64748b;
+  color: var(--color-text-muted);
 }
 
 .dp-v {
-  color: #0f172a;
+  color: var(--color-text);
 }
 
 /* Diagnostic Box */
@@ -2940,21 +2940,21 @@ const aggregatedMetrics = computed(() => {
 }
 
 .today-diagnostic-box.diag-success {
-  background: #ecfdf5;
-  border-color: #a7f3d0;
-  color: #065f46;
+  background: var(--color-success-soft);
+  border-color: var(--color-success-border);
+  color: var(--color-success);
 }
 
 .today-diagnostic-box.diag-warning {
-  background: #fffbeb;
-  border-color: #fde68a;
+  background: var(--color-warning-soft);
+  border-color: var(--color-warning-border);
   color: #92400e;
 }
 
 .today-diagnostic-box.diag-danger {
-  background: #fef2f2;
-  border-color: #fecaca;
-  color: #991b1b;
+  background: var(--color-error-soft);
+  border-color: var(--color-error-border);
+  color: var(--color-error);
 }
 
 .today-diagnostic-box.diag-info {
@@ -2992,10 +2992,10 @@ const aggregatedMetrics = computed(() => {
 
 /* Total Ad Spend Overview Strip */
 .ad-total-spend-strip {
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  background: linear-gradient(135deg, var(--color-text) 0%, var(--color-text) 100%);
   border-radius: 14px;
   padding: 18px 22px;
-  color: #ffffff;
+  color: var(--color-surface);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -3032,7 +3032,7 @@ const aggregatedMetrics = computed(() => {
   font-size: 12px;
   font-weight: 700;
   background: rgba(255, 255, 255, 0.15);
-  color: #e2e8f0;
+  color: var(--color-border);
   padding: 1px 7px;
   border-radius: 10px;
 }
@@ -3040,7 +3040,7 @@ const aggregatedMetrics = computed(() => {
 .spend-big-amount {
   font-size: 32px;
   font-weight: 900;
-  color: #ffffff;
+  color: var(--color-surface);
   letter-spacing: -0.5px;
   line-height: 1.1;
 }
@@ -3064,7 +3064,7 @@ const aggregatedMetrics = computed(() => {
 }
 
 .dist-pill.red {
-  color: #fca5a5;
+  color: var(--color-error-border);
 }
 
 .dist-pill.blue {
@@ -3099,14 +3099,14 @@ const aggregatedMetrics = computed(() => {
 
 .cluster-cell small {
   font-size: 12px;
-  color: #cbd5e1;
+  color: var(--color-border-strong);
   font-weight: 600;
 }
 
 .cluster-cell strong {
   font-size: 14.5px;
   font-weight: 800;
-  color: #f8fafc;
+  color: var(--color-background);
 }
 
 .cluster-cell.profit-cell.profit-pos {

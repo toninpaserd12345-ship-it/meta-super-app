@@ -525,10 +525,10 @@ async function deleteWarehouse() {
   justify-content: center;
   flex-shrink: 0;
 }
-.bg-blue-light { background: #eff6ff; }
+.bg-blue-light { background: var(--color-primary-soft); }
 .bg-indigo-light { background: #e0e7ff; }
-.bg-purple-light { background: #f3e8ff; }
-.bg-amber-light { background: #fef3c7; }
+.bg-purple-light { background: var(--color-purple-soft); }
+.bg-amber-light { background: var(--color-warning-soft); }
 .stat-text {
   display: flex;
   flex-direction: column;
@@ -582,7 +582,7 @@ async function deleteWarehouse() {
 }
 .filter-btn.active {
   background: var(--color-primary);
-  color: #fff;
+  color: var(--color-surface);
   border-color: var(--color-primary);
 }
 
@@ -656,8 +656,8 @@ async function deleteWarehouse() {
   justify-content: center;
 }
 .type-icon.is-wh {
-  background: #eff6ff;
-  color: #2563eb;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
 }
 .type-icon.is-shop {
   background: #fdf4ff;
@@ -674,9 +674,9 @@ async function deleteWarehouse() {
   display: inline-flex;
   align-items: center;
   padding: 3px 8px;
-  background: #fef3c7;
-  color: #b45309;
-  border: 1px solid #fde68a;
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+  border: 1px solid var(--color-warning-border);
   border-radius: 10px;
   font-size: 12px;
   font-weight: 800;
@@ -690,12 +690,12 @@ async function deleteWarehouse() {
   font-weight: 750;
 }
 .badge-wh {
-  background: #eff6ff;
-  color: #1d4ed8;
-  border: 1px solid #bfdbfe;
+  background: var(--color-primary-soft);
+  color: var(--color-primary-hover);
+  border: 1px solid var(--color-info-border);
 }
 .badge-shop {
-  background: #faf5ff;
+  background: var(--color-purple-soft);
   color: #7e22ce;
   border: 1px solid #e9d5ff;
 }
@@ -759,16 +759,16 @@ async function deleteWarehouse() {
   border-radius: 50%;
 }
 .status-indicator.active {
-  color: #16a34a;
+  color: var(--color-success);
 }
 .status-indicator.active .status-dot {
-  background: #16a34a;
+  background: var(--color-success);
 }
 .status-indicator.inactive {
-  color: #94a3b8;
+  color: var(--color-text-faint);
 }
 .status-indicator.inactive .status-dot {
-  background: #94a3b8;
+  background: var(--color-text-faint);
 }
 
 .card-actions {

@@ -268,7 +268,7 @@ const productOptions = computed(() => {
 
   for (const [pId, pData] of Object.entries(countsByProduct)) {
     list.push({
-      title: `📦 ${pData.name} (${pData.count} ແອດ)`,
+      title: ` ${pData.name} (${pData.count} ແອດ)`,
       value: pId,
     })
   }
@@ -277,7 +277,7 @@ const productOptions = computed(() => {
   for (const prod of products.value) {
     if (!countsByProduct[prod.id]) {
       list.push({
-        title: `📦 ${prod.name} (0 ແອດ)`,
+        title: ` ${prod.name} (0 ແອດ)`,
         value: prod.id,
       })
     }
@@ -285,7 +285,7 @@ const productOptions = computed(() => {
 
   if (unlinkedCount > 0) {
     list.push({
-      title: l({ lo: `⚠️ ແອດທີ່ຍັງບໍ່ຜູກສິນຄ້າ (${unlinkedCount})`, th: `⚠️ แอดที่ยังไม่ผูกสินค้า (${unlinkedCount})`, en: `⚠️ Unlinked Ads (${unlinkedCount})` }),
+      title: l({ lo: ` ແອດທີ່ຍັງບໍ່ຜູກສິນຄ້າ (${unlinkedCount})`, th: ` แอดที่ยังไม่ผูกสินค้า (${unlinkedCount})`, en: ` Unlinked Ads (${unlinkedCount})` }),
       value: 'unlinked',
     })
   }
@@ -664,17 +664,17 @@ function buyingOpportunity(item: MetaInsightItem) {
   const costRatioIsHigh = costRatio != null && costRatio > 50
   const conversionRateText = conversionRate != null ? `${fmt(conversionRate, 1)}%` : '—'
 
-  // 1. High Buying Opportunity (🔥) - Strict: requires at least 1 verified purchase with good metrics, or >= 3 purchases!
+  // 1. High Buying Opportunity () - Strict: requires at least 1 verified purchase with good metrics, or >= 3 purchases!
   const strat = getEffectiveStrategy(item)
   if (purchases >= 3 || (purchases >= 1 && (costRatio != null ? costRatio <= 25 : (cost == null || cost <= (strat.targetCost || targetCost.value || 1.8))))) {
     return {
       level: 'high',
-      label: l({ lo: '🔥 ໂອກາດຊື້ສູງ', th: '🔥 โอกาสซื้อสูง', en: '🔥 High Opportunity' }),
-      shortLabel: l({ lo: '🔥 ໂອກາດຊື້ສູງ', th: '🔥 โอกาสซื้อสูง', en: '🔥 High' }),
+      label: l({ lo: ' ໂອກາດຊື້ສູງ', th: ' โอกาสซื้อสูง', en: ' High Opportunity' }),
+      shortLabel: l({ lo: ' ໂອກາດຊື້ສູງ', th: ' โอกาสซื้อสูง', en: ' High' }),
       badgeText: conversionRate != null
-        ? l({ lo: `🔥 ໂອກາດຊື້ສູງ (${purchases} ອໍເດີ · CR ${conversionRate}%)`, th: `🔥 โอกาสซื้อสูง (${purchases} ออเดอร์ · CR ${conversionRate}%)`, en: `🔥 High Opportunity (${purchases} orders · CR ${conversionRate}%)` })
-        : l({ lo: `🔥 ໂອກາດຊື້ສູງ (${purchases} ອໍເດີ)`, th: `🔥 โอกาสซื้อสูง (${purchases} ออเดอร์)`, en: `🔥 High Opportunity (${purchases} orders)` }),
-      color: '#167a4b',
+        ? l({ lo: ` ໂອກາດຊື້ສູງ (${purchases} ອໍເດີ · CR ${conversionRate}%)`, th: ` โอกาสซื้อสูง (${purchases} ออเดอร์ · CR ${conversionRate}%)`, en: ` High Opportunity (${purchases} orders · CR ${conversionRate}%)` })
+        : l({ lo: ` ໂອກາດຊື້ສູງ (${purchases} ອໍເດີ)`, th: ` โอกาสซื้อสูง (${purchases} ออเดอร์)`, en: ` High Opportunity (${purchases} orders)` }),
+      color: 'var(--color-success)',
       chipColor: 'success',
       bgColor: 'rgba(32,164,100,.12)',
       conversionRate,
@@ -687,14 +687,14 @@ function buyingOpportunity(item: MetaInsightItem) {
     }
   }
 
-  // 2. Moderate Buying Opportunity (⚡) - Has at least 1 verified purchase
+  // 2. Moderate Buying Opportunity () - Has at least 1 verified purchase
   if (purchases >= 1) {
     return {
       level: 'medium',
-      label: l({ lo: '⚡ ໂອກາດຊື້ປານກາງ', th: '⚡ โอกาสซื้อปานกลาง', en: '⚡ Moderate Opportunity' }),
-      shortLabel: l({ lo: '⚡ ໂອກາດປານກາງ', th: '⚡ โอกาสปานกลาง', en: '⚡ Moderate' }),
-      badgeText: l({ lo: `⚡ ໂອກາດຊື້ດີ (${purchases} ອໍເດີ${conversionRate != null ? ` · CR ${conversionRate}%` : ''})`, th: `⚡ โอกาสซื้อดี (${purchases} ออเดอร์)`, en: `⚡ Moderate (${purchases} orders)` }),
-      color: '#0284c7',
+      label: l({ lo: ' ໂອກາດຊື້ປານກາງ', th: ' โอกาสซื้อปานกลาง', en: ' Moderate Opportunity' }),
+      shortLabel: l({ lo: ' ໂອກາດປານກາງ', th: ' โอกาสปานกลาง', en: ' Moderate' }),
+      badgeText: l({ lo: ` ໂອກາດຊື້ດີ (${purchases} ອໍເດີ${conversionRate != null ? ` · CR ${conversionRate}%` : ''})`, th: ` โอกาสซื้อดี (${purchases} ออเดอร์)`, en: ` Moderate (${purchases} orders)` }),
+      color: 'var(--color-info)',
       chipColor: 'info',
       bgColor: 'rgba(2,132,199,.12)',
       conversionRate,
@@ -707,19 +707,19 @@ function buyingOpportunity(item: MetaInsightItem) {
     }
   }
 
-  // 3. Inquiries / Messaging (💬) - Received messages, but 0 purchases yet
+  // 3. Inquiries / Messaging () - Received messages, but 0 purchases yet
   if (messages > 0) {
     const costText = messageCost != null ? ` · ${money(messageCost)}/ຂໍ້ຄວາມ` : ''
     return {
       level: 'inquiries',
-      label: l({ lo: '💬 ມີຄົນທັກແຊັດ', th: '💬 มีคนทักแชต', en: '💬 Inquiries' }),
-      shortLabel: l({ lo: '💬 ຄົນທັກ', th: '💬 คนทัก', en: '💬 Inquiries' }),
+      label: l({ lo: ' ມີຄົນທັກແຊັດ', th: ' มีคนทักแชต', en: ' Inquiries' }),
+      shortLabel: l({ lo: ' ຄົນທັກ', th: ' คนทัก', en: ' Inquiries' }),
       badgeText: l({
-        lo: `💬 ມີຄົນທັກ ${messages} ຂໍ້ຄວາມ (ຍັງບໍ່ມີອໍເດີ${costText})`,
-        th: `💬 มีคนทัก ${messages} ข้อความ (ยังไม่มีออเดอร์${costText})`,
-        en: `💬 ${messages} inquiries (0 orders${costText})`
+        lo: ` ມີຄົນທັກ ${messages} ຂໍ້ຄວາມ (ຍັງບໍ່ມີອໍເດີ${costText})`,
+        th: ` มีคนทัก ${messages} ข้อความ (ยังไม่มีออเดอร์${costText})`,
+        en: ` ${messages} inquiries (0 orders${costText})`
       }),
-      color: '#0284c7',
+      color: 'var(--color-info)',
       chipColor: 'info',
       bgColor: 'rgba(2,132,199,.12)',
       conversionRate: null,
@@ -732,14 +732,14 @@ function buyingOpportunity(item: MetaInsightItem) {
     }
   }
 
-  // 4. Good Traffic (⚡) - CTR >= 1.5% and budget spent
+  // 4. Good Traffic () - CTR >= 1.5% and budget spent
   if (ctr >= 1.5 && spend > 0) {
     return {
       level: 'medium',
-      label: l({ lo: '⚡ ມີຄົນສົນໃຈຄລິກ', th: '⚡ มีคนสนใจคลิก', en: '⚡ Good traffic' }),
-      shortLabel: l({ lo: '⚡ ສົນໃຈຄລິກ', th: '⚡ สนใจคลิก', en: '⚡ Good CTR' }),
-      badgeText: l({ lo: `⚡ ມີຄົນສົນໃຈຄລິກ (CTR ${percent(ctr)})`, th: `⚡ มีคนสนใจคลิก (CTR ${percent(ctr)})`, en: `⚡ Good traffic (CTR ${percent(ctr)})` }),
-      color: '#0284c7',
+      label: l({ lo: ' ມີຄົນສົນໃຈຄລິກ', th: ' มีคนสนใจคลิก', en: ' Good traffic' }),
+      shortLabel: l({ lo: ' ສົນໃຈຄລິກ', th: ' สนใจคลิก', en: ' Good CTR' }),
+      badgeText: l({ lo: ` ມີຄົນສົນໃຈຄລິກ (CTR ${percent(ctr)})`, th: ` มีคนสนใจคลิก (CTR ${percent(ctr)})`, en: ` Good traffic (CTR ${percent(ctr)})` }),
+      color: 'var(--color-info)',
       chipColor: 'info',
       bgColor: 'rgba(2,132,199,.12)',
       conversionRate: null,
@@ -752,15 +752,15 @@ function buyingOpportunity(item: MetaInsightItem) {
     }
   }
 
-  // 5. Low Buying Opportunity (💤)
+  // 5. Low Buying Opportunity ()
   const thresholdSpend = currencyOffset.value === 1 ? 50000 : 5
   if (spend > thresholdSpend && purchases === 0) {
     return {
       level: 'low',
-      label: l({ lo: '💤 ໂອກາດຊື້ຕ່ຳ', th: '💤 โอกาสซื้อต่ำ', en: '💤 Low Opportunity' }),
-      shortLabel: l({ lo: '💤 ໂອກາດຕ່ຳ', th: '💤 โอกาสต่ำ', en: '💤 Low' }),
-      badgeText: l({ lo: `💤 ໂອກາດຊື້ຕ່ຳ (ຍັງບໍ່ມີອໍເດີ)`, th: `💤 โอกาสซื้อต่ำ (ยังไม่มีออเดอร์)`, en: `💤 Low Opportunity (0 Orders)` }),
-      color: '#dc2626',
+      label: l({ lo: ' ໂອກາດຊື້ຕ່ຳ', th: ' โอกาสซื้อต่ำ', en: ' Low Opportunity' }),
+      shortLabel: l({ lo: ' ໂອກາດຕ່ຳ', th: ' โอกาสต่ำ', en: ' Low' }),
+      badgeText: l({ lo: ` ໂອກາດຊື້ຕ່ຳ (ຍັງບໍ່ມີອໍເດີ)`, th: ` โอกาสซื้อต่ำ (ยังไม่มีออเดอร์)`, en: ` Low Opportunity (0 Orders)` }),
+      color: 'var(--color-error)',
       chipColor: 'error',
       bgColor: 'rgba(239,68,68,.12)',
       conversionRate: 0,
@@ -773,13 +773,13 @@ function buyingOpportunity(item: MetaInsightItem) {
     }
   }
 
-  // 6. Neutral / Testing (🌱)
+  // 6. Neutral / Testing ()
   return {
     level: 'neutral',
-    label: l({ lo: '🌱 ກຳລັງທົດສອບ', th: '🌱 กำลังทดสอบ', en: '🌱 Testing' }),
-    shortLabel: l({ lo: '🌱 ທົດສອບ', th: '🌱 ทดสอบ', en: '🌱 Testing' }),
-    badgeText: l({ lo: '🌱 ກຳລັງທົດສອບ (ປ່ອຍແລ່ນຕາມງົບ)', th: '🌱 กำลังทดสอบ (ปล่อยวิ่งตามงบ)', en: '🌱 Testing phase (Run on budget)' }),
-    color: '#6b7280',
+    label: l({ lo: ' ກຳລັງທົດສອບ', th: ' กำลังทดสอบ', en: ' Testing' }),
+    shortLabel: l({ lo: ' ທົດສອບ', th: ' ทดสอบ', en: ' Testing' }),
+    badgeText: l({ lo: ' ກຳລັງທົດສອບ (ປ່ອຍແລ່ນຕາມງົບ)', th: ' กำลังทดสอบ (ปล่อยวิ่งตามงบ)', en: ' Testing phase (Run on budget)' }),
+    color: 'var(--color-text-muted)',
     chipColor: 'default',
     bgColor: 'rgba(107,114,128,.12)',
     conversionRate: null,
@@ -809,15 +809,15 @@ function isAngelAd(item: MetaInsightItem): { isAngel: boolean; score: number; re
   const strat = getEffectiveStrategy(item)
   const targetCpa = strat.targetCost || targetCost.value || (currencyOffset.value === 1 ? 100000 : 5)
 
-  // 1. Top Tier Angel Ad (🧚‍♀️): Verified purchases >= 3 with profitable CPA or high ROAS
+  // 1. Top Tier Angel Ad (): Verified purchases >= 3 with profitable CPA or high ROAS
   if (purchases >= 3 && (cost == null || cost <= targetCpa * 1.35)) {
     return {
       isAngel: true,
       score: 100,
       reason: l({
-        lo: `🧚‍♀️ Ads ນາງຟ້າ (Super Winner): ປິດໄດ້ ${purchases} ອໍເດີ${cost != null ? ` (CPA ${money(cost)}/ອໍເດີ)` : ''}${roas > 0 ? ` · ROAS ${fmt(roas, 2)}x` : ''}`,
-        th: `🧚‍♀️ แอดนางฟ้า (Super Winner): ปิดได้ ${purchases} ออเดอร์${cost != null ? ` (CPA ${money(cost)}/ออเดอร์)` : ''}${roas > 0 ? ` · ROAS ${fmt(roas, 2)}x` : ''}`,
-        en: `🧚‍♀️ Angel Ad (Super Winner): ${purchases} orders closed${cost != null ? ` (CPA ${money(cost)}/order)` : ''}${roas > 0 ? ` · ROAS ${fmt(roas, 2)}x` : ''}`,
+        lo: ` Ads ນາງຟ້າ (Super Winner): ປິດໄດ້ ${purchases} ອໍເດີ${cost != null ? ` (CPA ${money(cost)}/ອໍເດີ)` : ''}${roas > 0 ? ` · ROAS ${fmt(roas, 2)}x` : ''}`,
+        th: ` แอดนางฟ้า (Super Winner): ปิดได้ ${purchases} ออเดอร์${cost != null ? ` (CPA ${money(cost)}/ออเดอร์)` : ''}${roas > 0 ? ` · ROAS ${fmt(roas, 2)}x` : ''}`,
+        en: ` Angel Ad (Super Winner): ${purchases} orders closed${cost != null ? ` (CPA ${money(cost)}/order)` : ''}${roas > 0 ? ` · ROAS ${fmt(roas, 2)}x` : ''}`,
       }),
     }
   }
@@ -828,22 +828,22 @@ function isAngelAd(item: MetaInsightItem): { isAngel: boolean; score: number; re
       isAngel: true,
       score: 85,
       reason: l({
-        lo: `🌟 Ads ດາວເດັ່ນ: ປິດໄດ້ ${purchases} ອໍເດີ${roas > 0 ? ` · ROAS ${fmt(roas, 2)}x` : ''} (ໂອກາດຊື້ສູງ / ພ້ອມຂະຫຍາຍງົບ)`,
-        th: `🌟 แอดดาวเด่น: ปิดได้ ${purchases} ออเดอร์${roas > 0 ? ` · ROAS ${fmt(roas, 2)}x` : ''} (โอกาสซื้อสูง / พร้อมขยายงบ)`,
-        en: `🌟 Winning Ad: ${purchases} orders closed${roas > 0 ? ` · ROAS ${fmt(roas, 2)}x` : ''} (High conversion / Scale candidate)`,
+        lo: ` Ads ດາວເດັ່ນ: ປິດໄດ້ ${purchases} ອໍເດີ${roas > 0 ? ` · ROAS ${fmt(roas, 2)}x` : ''} (ໂອກາດຊື້ສູງ / ພ້ອມຂະຫຍາຍງົບ)`,
+        th: ` แอดดาวเด่น: ปิดได้ ${purchases} ออเดอร์${roas > 0 ? ` · ROAS ${fmt(roas, 2)}x` : ''} (โอกาสซื้อสูง / พร้อมขยายงบ)`,
+        en: ` Winning Ad: ${purchases} orders closed${roas > 0 ? ` · ROAS ${fmt(roas, 2)}x` : ''} (High conversion / Scale candidate)`,
       }),
     }
   }
 
-  // 3. High Inquiries Champion (💬): Low cost per message & high volume & good CTR
+  // 3. High Inquiries Champion (): Low cost per message & high volume & good CTR
   if (purchases === 0 && messages >= 5 && ctr >= 2.0 && messageCost != null && messageCost <= (currencyOffset.value === 1 ? 25000 : 1.5)) {
     return {
       isAngel: true,
       score: 75,
       reason: l({
-        lo: `💬 Ads ທັກແຊັດປັງ: ຄົນທັກ ${messages} ຄົນ (${money(messageCost)}/ຂໍ້ຄວາມ, CTR ${percent(ctr)})`,
-        th: `💬 แอดทักแชตปัง: คนทัก ${messages} คน (${money(messageCost)}/ข้อความ, CTR ${percent(ctr)})`,
-        en: `💬 Inquiries Champion: ${messages} messages (${money(messageCost)}/msg, CTR ${percent(ctr)})`,
+        lo: ` Ads ທັກແຊັດປັງ: ຄົນທັກ ${messages} ຄົນ (${money(messageCost)}/ຂໍ້ຄວາມ, CTR ${percent(ctr)})`,
+        th: ` แอดทักแชตปัง: คนทัก ${messages} คน (${money(messageCost)}/ข้อความ, CTR ${percent(ctr)})`,
+        en: ` Inquiries Champion: ${messages} messages (${money(messageCost)}/msg, CTR ${percent(ctr)})`,
       }),
     }
   }
@@ -980,7 +980,7 @@ function decision(item: MetaInsightItem): { code: DecisionCode; color: string; i
         code: 'review',
         color: 'warning',
         icon: 'mdi-pause-circle-outline',
-        title: l({ lo: '⏸️ ປິດຊົ່ວຄາວ (ເຄີຍໄດ້ອໍເດີດີ)', th: '⏸️ หยุดชั่วคราว (เคยได้ออเดอร์ดี)', en: 'Paused (Good historic orders)' }),
+        title: l({ lo: ' ປິດຊົ່ວຄາວ (ເຄີຍໄດ້ອໍເດີດີ)', th: ' หยุดชั่วคราว (เคยได้ออเดอร์ดี)', en: 'Paused (Good historic orders)' }),
         detail: l({
           lo: `ແອດນີ້ຖືກປິດຢູ່ ແຕ່ເຄີຍປິດໄດ້ ${purchases} ອໍເດີ. ສາມາດກວດສອບແລ້ວກົດເປີດໃໝ່ໄດ້.`,
           th: `แอดนี้ถูกปิดอยู่ แต่เคยได้ ${purchases} ออเดอร์ สามารถตรวจสอบแล้วกดเปิดใหม่ได้`,
@@ -993,7 +993,7 @@ function decision(item: MetaInsightItem): { code: DecisionCode; color: string; i
       code: 'pause',
       color: 'default',
       icon: 'mdi-pause-circle-outline',
-      title: l({ lo: '⏸️ ປິດຊົ່ວຄາວ (Paused)', th: '⏸️ หยุดชั่วคราว (Paused)', en: 'Paused' }),
+      title: l({ lo: ' ປິດຊົ່ວຄາວ (Paused)', th: ' หยุดชั่วคราว (Paused)', en: 'Paused' }),
       detail: messages > 0
         ? l({
             lo: `ແອດຖືກປິດຢູ່. ມີຄົນທັກ ${messages} ຂໍ້ຄວາມ (ໃຊ້ງົບ ${money(item.spend)}), ແຕ່ຍັງບໍ່ມີອໍເດີ. ບໍ່ຕ້ອງສະເກວ.`,
@@ -1016,7 +1016,7 @@ function decision(item: MetaInsightItem): { code: DecisionCode; color: string; i
       code: 'keep',
       color: 'success',
       icon: 'mdi-star-face',
-      title: l({ lo: '🧚‍♀️ Ads ນາງຟ້າ / Scale', th: '🧚‍♀️ แอดนางฟ้า / Scale', en: '🧚‍♀️ Angel Ad / Scale' }),
+      title: l({ lo: ' Ads ນາງຟ້າ / Scale', th: ' แอดนางฟ้า / Scale', en: ' Angel Ad / Scale' }),
       detail: angel.reason,
       signals: [...good, ...bad]
     }
@@ -1028,7 +1028,7 @@ function decision(item: MetaInsightItem): { code: DecisionCode; color: string; i
       code: 'keep',
       color: 'success',
       icon: 'mdi-rocket-launch-outline',
-      title: l({ lo: '🚀 ຄວນເປີດຕໍ່ / Scale', th: '🚀 ควรเปิดต่อ / Scale', en: 'Keep Running / Scale' }),
+      title: l({ lo: ' ຄວນເປີດຕໍ່ / Scale', th: ' ควรเปิดต่อ / Scale', en: 'Keep Running / Scale' }),
       detail: l({
         lo: `ປິດໄດ້ ${purchases} ອໍເດີ, ໂອກາດຊື້ສູງ. ສາມາດເພີ່ມງົບ +10% ຫາ +20% ໄດ້.`,
         th: `ปิดได้ ${purchases} ออเดอร์ โอกาสซื้อสูง สามารถเพิ่มงบ +10% ถึง +20% ได้`,
@@ -1044,7 +1044,7 @@ function decision(item: MetaInsightItem): { code: DecisionCode; color: string; i
       code: 'keep',
       color: 'info',
       icon: 'mdi-chat-processing-outline',
-      title: l({ lo: '🌱 ປ່ອຍແລ່ນຕາມງົບ (ເບິ່ງການປິດການຂາຍ)', th: '🌱 ปล่อยวิ่งตามงบ (ดูการปิดการขาย)', en: '🌱 Run on Budget (Monitor Sales)' }),
+      title: l({ lo: ' ປ່ອຍແລ່ນຕາມງົບ (ເບິ່ງການປິດການຂາຍ)', th: ' ปล่อยวิ่งตามงบ (ดูการปิดการขาย)', en: ' Run on Budget (Monitor Sales)' }),
       detail: l({
         lo: `ມີຄົນທັກ ${messages} ຂໍ້ຄວາມ${messageCost != null ? ` (${money(messageCost)}/ຂໍ້ຄວາມ)` : ''}, ແຕ່ຍັງບໍ່ທັນມີອໍເດີ. ໃຫ້ປ່ອຍແລ່ນຕາມງົບປົກກະຕິ (ບໍ່ຕ້ອງສະເກວ) ເພື່ອກວດສອບການຕອບແຊັດ ແລະ ປິດການຂາຍ.`,
         th: `มีคนทัก ${messages} ข้อความ${messageCost != null ? ` (${money(messageCost)}/ข้อความ)` : ''} แต่ยังไม่มีออเดอร์ ให้ปล่อยวิ่งตามงบปกติ (ไม่ต้อง Scale) เพื่อตรวจสอบการตอบแชตและปิดการขาย`,
@@ -1080,7 +1080,7 @@ function decision(item: MetaInsightItem): { code: DecisionCode; color: string; i
     code: 'keep',
     color: 'success',
     icon: 'mdi-check-circle-outline',
-    title: l({ lo: '🌱 ປ່ອຍແລ່ນຕາມງົບ', th: '🌱 ปล่อยวิ่งตามงบ', en: 'Run on Budget' }),
+    title: l({ lo: ' ປ່ອຍແລ່ນຕາມງົບ', th: ' ปล่อยวิ่งตามงบ', en: 'Run on Budget' }),
     detail: l({ lo: 'ສັນຍານຫຼັກຍັງປົກກະຕິ. ປ່ອຍແລ່ນຕາມງົບເດີມ ແລະຕິດຕາມຜົນຕໍ່ໄປ.', th: 'สัญญาณหลักยังปกติ ปล่อยวิ่งตามงบเดิมและติดตามผลต่อไป', en: 'Core signals are stable. Keep running on current budget and monitor.' }),
     signals: [...good, ...bad]
   }
@@ -1217,7 +1217,7 @@ const strategyProductSelectItems = computed(() => {
     for (const it of (report.value?.items || [])) {
       if (getLinkedProduct(it)?.product?.id === p.id) adCount++
     }
-    const statusTag = isCustom ? '🟢 ກຳນົດເອງ' : '⚪ ໃຊ້ຄ່າເລີ່ມຕົ້ນ'
+    const statusTag = isCustom ? ' ກຳນົດເອງ' : ' ໃຊ້ຄ່າເລີ່ມຕົ້ນ'
     const rawPrice = parseProductPrice(p) || 0
     const priceText = rawPrice > 0 ? money(convertPriceToAdCurrency(rawPrice, p.currency)) : '—'
     return {
@@ -1640,16 +1640,16 @@ function toggleAutoPilotMaster(val: boolean | null) {
   saveAutoPilotConfig()
   if (isEnabled) {
     success.value = l({
-      lo: '🤖 ເປີດລະບົບ Auto-Pilot ແລ້ວ! ບັອດຈະເລີ່ມເຝົ້າແອດ, ສະເກວງົບ +20% ໃຫ້ແອດທີ່ຜ່ານເກນ, ແລະ ຢຸດແອດຂາດທຶນ.',
-      th: '🤖 เปิดระบบ Auto-Pilot แล้ว! บอทจะเริ่มเฝ้าแอด, Scale งบ +20% ให้แอดที่ผ่านเกณฑ์, และหยุดแอดขาดทุน',
-      en: '🤖 Auto-Pilot activated! The bot will now monitor ads, auto-scale winners (+20%), and stop loss on losers.'
+      lo: ' ເປີດລະບົບ Auto-Pilot ແລ້ວ! ບັອດຈະເລີ່ມເຝົ້າແອດ, ສະເກວງົບ +20% ໃຫ້ແອດທີ່ຜ່ານເກນ, ແລະ ຢຸດແອດຂາດທຶນ.',
+      th: ' เปิดระบบ Auto-Pilot แล้ว! บอทจะเริ่มเฝ้าแอด, Scale งบ +20% ให้แอดที่ผ่านเกณฑ์, และหยุดแอดขาดทุน',
+      en: ' Auto-Pilot activated! The bot will now monitor ads, auto-scale winners (+20%), and stop loss on losers.'
     })
     runAutoPilot(false)
   } else {
     notice.value = l({
-      lo: '⏸️ ປິດລະບົບ Auto-Pilot ແລ້ວ. ລະບົບກັບສູ່ໂໝດ Manual (ທ່ານສາມາດກວດສອບ ແລະ ກົດເອງໄດ້ທຸກເວລາ).',
-      th: '⏸️ ปิดระบบ Auto-Pilot แล้ว ระบบกลับสู่โหมด Manual (คุณสามารถตรวจสอบและกดเองได้ตลอดเวลา)',
-      en: '⏸️ Auto-Pilot disabled. Returned to Manual Approval mode.'
+      lo: ' ປິດລະບົບ Auto-Pilot ແລ້ວ. ລະບົບກັບສູ່ໂໝດ Manual (ທ່ານສາມາດກວດສອບ ແລະ ກົດເອງໄດ້ທຸກເວລາ).',
+      th: ' ปิดระบบ Auto-Pilot แล้ว ระบบกลับสู่โหมด Manual (คุณสามารถตรวจสอบและกดเองได้ตลอดเวลา)',
+      en: ' Auto-Pilot disabled. Returned to Manual Approval mode.'
     })
   }
 }
@@ -1750,16 +1750,16 @@ function adScaleBadge(item: MetaInsightItem) {
     return {
       type: 'cooldown',
       label: l({
-        lo: `⏳ ສະເກວແລ້ວ (Cooldown ${cooldown.hoursLeft}h ${cooldown.minutesLeft}m)`,
-        th: `⏳ Scale แล้ว (Cooldown ${cooldown.hoursLeft}h ${cooldown.minutesLeft}m)`,
-        en: `⏳ Scaled (Cooldown ${cooldown.hoursLeft}h ${cooldown.minutesLeft}m)`,
+        lo: ` ສະເກວແລ້ວ (Cooldown ${cooldown.hoursLeft}h ${cooldown.minutesLeft}m)`,
+        th: ` Scale แล้ว (Cooldown ${cooldown.hoursLeft}h ${cooldown.minutesLeft}m)`,
+        en: ` Scaled (Cooldown ${cooldown.hoursLeft}h ${cooldown.minutesLeft}m)`,
       }),
       detail: l({
         lo: `ປັບເມື່ອ ${new Date(cooldown.record.scaledAt).toLocaleDateString()} ${new Date(cooldown.record.scaledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}: ${money(cooldown.record.oldBudget)} ➔ ${money(cooldown.record.newBudget)}/ມື້ (+${cooldown.record.scalePercent}%)`,
         th: `ปรับเมื่อ ${new Date(cooldown.record.scaledAt).toLocaleDateString()} ${new Date(cooldown.record.scaledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}: ${money(cooldown.record.oldBudget)} ➔ ${money(cooldown.record.newBudget)}/วัน (+${cooldown.record.scalePercent}%)`,
         en: `Scaled at ${new Date(cooldown.record.scaledAt).toLocaleDateString()} ${new Date(cooldown.record.scaledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}: ${money(cooldown.record.oldBudget)} ➔ ${money(cooldown.record.newBudget)}/day (+${cooldown.record.scalePercent}%)`,
       }),
-      color: '#d97706',
+      color: 'var(--color-warning)',
       bgColor: 'rgba(245, 158, 11, 0.12)',
     }
   }
@@ -1768,9 +1768,9 @@ function adScaleBadge(item: MetaInsightItem) {
   if (stop.eligible) {
     return {
       type: 'stop',
-      label: l({ lo: '🛑 ເຂົ້າເກນ Stop-Loss', th: '🛑 เข้าเกณฑ์ Stop-Loss', en: '🛑 Stop-Loss' }),
+      label: l({ lo: ' ເຂົ້າເກນ Stop-Loss', th: ' เข้าเกณฑ์ Stop-Loss', en: ' Stop-Loss' }),
       detail: stop.reason,
-      color: '#dc2626',
+      color: 'var(--color-error)',
       bgColor: 'rgba(239, 68, 68, 0.12)',
     }
   }
@@ -1779,9 +1779,9 @@ function adScaleBadge(item: MetaInsightItem) {
   if (scale.eligible && !scale.inCooldown) {
     return {
       type: 'scale_ready',
-      label: l({ lo: `🚀 ພ້ອມ Scale (+${autoPilotConfig.value.scalePercent || 20}%)`, th: `🚀 พร้อม Scale (+${autoPilotConfig.value.scalePercent || 20}%)`, en: `🚀 Ready to Scale (+${autoPilotConfig.value.scalePercent || 20}%)` }),
+      label: l({ lo: ` ພ້ອມ Scale (+${autoPilotConfig.value.scalePercent || 20}%)`, th: ` พร้อม Scale (+${autoPilotConfig.value.scalePercent || 20}%)`, en: ` Ready to Scale (+${autoPilotConfig.value.scalePercent || 20}%)` }),
       detail: scale.reason,
-      color: '#16a34a',
+      color: 'var(--color-success)',
       bgColor: 'rgba(22, 163, 74, 0.12)',
     }
   }
@@ -1966,15 +1966,15 @@ async function runAutoPilot(isManual = false) {
 
     if (parts.length > 0) {
       success.value = l({
-        lo: `🤖 Auto-Pilot ປະມວນຜົນສຳເລັດ: ${parts.join(', ')}`,
-        th: `🤖 Auto-Pilot ประมวลผลเสร็จสิ้น: ${parts.join(', ')}`,
-        en: `🤖 Auto-Pilot execution finished: ${parts.join(', ')}`,
+        lo: ` Auto-Pilot ປະມວນຜົນສຳເລັດ: ${parts.join(', ')}`,
+        th: ` Auto-Pilot ประมวลผลเสร็จสิ้น: ${parts.join(', ')}`,
+        en: ` Auto-Pilot execution finished: ${parts.join(', ')}`,
       })
     } else if (isManual) {
       notice.value = l({
-        lo: '🤖 Auto-Pilot: ກວດສອບແລ້ວ ທຸກແອດຢູ່ໃນເກນປົກກະຕິ (ບໍ່ມີແອດທີ່ຕ້ອງສະເກວ ຫຼື ຢຸດຂາດທຶນໃນຕອນນີ້).',
-        th: '🤖 Auto-Pilot: ตรวจสอบแล้ว ทุกแอดอยู่ในเกณฑ์ปกติ (ไม่มีแอดที่ต้อง Scale หรือหยุดขาดทุนในขณะนี้)',
-        en: '🤖 Auto-Pilot: Checked. All ads are currently healthy (no ads meet scale or stop-loss criteria right now).',
+        lo: ' Auto-Pilot: ກວດສອບແລ້ວ ທຸກແອດຢູ່ໃນເກນປົກກະຕິ (ບໍ່ມີແອດທີ່ຕ້ອງສະເກວ ຫຼື ຢຸດຂາດທຶນໃນຕອນນີ້).',
+        th: ' Auto-Pilot: ตรวจสอบแล้ว ทุกแอดอยู่ในเกณฑ์ปกติ (ไม่มีแอดที่ต้อง Scale หรือหยุดขาดทุนในขณะนี้)',
+        en: ' Auto-Pilot: Checked. All ads are currently healthy (no ads meet scale or stop-loss criteria right now).',
       })
     }
   }
@@ -2050,7 +2050,7 @@ onMounted(async () => {
         class="font-weight-bold"
         @click="startLiveTour"
       >
-        {{ l({ lo: '🎯 ພາທົວ (Tour)', th: '🎯 พาทัวร์ (Tour)', en: '🎯 Live Tour' }) }}
+        {{ l({ lo: ' ພາທົວ (Tour)', th: ' พาทัวร์ (Tour)', en: ' Live Tour' }) }}
       </v-btn>
 
       <v-btn
@@ -2058,7 +2058,7 @@ onMounted(async () => {
         prepend-icon="mdi-book-open-page-variant-outline"
         @click="guideModalOpen = true; guideStep = 1"
       >
-        {{ l({ lo: '📖 ຄູ່ມື (Guide)', th: '📖 คู่มือ (Guide)', en: '📖 Guide' }) }}
+        {{ l({ lo: ' ຄູ່ມື (Guide)', th: ' คู่มือ (Guide)', en: ' Guide' }) }}
       </v-btn>
 
       <!-- Auto-Pilot Toggle & Modal Trigger Button -->
@@ -2103,10 +2103,10 @@ onMounted(async () => {
       </span>
       <div class="mode-desc">
         <strong v-if="autoPilotConfig.enabled" class="mode-title-text text-success font-weight-bold">
-          {{ l({ lo: '🤖 ບັອດກຳລັງເຝົ້າແອດ: Auto-Scale ແອດຂາຍດີ (+20%), Lock Cooldown 24h ບໍ່ໃຫ້ຫຼຸດ Learning Phase, ແລະ Auto-Stop ແອດຂາດທຶນ', th: '🤖 บอทกำลังเฝ้าแอด: Auto-Scale แอดขายดี (+20%), ล็อก Cooldown 24h ไม่ให้หลุด Learning Phase, และ Auto-Stop แอดขาดทุน', en: '🤖 Bot is watching ads: Auto-scaling winners (+20%), locking 24h cooldown to protect learning phase, and auto-pausing losers' }) }}
+          {{ l({ lo: ' ບັອດກຳລັງເຝົ້າແອດ: Auto-Scale ແອດຂາຍດີ (+20%), Lock Cooldown 24h ບໍ່ໃຫ້ຫຼຸດ Learning Phase, ແລະ Auto-Stop ແອດຂາດທຶນ', th: ' บอทกำลังเฝ้าแอด: Auto-Scale แอดขายดี (+20%), ล็อก Cooldown 24h ไม่ให้หลุด Learning Phase, และ Auto-Stop แอดขาดทุน', en: ' Bot is watching ads: Auto-scaling winners (+20%), locking 24h cooldown to protect learning phase, and auto-pausing losers' }) }}
         </strong>
         <strong v-else class="mode-title-text font-weight-bold">
-          {{ l({ lo: '👤 ໂໝດຄວບຄຸມດ້ວຍຕົນເອງ: ທ່ານສາມາດກົດປຸ່ມ Scale ຫຼື ອະນຸມັດແຜນປິດ Ads ຕາມຄວາມພໍໃຈ (ລະບົບຈະບໍ່ປັບປ່ຽນຫຍັງເອງ)', th: '👤 โหมดควบคุมด้วยตนเอง: คุณสามารถกดปุ่ม Scale หรืออนุมัติแผนหยุด Ads ตามความต้องการ (ระบบจะไม่ปรับอะไรเอง)', en: '👤 Manual mode: You review and approve budget scaling or ad pausing manually (no automatic changes)' }) }}
+          {{ l({ lo: ' ໂໝດຄວບຄຸມດ້ວຍຕົນເອງ: ທ່ານສາມາດກົດປຸ່ມ Scale ຫຼື ອະນຸມັດແຜນປິດ Ads ຕາມຄວາມພໍໃຈ (ລະບົບຈະບໍ່ປັບປ່ຽນຫຍັງເອງ)', th: ' โหมดควบคุมด้วยตนเอง: คุณสามารถกดปุ่ม Scale หรืออนุมัติแผนหยุด Ads ตามความต้องการ (ระบบจะไม่ปรับอะไรเอง)', en: ' Manual mode: You review and approve budget scaling or ad pausing manually (no automatic changes)' }) }}
         </strong>
         <div class="mode-rules-summary">
           <template v-if="autoPilotConfig.enabled">
@@ -2143,7 +2143,7 @@ onMounted(async () => {
         class="font-weight-bold"
         @click="runAutoPilot(true)"
       >
-        {{ l({ lo: '⚡ ປະມວນຜົນດຽວນີ້', th: '⚡ ประมวลผลตอนนี้', en: '⚡ Run Now' }) }}
+        {{ l({ lo: ' ປະມວນຜົນດຽວນີ້', th: ' ประมวลผลตอนนี้', en: ' Run Now' }) }}
       </v-btn>
       <v-btn
         size="small"
@@ -2199,8 +2199,8 @@ onMounted(async () => {
       <v-select
         :model-value="datePreset"
         :items="[
-          { title: l({ lo: '⚡ ມື້ນີ້ (Today)', th: '⚡ วันนี้ (Today)', en: '⚡ Today' }), value: 'today' },
-          { title: l({ lo: '📅 ມື້ວານນີ້ (Yesterday)', th: '📅 เมื่อวาน (Yesterday)', en: '📅 Yesterday' }), value: 'yesterday' },
+          { title: l({ lo: ' ມື້ນີ້ (Today)', th: ' วันนี้ (Today)', en: ' Today' }), value: 'today' },
+          { title: l({ lo: ' ມື້ວານນີ້ (Yesterday)', th: ' เมื่อวาน (Yesterday)', en: ' Yesterday' }), value: 'yesterday' },
           { title: l({ lo: '7 ມື້ຫຼ້າສຸດ', th: '7 วันล่าสุด', en: 'Last 7 days' }), value: '7' },
           { title: l({ lo: '30 ມື້ຫຼ້າສຸດ', th: '30 วันล่าสุด', en: 'Last 30 days' }), value: '30' },
           { title: l({ lo: 'ກຳນົດເອງ', th: 'กำหนดเอง', en: 'Custom' }), value: 'custom' }
@@ -2241,7 +2241,7 @@ onMounted(async () => {
         </v-chip>
         <v-chip v-if="outcomeFilter !== 'all'" size="small" color="amber-darken-3" variant="flat" class="font-weight-bold elevation-1">
           <v-icon icon="mdi-filter-variant" start size="13" />
-          {{ outcomeFilter === 'angel' ? '🧚‍♀️ Ads ນາງຟ້າ' : outcomeFilter === 'purchases' ? '🛒 ມີການຊື້' : outcomeFilter === 'messages' ? '💬 ມີຄົນທັກ' : outcomeFilter === 'scale' ? '🚀 ພ້ອມ Scale' : '⏸️ ຄວນປິດ' }}
+          {{ outcomeFilter === 'angel' ? ' Ads ນາງຟ້າ' : outcomeFilter === 'purchases' ? ' ມີການຊື້' : outcomeFilter === 'messages' ? ' ມີຄົນທັກ' : outcomeFilter === 'scale' ? ' ພ້ອມ Scale' : ' ຄວນປິດ' }}
         </v-chip>
       </div>
       <v-btn size="x-small" variant="text" color="primary" prepend-icon="mdi-refresh" @click="selectedProductId='all';statusFilter='all';outcomeFilter='all';search=''">
@@ -2300,7 +2300,7 @@ onMounted(async () => {
         </div>
         <strong class="kpi-value">{{ percent(summary?.linkCtr) }}</strong>
         <div class="kpi-sub">
-          <span>{{ (summary?.linkCtr || 0) >= goodCTR ? '🟢 CTR ດີ' : (summary?.linkCtr || 0) < weakCTR ? '🔴 CTR ຕ່ຳ' : '🟡 CTR ປານກາງ' }}</span>
+          <span>{{ (summary?.linkCtr || 0) >= goodCTR ? ' CTR ດີ' : (summary?.linkCtr || 0) < weakCTR ? ' CTR ຕ່ຳ' : ' CTR ປານກາງ' }}</span>
         </div>
       </article>
 
@@ -2365,12 +2365,12 @@ onMounted(async () => {
           <v-select
             v-model="sortBy"
             :items="[
-              { title: l({ lo: '🛒 ອໍເດີສູງສຸດ', th: '🛒 ออเดอร์สูงสุด', en: 'Highest purchases' }), value: 'purchases' },
-              { title: l({ lo: '💬 ຄົນທັກຫຼາຍສຸດ', th: '💬 ทักแชตสูงสุด', en: 'Most messages' }), value: 'messages' },
-              { title: l({ lo: '⚡ ໃຊ້ຈ່າຍສູງສຸດ', th: '⚡ ใช้จ่ายสูงสุด', en: 'Highest spend' }), value: 'spend' },
-              { title: l({ lo: '📈 ROAS ສູງສຸດ', th: '📈 ROAS สูงสุด', en: 'Highest ROAS' }), value: 'roas' },
+              { title: l({ lo: ' ອໍເດີສູງສຸດ', th: ' ออเดอร์สูงสุด', en: 'Highest purchases' }), value: 'purchases' },
+              { title: l({ lo: ' ຄົນທັກຫຼາຍສຸດ', th: ' ทักแชตสูงสุด', en: 'Most messages' }), value: 'messages' },
+              { title: l({ lo: ' ໃຊ້ຈ່າຍສູງສຸດ', th: ' ใช้จ่ายสูงสุด', en: 'Highest spend' }), value: 'spend' },
+              { title: l({ lo: ' ROAS ສູງສຸດ', th: ' ROAS สูงสุด', en: 'Highest ROAS' }), value: 'roas' },
               { title: l({ lo: 'ສ້າງໃໝ່ສຸດ', th: 'สร้างใหม่ล่าสุด', en: 'Newest created' }), value: 'newest' },
-              { title: l({ lo: '🔤 ຊື່ (A-Z)', th: '🔤 ชื่อ (A-Z)', en: 'Name (A-Z)' }), value: 'name' }
+              { title: l({ lo: ' ຊື່ (A-Z)', th: ' ชื่อ (A-Z)', en: 'Name (A-Z)' }), value: 'name' }
             ]"
             item-title="title"
             item-value="value"
@@ -2422,7 +2422,7 @@ onMounted(async () => {
             :class="{ active: outcomeFilter === 'all' }"
             @click="outcomeFilter = 'all'"
           >
-            <span>{{ l({ lo: '📋 ທັງໝົດ', th: '📋 ทั้งหมด', en: '📋 All' }) }}</span>
+            <span>{{ l({ lo: ' ທັງໝົດ', th: ' ทั้งหมด', en: ' All' }) }}</span>
             <b class="count-pill">{{ outcomeCounts.all }}</b>
           </button>
 
@@ -2433,7 +2433,7 @@ onMounted(async () => {
             @click="outcomeFilter = 'angel'"
           >
             <v-icon icon="mdi-star-face" size="15" class="angel-icon" />
-            <span>{{ l({ lo: '🧚‍♀️ Ads ນາງຟ້າ (Winning)', th: '🧚‍♀️ แอดนางฟ้า (Winning)', en: '🧚‍♀️ Angel Ads' }) }}</span>
+            <span>{{ l({ lo: ' Ads ນາງຟ້າ (Winning)', th: ' แอดนางฟ้า (Winning)', en: ' Angel Ads' }) }}</span>
             <b class="count-pill gold">{{ outcomeCounts.angel }}</b>
           </button>
 
@@ -2444,7 +2444,7 @@ onMounted(async () => {
             @click="outcomeFilter = 'purchases'"
           >
             <v-icon icon="mdi-cart-check" size="15" />
-            <span>{{ l({ lo: '🛒 ມີການຊື້ (Purchases)', th: '🛒 มีการซื้อ (Purchases)', en: '🛒 Has Purchases' }) }}</span>
+            <span>{{ l({ lo: ' ມີການຊື້ (Purchases)', th: ' มีการซื้อ (Purchases)', en: ' Has Purchases' }) }}</span>
             <b class="count-pill green">{{ outcomeCounts.purchases }}</b>
           </button>
 
@@ -2455,7 +2455,7 @@ onMounted(async () => {
             @click="outcomeFilter = 'messages'"
           >
             <v-icon icon="mdi-message-text-outline" size="15" />
-            <span>{{ l({ lo: '💬 ມີຄົນທັກ (Messages)', th: '💬 มีคนทัก (Messages)', en: '💬 Has Messages' }) }}</span>
+            <span>{{ l({ lo: ' ມີຄົນທັກ (Messages)', th: ' มีคนทัก (Messages)', en: ' Has Messages' }) }}</span>
             <b class="count-pill blue">{{ outcomeCounts.messages }}</b>
           </button>
 
@@ -2466,7 +2466,7 @@ onMounted(async () => {
             @click="outcomeFilter = 'scale'"
           >
             <v-icon icon="mdi-rocket-launch" size="14" />
-            <span>{{ l({ lo: '🚀 ພ້ອມ Scale', th: '🚀 พร้อม Scale', en: '🚀 Scale Ready' }) }}</span>
+            <span>{{ l({ lo: ' ພ້ອມ Scale', th: ' พร้อม Scale', en: ' Scale Ready' }) }}</span>
             <b class="count-pill purple">{{ outcomeCounts.scale }}</b>
           </button>
 
@@ -2477,7 +2477,7 @@ onMounted(async () => {
             @click="outcomeFilter = 'pause'"
           >
             <v-icon icon="mdi-pause-circle-outline" size="15" />
-            <span>{{ l({ lo: '⏸️ ຄວນປິດ', th: '⏸️ ควรปิด', en: '⏸️ Pause' }) }}</span>
+            <span>{{ l({ lo: ' ຄວນປິດ', th: ' ควรปิด', en: ' Pause' }) }}</span>
             <b class="count-pill red">{{ outcomeCounts.pause }}</b>
           </button>
         </div>
@@ -2523,7 +2523,7 @@ onMounted(async () => {
                     :title="isAngelAd(item).reason"
                   >
                     <v-icon icon="mdi-star" start size="11" />
-                    🧚‍♀️ Ads ນາງຟ້າ
+                     Ads ນາງຟ້າ
                   </v-chip>
                 </div>
                 <small v-if="item.entityType!=='campaign'">{{ item.campaignName }}<template v-if="item.entityType==='ad'"> · {{ item.adSetName }}</template></small>
@@ -2559,7 +2559,7 @@ onMounted(async () => {
                 </div>
                 <div v-else class="d-flex align-center gap-1 mt-1 flex-wrap">
                   <v-chip size="x-small" color="grey" variant="text" class="text-caption">
-                    {{ l({ lo: '⚠️ ຍັງບໍ່ຜູກ Auto Reply', th: '⚠️ ยังไม่ผูก Auto Reply', en: '⚠️ Unlinked' }) }}
+                    {{ l({ lo: ' ຍັງບໍ່ຜູກ Auto Reply', th: ' ยังไม่ผูก Auto Reply', en: ' Unlinked' }) }}
                   </v-chip>
                   <NuxtLink to="/auto-replies" class="text-caption text-primary text-decoration-none font-weight-medium" @click.stop>
                     + ຜູກແອດນີ້
@@ -2599,7 +2599,7 @@ onMounted(async () => {
               <small>{{ resultLabel(item.results.type) }}</small>
               <strong>{{ fmt(item.results.value, 0) }}</strong>
               <small v-if="getMessagesCount(item) != null && !isMessagingAction(item.results?.type)" class="text-primary font-weight-bold">
-                💬 {{ fmt(getMessagesCount(item), 0) }} ຂໍ້ຄວາມ
+                 {{ fmt(getMessagesCount(item), 0) }} ຂໍ້ຄວາມ
               </small>
             </span>
             <span class="metric metric-cost mobile-key">
@@ -2638,7 +2638,7 @@ onMounted(async () => {
                 {{
                   getCooldownInfo(item).inCooldown
                     ? `Cooldown (${getCooldownInfo(item).hoursLeft}h)`
-                    : (isScaleCandidate(item).eligible ? '🚀 Scale (+20%)' : l({ lo: '💰 ປັບງົບ', th: '💰 ปรับงบ', en: '💰 Budget' }))
+                    : (isScaleCandidate(item).eligible ? ' Scale (+20%)' : l({ lo: ' ປັບງົບ', th: ' ปรับงบ', en: ' Budget' }))
                 }}
               </v-btn>
               <v-icon :icon="selectedId === item.entityId ? 'mdi-chevron-up' : 'mdi-chevron-down'" class="expand-chevron" />
@@ -2654,10 +2654,10 @@ onMounted(async () => {
               >
                 {{
                   getCooldownInfo(item).inCooldown
-                    ? l({ lo: `⏳ ສະເກວແລ້ວ (Cooldown ອີກ ${getCooldownInfo(item).hoursLeft}h ${getCooldownInfo(item).minutesLeft}m)`, th: `⏳ Scale แล้ว (Cooldown อีก ${getCooldownInfo(item).hoursLeft}h ${getCooldownInfo(item).minutesLeft}m)`, en: `⏳ Scaled (Cooldown ${getCooldownInfo(item).hoursLeft}h ${getCooldownInfo(item).minutesLeft}m left)` })
+                    ? l({ lo: ` ສະເກວແລ້ວ (Cooldown ອີກ ${getCooldownInfo(item).hoursLeft}h ${getCooldownInfo(item).minutesLeft}m)`, th: ` Scale แล้ว (Cooldown อีก ${getCooldownInfo(item).hoursLeft}h ${getCooldownInfo(item).minutesLeft}m)`, en: ` Scaled (Cooldown ${getCooldownInfo(item).hoursLeft}h ${getCooldownInfo(item).minutesLeft}m left)` })
                     : (isScaleCandidate(item).eligible
-                        ? l({ lo: '🚀 Scale ງົບ (+10% / +20%)', th: '🚀 Scale งบ (+10% / +20%)', en: '🚀 Scale Budget (+10% / +20%)' })
-                        : l({ lo: '💰 ປັບງົບປະມານ (Budget)', th: '💰 ปรับงบประมาณ (Budget)', en: '💰 Adjust Budget' })
+                        ? l({ lo: ' Scale ງົບ (+10% / +20%)', th: ' Scale งบ (+10% / +20%)', en: ' Scale Budget (+10% / +20%)' })
+                        : l({ lo: ' ປັບງົບປະມານ (Budget)', th: ' ปรับงบประมาณ (Budget)', en: ' Adjust Budget' })
                       )
                 }}
               </v-btn>
@@ -2672,7 +2672,7 @@ onMounted(async () => {
                 </div>
                 <div>
                   <h4 class="text-subtitle-2 font-weight-bold text-amber-darken-4 d-flex align-center gap-1">
-                    🧚‍♀️ ແອດນີ້ແມ່ນ "Ads ນາງຟ້າ" (Winning / Top Performer)
+                     ແອດນີ້ແມ່ນ "Ads ນາງຟ້າ" (Winning / Top Performer)
                   </h4>
                   <p class="text-caption mb-0 text-amber-darken-3">
                     {{ isAngelAd(item).reason }}
@@ -2680,7 +2680,7 @@ onMounted(async () => {
                 </div>
               </div>
             </div>
-            <div class="explanation"><v-icon :icon="decision(item).icon" :color="decision(item).color" /><div><h3>{{ decision(item).title }}</h3><p>{{ decision(item).detail }}</p><ul v-if="decision(item).signals.length"><li v-for="signal in decision(item).signals" :key="signal">{{ signal }}</li></ul></div></div>
+            <div class="explanation"><v-icon :icon="decision(item).icon" :style="{ color: decision(item).color }" /><div><h3>{{ decision(item).title }}</h3><p>{{ decision(item).detail }}</p><ul v-if="decision(item).signals.length"><li v-for="signal in decision(item).signals" :key="signal">{{ signal }}</li></ul></div></div>
             <section v-if="item.entityType==='campaign'" class="audience-callout"><v-icon icon="mdi-account-group-outline" /><div><strong>{{ l({lo:'Audience ກຳນົດຢູ່ລະດັບ Ad Set',th:'กลุ่มเป้าหมายกำหนดที่ระดับ Ad Set',en:'Audience is configured at Ad Set level'}) }}</strong><span>{{ l({lo:'ເລືອກແຖບ Ad Set ເພື່ອເບິ່ງ Targeting ແລະ Audience coverage ຂອງແຕ່ລະກຸ່ມ.',th:'เลือกแท็บ Ad Set เพื่อดู Targeting และ Audience coverage ของแต่ละกลุ่ม',en:'Open the Ad Set tab to inspect targeting and audience coverage for each audience.'}) }}</span></div></section>
             <section v-else class="audience-panel">
               <div class="audience-heading"><div><p>AUDIENCE SATURATION</p><h3>{{ l({lo:'ກຸ່ມເປົ້າໝາຍ ແລະການເຂົ້າເຖິງ',th:'กลุ่มเป้าหมายและการเข้าถึง',en:'Audience and delivery coverage'}) }}</h3></div><small>{{ l({lo:'ລະດັບ Ad Set',th:'ระดับ Ad Set',en:'Ad Set level'}) }}</small></div>
@@ -2721,7 +2721,7 @@ onMounted(async () => {
               <div><span>CPC</span><strong>{{ money(item.linkCpc) }}</strong><small>{{ l({lo:'ຕົ້ນທຶນຕໍ່ຄລິກ',th:'ต้นทุนต่อคลิก',en:'Cost per link click'}) }}</small></div>
               <div><span>CPM</span><strong>{{ money(item.cpm) }}</strong><small>{{ l({lo:'ຕົ້ນທຶນຕໍ່ 1,000 ການສະແດງ',th:'ต้นทุนต่อ 1,000 การแสดงผล',en:'Cost per 1,000 impressions'}) }}</small></div>
               <div><span>{{ l({lo:'ໂອກາດຊື້ (CR)',th:'โอกาสซื้อ (CR)',en:'Conversion rate'}) }}</span><strong :style="{ color: buyingOpportunity(item).color }">{{ buyingOpportunity(item).conversionRateText }}</strong><small>{{ l({lo:'ການຊື້ ÷ ຄລິກ',th:'การซื้อ ÷ คลิก',en:'Purchases ÷ clicks'}) }}</small></div>
-              <div v-if="buyingOpportunity(item).costRatio != null"><span>{{ l({lo:'ສັດສ່ວນຄ່າແອດ/ສິນຄ້າ',th:'สัดส่วนค่าแอด/สินค้า',en:'Ad cost/product'}) }}</span><strong :style="{ color: buyingOpportunity(item).costRatioIsGood ? '#167a4b' : buyingOpportunity(item).costRatioIsHigh ? '#dc2626' : 'inherit' }">{{ buyingOpportunity(item).costRatioText }}</strong><small>{{ buyingOpportunity(item).costRatioIsGood ? l({lo:'ກຳໄລສູງຫຼາຍ',th:'กำไรสูงมาก',en:'High margin'}) : l({lo:'ທຽບລາຄາສິນຄ້າ',th:'เทียบราคาสินค้า',en:'vs product price'}) }}</small></div>
+              <div v-if="buyingOpportunity(item).costRatio != null"><span>{{ l({lo:'ສັດສ່ວນຄ່າແອດ/ສິນຄ້າ',th:'สัดส่วนค่าแอด/สินค้า',en:'Ad cost/product'}) }}</span><strong :style="{ color: buyingOpportunity(item).costRatioIsGood ? 'var(--color-success)' : buyingOpportunity(item).costRatioIsHigh ? 'var(--color-error)' : 'inherit' }">{{ buyingOpportunity(item).costRatioText }}</strong><small>{{ buyingOpportunity(item).costRatioIsGood ? l({lo:'ກຳໄລສູງຫຼາຍ',th:'กำไรสูงมาก',en:'High margin'}) : l({lo:'ທຽບລາຄາສິນຄ້າ',th:'เทียบราคาสินค้า',en:'vs product price'}) }}</small></div>
               <div><span>{{ l({lo:'ມູນຄ່າ Conversion',th:'มูลค่า Conversion',en:'Conversion value'}) }}</span><strong>{{ money(item.conversionValue) }}</strong><small>{{ l({lo:'ລາຍຮັບທີ່ Meta attribution',th:'รายได้ที่ Meta attribution',en:'Meta-attributed value'}) }}</small></div>
               <div><span>ROAS</span><strong>{{ item.roas==null?'—':`${fmt(item.roas,2)}×` }}</strong><small>{{ breakEvenROAS?`Break-even ${fmt(breakEvenROAS,2)}×`:'Set gross margin' }}</small></div>
               <div><span>{{ l({lo:'ຫຼັງ Margin − Ads',th:'หลัง Margin − Ads',en:'Margin value − ads'}) }}</span><strong>{{ money(contribution(item)) }}</strong><small>{{ l({lo:'ບໍ່ລວມຄ່າດຳເນີນງານ',th:'ไม่รวมค่าใช้จ่ายดำเนินงาน',en:'Excludes operating costs'}) }}</small></div>
@@ -2754,7 +2754,7 @@ onMounted(async () => {
 
   <v-dialog v-model="actionPlanOpen" max-width="760" persistent>
     <v-card rounded="xl">
-      <v-card-title class="dialog-title"><div><small>SAFE AUTOMATION</small><h2>{{ l({lo:'ກວດ ແລະອະນຸມັດແຜນປິດ Ads',th:'ตรวจและอนุมัติแผนหยุด Ads',en:'Review and approve pause plan'}) }}</h2></div><v-btn icon="mdi-close" variant="text" :disabled="applyingActionPlan" @click="actionPlanOpen=false" /></v-card-title>
+      <v-card-title class="dialog-title"><div><small>SAFE AUTOMATION</small><h2>{{ l({lo:'ກວດ ແລະອະນຸມັດແຜນປິດ Ads',th:'ตรวจและอนุมัติแผนหยุด Ads',en:'Review and approve pause plan'}) }}</h2></div><v-btn icon="mdi-close" variant="text" aria-label="Close action plan" :disabled="applyingActionPlan" @click="actionPlanOpen=false" /></v-card-title>
       <v-card-text class="settings-body">
         <v-alert type="warning" variant="tonal" density="compact" class="mb-4"><strong>{{ l({lo:'Dry run:',th:'โหมดตรวจสอบ:',en:'Dry run:'}) }}</strong> {{ l({lo:'ຍັງບໍ່ມີ Ads ໃດຖືກປິດ. ເລືອກລາຍການ ແລະຢືນຢັນກ່ອນທຸກຄັ້ງ.',th:'ยังไม่มี Ads ใดถูกหยุด เลือกรายการและยืนยันก่อนทุกครั้ง',en:'Nothing has changed. Select items and explicitly approve before any ad is paused.'}) }}</v-alert>
         <div v-if="actionCandidates.length" class="action-plan-list">
@@ -2784,7 +2784,7 @@ onMounted(async () => {
             </h2>
           </div>
         </div>
-        <v-btn icon="mdi-close" variant="text" @click="settingsOpen = false" />
+        <v-btn icon="mdi-close" variant="text" aria-label="Close Ads settings" @click="settingsOpen = false" />
       </v-card-title>
 
       <div class="px-4 pt-1 pb-1">
@@ -2806,14 +2806,14 @@ onMounted(async () => {
       <v-tabs v-model="strategyTab" color="primary" class="px-4 mb-2 border-b">
         <v-tab value="products" class="font-weight-bold">
           <v-icon start icon="mdi-package-variant-closed" />
-          {{ l({ lo: '📦 ຍຸດທະສາດແຍກຕາມສິນຄ້າ', th: '📦 ยุทธศาสตร์แยกตามสินค้า', en: '📦 Per-Product Strategy' }) }}
+          {{ l({ lo: ' ຍຸດທະສາດແຍກຕາມສິນຄ້າ', th: ' ยุทธศาสตร์แยกตามสินค้า', en: ' Per-Product Strategy' }) }}
           <v-chip size="x-small" color="primary" variant="flat" class="ml-2 font-weight-bold">
             {{ products.length }}
           </v-chip>
         </v-tab>
         <v-tab value="default" class="font-weight-bold">
           <v-icon start icon="mdi-earth" />
-          {{ l({ lo: '🌐 ຄ່າເລີ່ມຕົ້ນຂອງບັນຊີ (Account Default)', th: '🌐 ค่าเริ่มต้นของบัญชี (Account Default)', en: '🌐 Account Default' }) }}
+          {{ l({ lo: ' ຄ່າເລີ່ມຕົ້ນຂອງບັນຊີ (Account Default)', th: ' ค่าเริ่มต้นของบัญชี (Account Default)', en: ' Account Default' }) }}
         </v-tab>
       </v-tabs>
 
@@ -3048,7 +3048,7 @@ onMounted(async () => {
           <small class="text-primary font-weight-bold letter-spacing-1">BUDGET SCALING & CONTROL</small>
           <h2>{{ l({ lo: 'ປັບງົບປະມານໂຄສະນາ', th: 'ปรับงบประมาณโฆษณา', en: 'Scale / Adjust Ad Budget' }) }}</h2>
         </div>
-        <v-btn icon="mdi-close" variant="text" :disabled="updatingBudget" @click="budgetModalOpen = false" />
+        <v-btn icon="mdi-close" variant="text" aria-label="Close budget editor" :disabled="updatingBudget" @click="budgetModalOpen = false" />
       </v-card-title>
 
       <v-card-text class="settings-body">
@@ -3264,9 +3264,9 @@ onMounted(async () => {
             class="font-weight-bold"
             @click="guideModalOpen = true; guideStep = 4"
           >
-            {{ l({ lo: '📖 ຄູ່ມືຕັ້ງຄ່າ', th: '📖 คู่มือตั้งค่า', en: '📖 Setup Guide' }) }}
+            {{ l({ lo: ' ຄູ່ມືຕັ້ງຄ່າ', th: ' คู่มือตั้งค่า', en: ' Setup Guide' }) }}
           </v-btn>
-          <v-btn icon="mdi-close" variant="text" @click="autoPilotModalOpen = false" />
+          <v-btn icon="mdi-close" variant="text" aria-label="Close automation settings" @click="autoPilotModalOpen = false" />
         </div>
       </v-card-title>
 
@@ -3343,8 +3343,8 @@ onMounted(async () => {
                   <v-select
                     v-model="autoPilotConfig.scope"
                     :items="[
-                      { title: l({ lo: '🌐 ທຸກແອດທີ່ເປີດຢູ່ (All Active Ads)', th: '🌐 ทุกแอดที่เปิดอยู่ (All Active Ads)', en: '🌐 All Active Ads' }), value: 'all' },
-                      { title: l({ lo: '📦 ສະເພາະສິນຄ້າທີ່ເລືອກໃນ Filter (e.g. kito AG29)', th: '📦 เฉพาะสินค้าที่เลือกใน Filter (e.g. kito AG29)', en: '📦 Current Filter Product Only' }), value: 'filtered_product' }
+                      { title: l({ lo: ' ທຸກແອດທີ່ເປີດຢູ່ (All Active Ads)', th: ' ทุกแอดที่เปิดอยู่ (All Active Ads)', en: ' All Active Ads' }), value: 'all' },
+                      { title: l({ lo: ' ສະເພາະສິນຄ້າທີ່ເລືອກໃນ Filter (e.g. kito AG29)', th: ' เฉพาะสินค้าที่เลือกใน Filter (e.g. kito AG29)', en: ' Current Filter Product Only' }), value: 'filtered_product' }
                     ]"
                     item-title="title"
                     item-value="value"
@@ -3356,9 +3356,9 @@ onMounted(async () => {
                   <v-select
                     v-model="autoPilotConfig.targetType"
                     :items="[
-                      { title: l({ lo: '⚡ ທຸກລະດັບ (CBO Campaign & ABO Ad Set)', th: '⚡ ทุกระดับ (CBO Campaign & ABO Ad Set)', en: '⚡ All (CBO & ABO)' }), value: 'all' },
-                      { title: l({ lo: '📢 ສະເພາະ Campaign (CBO - Advantage Budget)', th: '📢 เฉพาะ Campaign (CBO - Advantage Budget)', en: '📢 Campaigns Only (CBO)' }), value: 'campaign' },
-                      { title: l({ lo: '🎯 ສະເພາະ Ad Set (ABO - Ad Set Budget)', th: '🎯 เฉพาะ Ad Set (ABO - Ad Set Budget)', en: '🎯 Ad Sets Only (ABO)' }), value: 'adset' }
+                      { title: l({ lo: ' ທຸກລະດັບ (CBO Campaign & ABO Ad Set)', th: ' ทุกระดับ (CBO Campaign & ABO Ad Set)', en: ' All (CBO & ABO)' }), value: 'all' },
+                      { title: l({ lo: ' ສະເພາະ Campaign (CBO - Advantage Budget)', th: ' เฉพาะ Campaign (CBO - Advantage Budget)', en: ' Campaigns Only (CBO)' }), value: 'campaign' },
+                      { title: l({ lo: ' ສະເພາະ Ad Set (ABO - Ad Set Budget)', th: ' เฉพาะ Ad Set (ABO - Ad Set Budget)', en: ' Ad Sets Only (ABO)' }), value: 'adset' }
                     ]"
                     item-title="title"
                     item-value="value"
@@ -3374,7 +3374,7 @@ onMounted(async () => {
               <v-card variant="outlined" class="rule-card pa-4 mb-4 rounded-lg">
                 <div class="d-flex align-center justify-space-between mb-3">
                   <div class="d-flex align-center gap-2">
-                    <span class="rule-badge scale">🚀 ກົດທີ 1</span>
+                    <span class="rule-badge scale"> ກົດທີ 1</span>
                     <div>
                       <h4 class="font-weight-bold mb-0">{{ l({ lo: 'ສະເກວງົບແອດຂາຍດີ (Auto-Scale Winners)', th: 'Scale งบแอดขายดี (Auto-Scale Winners)', en: 'Auto-Scale Winning Ads' }) }}</h4>
                       <small class="text-medium-emphasis">{{ l({ lo: 'ເພີ່ມງົບອັດຕະໂນມັດໃຫ້ແອດທີ່ມີການຊື້ດີ ແລະ ຕົ້ນທຶນຢູ່ໃນເກນ', th: 'เพิ่มงบอัตโนมัติให้แอดที่มีการซื้อดีและต้นทุนอยู่ในเกณฑ์', en: 'Automatically increase budget for ads with strong purchases and low CPA' }) }}</small>
@@ -3460,7 +3460,7 @@ onMounted(async () => {
               <v-card variant="outlined" class="rule-card pa-4 mb-4 rounded-lg">
                 <div class="d-flex align-center justify-space-between mb-3">
                   <div class="d-flex align-center gap-2">
-                    <span class="rule-badge stop">🛑 ກົດທີ 2</span>
+                    <span class="rule-badge stop"> ກົດທີ 2</span>
                     <div>
                       <h4 class="font-weight-bold mb-0">{{ l({ lo: 'ຢຸດແອດຂາດທຶນ (Auto-Stop Losers / Stop-Loss)', th: 'หยุดแอดขาดทุน (Auto-Stop Losers / Stop-Loss)', en: 'Auto-Stop Losing Ads (Stop-Loss)' }) }}</h4>
                       <small class="text-medium-emphasis">{{ l({ lo: 'ປິດແອດອັດຕະໂນມັດເມື່ອໃຊ້ງົບເຖິງເກນ ແຕ່ບໍ່ມີການຊື້ ແລະ CTR ຕ່ຳ', th: 'หยุดแอดอัตโนมัติเมื่อใช้งบถึงเกณฑ์แต่ไม่มีการซื้อและ CTR ต่ำ', en: 'Automatically pause ads when spend hits threshold with 0 purchases and low CTR' }) }}</small>
@@ -3590,7 +3590,7 @@ onMounted(async () => {
           class="font-weight-bold px-4"
           @click="runAutoPilot(true)"
         >
-          {{ l({ lo: '⚡ ປະມວນຜົນດຽວນີ້ (Run Now)', th: '⚡ ประมวลผลตอนนี้ (Run Now)', en: '⚡ Run Now' }) }}
+          {{ l({ lo: ' ປະມວນຜົນດຽວນີ້ (Run Now)', th: ' ประมวลผลตอนนี้ (Run Now)', en: ' Run Now' }) }}
         </v-btn>
         <v-spacer />
         <v-btn variant="text" @click="autoPilotModalOpen = false">
@@ -3618,7 +3618,7 @@ onMounted(async () => {
             </h2>
           </div>
         </div>
-        <v-btn icon="mdi-close" variant="text" @click="guideModalOpen = false" />
+        <v-btn icon="mdi-close" variant="text" aria-label="Close Ads guide" @click="guideModalOpen = false" />
       </v-card-title>
 
       <!-- Quick Switch to Live Tour Banner -->
@@ -3637,7 +3637,7 @@ onMounted(async () => {
           class="font-weight-bold"
           @click="startLiveTour"
         >
-          {{ l({ lo: '🎯 ເລີ່ມພາທົວໜ້າເວັບແທ້ດຽວນີ້', th: '🎯 เริ่มพาทัวร์หน้าเว็บจริงตอนนี้', en: '🎯 Start Live Tour Now' }) }}
+          {{ l({ lo: ' ເລີ່ມພາທົວໜ້າເວັບແທ້ດຽວນີ້', th: ' เริ่มพาทัวร์หน้าเว็บจริงตอนนี้', en: ' Start Live Tour Now' }) }}
         </v-btn>
       </div>
 
@@ -4143,7 +4143,7 @@ onMounted(async () => {
                         <small class="text-medium-emphasis">{{ l({ lo: 'ງົບປະຈຸບັນ: 100,000 ₭/ມື້ • 4 ອໍເດີ', th: 'งบปัจจุบัน: 100,000 ₭/วัน • 4 ออเดอร์', en: 'Current: 100,000 ₭/day • 4 orders' }) }}</small>
                       </div>
                       <v-btn size="small" color="primary" variant="flat" prepend-icon="mdi-rocket-launch" class="font-weight-bold">
-                        🚀 {{ l({ lo: 'ສະເກວ (+20%)', th: 'สเกล (+20%)', en: 'Scale (+20%)' }) }}
+                         {{ l({ lo: 'ສະເກວ (+20%)', th: 'สเกล (+20%)', en: 'Scale (+20%)' }) }}
                       </v-btn>
                     </div>
                     <div class="guide-pointer-anchor right-center">
@@ -4157,7 +4157,7 @@ onMounted(async () => {
                       {{ l({ lo: 'ໂໝດ Manual: ກົດສະເກວດ້ວຍຕົນເອງ', th: 'โหมด Manual: กดสเกลด้วยตนเอง', en: 'Manual Mode: 1-Click Scale' }) }}
                     </h5>
                     <p class="callout-desc mb-0">
-                      {{ l({ lo: 'ຖ້າທ່ານປິດ Auto-Pilot, ທ່ານສາມາດກົດປຸ່ມ “🚀 ສະເກວ (+20%)” ຢູ່ແຕ່ລະແຖວເພື່ອອະນຸມັດປັບງົບດ້ວຍມືເອງໄດ້.', th: 'ถ้าปิด Auto-Pilot คุณสามารถกดปุ่ม “🚀 สเกล (+20%)” แต่ละแถวเพื่อปรับงบด้วยมือได้ตลอดเวลา', en: 'In manual mode, click the Scale button on any row to approve a +20% bump on your terms.' }) }}
+                      {{ l({ lo: 'ຖ້າທ່ານປິດ Auto-Pilot, ທ່ານສາມາດກົດປຸ່ມ “ ສະເກວ (+20%)” ຢູ່ແຕ່ລະແຖວເພື່ອອະນຸມັດປັບງົບດ້ວຍມືເອງໄດ້.', th: 'ถ้าปิด Auto-Pilot คุณสามารถกดปุ่ม “ สเกล (+20%)” แต่ละแถวเพื่อปรับงบด้วยมือได้ตลอดเวลา', en: 'In manual mode, click the Scale button on any row to approve a +20% bump on your terms.' }) }}
                     </p>
                   </div>
                 </div>
@@ -4171,7 +4171,7 @@ onMounted(async () => {
                         <small class="text-medium-emphasis">{{ l({ lo: 'ປັບແລ້ວ: 100,000 ₭ ➔ 120,000 ₭/ມື້', th: 'ปรับแล้ว: 100,000 ₭ ➔ 120,000 ₭/วัน', en: 'Scaled: 100,000 ₭ ➔ 120,000 ₭/day' }) }}</small>
                       </div>
                       <v-chip size="small" color="info" variant="tonal" class="font-weight-bold">
-                        ⏳ {{ l({ lo: 'ສະເກວແລ້ວ (Cooldown ອີກ 21h 30m)', th: 'สเกลแล้ว (Cooldown อีก 21h 30m)', en: 'Scaled (Cooldown 21h 30m)' }) }}
+                         {{ l({ lo: 'ສະເກວແລ້ວ (Cooldown ອີກ 21h 30m)', th: 'สเกลแล้ว (Cooldown อีก 21h 30m)', en: 'Scaled (Cooldown 21h 30m)' }) }}
                       </v-chip>
                     </div>
                     <div class="guide-pointer-anchor right-center">
@@ -4199,7 +4199,7 @@ onMounted(async () => {
                         <small class="text-medium-emphasis">{{ l({ lo: 'ອໍເດີປັດຈຸບັນ: 4/4 ອໍເດີ (ຍັງບໍ່ມີອໍເດີໃໝ່ເພີ່ມ)', th: 'ออเดอร์ปัจจุบัน: 4/4 ออเดอร์ (ยังไม่มีออเดอร์ใหม่)', en: 'Orders: 4/4 (no new orders yet)' }) }}</small>
                       </div>
                       <v-chip size="small" color="secondary" variant="outlined">
-                        🛑 {{ l({ lo: 'ລໍຖ້າອໍເດີໃໝ່', th: 'รอออเดอร์ใหม่', en: 'Awaiting new sales' }) }}
+                         {{ l({ lo: 'ລໍຖ້າອໍເດີໃໝ່', th: 'รอออเดอร์ใหม่', en: 'Awaiting new sales' }) }}
                       </v-chip>
                     </div>
                     <div class="guide-pointer-anchor right-center">
@@ -4260,7 +4260,7 @@ onMounted(async () => {
             class="font-weight-bold px-4"
             @click="guideModalOpen = false; autoPilotModalOpen = true"
           >
-            {{ l({ lo: '🚀 ເຂົ້າສູ່ການຕັ້ງຄ່າ Auto-Pilot', th: '🚀 เข้าสู่การตั้งค่า Auto-Pilot', en: '🚀 Open Auto-Pilot' }) }}
+            {{ l({ lo: ' ເຂົ້າສູ່ການຕັ້ງຄ່າ Auto-Pilot', th: ' เข้าสู่การตั้งค่า Auto-Pilot', en: ' Open Auto-Pilot' }) }}
           </v-btn>
         </div>
       </v-card-actions>
@@ -4291,7 +4291,7 @@ onMounted(async () => {
               </strong>
             </div>
           </div>
-          <v-btn icon="mdi-close" size="small" variant="text" @click="endLiveTour" />
+          <v-btn icon="mdi-close" size="small" variant="text" aria-label="Close guided tour" @click="endLiveTour" />
         </div>
 
         <v-progress-linear :model-value="liveTourStep * 20" color="primary" height="3" />
@@ -4304,14 +4304,14 @@ onMounted(async () => {
             </p>
             <div class="d-flex flex-wrap gap-2 mb-2">
               <v-btn to="/products" target="_blank" prepend-icon="mdi-package-variant-closed" size="small" color="primary" variant="tonal" class="font-weight-bold">
-                📦 {{ l({ lo: 'ເປີດໜ້າສິນຄ້າ (Products)', th: 'เปิดหน้าสินค้า (Products)', en: 'Open Products' }) }}
+                 {{ l({ lo: 'ເປີດໜ້າສິນຄ້າ (Products)', th: 'เปิดหน้าสินค้า (Products)', en: 'Open Products' }) }}
               </v-btn>
               <v-btn to="/auto-replies" target="_blank" prepend-icon="mdi-robot" size="small" color="success" variant="tonal" class="font-weight-bold">
-                🤖 {{ l({ lo: 'ເປີດໜ້າ Auto-Replies', th: 'เปิดหน้า Auto-Replies', en: 'Open Auto-Replies' }) }}
+                 {{ l({ lo: 'ເປີດໜ້າ Auto-Replies', th: 'เปิดหน้า Auto-Replies', en: 'Open Auto-Replies' }) }}
               </v-btn>
             </div>
             <small class="text-caption text-medium-emphasis">
-              {{ l({ lo: '💡 ເມື່ອຜູກຮຽບຮ້ອຍແລ້ວ ກົດ "ຕໍ່ໄປ" ເພື່ອກວດໜ້າ Ads ຕົວຈິງ!', th: '💡 เมื่อผูกเรียบร้อยแล้ว กด "ถัดไป" เพื่อตรวจหน้า Ads นี้ได้เลย', en: '💡 Once linked, click "Next" to inspect this live Ads Manager!' }) }}
+              {{ l({ lo: ' ເມື່ອຜູກຮຽບຮ້ອຍແລ້ວ ກົດ "ຕໍ່ໄປ" ເພື່ອກວດໜ້າ Ads ຕົວຈິງ!', th: ' เมื่อผูกเรียบร้อยแล้ว กด "ถัดไป" เพื่อตรวจหน้า Ads นี้ได้เลย', en: ' Once linked, click "Next" to inspect this live Ads Manager!' }) }}
             </small>
           </div>
 
@@ -4360,8 +4360,8 @@ onMounted(async () => {
               {{ l({ lo: 'ສັງເກດຕາຕະລາງແອດດ້ານເທິງ/ລຸ່ມ:', th: 'สังเกตตารางแอด:', en: 'Notice the ad table:' }) }}
             </div>
             <ul class="text-body-2 pl-4 mb-2">
-              <li><strong>{{ l({ lo: 'ປຸ່ມ 🚀 ສະເກວ (+20%):', th: 'ปุ่ม 🚀 สเกล (+20%):', en: 'Scale Button (+20%):' }) }}</strong> {{ l({ lo: 'ກົດເພີ່ມງົບດ້ວຍມືໄດ້ທັນທີ', th: 'กดเพิ่มงบได้ทันที', en: 'Approve budget bump manually' }) }}</li>
-              <li><strong>{{ l({ lo: 'ປ້າຍ ⏳ Cooldown 24h:', th: 'ป้าย ⏳ Cooldown 24h:', en: '24h Cooldown Badge:' }) }}</strong> {{ l({ lo: 'ລັອກ 24h ປ້ອງກັນບໍ່ໃຫ້ຫຼຸດ Meta Learning Phase', th: 'ล็อก 24h เพื่อปกป้อง Learning Phase', en: 'Locked for 24h to protect learning phase' }) }}</li>
+              <li><strong>{{ l({ lo: 'ປຸ່ມ  ສະເກວ (+20%):', th: 'ปุ่ม  สเกล (+20%):', en: 'Scale Button (+20%):' }) }}</strong> {{ l({ lo: 'ກົດເພີ່ມງົບດ້ວຍມືໄດ້ທັນທີ', th: 'กดเพิ่มงบได้ทันที', en: 'Approve budget bump manually' }) }}</li>
+              <li><strong>{{ l({ lo: 'ປ້າຍ  Cooldown 24h:', th: 'ป้าย  Cooldown 24h:', en: '24h Cooldown Badge:' }) }}</strong> {{ l({ lo: 'ລັອກ 24h ປ້ອງກັນບໍ່ໃຫ້ຫຼຸດ Meta Learning Phase', th: 'ล็อก 24h เพื่อปกป้อง Learning Phase', en: 'Locked for 24h to protect learning phase' }) }}</li>
               <li><strong>{{ l({ lo: 'ກົດອໍເດີໃໝ່ (Incremental Sales):', th: 'กฎออเดอร์ใหม่ (Incremental Sales):', en: 'Incremental Sales Guardrail:' }) }}</strong> {{ l({ lo: 'ຖ້າໝົດ 24h ແຕ່ບໍ່ມີອໍເດີໃໝ່ເພີ່ມຂຶ້ນ ລະບົບຈະບໍ່ສະເກວຕໍ່ເດັດຂາດ!', th: 'ถ้าหมด 24h แต่ไม่มีออเดอร์ใหม่เพิ่มขึ้น ระบบจะไม่สเกลต่อเด็ดขาด', en: 'No scaling without new orders!' }) }}</li>
             </ul>
           </div>
@@ -4415,14 +4415,14 @@ onMounted(async () => {
 .page-head,.filter-bar,.performance-section{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}
 .page-head{padding:24px;display:flex;justify-content:space-between;align-items:flex-start;gap:24px;margin-bottom:16px}.page-head p,.card-heading p,.section-head p{margin:0 0 6px;color:var(--color-primary);font-size: 12px;font-weight:800;letter-spacing:.13em}.page-head h1{font-size:clamp(24px,3vw,34px);line-height:1.15;margin:0 0 8px}.page-head span{color:var(--color-text-secondary)}.head-actions{display:flex;gap:8px;flex-wrap:wrap}
 .filter-bar{display:grid;grid-template-columns:minmax(240px,1.5fr) minmax(170px,.8fr) minmax(145px,.7fr) minmax(145px,.7fr) auto;align-items:center;gap:12px;padding:16px;margin-bottom:16px}
-.loading-grid,.summary-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:16px}.summary-card{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:18px;display:grid;gap:5px}.summary-card>span{color:var(--color-text-secondary);font-size:13px}.summary-card strong{font-size:clamp(22px,3vw,30px);line-height:1.1}.summary-card small{color:var(--color-text-muted);font-size: 12px}.summary-card.finance{border-color:rgba(32,164,100,.28);background:linear-gradient(145deg,var(--color-surface),rgba(32,164,100,.045))}.summary-card.finance strong{color:#167a4b}.summary-card.loss{border-color:rgba(239,68,68,.3);background:linear-gradient(145deg,var(--color-surface),rgba(239,68,68,.04))}.summary-card.loss strong{color:var(--color-error)}
+.loading-grid,.summary-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:16px}.summary-card{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:18px;display:grid;gap:5px}.summary-card>span{color:var(--color-text-secondary);font-size:13px}.summary-card strong{font-size:clamp(22px,3vw,30px);line-height:1.1}.summary-card small{color:var(--color-text-muted);font-size: 12px}.summary-card.finance{border-color:var(--color-success-border);background:var(--color-surface)}.summary-card.finance strong{color:var(--color-success)}.summary-card.loss{border-color:var(--color-error-border);background:var(--color-surface)}.summary-card.loss strong{color:var(--color-error)}
 .analysis-grid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(320px,.8fr);gap:16px;margin-bottom:16px}.trend-card,.decision-card{padding:20px;border-radius:var(--radius-lg)}.card-heading,.section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.card-heading h2,.section-head h2{margin:0;font-size:20px}.card-heading>small{color:var(--color-text-muted)}
-.trend-chart{height:220px;display:flex;align-items:flex-end;gap:clamp(4px,1vw,12px);padding:28px 4px 24px;margin-top:12px;border-bottom:1px solid var(--color-border);position:relative}.trend-column{height:100%;flex:1;min-width:8px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:7px;position:relative;outline:none}.trend-bar{width:min(34px,80%);min-height:4px;background:linear-gradient(180deg,var(--color-primary),#7c6cf1);border-radius:7px 7px 3px 3px;transition:transform .15s}.trend-column:is(:hover,:focus) .trend-bar{transform:scaleX(1.08)}.trend-column small{font-size: 12px;color:var(--color-text-muted);white-space:nowrap}.trend-tooltip{display:none;position:absolute;bottom:calc(100% + 6px);z-index:2;background:#211d3f;color:#fff;padding:8px 10px;border-radius:8px;font-size: 12px;white-space:nowrap;text-align:center}.trend-column:is(:hover,:focus) .trend-tooltip{display:block}
+.trend-chart{height:220px;display:flex;align-items:flex-end;gap:clamp(4px,1vw,12px);padding:28px 4px 24px;margin-top:12px;border-bottom:1px solid var(--color-border);position:relative}.trend-column{height:100%;flex:1;min-width:8px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:7px;position:relative;outline:none}.trend-bar{width:min(34px,80%);min-height:4px;background:var(--color-primary);border-radius:7px 7px 3px 3px;transition:transform .15s}.trend-column:is(:hover,:focus) .trend-bar{transform:scaleX(1.08)}.trend-column small{font-size: 12px;color:var(--color-text-muted);white-space:nowrap}.trend-tooltip{display:none;position:absolute;bottom:calc(100% + 6px);z-index:2;background:#211d3f;color:var(--color-surface);padding:8px 10px;border-radius:8px;font-size: 12px;white-space:nowrap;text-align:center}.trend-column:is(:hover,:focus) .trend-tooltip{display:block}
 .decision-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:18px 0}.decision-count{padding:14px 8px;border-radius:12px;display:grid;text-align:center}.decision-count strong{font-size:25px}.decision-count span{font-size: 12px}.decision-count.keep{background:rgba(39,174,96,.1);color:var(--color-success)}.decision-count.review{background:rgba(245,158,11,.12);color:#a86700}.decision-count.pause{background:rgba(239,68,68,.1);color:var(--color-error)}.guide-note{display:flex;gap:8px;align-items:flex-start;color:var(--color-text-secondary);font-size:13px;line-height:1.55;margin:0}.decision-steps{display:grid;gap:9px;margin:15px 0 0;padding:0;list-style:none}.decision-steps li{display:grid;padding:10px 12px;border:1px solid var(--color-border);border-radius:10px}.decision-steps strong{font-size: 12px}.decision-steps span{color:var(--color-text-secondary);font-size: 12px;line-height:1.45}
-.performance-section{padding:20px}.section-head{margin-bottom:14px}.report-meta{display:flex;align-items:center;gap:12px}.report-meta>span{font-size: 12px;color:var(--color-text-muted)}.report-meta .v-text-field{width:250px}.detail-toolbar{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;padding:14px;margin-bottom:8px;border:1px solid var(--color-border);border-radius:14px;background:var(--color-surface-soft)}.toolbar-group{display:grid;gap:6px;min-width:0}.toolbar-group>small{font-size: 12px;font-weight:750;color:var(--color-text-muted);letter-spacing:.04em}.level-tabs,.status-tabs{max-width:100%}.level-tabs .v-btn,.status-tabs .v-btn{min-height:40px}.level-tabs .v-icon{margin-right:5px}.status-tabs .v-btn{gap:6px}.status-tabs b{min-width:20px;padding:1px 6px;border-radius:999px;background:color-mix(in srgb,currentColor 12%,transparent);font-size: 12px}.status-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:0 0 8px}.status-dot.active{background:#20a464}.status-dot.paused{background:#8991a5}.status-dot.issues{background:#e58a18}.filter-help{display:flex;align-items:flex-start;gap:7px;margin:0 2px 16px;color:var(--color-text-muted);font-size: 12px;line-height:1.45}.table-loading{margin:-1px 0 16px}.performance-list{display:grid;border:1px solid var(--color-border);border-radius:14px;overflow:hidden}.performance-row+.performance-row{border-top:1px solid var(--color-border)}.performance-row.expanded{background:var(--color-surface-soft)}.row-main{width:100%;display:grid;grid-template-columns:minmax(210px,1.4fr) minmax(95px,auto) repeat(5,minmax(72px,.5fr)) minmax(145px,auto) minmax(95px,auto);align-items:center;gap:10px;padding:14px 18px;text-align:left;color:inherit;background:transparent;border:0;cursor:pointer}.row-main:hover{background:var(--color-background)}.entity-cell{display:flex;align-items:center;gap:11px;min-width:0}.entity-cell>span:last-child{display:grid;min-width:0}.entity-cell strong,.entity-cell small,.entity-cell code{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.entity-cell small{color:var(--color-text-secondary);font-size: 12px}.entity-cell code{color:var(--color-text-muted);font-size: 12px}.entity-icon{width:42px;height:42px;display:grid;place-items:center;border-radius:11px;background:var(--color-primary-soft);color:var(--color-primary);flex:0 0 42px}.delivery-chip{display:inline-flex;align-items:center;gap:6px;width:max-content;max-width:100%;padding:6px 8px;border-radius:999px;font-size: 12px;font-weight:750;white-space:nowrap}.delivery-chip.active{color:#167a4b;background:rgba(32,164,100,.1)}.delivery-chip.paused{color:#697184;background:rgba(137,145,165,.13)}.delivery-chip.issues{color:#a96000;background:rgba(229,138,24,.12)}.metric{display:grid;gap:3px}.metric small{font-size: 12px;color:var(--color-text-muted)}.metric strong{font-size:14px}.decision-chip{display:flex;align-items:center;gap:8px;border-radius:11px;padding:9px 10px;min-width:0}.decision-chip>span{display:grid;min-width:0}.decision-chip strong{font-size:12px}.decision-chip small{font-size: 12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.decision-chip.keep{background:rgba(39,174,96,.1);color:var(--color-success)}.decision-chip.review{background:rgba(245,158,11,.12);color:#a86700}.decision-chip.pause{background:rgba(239,68,68,.1);color:var(--color-error)}.decision-chip.no_data{background:var(--color-surface-soft);color:var(--color-text-secondary)}
+.performance-section{padding:20px}.section-head{margin-bottom:14px}.report-meta{display:flex;align-items:center;gap:12px}.report-meta>span{font-size: 12px;color:var(--color-text-muted)}.report-meta .v-text-field{width:250px}.detail-toolbar{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;padding:14px;margin-bottom:8px;border:1px solid var(--color-border);border-radius:14px;background:var(--color-surface-soft)}.toolbar-group{display:grid;gap:6px;min-width:0}.toolbar-group>small{font-size: 12px;font-weight:750;color:var(--color-text-muted);letter-spacing:.04em}.level-tabs,.status-tabs{max-width:100%}.level-tabs .v-btn,.status-tabs .v-btn{min-height:40px}.level-tabs .v-icon{margin-right:5px}.status-tabs .v-btn{gap:6px}.status-tabs b{min-width:20px;padding:1px 6px;border-radius:999px;background:color-mix(in srgb,currentColor 12%,transparent);font-size: 12px}.status-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:0 0 8px}.status-dot.active{background:#20a464}.status-dot.paused{background:#8991a5}.status-dot.issues{background:#e58a18}.filter-help{display:flex;align-items:flex-start;gap:7px;margin:0 2px 16px;color:var(--color-text-muted);font-size: 12px;line-height:1.45}.table-loading{margin:-1px 0 16px}.performance-list{display:grid;border:1px solid var(--color-border);border-radius:14px;overflow:hidden}.performance-row+.performance-row{border-top:1px solid var(--color-border)}.performance-row.expanded{background:var(--color-surface-soft)}.row-main{width:100%;display:grid;grid-template-columns:minmax(210px,1.4fr) minmax(95px,auto) repeat(5,minmax(72px,.5fr)) minmax(145px,auto) minmax(95px,auto);align-items:center;gap:10px;padding:14px 18px;text-align:left;color:inherit;background:transparent;border:0;cursor:pointer}.row-main:hover{background:var(--color-background)}.entity-cell{display:flex;align-items:center;gap:11px;min-width:0}.entity-cell>span:last-child{display:grid;min-width:0}.entity-cell strong,.entity-cell small,.entity-cell code{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.entity-cell small{color:var(--color-text-secondary);font-size: 12px}.entity-cell code{color:var(--color-text-muted);font-size: 12px}.entity-icon{width:42px;height:42px;display:grid;place-items:center;border-radius:11px;background:var(--color-primary-soft);color:var(--color-primary);flex:0 0 42px}.delivery-chip{display:inline-flex;align-items:center;gap:6px;width:max-content;max-width:100%;padding:6px 8px;border-radius:999px;font-size: 12px;font-weight:750;white-space:nowrap}.delivery-chip.active{color:var(--color-success);background:rgba(32,164,100,.1)}.delivery-chip.paused{color:#697184;background:rgba(137,145,165,.13)}.delivery-chip.issues{color:#a96000;background:rgba(229,138,24,.12)}.metric{display:grid;gap:3px}.metric small{font-size: 12px;color:var(--color-text-muted)}.metric strong{font-size:14px}.decision-chip{display:flex;align-items:center;gap:8px;border-radius:11px;padding:9px 10px;min-width:0}.decision-chip>span{display:grid;min-width:0}.decision-chip strong{font-size:12px}.decision-chip small{font-size: 12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.decision-chip.keep{background:rgba(39,174,96,.1);color:var(--color-success)}.decision-chip.review{background:rgba(245,158,11,.12);color:#a86700}.decision-chip.pause{background:rgba(239,68,68,.1);color:var(--color-error)}.decision-chip.no_data{background:var(--color-surface-soft);color:var(--color-text-secondary)}
 .row-actions{display:inline-flex;align-items:center;justify-content:flex-end;gap:8px;white-space:nowrap}
 .mobile-scale-bar{display:none}
-.row-detail{padding:20px;border-top:1px solid var(--color-border);display:grid;gap:18px}.explanation{display:flex;gap:12px;align-items:flex-start;max-width:850px}.explanation h3{margin:0 0 4px;font-size:17px}.explanation p{margin:0;color:var(--color-text-secondary)}.explanation ul{margin:8px 0 0;padding-left:20px;color:var(--color-text-secondary)}.audience-callout{display:flex;align-items:flex-start;gap:11px;padding:14px;color:var(--color-primary);background:var(--color-primary-soft);border-radius:12px}.audience-callout div{display:grid}.audience-callout strong{font-size:13px}.audience-callout span{color:var(--color-text-secondary);font-size: 12px}.audience-panel{display:grid;gap:14px;padding:18px;border:1px solid color-mix(in srgb,var(--color-primary) 22%,var(--color-border));border-radius:14px;background:var(--color-surface)}.audience-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.audience-heading p{margin:0 0 3px;color:var(--color-primary);font-size: 12px;font-weight:800;letter-spacing:.12em}.audience-heading h3{margin:0;font-size:17px}.audience-heading>small{padding:5px 8px;color:var(--color-primary);background:var(--color-primary-soft);border-radius:999px;font-size: 12px}.audience-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}.audience-metrics>div{display:grid;gap:3px;padding:12px;background:var(--color-background);border-radius:11px}.audience-metrics span,.audience-metrics small{color:var(--color-text-muted);font-size: 12px}.audience-metrics strong{font-size:19px}.coverage-metric strong{color:var(--color-primary)}.coverage-bar{margin-top:-5px}.audience-advice{display:flex;align-items:flex-start;gap:10px;padding:12px;border-radius:11px}.audience-advice>div{display:grid}.audience-advice strong{font-size:12px}.audience-advice span{font-size: 12px;line-height:1.5}.audience-advice.success{color:#167a4b;background:rgba(32,164,100,.1)}.audience-advice.warning{color:#995c00;background:rgba(229,138,24,.12)}.audience-advice.info{color:var(--color-primary);background:var(--color-primary-soft)}.targeting-block{display:grid;gap:8px}.targeting-block>strong{font-size:12px}.targeting-block>small{color:var(--color-text-muted)}.targeting-tags{display:flex;flex-wrap:wrap;gap:6px}.targeting-tags span{display:inline-flex;align-items:center;gap:5px;padding:6px 8px;border:1px solid var(--color-border);border-radius:999px;color:var(--color-text-secondary);font-size: 12px}.native-metric-note{display:flex;align-items:flex-start;gap:8px;padding-top:11px;border-top:1px solid var(--color-border);color:var(--color-text-muted);font-size: 12px;line-height:1.5}.metric-detail-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}.metric-detail-grid>div{padding:12px;border:1px solid var(--color-border);border-radius:11px;display:grid;gap:3px}.metric-detail-grid span,.metric-detail-grid small{font-size: 12px;color:var(--color-text-muted)}.metric-detail-grid strong{font-size:15px;overflow-wrap:anywhere}.status-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding-top:14px;border-top:1px solid var(--color-border)}.status-actions>div{display:grid;margin-right:auto}.status-actions>div span{font-size:12px;color:var(--color-text-secondary)}
+.row-detail{padding:20px;border-top:1px solid var(--color-border);display:grid;gap:18px}.explanation{display:flex;gap:12px;align-items:flex-start;max-width:850px}.explanation h3{margin:0 0 4px;font-size:17px}.explanation p{margin:0;color:var(--color-text-secondary)}.explanation ul{margin:8px 0 0;padding-left:20px;color:var(--color-text-secondary)}.audience-callout{display:flex;align-items:flex-start;gap:11px;padding:14px;color:var(--color-primary);background:var(--color-primary-soft);border-radius:12px}.audience-callout div{display:grid}.audience-callout strong{font-size:13px}.audience-callout span{color:var(--color-text-secondary);font-size: 12px}.audience-panel{display:grid;gap:14px;padding:18px;border:1px solid color-mix(in srgb,var(--color-primary) 22%,var(--color-border));border-radius:14px;background:var(--color-surface)}.audience-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.audience-heading p{margin:0 0 3px;color:var(--color-primary);font-size: 12px;font-weight:800;letter-spacing:.12em}.audience-heading h3{margin:0;font-size:17px}.audience-heading>small{padding:5px 8px;color:var(--color-primary);background:var(--color-primary-soft);border-radius:999px;font-size: 12px}.audience-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}.audience-metrics>div{display:grid;gap:3px;padding:12px;background:var(--color-background);border-radius:11px}.audience-metrics span,.audience-metrics small{color:var(--color-text-muted);font-size: 12px}.audience-metrics strong{font-size:19px}.coverage-metric strong{color:var(--color-primary)}.coverage-bar{margin-top:-5px}.audience-advice{display:flex;align-items:flex-start;gap:10px;padding:12px;border-radius:11px}.audience-advice>div{display:grid}.audience-advice strong{font-size:12px}.audience-advice span{font-size: 12px;line-height:1.5}.audience-advice.success{color:var(--color-success);background:rgba(32,164,100,.1)}.audience-advice.warning{color:#995c00;background:rgba(229,138,24,.12)}.audience-advice.info{color:var(--color-primary);background:var(--color-primary-soft)}.targeting-block{display:grid;gap:8px}.targeting-block>strong{font-size:12px}.targeting-block>small{color:var(--color-text-muted)}.targeting-tags{display:flex;flex-wrap:wrap;gap:6px}.targeting-tags span{display:inline-flex;align-items:center;gap:5px;padding:6px 8px;border:1px solid var(--color-border);border-radius:999px;color:var(--color-text-secondary);font-size: 12px}.native-metric-note{display:flex;align-items:flex-start;gap:8px;padding-top:11px;border-top:1px solid var(--color-border);color:var(--color-text-muted);font-size: 12px;line-height:1.5}.metric-detail-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}.metric-detail-grid>div{padding:12px;border:1px solid var(--color-border);border-radius:11px;display:grid;gap:3px}.metric-detail-grid span,.metric-detail-grid small{font-size: 12px;color:var(--color-text-muted)}.metric-detail-grid strong{font-size:15px;overflow-wrap:anywhere}.status-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding-top:14px;border-top:1px solid var(--color-border)}.status-actions>div{display:grid;margin-right:auto}.status-actions>div span{font-size:12px;color:var(--color-text-secondary)}
 .empty-state,.empty-inline{text-align:center;padding:48px 20px;color:var(--color-text-secondary)}.empty-inline.compact{padding:24px 16px}.empty-state h2,.empty-state h3,.empty-inline h3{color:var(--color-text);margin:12px 0 6px}.empty-state p,.empty-inline p{margin:0 0 16px}.dialog-title{display:flex;justify-content:space-between;align-items:flex-start;padding:22px}.dialog-title small{color:var(--color-primary);font-size: 12px;letter-spacing:.12em}.dialog-title h2{margin:3px 0 0;font-size:22px}.settings-body{padding:0 22px 12px}.settings-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px}.settings-grid.primary-settings{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:0}.dialog-actions{padding:12px 22px 22px}.action-plan-list{display:grid;gap:8px;max-height:420px;overflow:auto}.action-plan-item{display:grid;grid-template-columns:auto 1fr;align-items:flex-start;padding:10px 12px;border:1px solid var(--color-border);border-radius:12px;cursor:pointer}.action-plan-item:hover{background:var(--color-surface-soft)}.action-plan-item>span{display:grid;gap:3px;padding-top:8px;min-width:0}.action-plan-item small{color:var(--color-text-muted)}.action-plan-item em{color:var(--color-error);font-size: 12px;font-style:normal;line-height:1.4}
 .filter-account-select { min-width: 220px; }
 .filter-product-select { min-width: 200px; }
@@ -4674,7 +4674,7 @@ onMounted(async () => {
 }
 .mode-pill.autopilot {
   background: rgba(34, 197, 94, 0.15);
-  color: #16a34a;
+  color: var(--color-success);
   border: 1px solid rgba(34, 197, 94, 0.35);
 }
 .mode-pill.manual {
@@ -4746,17 +4746,17 @@ onMounted(async () => {
 }
 .ad-scale-status-pill.scale_ready {
   background: rgba(34, 197, 94, 0.15);
-  color: #16a34a;
+  color: var(--color-success);
   border: 1px solid rgba(34, 197, 94, 0.3);
 }
 .ad-scale-status-pill.stop {
   background: rgba(239, 68, 68, 0.15);
-  color: #dc2626;
+  color: var(--color-error);
   border: 1px solid rgba(239, 68, 68, 0.3);
 }
 .ad-scale-status-pill.cooldown {
   background: rgba(245, 158, 11, 0.15);
-  color: #d97706;
+  color: var(--color-warning);
   border: 1px solid rgba(245, 158, 11, 0.3);
 }
 
@@ -4777,11 +4777,11 @@ onMounted(async () => {
 }
 .rule-badge.scale {
   background: rgba(34, 197, 94, 0.15);
-  color: #16a34a;
+  color: var(--color-success);
 }
 .rule-badge.stop {
   background: rgba(239, 68, 68, 0.15);
-  color: #dc2626;
+  color: var(--color-error);
 }
 .rule-inputs-grid {
   display: grid;
@@ -4852,8 +4852,8 @@ onMounted(async () => {
 
 /* Interactive Guide Walkthrough Styles */
 .guide-dialog-card {
-  background: var(--color-surface, #ffffff);
-  border: 1px solid var(--color-border, #e2e8f0);
+  background: var(--color-surface, var(--color-surface));
+  border: 1px solid var(--color-border, var(--color-border));
 }
 .guide-stepper-bar {
   background: rgba(0, 0, 0, 0.02);
@@ -4882,13 +4882,13 @@ onMounted(async () => {
 }
 .guide-mockup-wrapper {
   background: rgba(0, 0, 0, 0.02);
-  border: 1px solid var(--color-border, #e2e8f0);
+  border: 1px solid var(--color-border, var(--color-border));
   border-radius: 14px;
   padding: 16px;
 }
 .guide-mockup-card {
-  background: var(--color-surface, #ffffff);
-  border: 1px solid var(--color-border, #cbd5e1);
+  background: var(--color-surface, var(--color-surface));
+  border: 1px solid var(--color-border, var(--color-border-strong));
   border-radius: 12px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
   overflow: hidden;
@@ -4899,21 +4899,21 @@ onMounted(async () => {
   gap: 6px;
   padding: 10px 14px;
   background: rgba(0, 0, 0, 0.03);
-  border-bottom: 1px solid var(--color-border, #e2e8f0);
+  border-bottom: 1px solid var(--color-border, var(--color-border));
 }
 .mockup-dot {
   width: 10px;
   height: 10px;
   border-radius: 50%;
 }
-.mockup-dot.red { background: #ef4444; }
-.mockup-dot.yellow { background: #f59e0b; }
-.mockup-dot.green { background: #10b981; }
+.mockup-dot.red { background: var(--color-error); }
+.mockup-dot.yellow { background: var(--color-warning); }
+.mockup-dot.green { background: var(--color-success); }
 .mockup-title {
   margin-left: 8px;
   font-size: 12px;
   font-weight: 700;
-  color: var(--color-text-secondary, #64748b);
+  color: var(--color-text-secondary, var(--color-text-muted));
   letter-spacing: 0.04em;
 }
 .mockup-element-row {
@@ -4930,8 +4930,8 @@ onMounted(async () => {
   }
 }
 .mockup-element-box {
-  background: var(--color-background, #f8fafc);
-  border: 1.5px solid var(--color-border, #cbd5e1);
+  background: var(--color-background, var(--color-background));
+  border: 1.5px solid var(--color-border, var(--color-border-strong));
   border-radius: 10px;
   padding: 12px 14px;
   transition: all 0.2s ease;
@@ -4957,7 +4957,7 @@ onMounted(async () => {
 }
 .mock-input-label {
   font-size: 12px;
-  color: var(--color-text-secondary, #64748b);
+  color: var(--color-text-secondary, var(--color-text-muted));
   margin-bottom: 5px;
   font-weight: 700;
 }
@@ -4965,10 +4965,10 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   font-size: 13.5px;
-  color: var(--color-text, #1e293b);
+  color: var(--color-text, var(--color-text));
 }
 .mock-input-field.active-highlight {
-  color: var(--color-primary, #0284c7);
+  color: var(--color-primary, var(--color-info));
 }
 .guide-pointer-anchor {
   position: absolute;
@@ -4989,24 +4989,24 @@ onMounted(async () => {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #0284c7;
-  border: 2.5px solid #ffffff;
-  box-shadow: 0 0 0 2px #0284c7;
+  background: var(--color-info);
+  border: 2.5px solid var(--color-surface);
+  box-shadow: 0 0 0 2px var(--color-info);
   display: inline-block;
   flex-shrink: 0;
   animation: guide-dot-pulse 2s infinite ease-in-out;
 }
 .pointer-dot.green {
-  background: #10b981;
-  box-shadow: 0 0 0 2px #10b981;
+  background: var(--color-success);
+  box-shadow: 0 0 0 2px var(--color-success);
 }
 .pointer-dot.red {
-  background: #ef4444;
-  box-shadow: 0 0 0 2px #ef4444;
+  background: var(--color-error);
+  box-shadow: 0 0 0 2px var(--color-error);
 }
 .pointer-dot.orange {
-  background: #f59e0b;
-  box-shadow: 0 0 0 2px #f59e0b;
+  background: var(--color-warning);
+  box-shadow: 0 0 0 2px var(--color-warning);
 }
 .pointer-dot.cyan {
   background: #06b6d4;
@@ -5015,7 +5015,7 @@ onMounted(async () => {
 .pointer-line {
   height: 2px;
   width: 28px;
-  background: #0284c7;
+  background: var(--color-info);
   display: inline-block;
 }
 @keyframes guide-dot-pulse {
@@ -5042,11 +5042,11 @@ onMounted(async () => {
 .callout-desc {
   font-size: 12px;
   line-height: 1.45;
-  color: var(--color-text-secondary, #475569);
+  color: var(--color-text-secondary, var(--color-text-secondary));
 }
 .ad-row-mockup {
-  background: var(--color-surface, #ffffff);
-  border: 1px solid var(--color-border, #e2e8f0);
+  background: var(--color-surface, var(--color-surface));
+  border: 1px solid var(--color-border, var(--color-border));
 }
 .ad-row-mockup.cooldown {
   background: rgba(2, 132, 199, 0.04);
@@ -5065,15 +5065,15 @@ onMounted(async () => {
   position: fixed;
   inset: 0;
   background: rgba(15, 23, 42, 0.45);
-  backdrop-filter: blur(2px);
+
   z-index: 99991;
 }
 .tour-spotlight-active {
   position: relative !important;
   z-index: 99995 !important;
-  box-shadow: 0 0 0 4px #0284c7, 0 0 35px rgba(2, 132, 199, 0.5) !important;
+  box-shadow: 0 0 0 4px var(--color-info), 0 0 35px rgba(2, 132, 199, 0.5) !important;
   border-radius: 14px !important;
-  background: var(--color-surface, #ffffff) !important;
+  background: var(--color-surface, var(--color-surface)) !important;
   transition: all 0.3s ease !important;
 }
 .live-tour-popover-card {
@@ -5082,8 +5082,8 @@ onMounted(async () => {
   right: 24px;
   width: 440px;
   max-width: calc(100vw - 32px);
-  background: var(--color-surface, #ffffff);
-  border: 1.5px solid var(--color-primary, #0284c7);
+  background: var(--color-surface, var(--color-surface));
+  border: 1.5px solid var(--color-primary, var(--color-info));
   border-radius: 16px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
   z-index: 99999;
@@ -5093,7 +5093,7 @@ onMounted(async () => {
 .tour-badge-text {
   font-size: 12px;
   font-weight: 800;
-  color: var(--color-primary, #0284c7);
+  color: var(--color-primary, var(--color-info));
   letter-spacing: 0.04em;
 }
 .tour-title-text {
@@ -5156,9 +5156,9 @@ onMounted(async () => {
   border-radius: 999px;
   font-size: 12px;
   font-weight: 700;
-  color: #b45309;
-  background: #fef3c7;
-  border: 1px solid #fde68a;
+  color: var(--color-warning);
+  background: var(--color-warning-soft);
+  border: 1px solid var(--color-warning-border);
   box-shadow: 0 1px 3px rgba(245, 158, 11, 0.15);
 }
 .outcome-tabs {
@@ -5194,14 +5194,14 @@ onMounted(async () => {
 }
 .outcome-tab-btn.active {
   background: var(--color-primary);
-  color: #fff;
+  color: var(--color-surface);
   border-color: var(--color-primary);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
 }
 .outcome-tab-btn.angel-tab.active {
-  background: linear-gradient(135deg, #f59e0b, #d97706) !important;
-  border-color: #d97706 !important;
-  color: #fff !important;
+  background: linear-gradient(135deg, var(--color-warning), var(--color-warning)) !important;
+  border-color: var(--color-warning) !important;
+  color: var(--color-surface) !important;
 }
 .count-pill {
   display: inline-block;
@@ -5213,27 +5213,27 @@ onMounted(async () => {
 }
 .outcome-tab-btn.active .count-pill {
   background: rgba(255, 255, 255, 0.25);
-  color: #fff;
+  color: var(--color-surface);
 }
 .count-pill.gold {
-  background: #fef3c7;
+  background: var(--color-warning-soft);
   color: #92400e;
 }
 .count-pill.green {
   background: #d1fae5;
-  color: #065f46;
+  color: var(--color-success);
 }
 .count-pill.blue {
   background: #e0f2fe;
   color: #075985;
 }
 .count-pill.purple {
-  background: #f3e8ff;
+  background: var(--color-purple-soft);
   color: #6b21a8;
 }
 .count-pill.red {
-  background: #fee2e2;
-  color: #991b1b;
+  background: var(--color-error-soft);
+  color: var(--color-error);
 }
 
 /* Angel Ad Row & Callout Styling */
@@ -5242,21 +5242,21 @@ onMounted(async () => {
   box-shadow: inset 2px 0 0 rgba(245, 158, 11, 0.8);
 }
 .entity-icon.angel-avatar {
-  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%) !important;
-  color: #b45309 !important;
+  background: linear-gradient(135deg, var(--color-warning-soft) 0%, var(--color-warning-border) 100%) !important;
+  color: var(--color-warning) !important;
   box-shadow: 0 0 10px rgba(245, 158, 11, 0.35);
 }
 .angel-badge {
   letter-spacing: 0;
   font-size: 12px !important;
-  background: linear-gradient(135deg, #f59e0b, #d97706) !important;
+  background: linear-gradient(135deg, var(--color-warning), var(--color-warning)) !important;
   box-shadow: 0 1px 4px rgba(217, 119, 6, 0.35);
 }
 .angel-callout {
   padding: 12px 16px;
   border-radius: 12px;
-  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
-  border: 1.5px solid #fde68a;
+  background: linear-gradient(135deg, var(--color-warning-soft) 0%, var(--color-warning-soft) 100%);
+  border: 1.5px solid var(--color-warning-border);
   margin-bottom: 12px;
 }
 .angel-callout-icon {
@@ -5265,7 +5265,7 @@ onMounted(async () => {
   border-radius: 10px;
   display: grid;
   place-items: center;
-  background: #fff;
+  background: var(--color-surface);
   box-shadow: 0 2px 6px rgba(245, 158, 11, 0.2);
   flex-shrink: 0;
 }

@@ -192,7 +192,7 @@ function openChat(senderId: string) {
         <div class="kpi-icon-box purchased"><v-icon icon="mdi-check-decagram" size="24"/></div>
         <div class="kpi-meta">
           <small>{{ l({ lo: 'ປິດການຂາຍແລ້ວ (CAPI)', th: 'ปิดการขายแล้ว (CAPI)', en: 'Deals Closed (CAPI)' }) }}</small>
-          <strong style="color: #16a34a;">{{ purchasedLeads.length }}</strong>
+          <strong class="text-success">{{ purchasedLeads.length }}</strong>
         </div>
       </div>
 
@@ -328,11 +328,10 @@ function openChat(senderId: string) {
   align-items: center;
   gap: 24px;
   padding: 28px;
-  background: linear-gradient(135deg, #1e1b4b 0%, #312e81 60%, #4338ca 100%);
+  background: var(--color-rail);
   border-radius: var(--radius-lg);
   color: white;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 10px 30px rgba(30, 27, 75, 0.2);
+  border: 1px solid var(--color-rail-hover);
 }
 
 .live-pill {
@@ -350,8 +349,8 @@ function openChat(senderId: string) {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #22c55e;
-  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.3);
+  background: var(--color-success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-success) 30%, transparent);
 }
 
 .hero-left h2 {
@@ -406,12 +405,11 @@ function openChat(senderId: string) {
   position: relative;
 }
 .launch-tile:hover {
-  transform: translateY(-2px);
   border-color: var(--color-primary);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+  background: var(--color-surface-hover);
 }
 .launch-tile.primary-tile {
-  background: linear-gradient(135deg, var(--color-primary-soft) 0%, var(--color-surface) 100%);
+  background: var(--color-primary-softer);
   border-color: color-mix(in srgb, var(--color-primary) 30%, transparent);
 }
 .launch-tile.primary-tile:hover {
@@ -428,11 +426,11 @@ function openChat(senderId: string) {
   color: var(--color-primary);
   flex-shrink: 0;
 }
-.tile-icon.leads-icon { background: #eff6ff; color: #2563eb; }
-.tile-icon.replies-icon { background: #fff7ed; color: #ea580c; }
-.tile-icon.products-icon { background: #f0fdf4; color: #16a34a; }
-.tile-icon.bot-icon { background: #faf5ff; color: #9333ea; }
-.tile-icon.ads-icon { background: #fdf2f8; color: #db2777; }
+.tile-icon.leads-icon,
+.tile-icon.replies-icon,
+.tile-icon.products-icon,
+.tile-icon.bot-icon,
+.tile-icon.ads-icon { background: var(--color-primary-soft); color: var(--color-primary); }
 
 .tile-body {
   display: flex;
@@ -482,10 +480,10 @@ function openChat(senderId: string) {
   display: grid;
   place-items: center;
 }
-.kpi-icon-box.leads { background: #eff6ff; color: #2563eb; }
-.kpi-icon-box.purchased { background: #dcfce7; color: #16a34a; }
-.kpi-icon-box.channels { background: #f1f5f9; color: #475569; }
-.kpi-icon-box.flows { background: #faf5ff; color: #9333ea; }
+.kpi-icon-box.leads { background: var(--color-primary-soft); color: var(--color-primary); }
+.kpi-icon-box.purchased { background: var(--color-success-soft); color: var(--color-success); }
+.kpi-icon-box.channels { background: var(--color-surface-soft); color: var(--color-text-secondary); }
+.kpi-icon-box.flows { background: var(--color-purple-soft); color: #9333ea; }
 
 .kpi-meta {
   display: flex;
@@ -585,7 +583,7 @@ function openChat(senderId: string) {
   font-size: 12px;
   color: var(--color-text-muted);
 }
-.ad-tag { color: #c2410c; }
+.ad-tag { color: var(--color-warning); }
 
 .lead-item-actions {
   display: flex;
@@ -598,8 +596,8 @@ function openChat(senderId: string) {
   font-weight: 750;
   padding: 4px 9px;
   border-radius: 14px;
-  background: #dcfce7;
-  color: #166534;
+  background: var(--color-success-soft);
+  color: var(--color-success);
 }
 .btn-quick-buy {
   display: inline-flex;
@@ -607,15 +605,15 @@ function openChat(senderId: string) {
   gap: 3px;
   padding: 5px 10px;
   border-radius: 14px;
-  background: #16a34a;
-  color: #fff;
+  background: var(--color-success);
+  color: var(--color-surface);
   border: none;
   font-size: 12px;
   font-weight: 750;
   cursor: pointer;
   transition: background 0.15s ease;
 }
-.btn-quick-buy:hover { background: #15803d; }
+.btn-quick-buy:hover { background: var(--color-success); }
 
 .btn-quick-chat {
   width: 30px;
@@ -631,7 +629,7 @@ function openChat(senderId: string) {
 }
 .btn-quick-chat:hover {
   background: var(--color-primary);
-  color: #fff;
+  color: var(--color-surface);
 }
 
 .empty-leads-box {
@@ -674,6 +672,7 @@ function openChat(senderId: string) {
   display: grid;
   gap: 8px;
 }
+.text-success{color:var(--color-success)}
 .step-link {
   display: flex;
   align-items: center;
@@ -701,8 +700,8 @@ function openChat(senderId: string) {
   flex-shrink: 0;
 }
 .step-check.done {
-  background: #dcfce7;
-  color: #16a34a;
+  background: var(--color-success-soft);
+  color: var(--color-success);
 }
 .step-info {
   display: flex;

@@ -24,19 +24,20 @@ import (
 )
 
 type Handler struct {
-	auth       *usecase.Auth
-	meta       *usecase.Meta
-	team       *usecase.Team
-	billing    *usecase.Billing
-	Storage    *usecase.StorageUseCase
-	Reply      *usecase.Reply
-	Automation *usecase.Automation
-	Product    *usecase.Product
-	Stream     *usecase.ChatStream
-	Leads      *usecase.Leads
-	Inventory  *usecase.Inventory
-	Orders     *usecase.Orders
-	AdAnalyzer *usecase.AdAnalyzer
+	auth          *usecase.Auth
+	meta          *usecase.Meta
+	team          *usecase.Team
+	billing       *usecase.Billing
+	Storage       *usecase.StorageUseCase
+	Reply         *usecase.Reply
+	Automation    *usecase.Automation
+	Product       *usecase.Product
+	Stream        *usecase.ChatStream
+	Leads         *usecase.Leads
+	Inventory     *usecase.Inventory
+	Orders        *usecase.Orders
+	AdAnalyzer    *usecase.AdAnalyzer
+	Notifications *usecase.NotificationPreferences
 
 	tokens                         domain.TokenService
 	metaMode, metaFrontendRedirect string
@@ -56,8 +57,8 @@ type facebookLoginExchange struct {
 	AccountID string `json:"accountId,omitempty"`
 }
 
-func NewHandler(auth *usecase.Auth, meta *usecase.Meta, team *usecase.Team, billing *usecase.Billing, storage *usecase.StorageUseCase, reply *usecase.Reply, automation *usecase.Automation, product *usecase.Product, stream *usecase.ChatStream, leads *usecase.Leads, inventory *usecase.Inventory, orders *usecase.Orders, adAnalyzer *usecase.AdAnalyzer, tokens domain.TokenService, metaMode, metaFrontendRedirect string) *Handler {
-	return &Handler{auth: auth, meta: meta, team: team, billing: billing, Storage: storage, Reply: reply, Automation: automation, Product: product, Stream: stream, Leads: leads, Inventory: inventory, Orders: orders, AdAnalyzer: adAnalyzer, tokens: tokens, metaMode: metaMode, metaFrontendRedirect: metaFrontendRedirect, tickets: make(map[string]loginTicket)}
+func NewHandler(auth *usecase.Auth, meta *usecase.Meta, team *usecase.Team, billing *usecase.Billing, storage *usecase.StorageUseCase, reply *usecase.Reply, automation *usecase.Automation, product *usecase.Product, stream *usecase.ChatStream, leads *usecase.Leads, inventory *usecase.Inventory, orders *usecase.Orders, adAnalyzer *usecase.AdAnalyzer, notifications *usecase.NotificationPreferences, tokens domain.TokenService, metaMode, metaFrontendRedirect string) *Handler {
+	return &Handler{auth: auth, meta: meta, team: team, billing: billing, Storage: storage, Reply: reply, Automation: automation, Product: product, Stream: stream, Leads: leads, Inventory: inventory, Orders: orders, AdAnalyzer: adAnalyzer, Notifications: notifications, tokens: tokens, metaMode: metaMode, metaFrontendRedirect: metaFrontendRedirect, tickets: make(map[string]loginTicket)}
 }
 
 func (h *Handler) App() *fiber.App {
@@ -93,6 +94,8 @@ func (h *Handler) App() *fiber.App {
 	auth.Get("/api/v1/leads/settings", requireAccount(h.auth, "settings:read"), h.leadSettings)
 	auth.Get("/api/v1/leads/capi/health", requireAccount(h.auth, "settings:read"), h.capiHealth)
 	auth.Put("/api/v1/leads/settings", requireAccount(h.auth, "settings:update"), h.saveLeadSettings)
+	auth.Get("/api/v1/settings/notifications", requireAccount(h.auth, "settings:read"), h.notificationPreferences)
+	auth.Put("/api/v1/settings/notifications", requireAccount(h.auth, "settings:update"), h.saveNotificationPreferences)
 	auth.Patch("/api/v1/leads/:id/read", requireAccount(h.auth, "customers:update"), h.markLeadRead)
 	auth.Put("/api/v1/leads/:id/status", requireAccount(h.auth, "customers:update"), h.updateLeadStatus)
 	auth.Put("/api/v1/leads/:id/details", requireAccount(h.auth, "customers:update"), h.updateLeadDetails)
@@ -657,4 +660,3 @@ func (h *Handler) getAdPerformanceAnalysis(c fiber.Ctx) error {
 	c.Set(fiber.HeaderCacheControl, "no-store")
 	return c.JSON(report)
 }
-

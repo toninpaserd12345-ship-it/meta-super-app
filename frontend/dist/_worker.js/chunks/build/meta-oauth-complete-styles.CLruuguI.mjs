@@ -1,0 +1,2 @@
+const a=[".complete-card[data-v-491a8a74]{width:min(420px,calc(100vw - 32px));margin:auto;padding:32px;text-align:center;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}.complete-card h1[data-v-491a8a74]{margin:18px 0 8px;font-size:var(--text-xl)}.complete-card p[data-v-491a8a74]{margin:0 0 20px;color:var(--color-text-secondary)}"];export{a as default};
+//# sourceMappingURL=meta-oauth-complete-styles.CLruuguI.mjs.map

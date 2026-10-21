@@ -526,29 +526,29 @@ function copyReceiptText() {
 
   const text = `
 ==============================
-🧾 ໃບບິນຄຳສັ່ງຊື້ / ORDER RECEIPT
-🏪 ຮ້ານ: ${senderShopName.value}
-📞 ເບີໂທຮ້ານ: ${senderShopPhone.value}
-${senderShopAddress.value ? `📍 ທີ່ຢູ່ຮ້ານ: ${senderShopAddress.value}\n` : ''}------------------------------
+ ໃບບິນຄຳສັ່ງຊື້ / ORDER RECEIPT
+ ຮ້ານ: ${senderShopName.value}
+ ເບີໂທຮ້ານ: ${senderShopPhone.value}
+${senderShopAddress.value ? ` ທີ່ຢູ່ຮ້ານ: ${senderShopAddress.value}\n` : ''}------------------------------
 ເລກທີ: ${o.orderNumber}
 ວັນທີ: ${formatDate(o.createdAt)}
 ------------------------------
-👤 ລູກຄ້າ: ${o.customerName}
-📞 ເບີໂທ: ${o.customerPhone}
-📍 ທີ່ຢູ່: ${o.customerAddress || '—'}
+ ລູກຄ້າ: ${o.customerName}
+ ເບີໂທ: ${o.customerPhone}
+ ທີ່ຢູ່: ${o.customerAddress || '—'}
 ------------------------------
-📦 ລາຍການສິນຄ້າ:
+ ລາຍການສິນຄ້າ:
 ${itemsText}
 ------------------------------
 ລວມຄ່າສິນຄ້າ: ${formatMoney(o.subtotal, o.currency)}
 ຄ່າຈັດສົ່ງ: ${formatMoney(o.shippingFee, o.currency)}
 ສ່ວນຫຼຸດ: ${formatMoney(o.discount, o.currency)}
-💰 ຍອດຊຳລະທັງໝົດ: ${formatMoney(o.totalAmount, o.currency)}
+ ຍອດຊຳລະທັງໝົດ: ${formatMoney(o.totalAmount, o.currency)}
 ------------------------------
-💳 ສະຖານະຊຳລະ: ${o.paymentStatus === 'paid' ? 'ຊຳລະແລ້ວ (PAID)' : 'ຍັງບໍ່ຊຳລະ'} (${o.paymentMethod || '—'})
-🚚 ຂົນສົ່ງ: ${o.deliveryCourier || '—'} ${o.deliveryTracking ? `(Track: ${o.deliveryTracking})` : ''}
+ ສະຖານະຊຳລະ: ${o.paymentStatus === 'paid' ? 'ຊຳລະແລ້ວ (PAID)' : 'ຍັງບໍ່ຊຳລະ'} (${o.paymentMethod || '—'})
+ ຂົນສົ່ງ: ${o.deliveryCourier || '—'} ${o.deliveryTracking ? `(Track: ${o.deliveryTracking})` : ''}
 ${o.notes ? `ໝາຍເຫດ: ${o.notes}\n` : ''}==============================
-ຂອບໃຈທີ່ໃຊ້ບໍລິການ! 🙏
+ຂອບໃຈທີ່ໃຊ້ບໍລິການ!
 `.trim()
 
   navigator.clipboard.writeText(text)
@@ -696,14 +696,14 @@ async function saveStatusUpdate() {
           :class="['tab-pill', { active: activeTab === 'prepaid' }]"
           @click="activeTab = 'prepaid'"
         >
-          💳 {{ l({ lo: 'ໂອນກ່ອນ', th: 'โอนก่อน', en: 'Prepaid' }) }} ({{ stats.prepaidCount }})
+           {{ l({ lo: 'ໂອນກ່ອນ', th: 'โอนก่อน', en: 'Prepaid' }) }} ({{ stats.prepaidCount }})
         </button>
         <button
           type="button"
           :class="['tab-pill', { active: activeTab === 'cod' }]"
           @click="activeTab = 'cod'"
         >
-          🚚 {{ l({ lo: 'ເກັບປາຍທາງ (COD)', th: 'เก็บปลายทาง (COD)', en: 'COD' }) }} ({{ stats.codCount }})
+           {{ l({ lo: 'ເກັບປາຍທາງ (COD)', th: 'เก็บปลายทาง (COD)', en: 'COD' }) }} ({{ stats.codCount }})
         </button>
         <button
           type="button"
@@ -777,11 +777,11 @@ async function saveStatusUpdate() {
             <strong class="order-number">#{{ order.orderNumber }}</strong>
             <span class="order-date">{{ formatDate(order.createdAt) }}</span>
             <span v-if="order.facebookLeadSent" class="badge-capi" title="Meta Conversions API & Lead synced">
-              <v-icon icon="mdi-facebook" size="13" color="#1877f2" class="mr-1"/>
+              <v-icon icon="mdi-facebook" size="13" class="mr-1 facebook-color"/>
               Meta CAPI
             </span>
             <span v-if="order.pageId && getPageName(order.pageId)" class="badge-page-tag" :title="`Page: ${getPageName(order.pageId)}`">
-              <v-icon icon="mdi-facebook" size="13" color="#1877f2" class="mr-1"/>
+              <v-icon icon="mdi-facebook" size="13" class="mr-1 facebook-color"/>
               {{ getPageName(order.pageId) }}
             </span>
             <span v-if="order.warehouse" class="badge-wh-tag">
@@ -943,14 +943,14 @@ async function saveStatusUpdate() {
             :items="pages"
             item-title="name"
             item-value="id"
-            :label="l({ lo: '📘 Facebook Page ທີ່ຮັບອໍເດີ (ຊື່ຮ້ານໃນບິນ)', th: '📘 Facebook Page ที่รับออเดอร์ (ชื่อร้านในบิล)', en: '📘 Order Facebook Page (Shop on Bill)' })"
+            :label="l({ lo: ' Facebook Page ທີ່ຮັບອໍເດີ (ຊື່ຮ້ານໃນບິນ)', th: ' Facebook Page ที่รับออเดอร์ (ชื่อร้านในบิล)', en: ' Order Facebook Page (Shop on Bill)' })"
             density="compact"
             variant="outlined"
             clearable
             class="mb-3"
           >
             <template #prepend-inner>
-              <v-icon icon="mdi-facebook" color="#1877f2" size="20"/>
+              <v-icon icon="mdi-facebook" class="facebook-color" size="20"/>
             </template>
           </v-select>
 
@@ -1234,7 +1234,7 @@ async function saveStatusUpdate() {
             <v-icon icon="mdi-receipt" color="primary" class="mr-2"/>
             <div>
               <h3 class="mb-0">{{ l({ lo: 'ໃບບິນຄຳສັ່ງຊື້', th: 'ใบเสร็จรับเงิน', en: 'Order Receipt' }) }}</h3>
-              <div class="text-caption font-weight-bold text-primary">🏪 {{ senderShopName }} · 📞 {{ senderShopPhone }}</div>
+              <div class="text-caption font-weight-bold text-primary"> {{ senderShopName }} ·  {{ senderShopPhone }}</div>
             </div>
           </div>
           <span class="receipt-order-no">#{{ selectedOrder.orderNumber }}</span>
@@ -1258,8 +1258,8 @@ async function saveStatusUpdate() {
 
           <div class="receipt-customer">
             <p><strong>{{ selectedOrder.customerName }}</strong></p>
-            <p>📞 {{ selectedOrder.customerPhone }}</p>
-            <p v-if="selectedOrder.customerAddress">📍 {{ selectedOrder.customerAddress }}</p>
+            <p> {{ selectedOrder.customerPhone }}</p>
+            <p v-if="selectedOrder.customerAddress"> {{ selectedOrder.customerAddress }}</p>
           </div>
 
           <div class="receipt-items-list">
@@ -1299,7 +1299,7 @@ async function saveStatusUpdate() {
               {{ selectedOrder.paymentStatus === 'paid' ? 'ຊຳລະແລ້ວ' : 'ຍັງບໍ່ຊຳລະ' }} ({{ selectedOrder.paymentMethod }})
             </span>
             <span class="courier-badge">
-              🚚 {{ selectedOrder.deliveryCourier }}
+               {{ selectedOrder.deliveryCourier }}
               <strong v-if="selectedOrder.deliveryTracking">· {{ selectedOrder.deliveryTracking }}</strong>
             </span>
           </div>
@@ -1367,9 +1367,9 @@ async function saveStatusUpdate() {
             class="mb-3 text-caption"
           >
             {{ l({
-              lo: '⚠️ ໝາຍເຫດ: ເມື່ອປ່ຽນເປັນ "ຍົກເລີກອໍເດີ", ລະບົບຈະຄືນຈຳນວນສິນຄ້າກັບເຂົ້າສາງອັດຕະໂນມັດ.',
-              th: '⚠️ หมายเหตุ: เมื่อเปลี่ยนเป็น "ยกเลิกออเดอร์" ระบบจะคืนจำนวนสินค้ากลับเข้าคลังอัตโนมัติ',
-              en: '⚠️ Note: Cancelling will automatically restore deducted stock back to the warehouse.',
+              lo: ' ໝາຍເຫດ: ເມື່ອປ່ຽນເປັນ "ຍົກເລີກອໍເດີ", ລະບົບຈະຄືນຈຳນວນສິນຄ້າກັບເຂົ້າສາງອັດຕະໂນມັດ.',
+              th: ' หมายเหตุ: เมื่อเปลี่ยนเป็น "ยกเลิกออเดอร์" ระบบจะคืนจำนวนสินค้ากลับเข้าคลังอัตโนมัติ',
+              en: ' Note: Cancelling will automatically restore deducted stock back to the warehouse.',
             }) }}
           </v-alert>
 
@@ -1512,7 +1512,7 @@ async function saveStatusUpdate() {
           </div>
           <!-- Facebook Page 1-Click Quick Picks ("ຊື່ page ໃດອອກຊື່ນັ້ນ") -->
           <div v-if="pages.length > 0" class="sender-quick-picks mt-2 d-flex align-center gap-1 flex-wrap">
-            <span class="text-caption text-medium-emphasis mr-1 font-weight-bold text-primary">📘 {{ l({ lo: 'ຊື່ຕາມ Page:', th: 'ชื่อตาม Page:', en: 'Facebook Page:' }) }}</span>
+            <span class="text-caption text-medium-emphasis mr-1 font-weight-bold text-primary"> {{ l({ lo: 'ຊື່ຕາມ Page:', th: 'ชื่อตาม Page:', en: 'Facebook Page:' }) }}</span>
             <v-chip
               v-for="p in pages"
               :key="p.id"
@@ -1560,7 +1560,7 @@ async function saveStatusUpdate() {
                 <div class="an-company-info">
                   <strong>ອານຸສິດ ເອັກສ໌ເພຣັສ (ANOUSITH EXPRESS)</strong>
                   <small>ບໍລິສັດ ອານຸສິດ ຂົນສົ່ງດ່ວນ ຈຳກັດຜູ້ດຽວ</small>
-                  <small class="hotline">🏪 ຮ້ານ: <strong>{{ senderShopName }}</strong> (📞 {{ senderShopPhone }})</small>
+                  <small class="hotline"> ຮ້ານ: <strong>{{ senderShopName }}</strong> ( {{ senderShopPhone }})</small>
                 </div>
               </div>
               <div class="an-route-box">
@@ -1613,7 +1613,7 @@ async function saveStatusUpdate() {
                 </div>
                 <div class="an-address-content">
                   <p class="an-name"><strong class="shop-title-text">{{ senderShopName }}</strong></p>
-                  <p class="an-phone">📞 <strong>ເບີໂທ: {{ senderShopPhone }}</strong></p>
+                  <p class="an-phone"> <strong>ເບີໂທ: {{ senderShopPhone }}</strong></p>
                   <p class="an-addr">{{ senderShopAddress }}</p>
                 </div>
               </div>
@@ -1647,7 +1647,7 @@ async function saveStatusUpdate() {
                   ✓ ຊຳລະເງິນແລ້ວ (PAID) · ຫ້າມເກັບເງິນປາຍທາງ
                 </span>
                 <span v-else class="cod-tag cod-alert-tag">
-                  ⚠️ ເກັບເງິນປາຍທາງ (COD)
+                   ເກັບເງິນປາຍທາງ (COD)
                 </span>
                 <small class="pay-method">({{ waybillOrder.paymentMethod || 'Bank Transfer' }})</small>
               </div>
@@ -1796,10 +1796,10 @@ async function saveStatusUpdate() {
   justify-content: center;
   flex-shrink: 0;
 }
-.bg-blue-light { background: #eff6ff; }
-.bg-amber-light { background: #fef3c7; }
-.bg-purple-light { background: #f3e8ff; }
-.bg-green-light { background: #f0fdf4; }
+.bg-blue-light { background: var(--color-primary-soft); }
+.bg-amber-light { background: var(--color-warning-soft); }
+.bg-purple-light { background: var(--color-purple-soft); }
+.bg-green-light { background: var(--color-success-soft); }
 .stat-text {
   display: flex;
   flex-direction: column;
@@ -1813,8 +1813,8 @@ async function saveStatusUpdate() {
   font-weight: 800;
   color: var(--color-text);
 }
-.text-amber { color: #d97706 !important; }
-.text-green { color: #16a34a !important; }
+.text-amber { color: var(--color-warning) !important; }
+.text-green { color: var(--color-success) !important; }
 
 .orders-toolbar {
   display: flex;
@@ -1845,7 +1845,7 @@ async function saveStatusUpdate() {
 }
 .tab-pill.active {
   background: var(--color-primary);
-  color: #fff;
+  color: var(--color-surface);
   border-color: var(--color-primary);
 }
 
@@ -1950,9 +1950,9 @@ async function saveStatusUpdate() {
   align-items: center;
   padding: 4px 10px;
   line-height: 1.4;
-  background: #eff6ff;
-  color: #1877f2;
-  border: 1px solid #bfdbfe;
+  background: var(--color-primary-soft);
+  color: var(--color-facebook);
+  border: 1px solid var(--color-info-border);
   border-radius: 10px;
   font-size: 12px;
   font-weight: 750;
@@ -1962,9 +1962,9 @@ async function saveStatusUpdate() {
   align-items: center;
   padding: 4px 10px;
   line-height: 1.4;
-  background: #eff6ff;
-  color: #1d4ed8;
-  border: 1px solid #bfdbfe;
+  background: var(--color-primary-soft);
+  color: var(--color-primary-hover);
+  border: 1px solid var(--color-info-border);
   border-radius: 10px;
   font-size: 12px;
   font-weight: 700;
@@ -1992,9 +1992,9 @@ async function saveStatusUpdate() {
   font-size: 12px;
   font-weight: 750;
 }
-.status-paid { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
-.status-unpaid { background: #fef3c7; color: #d97706; border: 1px solid #fde68a; }
-.status-refunded { background: #f3e8ff; color: #7e22ce; border: 1px solid #e9d5ff; }
+.status-paid { background: var(--color-success-soft); color: var(--color-success); border: 1px solid var(--color-success-border); }
+.status-unpaid { background: var(--color-warning-soft); color: var(--color-warning); border: 1px solid var(--color-warning-border); }
+.status-refunded { background: var(--color-purple-soft); color: #7e22ce; border: 1px solid #e9d5ff; }
 
 .badge-fulfillment {
   padding: 3px 10px;
@@ -2002,10 +2002,10 @@ async function saveStatusUpdate() {
   font-size: 12px;
   font-weight: 750;
 }
-.fulfill-pending { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
-.fulfill-shipping { background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; }
-.fulfill-delivered { background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; }
-.fulfill-cancelled { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+.fulfill-pending { background: var(--color-surface-soft); color: var(--color-text-secondary); border: 1px solid var(--color-border-strong); }
+.fulfill-shipping { background: var(--color-primary-soft); color: var(--color-primary); border: 1px solid var(--color-info-border); }
+.fulfill-delivered { background: var(--color-success-soft); color: var(--color-success); border: 1px solid var(--color-success-border); }
+.fulfill-cancelled { background: var(--color-error-soft); color: var(--color-error); border: 1px solid var(--color-error-border); }
 
 .order-content-grid {
   display: grid;
@@ -2249,7 +2249,7 @@ async function saveStatusUpdate() {
 .del-btn {
   background: none;
   border: none;
-  color: #ef4444;
+  color: var(--color-error);
   cursor: pointer;
   padding: 4px;
 }
@@ -2434,9 +2434,9 @@ async function saveStatusUpdate() {
     font-size: 13.5px;
     font-weight: 750;
     justify-content: center;
-    background: #fef2f2;
+    background: var(--color-error-soft);
     color: #d9251d;
-    border-color: #fecaca;
+    border-color: var(--color-error-border);
   }
   .action-buttons .receipt-btn,
   .action-buttons .status-btn {
@@ -2493,14 +2493,14 @@ async function saveStatusUpdate() {
   align-items: center;
 }
 .tag-color {
-  background: #fef2f2;
-  color: #dc2626;
-  border: 1px solid #fee2e2;
+  background: var(--color-error-soft);
+  color: var(--color-error);
+  border: 1px solid var(--color-error-soft);
 }
 .tag-size {
-  background: #f0fdf4;
-  color: #16a34a;
-  border: 1px solid #dcfce7;
+  background: var(--color-success-soft);
+  color: var(--color-success);
+  border: 1px solid var(--color-success-soft);
 }
 
 /* ===================================================
@@ -2523,7 +2523,7 @@ async function saveStatusUpdate() {
 }
 
 .waybill-modal-card {
-  background: #f8fafc;
+  background: var(--color-background);
 }
 
 .waybill-toolbar {
@@ -2533,13 +2533,13 @@ async function saveStatusUpdate() {
   flex-wrap: wrap;
   gap: 12px;
   padding: 10px 16px;
-  background: #f1f5f9;
-  border-bottom: 1px solid #e2e8f0;
+  background: var(--color-surface-soft);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .size-btn-group {
   display: inline-flex;
-  background: #e2e8f0;
+  background: var(--color-border);
   border-radius: 8px;
   padding: 2px;
   gap: 2px;
@@ -2551,7 +2551,7 @@ async function saveStatusUpdate() {
   padding: 6px 12px;
   border: none;
   background: transparent;
-  color: #475569;
+  color: var(--color-text-secondary);
   font-size: 12px;
   font-weight: 600;
   border-radius: 6px;
@@ -2560,15 +2560,15 @@ async function saveStatusUpdate() {
 }
 
 .size-toggle-btn.active {
-  background: #ffffff;
-  color: #0f172a;
+  background: var(--color-surface);
+  color: var(--color-text);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 
 .sender-customizer-toolbar {
   padding: 12px 16px;
-  background: #f8fafc;
-  border-bottom: 1px solid #e2e8f0;
+  background: var(--color-background);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .sender-customizer-inputs {
@@ -2594,7 +2594,7 @@ async function saveStatusUpdate() {
   padding: 16px;
   display: flex;
   justify-content: center;
-  background: #e2e8f0;
+  background: var(--color-border);
 }
 
 /* Base Waybill Container (Standard 100x150 mm Thermal Sticker format) */
@@ -2602,7 +2602,7 @@ async function saveStatusUpdate() {
   width: 100%;
   max-width: 420px;
   min-height: 590px;
-  background: #ffffff;
+  background: var(--color-surface);
   color: #000000;
   border: 2px solid #000000;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
@@ -2642,7 +2642,7 @@ async function saveStatusUpdate() {
   align-items: center;
   justify-content: center;
   background: #d9251d;
-  color: #ffffff;
+  color: var(--color-surface);
   padding: 4px 6px;
   border-radius: 4px;
   line-height: 1.3;
@@ -2694,7 +2694,7 @@ async function saveStatusUpdate() {
 
 .an-express-pill {
   background: #d9251d;
-  color: #ffffff;
+  color: var(--color-surface);
   font-size: 12px;
   font-weight: 800;
   padding: 2px 6px;
@@ -2717,7 +2717,7 @@ async function saveStatusUpdate() {
   justify-content: space-between;
   border-bottom: 2px solid #000000;
   padding: 8px 10px;
-  background: #ffffff;
+  background: var(--color-surface);
   gap: 12px;
 }
 
@@ -2773,11 +2773,11 @@ async function saveStatusUpdate() {
 
 .an-address-box.an-from {
   border-right: 1px solid #000000;
-  background: #fafafa;
+  background: var(--color-surface-soft);
 }
 
 .an-address-box.an-to {
-  background: #ffffff;
+  background: var(--color-surface);
 }
 
 .an-box-title {
@@ -2793,7 +2793,7 @@ async function saveStatusUpdate() {
 
 .title-tag {
   background: #000000;
-  color: #ffffff;
+  color: var(--color-surface);
   font-size: 12px;
   font-weight: 900;
   padding: 1px 4px;
@@ -2873,7 +2873,7 @@ async function saveStatusUpdate() {
   justify-content: space-between;
   padding: 6px 10px;
   border-bottom: 2px solid #000000;
-  color: #ffffff;
+  color: var(--color-surface);
 }
 
 .an-cod-banner.is-cod {
@@ -2931,7 +2931,7 @@ async function saveStatusUpdate() {
 .an-table-header {
   display: flex;
   align-items: center;
-  background: #f1f5f9;
+  background: var(--color-surface-soft);
   border-bottom: 1px solid #000000;
   font-weight: 800;
   font-size: 12px;
@@ -2943,7 +2943,7 @@ async function saveStatusUpdate() {
   display: flex;
   align-items: center;
   padding: 4px 8px;
-  border-bottom: 1px dashed #e2e8f0;
+  border-bottom: 1px dashed var(--color-border);
   font-size: 12px;
 }
 
@@ -2963,7 +2963,7 @@ async function saveStatusUpdate() {
 .col-var {
   width: 70px;
   font-size: 12px;
-  color: #475569;
+  color: var(--color-text-secondary);
 }
 
 .col-qty {
@@ -2983,7 +2983,7 @@ async function saveStatusUpdate() {
   align-items: center;
   justify-content: space-between;
   padding: 4px 8px;
-  background: #fafafa;
+  background: var(--color-surface-soft);
   font-size: 12px;
   border-top: 1px solid #000000;
 }
@@ -3007,7 +3007,7 @@ async function saveStatusUpdate() {
 .remark-lbl {
   font-weight: 800;
   font-size: 12px;
-  color: #475569;
+  color: var(--color-text-secondary);
 }
 
 .remark-text {
@@ -3019,7 +3019,7 @@ async function saveStatusUpdate() {
 
 .an-courier-sign small {
   font-size: 12px;
-  color: #64748b;
+  color: var(--color-text-muted);
   font-weight: 600;
 }
 
@@ -3034,17 +3034,17 @@ async function saveStatusUpdate() {
 .sign-col small {
   font-size: 12px;
   font-weight: 700;
-  color: #475569;
+  color: var(--color-text-secondary);
 }
 
 .sign-line {
-  border-bottom: 1px dotted #94a3b8;
+  border-bottom: 1px dotted var(--color-text-faint);
   height: 14px;
 }
 
 .date-lbl {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--color-text-faint);
 }
 
 /* 7. Footer Tagline */
@@ -3071,7 +3071,7 @@ async function saveStatusUpdate() {
   body, html {
     margin: 0 !important;
     padding: 0 !important;
-    background: #ffffff !important;
+    background: var(--color-surface) !important;
   }
 
   body * {
@@ -3094,7 +3094,7 @@ async function saveStatusUpdate() {
     padding: 4mm !important;
     box-shadow: none !important;
     border: none !important;
-    background: #ffffff !important;
+    background: var(--color-surface) !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
     box-sizing: border-box;

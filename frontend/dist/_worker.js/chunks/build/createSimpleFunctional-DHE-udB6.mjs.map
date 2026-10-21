@@ -1,1 +1,0 @@
-{"version":3,"file":"createSimpleFunctional-DHE-udB6.mjs","sources":["../../../../node_modules/vuetify/lib/util/createSimpleFunctional.js"],"names":["createSimpleFunctional","klass","tag","name","genericComponent","capitalize","camelize","replace","props","type","String","default","makeComponentProps","setup","slots","h","class","style"],"mappings":"","x_google_ignoreList":[0]}

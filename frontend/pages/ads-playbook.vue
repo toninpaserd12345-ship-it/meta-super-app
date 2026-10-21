@@ -10,7 +10,7 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
     <!-- Top Hero Header -->
     <header class="playbook-hero">
       <div class="hero-left">
-        <span class="hero-eyebrow">📘 MEDIA BUYER DAILY SOP & PLAYBOOK</span>
+        <span class="hero-eyebrow"> MEDIA BUYER DAILY SOP & PLAYBOOK</span>
         <h1 class="hero-title">
           <span>ຄູ່ມືຍິງແອດປະຈຳວັນ</span>
           <span class="hero-badge">Standard Operating Procedure</span>
@@ -27,12 +27,12 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
       <div class="hero-actions">
         <NuxtLink to="/ads-battle">
           <v-btn color="primary" variant="flat" prepend-icon="mdi-scale-balance" class="font-weight-bold">
-            ⚡ ໄປໜ້າ Ads Battle
+             ໄປໜ້າ Ads Battle
           </v-btn>
         </NuxtLink>
         <NuxtLink to="/live-chat">
           <v-btn variant="outlined" prepend-icon="mdi-chat-processing-outline">
-            💬 ໄປໜ້າ Live Chat
+             ໄປໜ້າ Live Chat
           </v-btn>
         </NuxtLink>
       </div>
@@ -46,7 +46,7 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
         :class="{ active: activeTab === 'routine' }"
         @click="activeTab = 'routine'"
       >
-        <span class="tab-icon">⏰</span>
+        <span class="tab-icon"></span>
         <span>1. ຕາຕະລາງປະຈຳວັນ (Daily Routine)</span>
       </button>
 
@@ -56,7 +56,7 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
         :class="{ active: activeTab === 'metrics' }"
         @click="activeTab = 'metrics'"
       >
-        <span class="tab-icon">📊</span>
+        <span class="tab-icon"></span>
         <span>2. ວິທີອ່ານ 4 ຕົວເລກ (Diagnostics)</span>
       </button>
 
@@ -66,7 +66,7 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
         :class="{ active: activeTab === 'decision' }"
         @click="activeTab = 'decision'"
       >
-        <span class="tab-icon">⚖️</span>
+        <span class="tab-icon"></span>
         <span>3. ກົດເຫຼັກຕັດສິນໃຈ (Kill, Hold, Scale)</span>
       </button>
 
@@ -76,7 +76,7 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
         :class="{ active: activeTab === 'ghost' }"
         @click="activeTab = 'ghost'"
       >
-        <span class="tab-icon">👻</span>
+        <span class="tab-icon"></span>
         <span>4. ວິທີຈັດການ "ທັກຜີ" & ມືຫຼົງກົດ</span>
       </button>
     </nav>
@@ -88,7 +88,7 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
       <!-- ========================================== -->
       <section v-if="activeTab === 'routine'" class="tab-section">
         <div class="section-header">
-          <h2>🕒 ຕາຕະລາງປະຈຳວັນ: ມື້ໜຶ່ງຄວນເບິ່ງແອດຈັກເທື່ອ?</h2>
+          <h2> ຕາຕະລາງປະຈຳວັນ: ມື້ໜຶ່ງຄວນເບິ່ງແອດຈັກເທື່ອ?</h2>
           <p class="section-lead">
             ກົດເຫຼັກ: <strong>ຢ່າເປີດເບິ່ງແອດທຸກໆ 10 ນາທີ</strong> ເພາະຈະເຮັດໃຫ້ທ່ານ "ໃຊ້ອາລົມ" ຕັດສິນ. ໃຫ້ເບິ່ງພຽງ 3 ຄັ້ງຕໍ່ມື້ຕາມຕາຕະລາງນີ້:
           </p>
@@ -98,7 +98,7 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
           <!-- Card 1: Morning -->
           <div class="time-card morning">
             <div class="time-badge morning">
-              <span>🌅 08:30 - 09:30 (ຕອນເຊົ້າ)</span>
+              <span> 08:30 - 09:30 (ຕອນເຊົ້າ)</span>
               <strong>ກວດສອບສະພາບລວມ</strong>
             </div>
             <div class="card-content">
@@ -109,7 +109,7 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
                 <li>ກວດສອບວ່າມີແອດໃດຕິດບັນຫາບໍ່ (ເຊັ່ນ ຖືກ Disapprove ຫຼື ບັດຕັດເງິນບໍ່ຜ່ານ).</li>
               </ul>
               <div class="rule-box warn">
-                🛑 <strong>ກົດຫ້າມຕອນເຊົ້າ:</strong> ຫ້າມປິດແອດທີ່ຫາກໍ່ເປີດໃໝ່ ຫຼື ປັບງົບຕອນເຊົ້າເດັດຂາດ! ເພາະແອດຫາກໍ່ເລີ່ມແລ່ນ ຄ່າແອດຈະຍັງແພງຢູ່.
+                 <strong>ກົດຫ້າມຕອນເຊົ້າ:</strong> ຫ້າມປິດແອດທີ່ຫາກໍ່ເປີດໃໝ່ ຫຼື ປັບງົບຕອນເຊົ້າເດັດຂາດ! ເພາະແອດຫາກໍ່ເລີ່ມແລ່ນ ຄ່າແອດຈະຍັງແພງຢູ່.
               </div>
             </div>
           </div>
@@ -117,7 +117,7 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
           <!-- Card 2: Afternoon -->
           <div class="time-card afternoon">
             <div class="time-badge afternoon">
-              <span>☀️ 10:00 - 18:00 (ຕອນກາງເວັນ)</span>
+              <span> 10:00 - 18:00 (ຕອນກາງເວັນ)</span>
               <strong>ປິດການຂາຍ & ກັ່ນຕອງທັກຜີ</strong>
             </div>
             <div class="card-content">
@@ -128,7 +128,7 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
                 <li><strong>ລູກຄ້າແທ້:</strong> ເມື່ອລູກຄ້າໃຫ້ເບີໂທ ➔ ກົດສ້າງອໍເດີໃນລະບົບທັນທີ ເພື່ອສົ່ງສັນຍານ CAPI ບອກ Facebook.</li>
               </ul>
               <div class="rule-box info">
-                💡 <strong>Tip:</strong> ຖ້າພົບຄົນກວນເມືອງ ຫຼື ເດັກນ້ອຍຫຼິ້ນເກມ ➔ ກົດ <strong>Ban from Page</strong> ທັນທີ.
+                 <strong>Tip:</strong> ຖ້າພົບຄົນກວນເມືອງ ຫຼື ເດັກນ້ອຍຫຼິ້ນເກມ ➔ ກົດ <strong>Ban from Page</strong> ທັນທີ.
               </div>
             </div>
           </div>
@@ -136,19 +136,19 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
           <!-- Card 3: Evening -->
           <div class="time-card evening">
             <div class="time-badge evening">
-              <span>🌙 20:30 - 21:30 (ຕອນຄ່ຳ)</span>
+              <span> 20:30 - 21:30 (ຕອນຄ່ຳ)</span>
               <strong>ເວລາຕັດສິນໃຈ (Kill, Hold, Scale)</strong>
             </div>
             <div class="card-content">
               <h4>ສິ່ງທີ່ຕ້ອງເຮັດ:</h4>
               <ul>
                 <li>ເປີດເບິ່ງໜ້າ <strong>Ads Battle</strong> ເລືອກວັນທີ "ມື້ນີ້ (Today)".</li>
-                <li><strong>🛑 KILL:</strong> ແອດທີ່ໃຊ້ງົບ $6.00 - $8.00 ແລ້ວຍັງ 0 ອໍເດີ ➔ ກົດປິດທັນທີ!</li>
-                <li><strong>✋ HOLD:</strong> ແອດທີ່ຫາກໍ່ໃຊ້ງົບ $1 - $3 ➔ ປ່ອຍແລ່ນຕໍ່ໃຫ້ຄົບ 48 ຊົ່ວໂມງ.</li>
-                <li><strong>🚀 SCALE:</strong> ແອດນາງຟ້າທີ່ມີ 2-3 ອໍເດີ ແລະ CPA ຖືກ ➔ ກົດ Scale ເພີ່ມງົບ +20%.</li>
+                <li><strong> KILL:</strong> ແອດທີ່ໃຊ້ງົບ $6.00 - $8.00 ແລ້ວຍັງ 0 ອໍເດີ ➔ ກົດປິດທັນທີ!</li>
+                <li><strong> HOLD:</strong> ແອດທີ່ຫາກໍ່ໃຊ້ງົບ $1 - $3 ➔ ປ່ອຍແລ່ນຕໍ່ໃຫ້ຄົບ 48 ຊົ່ວໂມງ.</li>
+                <li><strong> SCALE:</strong> ແອດນາງຟ້າທີ່ມີ 2-3 ອໍເດີ ແລະ CPA ຖືກ ➔ ກົດ Scale ເພີ່ມງົບ +20%.</li>
               </ul>
               <div class="rule-box success">
-                ✨ <strong>ເຫດຜົນ:</strong> ການປັບງົບຕອນ 21:00 ຈະເຮັດໃຫ້ລະບົບ Meta Bidding ເລີ່ມຕົ້ນງົບໃໝ່ຢ່າງສະໝ່ຳສະເໝີໃນວັນຕໍ່ໄປ (00:00).
+                 <strong>ເຫດຜົນ:</strong> ການປັບງົບຕອນ 21:00 ຈະເຮັດໃຫ້ລະບົບ Meta Bidding ເລີ່ມຕົ້ນງົບໃໝ່ຢ່າງສະໝ່ຳສະເໝີໃນວັນຕໍ່ໄປ (00:00).
               </div>
             </div>
           </div>
@@ -160,7 +160,7 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
       <!-- ========================================== -->
       <section v-if="activeTab === 'metrics'" class="tab-section">
         <div class="section-header">
-          <h2>📊 ວິທີອ່ານ 4 ຕົວເລກຫຼັກ: ຮູ້ທັນທີວ່າແອດຕິດບັນຫາບ່ອນໃດ!</h2>
+          <h2> ວິທີອ່ານ 4 ຕົວເລກຫຼັກ: ຮູ້ທັນທີວ່າແອດຕິດບັນຫາບ່ອນໃດ!</h2>
           <p class="section-lead">
             ເວລາ CPA (ຕົ້ນທຶນຕໍ່ອໍເດີ) ແພງ, ຢ່າຟ້າວດ່ວນສະຫຼຸບວ່າ "ແອດບໍ່ດີ". ໃຫ້ໄລ່ກວດ 4 ຂັ້ນຕອນນີ້ຕາມລຳດັບ:
           </p>
@@ -203,11 +203,11 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
               ບອກວ່າ <strong>"ກຸ່ມເປົ້າໝາຍແພງ ຫຼື ຖືກ"</strong> (ຄ່າສະແດງຜົນໃຫ້ຄົນເຫັນ 1,000 ເທື່ອ).
             </p>
             <div class="metric-benchmarks">
-              <div class="bm-row green"><span>🟢 ດີຫຼາຍ:</span> <strong>$1.00 - $3.00 (22,000 - 66,000 ₭)</strong></div>
-              <div class="bm-row red"><span>🔴 ແພງຜິດປົກກະຕິ:</span> <strong>$6.00 - $10.00+</strong></div>
+              <div class="bm-row green"><span> ດີຫຼາຍ:</span> <strong>$1.00 - $3.00 (22,000 - 66,000 ₭)</strong></div>
+              <div class="bm-row red"><span> ແພງຜິດປົກກະຕິ:</span> <strong>$6.00 - $10.00+</strong></div>
             </div>
             <div class="metric-fix">
-              👉 <strong>ວິທີແກ້ຖ້າ CPM ແພງ:</strong> ປິດ Audience Network ທັນທີ, ຂະຫຍາຍອາຍຸເປັນ 23-48 ປີ, ຫຼື ຍິງແບບ Broad ບໍ່ຕ້ອງໃສ່ Interest.
+               <strong>ວິທີແກ້ຖ້າ CPM ແພງ:</strong> ປິດ Audience Network ທັນທີ, ຂະຫຍາຍອາຍຸເປັນ 23-48 ປີ, ຫຼື ຍິງແບບ Broad ບໍ່ຕ້ອງໃສ່ Interest.
             </div>
           </div>
 
@@ -221,12 +221,12 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
               ບອກວ່າ <strong>"ຄລິບວິດີໂອ ຫຼື ຮູບພາບ ໜ້າສົນໃຈບໍ່"</strong> (ຄົນເຫັນ 100 ຄົນ ກົດຈັກຄົນ).
             </p>
             <div class="metric-benchmarks">
-              <div class="bm-row green"><span>🟢 ດີຫຼາຍ:</span> <strong>2.0% - 4.0%+ (ແອດດຶງດູດສາຍຕາ)</strong></div>
-              <div class="bm-row yellow"><span>🟡 ປານກາງ:</span> <strong>1.0% - 1.8%</strong></div>
-              <div class="bm-row red"><span>🔴 ຄົນເລື່ອນຜ່ານ:</span> <strong>ຕ່ຳກວ່າ 0.9%</strong></div>
+              <div class="bm-row green"><span> ດີຫຼາຍ:</span> <strong>2.0% - 4.0%+ (ແອດດຶງດູດສາຍຕາ)</strong></div>
+              <div class="bm-row yellow"><span> ປານກາງ:</span> <strong>1.0% - 1.8%</strong></div>
+              <div class="bm-row red"><span> ຄົນເລື່ອນຜ່ານ:</span> <strong>ຕ່ຳກວ່າ 0.9%</strong></div>
             </div>
             <div class="metric-fix">
-              👉 <strong>ວິທີແກ້ຖ້າ CTR ຕ່ຳ:</strong> ປ່ຽນ 3 ວິນາທີທຳອິດຂອງວິດີໂອ (Hook) ຫຼື ປ່ຽນຮູບໜ້າປົກ (Thumbnail) ໃໝ່ທັນທີ.
+               <strong>ວິທີແກ້ຖ້າ CTR ຕ່ຳ:</strong> ປ່ຽນ 3 ວິນາທີທຳອິດຂອງວິດີໂອ (Hook) ຫຼື ປ່ຽນຮູບໜ້າປົກ (Thumbnail) ໃໝ່ທັນທີ.
             </div>
           </div>
 
@@ -240,12 +240,12 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
               ບອກວ່າ <strong>"ຄົນສົນໃຈຢາກຊື້ຫຼາຍໜ້ອຍປານໃດ"</strong> ສຳລັບສິນຄ້າ Smartwatch / Gadget.
             </p>
             <div class="metric-benchmarks">
-              <div class="bm-row green"><span>🟢 ດີຫຼາຍ:</span> <strong>$0.20 - $0.50 (4,500 - 11,000 ₭/ທັກ)</strong></div>
-              <div class="bm-row yellow"><span>🟡 ພໍຮັບໄດ້:</span> <strong>$0.60 - $0.90</strong></div>
-              <div class="bm-row red"><span>🔴 ແພງເກີນໄປ:</span> <strong>ເກີນ $1.20 - $2.00+ ຕໍ່ທັກ</strong></div>
+              <div class="bm-row green"><span> ດີຫຼາຍ:</span> <strong>$0.20 - $0.50 (4,500 - 11,000 ₭/ທັກ)</strong></div>
+              <div class="bm-row yellow"><span> ພໍຮັບໄດ້:</span> <strong>$0.60 - $0.90</strong></div>
+              <div class="bm-row red"><span> ແພງເກີນໄປ:</span> <strong>ເກີນ $1.20 - $2.00+ ຕໍ່ທັກ</strong></div>
             </div>
             <div class="metric-fix">
-              👉 <strong>ວິທີແກ້ຖ້າຄ່າທັກແພງ:</strong> ປັບ Headline ຂໍ້ຄວາມເທິງແອດ, ເນັ້ນໂປຣໂມຊັ່ນສົ່ງຟຣີ, ແລະ ໃສ່ລາຄາຈະແຈ້ງ.
+               <strong>ວິທີແກ້ຖ້າຄ່າທັກແພງ:</strong> ປັບ Headline ຂໍ້ຄວາມເທິງແອດ, ເນັ້ນໂປຣໂມຊັ່ນສົ່ງຟຣີ, ແລະ ໃສ່ລາຄາຈະແຈ້ງ.
             </div>
           </div>
 
@@ -259,11 +259,11 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
               ບອກວ່າ <strong>"ທີມຂາຍປິດໄດ້ດີບໍ່ ແລະ ໄດ້ກຳໄລແທ້ບໍ່"</strong> (ຄົນທັກ 10 ຄົນ ປິດໄດ້ຈັກຄົນ).
             </p>
             <div class="metric-benchmarks">
-              <div class="bm-row green"><span>🟢 ທີມຂາຍເກັ່ງ:</span> <strong>20% - 30% (CPA ຕ່ຳກວ່າກຳໄລ)</strong></div>
-              <div class="bm-row red"><span>🔴 ຮົ່ວໄຫຼ (ອັນຕະລາຍ):</span> <strong>ຕ່ຳກວ່າ 10% (ທັກ 20 ຄົນ ຊື້ 1 ຄົນ)</strong></div>
+              <div class="bm-row green"><span> ທີມຂາຍເກັ່ງ:</span> <strong>20% - 30% (CPA ຕ່ຳກວ່າກຳໄລ)</strong></div>
+              <div class="bm-row red"><span> ຮົ່ວໄຫຼ (ອັນຕະລາຍ):</span> <strong>ຕ່ຳກວ່າ 10% (ທັກ 20 ຄົນ ຊື້ 1 ຄົນ)</strong></div>
             </div>
             <div class="metric-fix">
-              👉 <strong>ວິທີແກ້ຖ້າ Closing Rate ຕ່ຳ:</strong> ແອດບໍ່ໄດ້ຜິດ! ແຕ່ບົດຕອບແຊັດຊ້າ ຫຼື ບໍ່ສ້າງຄວາມໝັ້ນໃຈ ➔ ຕ້ອງເນັ້ນ *"ກວດເຄື່ອງກ່ອນຈ່າຍໄດ້"*.
+               <strong>ວິທີແກ້ຖ້າ Closing Rate ຕ່ຳ:</strong> ແອດບໍ່ໄດ້ຜິດ! ແຕ່ບົດຕອບແຊັດຊ້າ ຫຼື ບໍ່ສ້າງຄວາມໝັ້ນໃຈ ➔ ຕ້ອງເນັ້ນ *"ກວດເຄື່ອງກ່ອນຈ່າຍໄດ້"*.
             </div>
           </div>
         </div>
@@ -274,7 +274,7 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
       <!-- ========================================== -->
       <section v-if="activeTab === 'decision'" class="tab-section">
         <div class="section-header">
-          <h2>⚖️ ກົດເຫຼັກການຕັດສິນໃຈ: 3 ຄຳສັ່ງ (Kill, Hold, Scale)</h2>
+          <h2> ກົດເຫຼັກການຕັດສິນໃຈ: 3 ຄຳສັ່ງ (Kill, Hold, Scale)</h2>
           <p class="section-lead">
             ທຸກໆຄ່ຳ (21:00), ໃຫ້ເປີດເບິ່ງໜ້າ Ads Battle ແລ້ວໃຊ້ກົດເຫຼັກນີ້ຕັດສິນທັນທີ ໂດຍບໍ່ໃຊ້ອາລົມ:
           </p>
@@ -284,7 +284,7 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
           <!-- KILL -->
           <div class="decision-card kill">
             <div class="decision-header">
-              <span class="d-icon">🛑</span>
+              <span class="d-icon"></span>
               <div>
                 <h3>1. ຄຳສັ່ງ KILL (ປິດແອດຖິ້ມທັນທີ)</h3>
                 <small>ຢຸດງົບປະມານຮົ່ວໄຫຼ</small>
@@ -303,7 +303,7 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
           <!-- HOLD -->
           <div class="decision-card hold">
             <div class="decision-header">
-              <span class="d-icon">✋</span>
+              <span class="d-icon"></span>
               <div>
                 <h3>2. ຄຳສັ່ງ HOLD (ປ່ອຍແລ່ນຕໍ່ ຫ້າມປິດ!)</h3>
                 <small>ໃຫ້ເວລາ AI ຮຽນຮູ້ (Learning Phase)</small>
@@ -321,7 +321,7 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
           <!-- SCALE -->
           <div class="decision-card scale">
             <div class="decision-header">
-              <span class="d-icon">🚀</span>
+              <span class="d-icon"></span>
               <div>
                 <h3>3. ຄຳສັ່ງ SCALE (ເພີ່ມງົບຂະຫຍາຍຍອດຂາຍ)</h3>
                 <small>ດັນແອດນາງຟ້າໃຫ້ສ້າງກຳໄລສູງສຸດ</small>
@@ -331,8 +331,8 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
               <h4>ເງື່ອນໄຂ ແລະ ວິທີ Scale:</h4>
               <ul>
                 <li>ແອດທີ່ສ້າງອໍເດີໄດ້ <strong>2-3 ອໍເດີຂຶ້ນໄປ</strong> ແລະ <strong>CPA ຕ່ຳກວ່າກຳໄລຕໍ່ຊິ້ນ</strong> (ເຊັ່ນ CPA $1.04 - $1.77).</li>
-                <li>✅ <strong>ວິທີ Scale ທີ່ຖືກຕ້ອງ:</strong> ກົດປຸ່ມ <strong>Scale +20%</strong> ໃນໜ້າ Ads Battle (ເຊັ່ນ $3.00 ➔ $3.60 ➔ $4.30).</li>
-                <li>❌ <strong>ຫ້າມເພີ່ມງົບກະໂດດ 100%</strong> (ເຊັ່ນ ຈາກ $3 ກະໂດດໄປ $10) ເພາະລະບົບຈະ Restart Learning Phase ແລະ ເຮັດໃຫ້ຄ່າແອດແພງຂຶ້ນທັນທີ!</li>
+                <li> <strong>ວິທີ Scale ທີ່ຖືກຕ້ອງ:</strong> ກົດປຸ່ມ <strong>Scale +20%</strong> ໃນໜ້າ Ads Battle (ເຊັ່ນ $3.00 ➔ $3.60 ➔ $4.30).</li>
+                <li> <strong>ຫ້າມເພີ່ມງົບກະໂດດ 100%</strong> (ເຊັ່ນ ຈາກ $3 ກະໂດດໄປ $10) ເພາະລະບົບຈະ Restart Learning Phase ແລະ ເຮັດໃຫ້ຄ່າແອດແພງຂຶ້ນທັນທີ!</li>
               </ul>
             </div>
           </div>
@@ -344,7 +344,7 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
       <!-- ========================================== -->
       <section v-if="activeTab === 'ghost'" class="tab-section">
         <div class="section-header">
-          <h2>👻 ວິທີຈັດການ "ທັກຜີ" & ມືຫຼົງກົດ: ບໍ່ໃຫ້ມາແດກຄ່າແອດ!</h2>
+          <h2> ວິທີຈັດການ "ທັກຜີ" & ມືຫຼົງກົດ: ບໍ່ໃຫ້ມາແດກຄ່າແອດ!</h2>
           <p class="section-lead">
             ມືຫຼົງກົດເກີດຈາກຄົນຫຼິ້ນເກມມືຖືແລ້ວມືພາດໄປໂດນປຸ່ມ Message ຫຼື ເດັກນ້ອຍກົດຫຼິ້ນ. ນີ້ຄື 3 ວິທີປິດກັ້ນແບບເດັດຂາດ:
           </p>
@@ -355,7 +355,7 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
           <div class="ghost-step-card">
             <div class="g-num">1</div>
             <div class="g-body">
-              <h4>🚫 ປິດ "Audience Network" ໃນ Ad Set ທັນທີ</h4>
+              <h4> ປິດ "Audience Network" ໃນ Ad Set ທັນທີ</h4>
               <p>
                 ໃນ Ad Set ➔ Placements ➔ Manual Placements: <strong>ຕິກເອົາ Audience Network ອອກ!</strong> ເພາະເກືອບທັງໝົດຂອງທັກຜີ ແມ່ນຄົນຫຼິ້ນເກມມືຖືແລ້ວພະຍາຍາມກົດປິດໂຄສະນາແຕ່ມືໄປໂດນປຸ່ມ Send Message!
               </p>
@@ -366,7 +366,7 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
           <div class="ghost-step-card">
             <div class="g-num">2</div>
             <div class="g-body">
-              <h4>🏷️ ໃສ່ລາຄາສິນຄ້າຕົວໃຫຍ່ໆໃສ່ໜ້າປົກຮູບ ຫຼື ຄລິບແອດ</h4>
+              <h4> ໃສ່ລາຄາສິນຄ້າຕົວໃຫຍ່ໆໃສ່ໜ້າປົກຮູບ ຫຼື ຄລິບແອດ</h4>
               <p>
                 ຢ່າປິດບັງລາຄາ! ຄົນທີ່ທັກມາຖາມວ່າ <em>"ລາຄາເທົ່າໃດ?"</em> ແລ້ວມິດງຽບ ເພາະເຂົາຄິດວ່າລາຄາຖືກກວ່ານັ້ນ. ຖ້າໃສ່ລາຄາສິນຄ້າໂຊຈະແຈ້ງ, ຄົນທີ່ທັກມາຈະເປັນຄົນທີ່ <strong>"ພ້ອມຈ່າຍແລ້ວ"</strong> ເທົ່ານັ້ນ!
               </p>
@@ -377,7 +377,7 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
           <div class="ghost-step-card">
             <div class="g-num">3</div>
             <div class="g-body">
-              <h4>🎯 ຕັ້ງ Exclude: ບໍ່ສົ່ງແອດໃຫ້ຄົນທີ່ເຄີຍທັກເພຈໃນ 30 ມື້</h4>
+              <h4> ຕັ້ງ Exclude: ບໍ່ສົ່ງແອດໃຫ້ຄົນທີ່ເຄີຍທັກເພຈໃນ 30 ມື້</h4>
               <p>
                 ໃນ Ad Set ➔ Audience ➔ ຊ່ອງ <strong>Exclude</strong>: ເລືອກ <code>People who sent a message in 30 days</code>.
                 ພໍໃຜກົດທັກມາ 1 ເທື່ອ (ແມ້ແຕ່ມືຫຼົງກົດ), <strong>Facebook ຈະບລັອກບໍ່ໃຫ້ເຂົາເຫັນແອດອີກ 30 ມື້ທັນທີ!</strong>
@@ -389,7 +389,7 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
           <div class="ghost-step-card">
             <div class="g-num">4</div>
             <div class="g-body">
-              <h4>⛔ ບລັອກລາຍຄົນ (Ban from Page ສຳລັບພວກກວນເມືອງ)</h4>
+              <h4> ບລັອກລາຍຄົນ (Ban from Page ສຳລັບພວກກວນເມືອງ)</h4>
               <p>
                 ຖ້າພົບຄົນທີ່ກົດຫຼິ້ນກວນເມືອງ: ໃຫ້ກົດຈຸດ 3 ຈ້ຳໃນແຊັດ ➔ ເລືອກ <strong>"Ban from Page"</strong> ເຂົາຈະບໍ່ສາມາດເຫັນໂພສ ຫຼື ແອດຂອງເພຈໄດ້ອີກຕະຫຼອດໄປ.
               </p>
@@ -417,9 +417,9 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
   justify-content: space-between;
   gap: 20px;
   padding: 24px 28px;
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  background: linear-gradient(135deg, var(--color-text) 0%, var(--color-text) 100%);
   border-radius: 16px;
-  color: #ffffff;
+  color: var(--color-surface);
   margin-bottom: 20px;
   box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12);
 }
@@ -455,7 +455,7 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
 
 .hero-sub {
   font-size: 13.5px;
-  color: #94a3b8;
+  color: var(--color-text-faint);
   margin: 0;
   line-height: 1.5;
 }
@@ -471,8 +471,8 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
   display: flex;
   gap: 8px;
   padding: 6px;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: 12px;
   margin-bottom: 24px;
   overflow-x: auto;
@@ -486,7 +486,7 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
   padding: 8px 14px;
   font-size: 13px;
   font-weight: 700;
-  color: #64748b;
+  color: var(--color-text-muted);
   border: 1px solid transparent;
   border-radius: 8px;
   background: transparent;
@@ -496,14 +496,14 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
 }
 
 .nav-tab-btn:hover {
-  background: #f8fafc;
-  color: #0f172a;
+  background: var(--color-background);
+  color: var(--color-text);
 }
 
 .nav-tab-btn.active {
-  background: #eff6ff;
-  color: #2563eb;
-  border-color: #bfdbfe;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  border-color: var(--color-info-border);
 }
 
 .tab-icon {
@@ -520,13 +520,13 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
 .section-header h2 {
   font-size: 20px;
   font-weight: 800;
-  color: #0f172a;
+  color: var(--color-text);
   margin: 0 0 4px 0;
 }
 
 .section-lead {
   font-size: 13.5px;
-  color: #64748b;
+  color: var(--color-text-muted);
   margin: 0;
   line-height: 1.6;
 }
@@ -539,8 +539,8 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
 }
 
 .time-card {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: 14px;
   overflow: hidden;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
@@ -555,9 +555,9 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
   font-weight: 750;
 }
 
-.time-badge.morning { background: #eff6ff; color: #1e40af; border-bottom: 2px solid #3b82f6; }
-.time-badge.afternoon { background: #fff7ed; color: #9a3412; border-bottom: 2px solid #f97316; }
-.time-badge.evening { background: #faf5ff; color: #6b21a8; border-bottom: 2px solid #a855f7; }
+.time-badge.morning { background: var(--color-primary-soft); color: #1e40af; border-bottom: 2px solid var(--color-primary); }
+.time-badge.afternoon { background: var(--color-warning-soft); color: #9a3412; border-bottom: 2px solid #f97316; }
+.time-badge.evening { background: var(--color-purple-soft); color: #6b21a8; border-bottom: 2px solid #a855f7; }
 
 .card-content {
   padding: 16px;
@@ -566,7 +566,7 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
 .card-content h4 {
   font-size: 13px;
   font-weight: 750;
-  color: #0f172a;
+  color: var(--color-text);
   margin: 0 0 8px 0;
 }
 
@@ -589,8 +589,8 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
   line-height: 1.5;
 }
 
-.rule-box.warn { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
-.rule-box.info { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+.rule-box.warn { background: var(--color-error-soft); border: 1px solid var(--color-error-border); color: var(--color-error); }
+.rule-box.info { background: var(--color-success-soft); border: 1px solid var(--color-success-border); color: var(--color-success); }
 .rule-box.success { background: #fdf4ff; border: 1px solid #f5d0fe; color: #86198f; }
 
 /* Funnel Chain */
@@ -598,8 +598,8 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
   display: flex;
   align-items: center;
   gap: 10px;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: 12px;
   padding: 14px 18px;
   overflow-x: auto;
@@ -618,8 +618,8 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
   width: 24px;
   height: 24px;
   border-radius: 999px;
-  background: #2563eb;
-  color: #ffffff;
+  background: var(--color-primary);
+  color: var(--color-surface);
   font-size: 12px;
   font-weight: 800;
   display: flex;
@@ -630,17 +630,17 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
 
 .funnel-step strong {
   font-size: 13px;
-  color: #0f172a;
+  color: var(--color-text);
 }
 
 .funnel-step small {
   font-size: 12px;
-  color: #64748b;
+  color: var(--color-text-muted);
 }
 
 .funnel-arrow {
   font-size: 18px;
-  color: #94a3b8;
+  color: var(--color-text-faint);
 }
 
 /* Metrics Grid */
@@ -651,8 +651,8 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
 }
 
 .metric-card {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: 12px;
   padding: 16px;
   display: flex;
@@ -670,8 +670,8 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
   font-size: 12px;
   font-weight: 800;
   text-transform: uppercase;
-  color: #2563eb;
-  background: #eff6ff;
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
   padding: 1px 6px;
   border-radius: 4px;
   align-self: flex-start;
@@ -680,13 +680,13 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
 .metric-top h4 {
   font-size: 14.5px;
   font-weight: 800;
-  color: #0f172a;
+  color: var(--color-text);
   margin: 0;
 }
 
 .metric-desc {
   font-size: 12.5px;
-  color: #475569;
+  color: var(--color-text-secondary);
   margin: 0;
   line-height: 1.5;
 }
@@ -695,8 +695,8 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
   display: flex;
   flex-direction: column;
   gap: 6px;
-  background: #f8fafc;
-  border: 1px solid #f1f5f9;
+  background: var(--color-background);
+  border: 1px solid var(--color-surface-soft);
   border-radius: 8px;
   padding: 10px 12px;
 }
@@ -707,14 +707,14 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
   font-size: 12px;
 }
 
-.bm-row.green strong { color: #16a34a; }
-.bm-row.yellow strong { color: #d97706; }
-.bm-row.red strong { color: #dc2626; }
+.bm-row.green strong { color: var(--color-success); }
+.bm-row.yellow strong { color: var(--color-warning); }
+.bm-row.red strong { color: var(--color-error); }
 
 .metric-fix {
   font-size: 12px;
-  color: #1e293b;
-  background: #f1f5f9;
+  color: var(--color-text);
+  background: var(--color-surface-soft);
   padding: 8px 10px;
   border-radius: 6px;
   line-height: 1.5;
@@ -728,23 +728,23 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
 }
 
 .decision-card {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: 14px;
   padding: 18px 22px;
 }
 
 .decision-card.kill {
   border-color: rgba(239, 68, 68, 0.35);
-  background: linear-gradient(180deg, rgba(239, 68, 68, 0.03) 0%, #ffffff 100%);
+  background: linear-gradient(180deg, rgba(239, 68, 68, 0.03) 0%, var(--color-surface) 100%);
 }
 .decision-card.hold {
   border-color: rgba(245, 158, 11, 0.35);
-  background: linear-gradient(180deg, rgba(245, 158, 11, 0.03) 0%, #ffffff 100%);
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.03) 0%, var(--color-surface) 100%);
 }
 .decision-card.scale {
   border-color: rgba(16, 185, 129, 0.35);
-  background: linear-gradient(180deg, rgba(16, 185, 129, 0.03) 0%, #ffffff 100%);
+  background: linear-gradient(180deg, rgba(16, 185, 129, 0.03) 0%, var(--color-surface) 100%);
 }
 
 .decision-header {
@@ -759,19 +759,19 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
 .decision-header h3 {
   font-size: 16px;
   font-weight: 800;
-  color: #0f172a;
+  color: var(--color-text);
   margin: 0;
 }
 
 .decision-header small {
   font-size: 12px;
-  color: #64748b;
+  color: var(--color-text-muted);
 }
 
 .decision-criteria h4 {
   font-size: 13px;
   font-weight: 750;
-  color: #0f172a;
+  color: var(--color-text);
   margin: 0 0 6px 0;
 }
 
@@ -795,8 +795,8 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
 }
 
 .ghost-step-card {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: 12px;
   padding: 16px;
   display: flex;
@@ -808,8 +808,8 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
   width: 32px;
   height: 32px;
   border-radius: 10px;
-  background: #eff6ff;
-  color: #2563eb;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
   font-size: 15px;
   font-weight: 800;
   display: flex;
@@ -821,13 +821,13 @@ const activeTab = ref<'routine' | 'metrics' | 'decision' | 'ghost'>('routine')
 .g-body h4 {
   font-size: 14.5px;
   font-weight: 800;
-  color: #0f172a;
+  color: var(--color-text);
   margin: 0 0 4px 0;
 }
 
 .g-body p {
   font-size: 13px;
-  color: #475569;
+  color: var(--color-text-secondary);
   margin: 0;
   line-height: 1.6;
 }

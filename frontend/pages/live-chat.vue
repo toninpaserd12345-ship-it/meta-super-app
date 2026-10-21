@@ -98,8 +98,8 @@ const CANNED_PHRASES: CannedPhrase[] = [
     id: 'greet_1',
     title: { lo: 'ທັກທາຍສຸພາບ', th: 'ทักทายสุภาพ', en: 'Polite Greeting' },
     text: {
-      lo: 'ສະບາຍດີເຈົ້າ 🙏 ຍິນດີຕ້ອນຮັບສູ່ຮ້ານເຮົາເຈົ້າ! ສົນໃຈສິນຄ້າຕົວໃດສາມາດສອບຖາມໄດ້ເລີຍເດີເຈົ້າ 😊',
-      th: 'สวัสดีค่ะ/ครับ 🙏 ยินดีต้อนรับนะคะ สนใจสินค้าตัวไหนสอบถามได้เลยนะคะ 😊',
+      lo: 'ສະບາຍດີເຈົ້າ  ຍິນດີຕ້ອນຮັບສູ່ຮ້ານເຮົາເຈົ້າ! ສົນໃຈສິນຄ້າຕົວໃດສາມາດສອບຖາມໄດ້ເລີຍເດີເຈົ້າ ',
+      th: 'สวัสดีค่ะ/ครับ  ยินดีต้อนรับนะคะ สนใจสินค้าตัวไหนสอบถามได้เลยนะคะ ',
       en: 'Hello! Welcome to our store. How may I assist you today?'
     },
     category: 'greeting',
@@ -109,8 +109,8 @@ const CANNED_PHRASES: CannedPhrase[] = [
     id: 'stock_1',
     title: { lo: 'ແຈ້ງສິນຄ້າພ້ອມສົ່ງ', th: 'แจ้งสินค้าพร้อมส่ง', en: 'In Stock Notice' },
     text: {
-      lo: 'ສິນຄ້າມີພ້ອມສົ່ງເລີຍເຈົ້າ ລູກຄ້າຮັບຈັກຊຸດດີເຈົ້າ? ສັ່ງມື້ນີ້ຈັດສົ່ງໃຫ້ທັນທີເລີຍເຈົ້າ ✨',
-      th: 'สินค้ามีพร้อมส่งเลยค่ะ/ครับ ลูกค้ารับกี่ชิ้นดีคะ สั่งวันนี้จัดส่งให้ทันทีเลยค่ะ ✨',
+      lo: 'ສິນຄ້າມີພ້ອມສົ່ງເລີຍເຈົ້າ ລູກຄ້າຮັບຈັກຊຸດດີເຈົ້າ? ສັ່ງມື້ນີ້ຈັດສົ່ງໃຫ້ທັນທີເລີຍເຈົ້າ ',
+      th: 'สินค้ามีพร้อมส่งเลยค่ะ/ครับ ลูกค้ารับกี่ชิ้นดีคะ สั่งวันนี้จัดส่งให้ทันทีเลยค่ะ ',
       en: 'The item is currently in stock and ready to ship! How many would you like?'
     },
     category: 'product',
@@ -120,8 +120,8 @@ const CANNED_PHRASES: CannedPhrase[] = [
     id: 'pay_1',
     title: { lo: 'ແຈ້ງເລກບັນຊີ (BCEL)', th: 'แจ้งเลขบัญชีโอนเงิน', en: 'Payment Details' },
     text: {
-      lo: 'ເລກບັນຊີຊຳລະເງິນເຈົ້າ:\n🏦 ທະນາຄານການຄ້າ (BCEL One)\nເລກບັນຊີ: 160-xx-xxxxxx\nຊື່ບັນຊີ: META STORE\nໂອນແລ້ວສົ່ງສະລິບຢືນຢັນໄດ້ເລີຍເດີເຈົ້າ 💳',
-      th: 'ช่องทางการชำระเงินนะคะ:\n🏦 ธนาคารกสิกรไทย / พร้อมเพย์\nเลขบัญชี: xxx-x-xxxxx-x\nโอนแล้วแจ้งสลิปได้เลยนะคะ 💳',
+      lo: 'ເລກບັນຊີຊຳລະເງິນເຈົ້າ:\n ທະນາຄານການຄ້າ (BCEL One)\nເລກບັນຊີ: 160-xx-xxxxxx\nຊື່ບັນຊີ: META STORE\nໂອນແລ້ວສົ່ງສະລິບຢືນຢັນໄດ້ເລີຍເດີເຈົ້າ ',
+      th: 'ช่องทางการชำระเงินนะคะ:\n ธนาคารกสิกรไทย / พร้อมเพย์\nเลขบัญชี: xxx-x-xxxxx-x\nโอนแล้วแจ้งสลิปได้เลยนะคะ ',
       en: 'Payment Account:\nBank: BCEL One / Mobile Banking\nAccount No: 160-xx-xxxxxx\nPlease share your payment slip once transferred. Thank you!'
     },
     category: 'payment',
@@ -131,9 +131,9 @@ const CANNED_PHRASES: CannedPhrase[] = [
     id: 'ship_1',
     title: { lo: 'ຂໍທີ່ຢູ່ຈັດສົ່ງ', th: 'ขอที่อยู่จัดส่ง', en: 'Request Address' },
     text: {
-      lo: 'ລົບກວນລູກຄ້າແຈ້ງ: ຊື່, ເບີໂທລະສັບຕິດຕໍ່ ແລະ ທີ່ຢູ່ຈັດສົ່ງທີ່ສະດວກໃຫ້ທາງເຮົານຳເດີເຈົ້າ 📦🚚',
-      th: 'รบกวนลูกค้าแจ้งชื่อ, เบอร์โทร และที่อยู่จัดส่งให้ทางเราด้วยนะคะ 📦🚚',
-      en: 'Please provide your full name, phone number, and delivery address. 📦'
+      lo: 'ລົບກວນລູກຄ້າແຈ້ງ: ຊື່, ເບີໂທລະສັບຕິດຕໍ່ ແລະ ທີ່ຢູ່ຈັດສົ່ງທີ່ສະດວກໃຫ້ທາງເຮົານຳເດີເຈົ້າ ',
+      th: 'รบกวนลูกค้าแจ้งชื่อ, เบอร์โทร และที่อยู่จัดส่งให้ทางเราด้วยนะคะ ',
+      en: 'Please provide your full name, phone number, and delivery address. '
     },
     category: 'shipping',
     icon: 'mdi-map-marker-outline',
@@ -142,9 +142,9 @@ const CANNED_PHRASES: CannedPhrase[] = [
     id: 'close_1',
     title: { lo: 'ຂອບໃຈ & ປິດການຂາຍ', th: 'ขอบคุณปิดการขาย', en: 'Thank you & Close' },
     text: {
-      lo: 'ທາງຮ້ານໄດ້ຮັບອໍເດີ ແລະ ດຳເນີນການຈັດກຽມເຄື່ອງຮຽບຮ້ອຍແລ້ວເຈົ້າ ຂອບໃຈຫຼາຍໆທີ່ໄວ້ວາງໃຈອຸດໜູນຮ້ານເຮົາເດີເຈົ້າ ❤️',
-      th: 'ทางร้านได้รับยอดและเตรียมจัดส่งสินค้าเรียบร้อยแล้วนะคะ ขอบพระคุณมากค่ะ ❤️',
-      en: 'Your order is confirmed and being prepared for shipment. Thank you so much for choosing us! ❤️'
+      lo: 'ທາງຮ້ານໄດ້ຮັບອໍເດີ ແລະ ດຳເນີນການຈັດກຽມເຄື່ອງຮຽບຮ້ອຍແລ້ວເຈົ້າ ຂອບໃຈຫຼາຍໆທີ່ໄວ້ວາງໃຈອຸດໜູນຮ້ານເຮົາເດີເຈົ້າ ',
+      th: 'ทางร้านได้รับยอดและเตรียมจัดส่งสินค้าเรียบร้อยแล้วนะคะ ขอบพระคุณมากค่ะ ',
+      en: 'Your order is confirmed and being prepared for shipment. Thank you so much for choosing us! '
     },
     category: 'closing',
     icon: 'mdi-heart-outline',
@@ -152,12 +152,12 @@ const CANNED_PHRASES: CannedPhrase[] = [
 ]
 
 const PRESET_TAGS = [
-  { key: 'VIP', label: 'VIP', color: '#b45309', bg: '#fef3c7', border: '#fde68a' },
-  { key: 'ລູກຄ້າເກົ່າ', label: 'ລູກຄ້າເກົ່າ', color: '#1d4ed8', bg: '#dbeafe', border: '#bfdbfe' },
-  { key: 'ລໍຖ້າຈັດສົ່ງ', label: 'ລໍຖ້າຈັດສົ່ງ', color: '#c2410c', bg: '#ffedd5', border: '#fed7aa' },
-  { key: 'ໂອນແລ້ວ', label: 'ໂອນແລ້ວ', color: '#15803d', bg: '#dcfce7', border: '#bbf7d0' },
-  { key: 'ສອບຖາມລາຄາ', label: 'ສອບຖາມລາຄາ', color: '#6d28d9', bg: '#ede9fe', border: '#ddd6fe' },
-  { key: 'ສົ່ງດ່ວນ', label: 'ສົ່ງດ່ວນ', color: '#b91c1c', bg: '#fee2e2', border: '#fecaca' },
+  { key: 'VIP', label: 'VIP', color: 'var(--color-warning)', bg: 'var(--color-warning-soft)', border: 'var(--color-warning-border)' },
+  { key: 'ລູກຄ້າເກົ່າ', label: 'ລູກຄ້າເກົ່າ', color: 'var(--color-primary-hover)', bg: 'var(--color-primary-soft)', border: 'var(--color-info-border)' },
+  { key: 'ລໍຖ້າຈັດສົ່ງ', label: 'ລໍຖ້າຈັດສົ່ງ', color: 'var(--color-warning)', bg: 'var(--color-warning-soft)', border: 'var(--color-warning-border)' },
+  { key: 'ໂອນແລ້ວ', label: 'ໂອນແລ້ວ', color: 'var(--color-success)', bg: 'var(--color-success-soft)', border: 'var(--color-success-border)' },
+  { key: 'ສອບຖາມລາຄາ', label: 'ສອບຖາມລາຄາ', color: 'var(--color-purple)', bg: 'var(--color-purple-soft)', border: 'var(--color-purple-border)' },
+  { key: 'ສົ່ງດ່ວນ', label: 'ສົ່ງດ່ວນ', color: 'var(--color-error)', bg: 'var(--color-error-soft)', border: 'var(--color-error-border)' },
 ]
 
 interface ReplyCodeItem {
@@ -295,49 +295,49 @@ const STATUS_OPTIONS: StatusOption[] = [
   {
     key: 'new',
     label: { lo: 'ໃໝ່', th: 'ลูกค้าใหม่', en: 'New' },
-    color: '#2563eb',
-    bg: '#eff6ff',
-    border: '#bfdbfe',
+    color: 'var(--color-primary)',
+    bg: 'var(--color-primary-soft)',
+    border: 'var(--color-info-border)',
     icon: 'mdi-account-plus',
   },
   {
     key: 'in_progress',
     label: { lo: 'ກຳລັງລົມ', th: 'กำลังคุย', en: 'Chatting' },
-    color: '#7c3aed',
-    bg: '#f5f3ff',
-    border: '#ddd6fe',
+    color: 'var(--color-purple)',
+    bg: 'var(--color-purple-soft)',
+    border: 'var(--color-purple-border)',
     icon: 'mdi-chat-processing-outline',
   },
   {
     key: 'pending_payment',
     label: { lo: 'ລໍຖ້າໂອນ', th: 'รอโอนเงิน', en: 'Pending Payment' },
-    color: '#ea580c',
-    bg: '#fff7ed',
-    border: '#fed7aa',
+    color: 'var(--color-warning)',
+    bg: 'var(--color-warning-soft)',
+    border: 'var(--color-warning-border)',
     icon: 'mdi-clock-outline',
   },
   {
     key: 'purchased',
     label: { lo: 'ປິດການຂາຍ', th: 'ซื้อแล้ว / ปิดการขาย', en: 'Purchased' },
-    color: '#16a34a',
-    bg: '#f0fdf4',
-    border: '#bbf7d0',
+    color: 'var(--color-success)',
+    bg: 'var(--color-success-soft)',
+    border: 'var(--color-success-border)',
     icon: 'mdi-check-circle',
   },
   {
     key: 'follow_up',
     label: { lo: 'ຕິດຕາມຕໍ່', th: 'ติดตามต่อ', en: 'Follow-up' },
-    color: '#0891b2',
-    bg: '#ecfeff',
-    border: '#a5f3fc',
+    color: 'var(--color-info)',
+    bg: 'var(--color-info-soft)',
+    border: 'var(--color-info-border)',
     icon: 'mdi-calendar-clock',
   },
   {
     key: 'cancelled',
     label: { lo: 'ຍົກເລີກ / ບໍ່ຊື້', th: 'ยกเลิก / ไม่ซื้อ', en: 'Cancelled' },
-    color: '#64748b',
-    bg: '#f8fafc',
-    border: '#e2e8f0',
+    color: 'var(--color-text-muted)',
+    bg: 'var(--color-background)',
+    border: 'var(--color-border)',
     icon: 'mdi-close-circle-outline',
   },
 ]
@@ -347,9 +347,9 @@ const getStatusInfo = (status?: string): StatusOption => {
   return STATUS_OPTIONS.find(s => s.key === norm) || {
     key: norm,
     label: { lo: norm, th: norm, en: norm },
-    color: '#64748b',
-    bg: '#f1f5f9',
-    border: '#cbd5e1',
+    color: 'var(--color-text-muted)',
+    bg: 'var(--color-surface-soft)',
+    border: 'var(--color-border-strong)',
     icon: 'mdi-tag-outline',
   }
 }
@@ -793,9 +793,9 @@ const submitQuickOrder = async () => {
 
     // Also send confirmation message into chat
     await sendReply(l({
-      lo: `ຂອບໃຈຫຼາຍໆເຈົ້າ! ຢືນຢັນອໍເດີ #${createdOrder.orderNumber}: ${prodName}${variantTag} x ${qty} ຍອດລວມ: ${totalAmount.toLocaleString()} ${currency} ຕັດສະຕ໋ອກຮຽບຮ້ອຍແລ້ວເຈົ້າ 🎉📦`,
-      th: `ขอบพระคุณมากค่ะ! ยืนยันออเดอร์ #${createdOrder.orderNumber}: ${prodName}${variantTag} x ${qty} ยอดรวม: ${totalAmount.toLocaleString()} ${currency} ตัดสต็อกเรียบร้อยแล้วค่ะ 🎉📦`,
-      en: `Thank you! Order #${createdOrder.orderNumber} confirmed: ${prodName}${variantTag} x ${qty} (Total: ${totalAmount.toLocaleString()} ${currency}), stock deducted! 🎉📦`
+      lo: `ຂອບໃຈຫຼາຍໆເຈົ້າ! ຢືນຢັນອໍເດີ #${createdOrder.orderNumber}: ${prodName}${variantTag} x ${qty} ຍອດລວມ: ${totalAmount.toLocaleString()} ${currency} ຕັດສະຕ໋ອກຮຽບຮ້ອຍແລ້ວເຈົ້າ `,
+      th: `ขอบพระคุณมากค่ะ! ยืนยันออเดอร์ #${createdOrder.orderNumber}: ${prodName}${variantTag} x ${qty} ยอดรวม: ${totalAmount.toLocaleString()} ${currency} ตัดสต็อกเรียบร้อยแล้วค่ะ `,
+      en: `Thank you! Order #${createdOrder.orderNumber} confirmed: ${prodName}${variantTag} x ${qty} (Total: ${totalAmount.toLocaleString()} ${currency}), stock deducted! `
     }))
 
     quickOrderDialog.value = false
@@ -850,9 +850,9 @@ const sendReply = async (explicitCode?: string, explicitReplySetId?: string) => 
     inputMessage.value = ''
     if (res.reply_set_sent) {
       sendSuccessNotice.value = l({
-        lo: `⚡ ສົ່ງຊຸດຂໍ້ຄວາມ “${res.reply_set_name}” (${res.items_count} ລາຍການ) ແລ້ວ!`,
-        th: `⚡ ส่งชุดข้อความ “${res.reply_set_name}” (${res.items_count} รายการ) แล้ว!`,
-        en: `⚡ Sent Reply Set “${res.reply_set_name}” (${res.items_count} messages)!`,
+        lo: ` ສົ່ງຊຸດຂໍ້ຄວາມ “${res.reply_set_name}” (${res.items_count} ລາຍການ) ແລ້ວ!`,
+        th: ` ส่งชุดข้อความ “${res.reply_set_name}” (${res.items_count} รายการ) แล้ว!`,
+        en: ` Sent Reply Set “${res.reply_set_name}” (${res.items_count} messages)!`,
       })
       setTimeout(() => { sendSuccessNotice.value = '' }, 5000)
     }
@@ -1187,7 +1187,7 @@ const formatTime = (ts: string) => {
                   {{ l(getStatusInfo(item.status).label) }}
                 </span>
                 <span class="conv-preview" :title="item.lastMessage?.message || ''">
-                  {{ item.lastMessage?.message || (item.lastMessage?.type === 'image' ? (locale === 'lo' ? '📷 ຮູບພາບ' : '📷 รูปภาพ') : '...') }}
+                  {{ item.lastMessage?.message || (item.lastMessage?.type === 'image' ? (locale === 'lo' ? ' ຮູບພາບ' : ' รูปภาพ') : '...') }}
                 </span>
               </div>
               <div class="conv-meta" v-if="item.lead">
@@ -1256,7 +1256,7 @@ const formatTime = (ts: string) => {
                   {{ l(opt.label) }}
                 </v-list-item-title>
                 <template #append v-if="activeLeadStatus === opt.key">
-                  <v-icon icon="mdi-check" size="16" :color="opt.color"/>
+                  <v-icon icon="mdi-check" size="16" :style="{ color: opt.color }"/>
                 </template>
               </v-list-item>
             </v-list>
@@ -1763,7 +1763,7 @@ const formatTime = (ts: string) => {
             <select v-model="quickOrderForm.warehouseId" class="order-select">
               <option value="">-- {{ l({lo:'ເລືອກສາງເລີ່ມຕົ້ນ...',th:'เลือกคลังเริ่มต้น...',en:'Default Location...'}) }} --</option>
               <option v-for="w in warehouses" :key="w.id" :value="w.id">
-                {{ w.name }} ({{ w.code }}) {{ w.isDefault ? '★' : '' }}
+                {{ w.name }} ({{ w.code }}) {{ w.isDefault ? l({ lo: '(ຄ່າເລີ່ມຕົ້ນ)', th: '(ค่าเริ่มต้น)', en: '(Default)' }) : '' }}
               </option>
             </select>
           </div>
@@ -1915,7 +1915,7 @@ const formatTime = (ts: string) => {
   font-size: 17px;
   font-weight: 750;
 }
-.live-state{display:flex;align-items:center;gap:6px;color:var(--color-text-muted);font-size: 12px;font-weight:600}.live-state i{width:7px;height:7px;border-radius:50%;background:#f59e0b}.live-state.online{color:#15803d}.live-state.online i{background:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,.16)}
+.live-state{display:flex;align-items:center;gap:6px;color:var(--color-text-muted);font-size: 12px;font-weight:600}.live-state i{width:7px;height:7px;border-radius:50%;background:var(--color-warning)}.live-state.online{color:var(--color-success)}.live-state.online i{background:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,.16)}
 
 .sidebar-search {
   position: relative;
@@ -1992,7 +1992,7 @@ const formatTime = (ts: string) => {
 .filter-pill.active {
   background: var(--color-primary);
   border-color: var(--color-primary);
-  color: #fff !important;
+  color: var(--color-surface) !important;
 }
 .filter-count {
   padding: 1px 5px;
@@ -2003,7 +2003,7 @@ const formatTime = (ts: string) => {
 }
 .filter-pill.active .filter-count {
   background: rgba(255,255,255,0.25);
-  color: #fff;
+  color: var(--color-surface);
 }
 .status-dot {
   width: 7px;
@@ -2073,12 +2073,12 @@ const formatTime = (ts: string) => {
   border-radius: 50%;
   display: grid;
   place-items: center;
-  background: #fff;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   box-shadow: 0 1px 3px rgba(0,0,0,0.12);
 }
-.platform-mini-badge.facebook { color: #1877F2; }
-.platform-mini-badge.whatsapp { color: #25D366; }
+.platform-mini-badge.facebook { color: var(--color-facebook); }
+.platform-mini-badge.whatsapp { color: var(--color-whatsapp); }
 
 .conv-details {
   flex: 1;
@@ -2195,8 +2195,8 @@ const formatTime = (ts: string) => {
   font-weight: 700;
   text-transform: uppercase;
 }
-.platform-badge.facebook { background: #E7F3FF; color: #1877F2; }
-.platform-badge.whatsapp { background: #E7FCE3; color: #25D366; }
+.platform-badge.facebook { background: #E7F3FF; color: var(--color-facebook); }
+.platform-badge.whatsapp { background: #E7FCE3; color: var(--color-whatsapp); }
 
 .chat-header-actions {
   display: flex;
@@ -2226,7 +2226,7 @@ const formatTime = (ts: string) => {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  background: #16a34a;
+  background: var(--color-success);
   color: white;
   border: none;
   padding: 6px 14px;
@@ -2237,7 +2237,7 @@ const formatTime = (ts: string) => {
   transition: background 0.15s ease;
 }
 .action-btn-purchased:hover {
-  background: #15803d;
+  background: var(--color-success);
 }
 
 .purchased-pill {
@@ -2245,23 +2245,23 @@ const formatTime = (ts: string) => {
   align-items: center;
   padding: 5px 12px;
   border-radius: 20px;
-  background: #dcfce7;
-  color: #166534;
-  border: 1px solid #bbf7d0;
+  background: var(--color-success-soft);
+  color: var(--color-success);
+  border: 1px solid var(--color-success-border);
   font-size: 12px;
   font-weight: 750;
 }
 
 .status-notice-bar {
   padding: 7px 18px;
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: var(--color-primary-soft);
+  color: var(--color-primary-hover);
   font-size: 12px;
   font-weight: 650;
   display: flex;
   align-items: center;
   gap: 8px;
-  border-bottom: 1px solid #dbeafe;
+  border-bottom: 1px solid var(--color-primary-soft);
 }
 
 .status-dot-menu {
@@ -2339,7 +2339,7 @@ const formatTime = (ts: string) => {
 
 .outgoing .bubble-content {
   background: var(--color-primary);
-  color: #fff;
+  color: var(--color-surface);
   border-bottom-right-radius: 4px;
 }
 
@@ -2480,14 +2480,14 @@ const formatTime = (ts: string) => {
 
 .chat-notice-success {
   padding: 8px 16px;
-  background: #dcfce7;
-  color: #166534;
+  background: var(--color-success-soft);
+  color: var(--color-success);
   font-size: 12px;
   font-weight: 650;
   display: flex;
   align-items: center;
   gap: 8px;
-  border-bottom: 1px solid #bbf7d0;
+  border-bottom: 1px solid var(--color-success-border);
 }
 
 .quick-reply-btn {
@@ -2511,11 +2511,11 @@ const formatTime = (ts: string) => {
   border-color: var(--color-primary);
 }
 .attach-btn {
-  color: #0284c7;
+  color: var(--color-info);
 }
 .attach-btn:hover {
   background: #f0f9ff;
-  border-color: #0284c7;
+  border-color: var(--color-info);
 }
 
 .reply-sets-dialog-card {
@@ -2645,7 +2645,7 @@ const formatTime = (ts: string) => {
   border-radius: 50%;
   border: none;
   background: var(--color-primary);
-  color: #fff;
+  color: var(--color-surface);
   cursor: pointer;
   display: grid;
   place-items: center;
@@ -2775,8 +2775,8 @@ const formatTime = (ts: string) => {
   display: inline-block;
   vertical-align: middle;
 }
-.status-badge.new { background: #E7F3FF; color: #1877F2; }
-.status-badge.purchased { background: #E7FCE3; color: #25D366; }
+.status-badge.new { background: #E7F3FF; color: var(--color-facebook); }
+.status-badge.purchased { background: #E7FCE3; color: var(--color-whatsapp); }
 
 .conv-meta {
   display: flex;
@@ -2874,13 +2874,13 @@ const formatTime = (ts: string) => {
 
 /* Canned Button in Chat Input */
 .canned-btn {
-  color: #7c3aed;
-  background: #f5f3ff;
-  border-color: #ddd6fe;
+  color: var(--color-purple);
+  background: var(--color-purple-soft);
+  border-color: var(--color-purple-border);
 }
 .canned-btn:hover {
-  background: #ede9fe;
-  border-color: #7c3aed;
+  background: var(--color-purple-soft);
+  border-color: var(--color-purple);
 }
 
 /* Pancake CRM Drawer (Desktop) */
@@ -3002,8 +3002,8 @@ const formatTime = (ts: string) => {
   font-weight: 700;
   text-transform: uppercase;
 }
-.platform-chip.facebook { background: #E7F3FF; color: #1877F2; }
-.platform-chip.whatsapp { background: #E7FCE3; color: #25D366; }
+.platform-chip.facebook { background: #E7F3FF; color: var(--color-facebook); }
+.platform-chip.whatsapp { background: #E7FCE3; color: var(--color-whatsapp); }
 .customer-id-text {
   color: var(--color-text-muted);
 }
@@ -3022,7 +3022,7 @@ const formatTime = (ts: string) => {
   background: var(--color-surface-soft);
 }
 .icon-link-mini {
-  color: #16a34a;
+  color: var(--color-success);
   text-decoration: none;
   display: grid;
   place-items: center;
@@ -3030,7 +3030,7 @@ const formatTime = (ts: string) => {
   border-radius: 4px;
 }
 .icon-link-mini:hover {
-  background: #dcfce7;
+  background: var(--color-success-soft);
 }
 
 .pancake-section-label {
@@ -3169,15 +3169,15 @@ const formatTime = (ts: string) => {
 }
 
 .order-cta-card {
-  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
-  border-color: #bbf7d0;
+  background: linear-gradient(135deg, var(--color-success-soft) 0%, var(--color-success-soft) 100%);
+  border-color: var(--color-success-border);
 }
 .btn-quick-order-full {
   width: 100%;
   height: 42px;
   border: none;
   border-radius: 10px;
-  background: #16a34a;
+  background: var(--color-success);
   color: white;
   font-size: 13px;
   font-weight: 800;
@@ -3190,7 +3190,7 @@ const formatTime = (ts: string) => {
   touch-action: manipulation;
 }
 .btn-quick-order-full:hover {
-  background: #15803d;
+  background: var(--color-success);
   box-shadow: 0 4px 12px rgba(22,163,74,0.35);
 }
 
@@ -3230,8 +3230,8 @@ const formatTime = (ts: string) => {
   transition: all 0.15s ease;
 }
 .canned-cat-btn.active {
-  background: #7c3aed;
-  border-color: #7c3aed;
+  background: var(--color-purple);
+  border-color: var(--color-purple);
   color: white;
 }
 .canned-list {
@@ -3358,8 +3358,8 @@ const formatTime = (ts: string) => {
 .order-summary-box {
   margin-top: 14px;
   padding: 12px 14px;
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
+  background: var(--color-success-soft);
+  border: 1px solid var(--color-success-border);
   border-radius: 12px;
 }
 .summary-row {
@@ -3367,12 +3367,12 @@ const formatTime = (ts: string) => {
   align-items: center;
   justify-content: space-between;
   font-size: 13px;
-  color: #166534;
+  color: var(--color-success);
 }
 .total-price {
   font-size: 16px;
   font-weight: 850;
-  color: #15803d;
+  color: var(--color-success);
 }
 .dialog-actions-padding {
   padding: 12px 24px 16px !important;
@@ -3402,7 +3402,7 @@ const formatTime = (ts: string) => {
     bottom: 0;
     background: rgba(0,0,0,0.4);
     z-index: 999;
-    backdrop-filter: blur(2px);
+
   }
 }
 </style>

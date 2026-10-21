@@ -1122,7 +1122,7 @@ function goToProductAds(productId: string) {
                     </div>
                     <div v-if="productAutomations(selectedProductForDetail.id).length" class="text-caption text-indigo">
                       <span v-for="f in productAutomations(selectedProductForDetail.id)" :key="f.id" class="mr-2">
-                        🤖 {{ f.name }} ({{ f.targets?.length || 0 }} ແອດ)
+                         {{ f.name }} ({{ f.targets?.length || 0 }} ແອດ)
                       </span>
                     </div>
                     <div v-else class="text-caption text-muted">
@@ -1202,7 +1202,7 @@ function goToProductAds(productId: string) {
               </div>
             </div>
           </div>
-          <v-btn icon="mdi-close" variant="text" size="small" @click="strategyDialog = false" />
+          <v-btn icon="mdi-close" variant="text" size="small" aria-label="Close product strategy" @click="strategyDialog = false" />
         </v-card-title>
 
         <v-divider />
@@ -1455,7 +1455,7 @@ function goToProductAds(productId: string) {
             prepend-icon="mdi-content-save"
             @click="saveAdStrategy"
           >
-            {{ l({ lo: '💾 ບັນທຶກຍຸດທະສາດ', th: '💾 บันทึกยุทธศาสตร์', en: '💾 Save Strategy' }) }}
+            {{ l({ lo: ' ບັນທຶກຍຸດທະສາດ', th: ' บันทึกยุทธศาสตร์', en: ' Save Strategy' }) }}
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -1577,9 +1577,9 @@ function goToProductAds(productId: string) {
   display: inline-block;
   padding: 2px 8px;
   border-radius: 10px;
-  background: #f0fdf4;
-  color: #16a34a;
-  border: 1px solid #bbf7d0;
+  background: var(--color-success-soft);
+  color: var(--color-success);
+  border: 1px solid var(--color-success-border);
   font-size: 12.5px;
   font-weight: 800;
 }
@@ -1598,21 +1598,21 @@ function goToProductAds(productId: string) {
   border-radius: 8px;
 }
 .tag-category {
-  background: #eff6ff;
-  color: #2563eb;
-  border: 1px solid #dbeafe;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  border: 1px solid var(--color-primary-soft);
 }
 .tag-barcode {
-  background: #f8fafc;
-  color: #64748b;
-  border: 1px solid #e2e8f0;
+  background: var(--color-background);
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
   display: inline-flex;
   align-items: center;
 }
 .tag-unit {
   background: #fdf4ff;
   color: #a855f7;
-  border: 1px solid #f3e8ff;
+  border: 1px solid var(--color-purple-soft);
 }
 .tag-autoreply {
   background: #eef2ff;
@@ -1626,7 +1626,7 @@ function goToProductAds(productId: string) {
   background: #e0e7ff;
 }
 .tag-strategy {
-  background: #faf5ff;
+  background: var(--color-purple-soft);
   color: #6b21a8;
   border: 1px solid #e9d5ff;
   display: inline-flex;
@@ -1634,7 +1634,7 @@ function goToProductAds(productId: string) {
   transition: all .15s ease;
 }
 .tag-strategy:hover {
-  background: #f3e8ff;
+  background: var(--color-purple-soft);
 }
 .ad-count-sub {
   font-size: 12px;
@@ -1656,7 +1656,7 @@ function goToProductAds(productId: string) {
 }
 .code-copy-pill:hover {
   background: var(--color-primary);
-  color: #fff;
+  color: var(--color-surface);
 }
 .inventory-row {
   display: grid;
@@ -1821,8 +1821,8 @@ function goToProductAds(productId: string) {
 }
 .badge-mini-def {
   font-size: 12px;
-  background: #fef3c7;
-  color: #b45309;
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
   padding: 1px 6px;
   border-radius: 6px;
   font-weight: 700;
@@ -1871,9 +1871,9 @@ function goToProductAds(productId: string) {
 .detail-price-badge {
   display: inline-block;
   padding: 3px 10px;
-  background: #f0fdf4;
-  color: #16a34a;
-  border: 1px solid #bbf7d0;
+  background: var(--color-success-soft);
+  color: var(--color-success);
+  border: 1px solid var(--color-success-border);
   border-radius: 10px;
   font-size: 13px;
   font-weight: 800;
@@ -1992,7 +1992,7 @@ function goToProductAds(productId: string) {
   cursor: pointer;
 }
 .text-red {
-  color: #ef4444 !important;
+  color: var(--color-error) !important;
 }
 
 @media (max-width: 760px) {
@@ -2036,23 +2036,23 @@ function goToProductAds(productId: string) {
 
 /* Variant Builder & Table Styles */
 .tag-color {
-  background: #fef2f2;
-  color: #dc2626;
-  border: 1px solid #fee2e2;
+  background: var(--color-error-soft);
+  color: var(--color-error);
+  border: 1px solid var(--color-error-soft);
   display: inline-flex;
   align-items: center;
 }
 .tag-size {
-  background: #f0fdf4;
-  color: #16a34a;
-  border: 1px solid #dcfce7;
+  background: var(--color-success-soft);
+  color: var(--color-success);
+  border: 1px solid var(--color-success-soft);
   display: inline-flex;
   align-items: center;
 }
 .tag-variants {
-  background: #faf5ff;
+  background: var(--color-purple-soft);
   color: #7e22ce;
-  border: 1px solid #f3e8ff;
+  border: 1px solid var(--color-purple-soft);
   display: inline-flex;
   align-items: center;
 }
@@ -2119,7 +2119,7 @@ function goToProductAds(productId: string) {
 .btn-del-variant {
   border: none;
   background: none;
-  color: #ef4444;
+  color: var(--color-error);
   cursor: pointer;
   padding: 4px;
   display: grid;
@@ -2127,7 +2127,7 @@ function goToProductAds(productId: string) {
   border-radius: 4px;
 }
 .btn-del-variant:hover {
-  background: #fee2e2;
+  background: var(--color-error-soft);
 }
 .variant-table-footer {
   padding: 8px 10px;
@@ -2185,23 +2185,23 @@ function goToProductAds(productId: string) {
 .size-pill {
   display: inline-block;
   padding: 2px 7px;
-  background: #f0fdf4;
-  color: #16a34a;
+  background: var(--color-success-soft);
+  color: var(--color-success);
   border-radius: 6px;
   font-size: 12px;
 }
 .qty-badge {
   display: inline-block;
   padding: 2px 8px;
-  background: #eff6ff;
-  color: #2563eb;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
   border-radius: 12px;
   font-weight: 700;
   font-size: 12px;
 }
 .qty-badge.zero-stock {
-  background: #fee2e2;
-  color: #ef4444;
+  background: var(--color-error-soft);
+  color: var(--color-error);
 }
 
 /* Product Ad Strategy styles */

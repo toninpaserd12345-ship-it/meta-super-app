@@ -281,7 +281,7 @@ async function saveChanges() {
                 <v-chip size="x-small" variant="tonal" color="primary" @click="insertVariable(index, '{{product.price}}')">+ &#123;&#123;product.price&#125;&#125;</v-chip>
                 <v-chip size="x-small" variant="tonal" color="primary" @click="insertVariable(index, '{{product.description}}')">+ &#123;&#123;product.description&#125;&#125;</v-chip>
                 <span class="text-disabled mx-1">|</span>
-                <v-chip v-for="em in ['✨','🔥','📦','💰','🙏','⚡']" :key="em" size="x-small" variant="text" @click="insertVariable(index, em)">{{ em }}</v-chip>
+                <v-chip v-for="em in ['👍','❤️','😊','🙏','🔥','✅']" :key="em" size="x-small" variant="text" @click="insertVariable(index, em)">{{ em }}</v-chip>
               </div>
 
               <v-textarea v-if="item.type==='text'" v-model="item.content" :label="locale==='lo'?'ເນື້ອໃນຂໍ້ຄວາມ':'Message text'" variant="outlined" rows="4" auto-grow maxlength="2000" counter hide-details/>
@@ -295,8 +295,7 @@ async function saveChanges() {
                       controls
                       playsinline
                       preload="metadata"
-                      class="media-preview rounded-lg"
-                      style="max-height: 240px; width: 100%; border: 1px solid var(--color-border); border-radius: 8px; background: #000;"
+                      class="media-preview media-preview-video"
                     >
                       <source :src="item.content" type="video/mp4">
                       {{ locale==='lo'?'ບຣາວເຊີຂອງທ່ານບໍ່ຮອງຮັບການຫຼິ້ນວິດີໂອໂດຍກົງ':'Your browser does not support the video tag.' }}
@@ -315,7 +314,6 @@ async function saveChanges() {
                       controls
                       preload="metadata"
                       class="audio-preview"
-                      style="width: 100%; border-radius: 8px;"
                     >
                       <source :src="item.content">
                       {{ locale==='lo'?'ບຣາວເຊີຂອງທ່ານບໍ່ຮອງຮັບການຫຼິ້ນສຽງໂດຍກົງ':'Your browser does not support audio.' }}
@@ -339,7 +337,7 @@ async function saveChanges() {
                     size="small"
                     @click="startRecording(index)"
                   >
-                    {{ locale==='lo'?'🎙️ ກົດອັດສຽງດຽວນີ້ (Record Voice)':'🎙️ Record Voice' }}
+                    {{ locale==='lo'?' ກົດອັດສຽງດຽວນີ້ (Record Voice)':' Record Voice' }}
                   </v-btn>
                   <div v-else class="recording-active-bar d-flex align-center gap-2">
                     <span class="recording-dot"></span>
@@ -369,7 +367,7 @@ async function saveChanges() {
                     :loading="uploadingIndex === index"
                     @click="triggerNativeUpload(index)"
                   >
-                    {{ locale==='lo' ? `📁 ເລືອກໄຟລ໌ ${item.type === 'audio' ? 'ສຽງ (Voice)' : item.type === 'video' ? 'ວິດີໂອ (Video)' : 'ຮູບພາບ'} ຂຶ້ນ Cloudflare` : `📁 Choose ${item.type} file` }}
+                    {{ locale==='lo' ? ` ເລືອກໄຟລ໌ ${item.type === 'audio' ? 'ສຽງ (Voice)' : item.type === 'video' ? 'ວິດີໂອ (Video)' : 'ຮູບພາບ'} ຂຶ້ນ Cloudflare` : ` Choose ${item.type} file` }}
                   </v-btn>
                   <span class="text-caption text-medium-emphasis">({{ item.type === 'audio' ? 'MP3, M4A, WAV, OGG, AAC' : item.type === 'video' ? 'MP4, MOV, WebM, 3GP' : 'JPG, PNG, WebP' }} · Max 25MB)</span>
                 </div>
@@ -400,17 +398,17 @@ async function saveChanges() {
               </div>
             </div>
             <v-spacer/>
-            <v-btn icon="mdi-close" variant="text" size="small" @click="previewOpen=false"/>
+            <v-btn icon="mdi-close" variant="text" size="small" aria-label="Close reply preview" @click="previewOpen=false"/>
           </div>
-          <div class="pa-3 rounded-lg" style="background: #f0f2f5; min-height: 280px; display: flex; flex-direction: column; gap: 10px; padding: 16px;">
-            <div v-for="(item, idx) in items.filter(i => i.isEnabled)" :key="idx" class="d-flex flex-column align-start" style="max-width: 88%;">
+          <div class="chat-preview">
+            <div v-for="(item, idx) in items.filter(i => i.isEnabled)" :key="idx" class="chat-preview-item">
               <div class="text-caption text-disabled mb-1 font-weight-bold">Step {{ idx + 1 }} · {{ item.type }} (1-2s delay)</div>
-              <div v-if="item.type==='text'" class="pa-3 rounded-xl bg-white text-body-2" style="white-space: pre-wrap; word-break: break-word; color: #1c1e21; border-bottom-left-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.06); padding: 12px 16px; line-height: 1.45;">
+              <div v-if="item.type==='text'" class="chat-preview-bubble">
                 {{ item.content || '(empty message)' }}
               </div>
               <v-img v-else-if="item.type==='image'" :src="item.content" max-height="180" class="rounded-lg bg-white" contain/>
-              <video v-else-if="item.type==='video'" :src="item.content" controls playsinline preload="metadata" class="rounded-lg bg-black" style="max-height: 180px; width: 100%; border-radius: 8px;"/>
-              <audio v-else-if="item.type==='audio'" :src="item.content" controls class="audio-preview" style="width: 100%; border-radius: 8px;"/>
+              <video v-else-if="item.type==='video'" :src="item.content" controls playsinline preload="metadata" class="chat-preview-video"/>
+              <audio v-else-if="item.type==='audio'" :src="item.content" controls class="audio-preview"/>
               <div v-else class="pa-2 rounded bg-white text-caption text-medium-emphasis">
                 [{{ item.type }}: {{ item.content }}]
               </div>
@@ -426,8 +424,8 @@ async function saveChanges() {
 </template>
 
 <style scoped>
-.back-row{margin-bottom:10px}.page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:16px;padding:24px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}.page-head p,.sequence-head small,.toolbox>small{margin:0 0 6px;color:var(--color-primary);font-size: 12px;font-weight:800;letter-spacing:.13em}.page-head h2{margin:0 0 6px;font-size:24px}.page-head span,.sequence-head span{display:block;color:var(--color-text-secondary);font-size:12px}.name-panel{display:grid;grid-template-columns:minmax(260px,.7fr) minmax(320px,1.3fr);gap:14px;align-items:center;margin-bottom:16px;padding:16px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}.builder-layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start}.sequence,.toolbox{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}.sequence{overflow:hidden}.sequence-head{display:flex;justify-content:space-between;align-items:center;gap:18px;padding:18px 20px;border-bottom:1px solid var(--color-border)}.sequence-head>div{display:grid}.sequence-empty{min-height:280px;display:grid;place-items:center;align-content:center;text-align:center;color:var(--color-text-muted)}.sequence-empty h3{margin:13px 0 4px;color:var(--color-text)}.sequence-empty p{margin:0}.message-card{display:grid;grid-template-columns:46px 1fr;gap:10px;padding:18px;border-bottom:1px solid var(--color-border-subtle);transition:var(--transition-fast)}.message-card.disabled{background:var(--color-surface-soft);opacity:.62}.message-card:last-child{border-bottom:0}.order-controls{display:flex;flex-direction:column;align-items:center}.order-controls strong{width:28px;height:28px;display:grid;place-items:center;color:white;background:var(--color-primary);border-radius:50%;font-size:12px}.message-editor{display:grid;gap:12px;min-width:0}.message-title{display:flex;align-items:center;justify-content:space-between}.message-title>span{display:flex;align-items:center;gap:7px;text-transform:capitalize;font-weight:800}.message-actions{display:flex;align-items:center;gap:4px}.media-preview{width:100%;max-height:240px;border-radius:12px;background:var(--color-background)}video.media-preview{display:block;object-fit:contain}.audio-preview{width:100%}.upload-row{display:grid;grid-template-columns:auto minmax(240px,1fr);align-items:center;gap:12px}.upload-row>span{color:var(--color-text-muted);font-size: 12px}.toolbox{position:sticky;top:20px;padding:20px}.toolbox h3{margin:0 0 14px}.toolbox button{width:100%;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:11px;padding:12px;border:0;border-bottom:1px solid var(--color-border-subtle);color:var(--color-text);background:none;text-align:left;cursor:pointer}.toolbox button:hover{background:var(--color-primary-soft)}.toolbox button>span{width:37px;height:37px;display:grid;place-items:center;color:var(--color-primary);background:var(--color-primary-soft);border-radius:10px}.toolbox button>div{display:grid}.toolbox button small{color:var(--color-text-muted);font-size: 12px}.loading{min-height:400px;display:grid;place-items:center}.inline-action{border:0;color:var(--color-primary);background:none;font-weight:800;cursor:pointer}
-.voice-recorder-bar{display:flex;align-items:center;gap:10px}.recording-active-bar{background:#fee2e2;padding:6px 12px;border-radius:20px;border:1px solid #fca5a5}.recording-dot{width:10px;height:10px;background:#dc2626;border-radius:50%;animation:pulse-red 1s infinite}@keyframes pulse-red{0%{transform:scale(0.95);box-shadow:0 0 0 0 rgba(220,38,38,0.7)}70%{transform:scale(1.1);box-shadow:0 0 0 6px rgba(220,38,38,0)}100%{transform:scale(0.95);box-shadow:0 0 0 0 rgba(220,38,38,0)}}
+.back-row{margin-bottom:10px}.page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:16px;padding:24px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}.page-head p,.sequence-head small,.toolbox>small{margin:0 0 6px;color:var(--color-primary);font-size: 12px;font-weight:800;letter-spacing:.13em}.page-head h2{margin:0 0 6px;font-size:24px}.page-head span,.sequence-head span{display:block;color:var(--color-text-secondary);font-size:12px}.name-panel{display:grid;grid-template-columns:minmax(260px,.7fr) minmax(320px,1.3fr);gap:14px;align-items:center;margin-bottom:16px;padding:16px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}.builder-layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start}.sequence,.toolbox{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}.sequence{overflow:hidden}.sequence-head{display:flex;justify-content:space-between;align-items:center;gap:18px;padding:18px 20px;border-bottom:1px solid var(--color-border)}.sequence-head>div{display:grid}.sequence-empty{min-height:280px;display:grid;place-items:center;align-content:center;text-align:center;color:var(--color-text-muted)}.sequence-empty h3{margin:13px 0 4px;color:var(--color-text)}.sequence-empty p{margin:0}.message-card{display:grid;grid-template-columns:46px 1fr;gap:10px;padding:18px;border-bottom:1px solid var(--color-border-subtle);transition:var(--transition-fast)}.message-card.disabled{background:var(--color-surface-soft);opacity:.62}.message-card:last-child{border-bottom:0}.order-controls{display:flex;flex-direction:column;align-items:center}.order-controls strong{width:28px;height:28px;display:grid;place-items:center;color:white;background:var(--color-primary);border-radius:50%;font-size:12px}.message-editor{display:grid;gap:12px;min-width:0}.message-title{display:flex;align-items:center;justify-content:space-between}.message-title>span{display:flex;align-items:center;gap:7px;text-transform:capitalize;font-weight:800}.message-actions{display:flex;align-items:center;gap:4px}.media-preview{width:100%;max-height:240px;border-radius:12px;background:var(--color-background)}video.media-preview{display:block;object-fit:contain}.media-preview-video{border:1px solid var(--color-border);background:var(--color-text)}.audio-preview{width:100%;border-radius:8px}.chat-preview{min-height:280px;display:flex;flex-direction:column;gap:10px;padding:16px;background:var(--color-surface-soft);border:1px solid var(--color-border);border-radius:10px}.chat-preview-item{display:flex;flex-direction:column;align-items:flex-start;max-width:88%}.chat-preview-bubble{padding:12px 16px;white-space:pre-wrap;word-break:break-word;color:var(--color-text);background:var(--color-surface);border:1px solid var(--color-border);border-radius:12px 12px 12px 4px;line-height:1.45}.chat-preview-video{width:100%;max-height:180px;border-radius:8px;background:var(--color-text)}.upload-row{display:grid;grid-template-columns:auto minmax(240px,1fr);align-items:center;gap:12px}.upload-row>span{color:var(--color-text-muted);font-size: 12px}.toolbox{position:sticky;top:20px;padding:20px}.toolbox h3{margin:0 0 14px}.toolbox button{width:100%;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:11px;padding:12px;border:0;border-bottom:1px solid var(--color-border-subtle);color:var(--color-text);background:none;text-align:left;cursor:pointer}.toolbox button:hover{background:var(--color-primary-soft)}.toolbox button>span{width:37px;height:37px;display:grid;place-items:center;color:var(--color-primary);background:var(--color-primary-soft);border-radius:10px}.toolbox button>div{display:grid}.toolbox button small{color:var(--color-text-muted);font-size: 12px}.loading{min-height:400px;display:grid;place-items:center}.inline-action{border:0;color:var(--color-primary);background:none;font-weight:800;cursor:pointer}
+.voice-recorder-bar{display:flex;align-items:center;gap:10px}.recording-active-bar{background:var(--color-error-soft);padding:6px 12px;border-radius:20px;border:1px solid var(--color-error-border)}.recording-dot{width:10px;height:10px;background:var(--color-error);border-radius:50%;animation:pulse-red 1s infinite}@keyframes pulse-red{0%{transform:scale(0.95);box-shadow:0 0 0 0 rgba(220,38,38,0.7)}70%{transform:scale(1.1);box-shadow:0 0 0 6px rgba(220,38,38,0)}100%{transform:scale(0.95);box-shadow:0 0 0 0 rgba(220,38,38,0)}}
 @media(max-width:950px){.builder-layout{grid-template-columns:1fr}.toolbox{position:static;order:-1}.name-panel{grid-template-columns:1fr}}
 @media(max-width:640px){.page-head{display:grid;padding:20px}.page-head :deep(.v-btn){width:100%}.message-card{grid-template-columns:35px 1fr;padding:14px 10px}.upload-row{grid-template-columns:1fr}.sequence-head{align-items:flex-start}.sequence-head>span{max-width:130px;text-align:right}}
 </style>

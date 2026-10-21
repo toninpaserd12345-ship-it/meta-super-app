@@ -245,7 +245,7 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
       label="ຄົ້ນຫາເພຈຕາມຊື່ ຫຼື ID..."
       hide-details
       clearable
-      style="max-width: 360px; min-width: 220px;"
+      class="page-search"
     />
     <v-chip size="small" variant="tonal" color="primary">
       {{ visiblePages.length }} / {{ pages.length }} ເພຈ
@@ -290,7 +290,7 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
     <v-skeleton-loader v-if="pending" v-for="i in 3" :key="i" type="card"/>
     <article v-for="page in visiblePages" v-else :key="page.id" class="page-card">
       <div class="page-avatar">
-        <img v-if="pictureAvailable(page)" :src="pagePictureUrl(page)" :alt="`${page.name} profile picture`" referrerpolicy="no-referrer" @error="handlePictureError(page.id)" style="width: 100%; height: 100%; object-fit: cover;">
+        <img v-if="pictureAvailable(page)" :src="pagePictureUrl(page)" :alt="`${page.name} profile picture`" referrerpolicy="no-referrer" class="profile-image" @error="handlePictureError(page.id)">
         <v-icon v-else-if="page.category.toLowerCase().includes('whatsapp')" icon="mdi-whatsapp" color="success" size="28"/>
         <v-icon v-else icon="mdi-facebook" color="white" size="28"/>
       </div><div class="page-info"><h3>{{page.name}}</h3><p>{{page.category}}</p><p v-if="page.phoneNumber" class="page-phone"><v-icon icon="mdi-phone-outline" size="14"/>{{page.phoneNumber}}</p><small>{{page.category.toLowerCase().includes('whatsapp')?'Phone number ID':'Page ID'}} · {{page.id}}</small><div class="token-row"><v-chip class="token-chip" :color="page.tokenReady?'success':'warning'" variant="tonal" size="x-small" :prepend-icon="page.tokenReady?'mdi-key-check':'mdi-key-alert'">{{page.tokenReady?'Token ພ້ອມໃຊ້':'Token ບໍ່ພ້ອມ'}}</v-chip><v-chip v-if="page.tokenReady" class="token-chip" color="info" variant="tonal" size="x-small" prepend-icon="mdi-clock-outline">{{tokenExpiry(page)}}</v-chip></div></div>
@@ -326,7 +326,7 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
   </section>
 
   <v-dialog v-model="permissionsOpen" max-width="620">
-    <v-card class="picker-card"><v-card-title class="picker-head"><div><small>FACEBOOK PERMISSIONS</small><h2>Choose features</h2></div><v-btn icon="mdi-close" variant="text" @click="permissionsOpen=false"/></v-card-title><v-card-text class="permission-body">
+    <v-card class="picker-card"><v-card-title class="picker-head"><div><small>FACEBOOK PERMISSIONS</small><h2>Choose features</h2></div><v-btn icon="mdi-close" variant="text" aria-label="Close permission settings" @click="permissionsOpen=false"/></v-card-title><v-card-text class="permission-body">
       <v-alert type="info" variant="tonal" density="compact">ສິດໃນການເຂົ້າເຖິງເພຈ ແລະ ການຮັບສົ່ງຂໍ້ຄວາມ ແມ່ນຖືກລວມໄວ້ແລ້ວອັດຕະໂນມັດ. ໃຫ້ທ່ານເລືອກສະເພາະສິດເພີ່ມເຕີມທີ່ຕ້ອງການໃຊ້ງານເທົ່ານັ້ນ.</v-alert>
       <v-checkbox v-for="item in optionalPermissions" :key="item.value" v-model="selectedPermissions" :value="item.value" color="primary" hide-details><template #label><span class="permission-label"><strong>{{item.label}}</strong><small>{{item.description}}</small></span></template></v-checkbox>
       <p class="permission-note">Meta may require App Review and Advanced Access before these features work for public users.</p>
@@ -337,7 +337,7 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
     <v-card class="picker-card pc-wrapper">
       <div class="pc-header">
         <h3 class="pc-title">ເພີ່ມການເຊື່ອມຕໍ່</h3>
-        <v-btn icon="mdi-close" variant="text" size="small" :disabled="activating" @click="pickerOpen=false"/>
+        <v-btn icon="mdi-close" variant="text" size="small" aria-label="Close Page picker" :disabled="activating" @click="pickerOpen=false"/>
       </div>
       
       <div class="pc-body">
@@ -380,7 +380,7 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
             <div v-if="availablePages.length" class="pc-grid">
               <div v-for="page in availablePages" :key="page.id" class="pc-card" :class="{'selected':selected.includes(page.id)}" @click="selected.includes(page.id)?selected=selected.filter(id=>id!==page.id):selected.push(page.id)">
                 <div class="pc-card-avatar">
-                  <img v-if="pictureAvailable(page)" :src="pagePictureUrl(page)" :alt="`${page.name} profile picture`" referrerpolicy="no-referrer" @error="handlePictureError(page.id)" style="width: 100%; height: 100%; object-fit: cover;">
+                  <img v-if="pictureAvailable(page)" :src="pagePictureUrl(page)" :alt="`${page.name} profile picture`" referrerpolicy="no-referrer" class="profile-image" @error="handlePictureError(page.id)">
                   <v-icon v-else-if="page.category.toLowerCase().includes('whatsapp')" icon="mdi-whatsapp" color="success" size="32"></v-icon>
                   <v-icon v-else icon="mdi-facebook" color="white" size="32"></v-icon>
                 </div>
@@ -404,7 +404,7 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
               <v-icon size="18" class="mr-2">mdi-checkbox-multiple-marked-outline</v-icon>
               <span>ເລືອກທັງໝົດ / ບໍ່ເລືອກທັງໝົດ</span>
             </div>
-            <v-btn color="primary" prepend-icon="mdi-lightning-bolt" size="large" :disabled="!selected.length" :loading="activating" @click="activateSelected" class="text-none px-6" style="border-radius: 8px;">ເປີດໃຊ້ງານ</v-btn>
+            <v-btn color="primary" prepend-icon="mdi-lightning-bolt" size="large" :disabled="!selected.length" :loading="activating" class="text-none px-6" @click="activateSelected">ເປີດໃຊ້ງານ</v-btn>
           </div>
         </div>
       </div>
@@ -414,46 +414,46 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
 
 <style scoped>
 .intro{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:16px;padding:24px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}.intro-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}.intro p{margin:0 0 8px;color:var(--color-primary);font-size:var(--text-xs);font-weight:800;letter-spacing:.13em}.intro h2{margin:0 0 8px;font-size:var(--text-xl)}.intro span{color:var(--color-text-secondary);font-size:var(--text-md)}.connection-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}.connection-summary button{min-height:76px;display:flex;align-items:center;gap:13px;padding:14px 17px;border:1px solid var(--color-border);border-radius:var(--radius-lg);color:var(--color-text-secondary);background:var(--color-surface);text-align:left;cursor:pointer;transition:var(--transition-fast)}.connection-summary button:hover,.connection-summary button.active{color:var(--color-primary);border-color:color-mix(in srgb,var(--color-primary) 35%,var(--color-border));background:var(--color-primary-soft)}.connection-summary button>i{padding:10px;border-radius:11px;background:var(--color-background)}.connection-summary span{display:grid}.connection-summary small{font-size: 12px;font-weight:800;letter-spacing:.08em}.connection-summary strong{color:var(--color-text);font-size:20px}.page-grid{display:grid;gap:12px}.page-card{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:16px;padding:20px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}.page-avatar{width:52px;height:52px;display:grid;place-items:center;overflow:hidden;color:var(--color-surface);background:var(--color-primary);border-radius:16px}.page-info h3{margin:0;font-size:15px}.page-info p{margin:3px 0;color:var(--color-text-secondary);font-size:12px}.page-info .page-phone{display:flex;align-items:center;gap:5px;color:var(--color-success);font-weight:700}.page-info small{color:var(--color-text-muted);font-size: 12px}.token-row{display:flex;gap:6px;flex-wrap:wrap}.token-chip{display:flex!important;width:max-content;margin-top:7px}.page-toggle{min-width:196px;display:flex;align-items:center;justify-content:flex-end;gap:12px;padding:8px 10px 8px 14px;color:var(--color-success);background:var(--color-success-soft);border-radius:13px}.page-toggle>span{display:grid}.page-toggle strong{font-size: 12px}.page-toggle small{color:var(--color-text-secondary);font-size: 12px}.relation-summary{grid-column:1/-1;border-top:1px solid var(--color-border-subtle)}.relation-summary>button{width:100%;display:flex;align-items:center;gap:18px;padding:14px 0 0;border:0;color:var(--color-text-secondary);background:none;cursor:pointer}.relation-summary>button span{display:flex;align-items:center;gap:6px;font-size: 12px;font-weight:700}.relation-summary>button>i:last-child{margin-left:auto}.relation-details{padding-top:13px}.relation-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.relation-list a{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:12px;color:var(--color-text);background:var(--color-background);border:1px solid var(--color-border);border-radius:12px;text-decoration:none}.relation-list a>div{display:grid;gap:3px;min-width:0}.relation-list strong,.relation-list small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.relation-list strong{font-size:12px}.relation-list small{color:var(--color-text-secondary);font-size: 12px}.relation-state{width:8px;height:8px;background:var(--color-text-muted);border-radius:50%}.relation-state.active{background:var(--color-success)}.relation-empty{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;color:var(--color-text-secondary);background:var(--color-background);border-radius:12px;font-size:12px}.permission-body{display:grid;gap:8px;padding:22px 24px}.permission-label{display:grid;margin-left:6px}.permission-label small,.permission-note{color:var(--color-text-muted);font-size: 12px}.permission-note{margin:8px 0 0}
-.whatsapp-setup{display:grid;grid-template-columns:auto 1fr;gap:18px;margin-bottom:16px;padding:24px;background:linear-gradient(135deg,color-mix(in srgb,var(--color-success) 8%,var(--color-surface)),var(--color-surface) 62%);border:1px solid color-mix(in srgb,var(--color-success) 24%,var(--color-border));border-radius:var(--radius-lg)}.whatsapp-setup-icon{width:58px;height:58px;display:grid;place-items:center;color:var(--color-success);background:var(--color-surface);border:1px solid color-mix(in srgb,var(--color-success) 22%,var(--color-border));border-radius:18px}.whatsapp-setup-copy>small{color:var(--color-success);font-size: 12px;font-weight:800;letter-spacing:.13em}.whatsapp-setup-copy h3{margin:4px 0 5px;font-size:19px}.whatsapp-setup-copy>p{max-width:720px;margin:0;color:var(--color-text-secondary);font-size:13px}.setup-steps{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0;padding:0;list-style:none}.setup-steps li{display:flex;align-items:center;gap:7px;padding:8px 11px;color:var(--color-text-secondary);font-size: 12px;font-weight:700;background:var(--color-surface);border:1px solid var(--color-border);border-radius:999px}.setup-steps span{width:20px;height:20px;display:grid;place-items:center;color:white;background:var(--color-success);border-radius:50%;font-size: 12px}.setup-actions{display:flex;align-items:center;gap:5px;flex-wrap:wrap}.signup-wait-hint{max-width:780px;margin-top:12px}.signup-wait-hint code{overflow-wrap:anywhere}.diagnostic-details{margin-top:14px;padding:14px;color:var(--color-text-secondary);background:var(--color-background);border:1px solid var(--color-border);border-radius:12px}.diagnostic-counts{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:9px}.diagnostic-counts span{padding:6px 9px;background:var(--color-surface);border-radius:8px;font-size: 12px}.diagnostic-details p{margin:6px 0;font-size: 12px}.diagnostic-details ul{max-height:130px;margin:8px 0 0;padding-left:18px;overflow:auto}.diagnostic-details li{margin:4px 0;font-size: 12px;word-break:break-word}
+.whatsapp-setup{display:grid;grid-template-columns:auto 1fr;gap:18px;margin-bottom:16px;padding:24px;background:var(--color-surface);border:1px solid color-mix(in srgb,var(--color-success) 24%,var(--color-border));border-radius:var(--radius-lg)}.whatsapp-setup-icon{width:58px;height:58px;display:grid;place-items:center;color:var(--color-success);background:var(--color-surface);border:1px solid color-mix(in srgb,var(--color-success) 22%,var(--color-border));border-radius:18px}.whatsapp-setup-copy>small{color:var(--color-success);font-size: 12px;font-weight:800;letter-spacing:.13em}.whatsapp-setup-copy h3{margin:4px 0 5px;font-size:19px}.whatsapp-setup-copy>p{max-width:720px;margin:0;color:var(--color-text-secondary);font-size:13px}.setup-steps{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0;padding:0;list-style:none}.setup-steps li{display:flex;align-items:center;gap:7px;padding:8px 11px;color:var(--color-text-secondary);font-size: 12px;font-weight:700;background:var(--color-surface);border:1px solid var(--color-border);border-radius:999px}.setup-steps span{width:20px;height:20px;display:grid;place-items:center;color:white;background:var(--color-success);border-radius:50%;font-size: 12px}.setup-actions{display:flex;align-items:center;gap:5px;flex-wrap:wrap}.signup-wait-hint{max-width:780px;margin-top:12px}.signup-wait-hint code{overflow-wrap:anywhere}.diagnostic-details{margin-top:14px;padding:14px;color:var(--color-text-secondary);background:var(--color-background);border:1px solid var(--color-border);border-radius:12px}.diagnostic-counts{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:9px}.diagnostic-counts span{padding:6px 9px;background:var(--color-surface);border-radius:8px;font-size: 12px}.diagnostic-details p{margin:6px 0;font-size: 12px}.diagnostic-details ul{max-height:130px;margin:8px 0 0;padding-left:18px;overflow:auto}.diagnostic-details li{margin:4px 0;font-size: 12px;word-break:break-word}
 @media(max-width:640px){.intro{display:grid;padding:16px}.intro-actions{display:grid;grid-template-columns:1fr;width:100%}.intro-actions :deep(.v-chip){width:max-content}.connection-summary{grid-template-columns:repeat(2,1fr);gap:8px}.connection-summary button{min-height:64px;justify-content:center;padding:10px 8px}.connection-summary button>i{display:none}.connection-summary small{font-size: 12px;font-weight:750;letter-spacing:.04em}.connection-summary strong{font-size:19px}.whatsapp-setup{grid-template-columns:1fr;padding:16px}.whatsapp-setup-icon{width:44px;height:44px}.setup-steps{display:grid}.setup-actions{display:grid}.setup-actions :deep(.v-btn){width:100%}.page-card{grid-template-columns:auto 1fr;padding:14px;gap:12px}.page-action{grid-column:1/-1}.page-action :deep(.v-btn),.page-toggle{width:100%}.page-toggle{justify-content:space-between;min-width:0}.token-row{gap:4px}.token-chip{font-size: 12px!important}.relation-summary>button{gap:9px;flex-wrap:wrap}.relation-list{grid-template-columns:1fr}.relation-empty{align-items:flex-start;flex-direction:column}}
 .picker-card{border-radius:var(--radius-lg)!important}.picker-head{display:flex;align-items:center;justify-content:space-between;padding:22px 24px;border-bottom:1px solid var(--color-border)}.picker-head small{color:var(--color-primary);font-size: 12px;font-weight:800;letter-spacing:.14em}.picker-head h2{margin:2px 0 0;font-size:20px}.picker-body{padding:22px 24px!important}.picker-toolbar{display:grid;grid-template-columns:1fr minmax(240px,320px);align-items:center;gap:20px;margin-bottom:18px}.picker-toolbar div{display:grid;gap:3px}.picker-toolbar span{color:var(--color-text-muted);font-size:12px}.picker-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.picker-page{display:grid;grid-template-columns:auto auto 1fr;align-items:center;gap:12px;padding:14px;border:1px solid var(--color-border);border-radius:14px;cursor:pointer;transition:.18s ease}.picker-page:hover,.picker-page.is-selected{border-color:var(--color-primary);background:var(--color-primary-soft)}.picker-page>span{display:grid;min-width:0}.picker-page strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.picker-page small{overflow:hidden;color:var(--color-text-muted);font-size: 12px;text-overflow:ellipsis;white-space:nowrap}.picker-actions{padding:16px 24px;border-top:1px solid var(--color-border)}
 @media(max-width:700px){.picker-toolbar,.picker-grid{grid-template-columns:1fr}.picker-head,.picker-actions{padding-inline:16px}}
 
-.pc-wrapper { display:flex; flex-direction:column; background:#ffffff!important; border-radius:12px!important; overflow:hidden; }
-.pc-header { display:flex; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid #ebedf0; }
-.pc-title { margin:0; font-size:16px; font-weight:600; color:#1a1a1a; }
+.pc-wrapper { display:flex; flex-direction:column; background:var(--color-surface)!important; border-radius:12px!important; overflow:hidden; }
+.pc-header { display:flex; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid var(--color-border); }
+.pc-title { margin:0; font-size:16px; font-weight:600; color:var(--color-text); }
 .pc-body { display:flex; min-height:500px; max-height:75vh; }
 .pc-sidebar { display:none; }
 .pc-nav-item { display:flex; align-items:center; gap:12px; padding:10px 14px; border-radius:8px; cursor:pointer; font-size:14px; color:#4a4a4a; font-weight:500; transition:background 0.2s; margin-bottom:4px; }
 .pc-nav-item:hover { background:#eff1f4; }
-.pc-nav-item.active { background:#ffffff; color:#1a1a1a; box-shadow:0 1px 3px rgba(0,0,0,0.05); }
+.pc-nav-item.active { background:var(--color-surface); color:var(--color-text); box-shadow:0 1px 3px rgba(0,0,0,0.05); }
 .pc-badge-beta { font-size: 12px; background:#ffecb3; color:#f57c00; padding:2px 6px; border-radius:4px; margin-left:auto; font-weight:bold; }
-.pc-main { flex:1; display:flex; flex-direction:column; background:#ffffff; }
+.pc-main { flex:1; display:flex; flex-direction:column; background:var(--color-surface); }
 .pc-main-head { display:flex; align-items:center; justify-content:space-between; padding:16px 24px 8px; }
-.pc-main-title { font-size:14px; font-weight:600; color:#1a1a1a; }
-.pc-search-box { display:flex; align-items:center; background:#f2f3f5; border-radius:8px; padding:6px 12px; gap:8px; width:220px; }
+.pc-main-title { font-size:14px; font-weight:600; color:var(--color-text); }
+.pc-search-box { display:flex; align-items:center; background:var(--color-surface-soft); border-radius:8px; padding:6px 12px; gap:8px; width:220px; }
 .pc-search-box input { border:none; background:transparent; outline:none; font-size:13px; flex:1; width:100%; }
 .pc-tabs-container { display:none; }
 .pc-tabs { display:flex; gap:24px; }
 .pc-tab { padding:12px 0; font-size:14px; font-weight:500; color:#77798b; cursor:pointer; position:relative; display:flex; align-items:center; gap:6px; }
-.pc-tab.active { color:#1877f2; }
-.pc-tab.active::after { content:''; position:absolute; bottom:-1px; left:0; right:0; height:2px; background:#1877f2; border-radius:2px 2px 0 0; }
+.pc-tab.active { color:var(--color-facebook); }
+.pc-tab.active::after { content:''; position:absolute; bottom:-1px; left:0; right:0; height:2px; background:var(--color-facebook); border-radius:2px 2px 0 0; }
 .pc-tab-badge { background:#ff4d4f; color:white; font-size: 12px; padding:0 6px; border-radius:10px; font-weight:bold; line-height:16px; }
 .pc-conn-code { display:flex; align-items:center; gap:4px; }
 .pc-content { flex:1; padding:20px 24px; overflow-y:auto; background:#fbfcfd; }
 .pc-grid { display:grid; grid-template-columns:repeat(2, 1fr); gap:16px; }
-.pc-card { display:flex; align-items:center; padding:14px; background:#ffffff; border:1px solid #ebedf0; border-radius:8px; cursor:pointer; transition:all 0.2s; position:relative; }
-.pc-card:hover { border-color:#d0d5dc; box-shadow:0 2px 8px rgba(0,0,0,0.04); }
-.pc-card.selected { border-color:#1877f2; }
-.pc-card-avatar { width:44px; height:44px; border-radius:50%; overflow:hidden; background:#f0f2f5; display:flex; align-items:center; justify-content:center; margin-right:12px; flex-shrink:0; border:1px solid #0000001a; }
+.page-search{width:min(100%,360px);min-width:220px}.profile-image{width:100%;height:100%;object-fit:cover}.pc-card { display:flex; align-items:center; padding:14px; background:var(--color-surface); border:1px solid var(--color-border); border-radius:8px; cursor:pointer; transition:border-color var(--transition-fast),background-color var(--transition-fast); position:relative; }
+.pc-card:hover { border-color:var(--color-border-strong); box-shadow:0 2px 8px rgba(0,0,0,0.04); }
+.pc-card.selected { border-color:var(--color-facebook); }
+.pc-card-avatar { width:44px; height:44px; border-radius:50%; overflow:hidden; background:var(--color-surface-soft); display:flex; align-items:center; justify-content:center; margin-right:12px; flex-shrink:0; border:1px solid color-mix(in srgb,var(--color-text) 10%,transparent); }
 .pc-card-info { flex:1; min-width:0; }
-.pc-card-name { font-size:14px; font-weight:600; color:#1a1a1a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:2px; }
-.pc-card-sub { display:flex; align-items:center; gap:4px; font-size:12px; color:#65676b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pc-card-name { font-size:14px; font-weight:600; color:var(--color-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:2px; }
+.pc-card-sub { display:flex; align-items:center; gap:4px; font-size:12px; color:var(--color-text-secondary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .pc-card-check { position:absolute; right:12px; pointer-events:none; }
 .pc-empty { display:flex; align-items:center; justify-content:center; height:100%; }
-.pc-footer { padding:16px 24px; display:flex; align-items:center; justify-content:space-between; border-top:1px solid #ebedf0; background:#ffffff; }
-.pc-footer-left { display:flex; align-items:center; font-size:13px; color:#65676b; cursor:pointer; user-select:none; }
-.pc-hotkey { display:flex; align-items:center; gap:2px; background:#f2f3f5; border:1px solid #d0d5dc; padding:2px 6px; border-radius:4px; font-size: 12px; margin-left:8px; font-weight:600; color:#1a1a1a; }
+.pc-footer { padding:16px 24px; display:flex; align-items:center; justify-content:space-between; border-top:1px solid var(--color-border); background:var(--color-surface); }
+.pc-footer-left { display:flex; align-items:center; font-size:13px; color:var(--color-text-secondary); cursor:pointer; user-select:none; }
+.pc-hotkey { display:flex; align-items:center; gap:2px; background:var(--color-surface-soft); border:1px solid var(--color-border-strong); padding:2px 6px; border-radius:4px; font-size: 12px; margin-left:8px; font-weight:600; color:var(--color-text); }
 .pc-channel-note { margin:12px; padding:12px; color:var(--color-text-secondary); background:var(--color-surface); border:1px solid var(--color-border); border-radius:10px; font-size:12px; line-height:1.55; }
 
 @media (max-width: 640px) {

@@ -18,9 +18,6 @@ async function changeAccount(event: Event) {
       </button>
 
       <div class="workspace-crumb">
-        <span class="crumb-icon">
-          <v-icon icon="mdi-storefront-outline" size="16" color="primary" />
-        </span>
         <div class="crumb-text">
           <span class="account-name">{{ activeAccount?.name || 'Meta Super App' }}</span>
           <span v-if="membership?.role" class="role-pill">{{ membership.role }}</span>
@@ -33,7 +30,6 @@ async function changeAccount(event: Event) {
       <NuxtLink to="/live-chat" class="header-quick-action chat-btn" :title="l({lo:'ເປີດ Live Chat',th:'เปิด Live Chat',en:'Live Chat'})">
         <v-icon icon="mdi-chat-processing-outline" size="16"/>
         <span>Live Chat</span>
-        <span class="live-dot"/>
       </NuxtLink>
       <NuxtLink to="/replies" class="header-quick-action reply-btn" :title="l({lo:'ຊຸດຂໍ້ຄວາມດ່ວນ',th:'ชุดข้อความด่วน',en:'Quick Replies'})">
         <v-icon icon="mdi-lightning-bolt-outline" size="15"/>
@@ -62,13 +58,13 @@ async function changeAccount(event: Event) {
 
 <style scoped>
 .app-header {
-  min-height: 52px;
+  min-height: 58px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 16px;
   margin-bottom: 20px;
-  padding: 6px 0;
+  padding: 8px 0;
   border-bottom: 1px solid var(--color-border);
 }
 
@@ -96,14 +92,6 @@ async function changeAccount(event: Event) {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-.crumb-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  display: grid;
-  place-items: center;
-  background: var(--color-primary-soft);
 }
 .crumb-text {
   display: flex;
@@ -147,20 +135,13 @@ async function changeAccount(event: Event) {
   transition: all var(--transition-fast);
 }
 .header-quick-action.chat-btn {
-  background: var(--color-primary-soft);
-  color: var(--color-primary);
-  border-color: color-mix(in srgb, var(--color-primary) 24%, transparent);
+  background: var(--color-surface);
+  color: var(--color-text);
+  border-color: var(--color-border);
 }
 .header-quick-action.chat-btn:hover {
-  background: var(--color-primary);
-  color: #fff;
-}
-.live-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #10b981;
-  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.3);
+  border-color:var(--color-primary);
+  color:var(--color-primary);
 }
 
 .header-quick-action.reply-btn {
@@ -201,14 +182,14 @@ async function changeAccount(event: Event) {
 .avatar {
   width: 34px;
   height: 34px;
-  border-radius: 9px;
+  border-radius: 8px;
   display: grid;
   place-items: center;
-  color: #fff;
+  color: var(--color-surface);
   background: var(--color-primary-deep);
   font-size: 12px;
   font-weight: 800;
-  box-shadow: var(--shadow-xs);
+  box-shadow: none;
 }
 
 .locale-switch {

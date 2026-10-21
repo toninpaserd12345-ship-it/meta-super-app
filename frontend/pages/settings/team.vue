@@ -252,11 +252,11 @@ onMounted(() => {
   font-weight: 600;
   text-transform: capitalize;
 }
-.badge.admin { background: #fee2e2; color: #991b1b; }
+.badge.admin { background: var(--color-error-soft); color: var(--color-error); }
 .badge.manager { background: #e0e7ff; color: #3730a3; }
-.badge.employee { background: #dcfce7; color: #166534; }
+.badge.employee { background: var(--color-success-soft); color: var(--color-success); }
 
-.text-danger { color: #ef4444; }
+.text-danger { color: var(--color-error); }
 .role-select{min-height:40px;padding:6px 10px;border:1px solid var(--color-border);border-radius:9px;color:var(--color-text);background:var(--color-surface)}
 .inline-action{margin-left:8px;border:0;color:var(--color-primary);background:none;font-weight:700;cursor:pointer}
 

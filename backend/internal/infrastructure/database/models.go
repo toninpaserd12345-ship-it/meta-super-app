@@ -71,27 +71,27 @@ type ReplyItemModel struct {
 }
 
 type ProductModel struct {
-	ID          string       `gorm:"type:uuid;primaryKey"`
-	AccountID   string       `gorm:"type:uuid;index;not null"`
-	Account     AccountModel `gorm:"foreignKey:AccountID;constraint:OnDelete:CASCADE"`
-	Code        string       `gorm:"size:50;index"`
-	Name        string       `gorm:"size:120;not null"`
-	Price       string       `gorm:"size:60;not null"`
-	SalePrice   *float64     `gorm:"type:decimal(18,2)"`
-	Cost        *float64     `gorm:"type:decimal(18,2)"`
-	Quantity    *int64
-	Currency    string `gorm:"size:8"`
-	Description string `gorm:"size:1000" json:"description"`
-	ImageUrl    string `gorm:"size:1000" json:"imageUrl"`
-	Barcode     string `gorm:"size:100;index" json:"barcode"`
-	Category    string `gorm:"size:100;index" json:"category"`
-	Unit        string `gorm:"size:30" json:"unit"`
-	Weight      *float64 `gorm:"type:decimal(10,2)" json:"weight"`
-	GalleryURLs string `gorm:"type:text" json:"galleryUrls"`
-	MinStock    *int64 `json:"minStock"`
-	Status      string `gorm:"size:30;default:'active'" json:"status"`
-	Colors      string `gorm:"size:255" json:"colors"`
-	Sizes       string `gorm:"size:255" json:"sizes"`
+	ID                string       `gorm:"type:uuid;primaryKey"`
+	AccountID         string       `gorm:"type:uuid;index;not null"`
+	Account           AccountModel `gorm:"foreignKey:AccountID;constraint:OnDelete:CASCADE"`
+	Code              string       `gorm:"size:50;index"`
+	Name              string       `gorm:"size:120;not null"`
+	Price             string       `gorm:"size:60;not null"`
+	SalePrice         *float64     `gorm:"type:decimal(18,2)"`
+	Cost              *float64     `gorm:"type:decimal(18,2)"`
+	Quantity          *int64
+	Currency          string    `gorm:"size:8"`
+	Description       string    `gorm:"size:1000" json:"description"`
+	ImageUrl          string    `gorm:"size:1000" json:"imageUrl"`
+	Barcode           string    `gorm:"size:100;index" json:"barcode"`
+	Category          string    `gorm:"size:100;index" json:"category"`
+	Unit              string    `gorm:"size:30" json:"unit"`
+	Weight            *float64  `gorm:"type:decimal(10,2)" json:"weight"`
+	GalleryURLs       string    `gorm:"type:text" json:"galleryUrls"`
+	MinStock          *int64    `json:"minStock"`
+	Status            string    `gorm:"size:30;default:'active'" json:"status"`
+	Colors            string    `gorm:"size:255" json:"colors"`
+	Sizes             string    `gorm:"size:255" json:"sizes"`
 	Variants          string    `gorm:"type:text" json:"variants"`
 	PackagingCost     float64   `gorm:"type:decimal(18,2);default:0" json:"packagingCost"`
 	ShippingCostStore float64   `gorm:"type:decimal(18,2);default:0" json:"shippingCostStore"`
@@ -224,6 +224,19 @@ type LeadSettingsModel struct {
 	UpdatedAt       time.Time
 }
 
+// NotificationPreferenceModel stores one user's delivery preference for a
+// notification type inside a workspace. Keeping the workspace and user in the
+// unique key prevents settings from leaking between stores or teammates.
+type NotificationPreferenceModel struct {
+	ID        string    `gorm:"type:uuid;primaryKey" json:"id"`
+	AccountID string    `gorm:"type:uuid;not null;uniqueIndex:idx_notification_preference" json:"accountId"`
+	UserID    string    `gorm:"type:uuid;not null;uniqueIndex:idx_notification_preference" json:"userId"`
+	Type      string    `gorm:"size:50;not null;uniqueIndex:idx_notification_preference" json:"type"`
+	Frequency string    `gorm:"size:20;not null" json:"frequency"`
+	Enabled   bool      `gorm:"not null;default:true" json:"enabled"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
 type LeadFollowUpStepModel struct {
 	ID           string `gorm:"type:uuid;primaryKey" json:"id"`
 	AccountID    string `gorm:"type:uuid;not null;index" json:"accountId"`
@@ -299,7 +312,7 @@ type OrderModel struct {
 	CODAmount          float64          `gorm:"type:decimal(18,2);default:0" json:"codAmount"`
 	CODTransferStatus  string           `gorm:"size:30;default:'pending'" json:"codTransferStatus"` // pending, transferred
 	Currency           string           `gorm:"size:10;default:'LAK'" json:"currency"`
-	PaymentStatus      string           `gorm:"size:30;default:'unpaid'" json:"paymentStatus"`       // unpaid, paid, refunded
+	PaymentStatus      string           `gorm:"size:30;default:'unpaid'" json:"paymentStatus"`      // unpaid, paid, refunded
 	PaymentMethod      string           `gorm:"size:50" json:"paymentMethod"`                       // transfer, cod, cash
 	FulfillmentStatus  string           `gorm:"size:30;default:'pending'" json:"fulfillmentStatus"` // pending, confirmed, shipping, delivered, cancelled
 	DeliveryCourier    string           `gorm:"size:100" json:"deliveryCourier"`                    // Anousith, HAL, Houngaloun, Flash, Kerry, etc.

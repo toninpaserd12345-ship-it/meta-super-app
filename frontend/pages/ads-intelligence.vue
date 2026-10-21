@@ -144,14 +144,14 @@ const productOptions = computed(() => {
 
   for (const [pId, pData] of Object.entries(countsByProduct)) {
     list.push({
-      title: `📦 ${pData.name} (${pData.count} ແອດ)`,
+      title: ` ${pData.name} (${pData.count} ແອດ)`,
       value: pId,
     })
   }
 
   if (unlinkedCount > 0) {
     list.push({
-      title: l({ lo: `⚠️ ແອດທີ່ຍັງບໍ່ຜູກສິນຄ້າ (${unlinkedCount})`, th: `⚠️ แอดที่ยังไม่ผูกสินค้า (${unlinkedCount})`, en: `⚠️ Unlinked Ads (${unlinkedCount})` }),
+      title: l({ lo: ` ແອດທີ່ຍັງບໍ່ຜູກສິນຄ້າ (${unlinkedCount})`, th: ` แอดที่ยังไม่ผูกสินค้า (${unlinkedCount})`, en: ` Unlinked Ads (${unlinkedCount})` }),
       value: 'unlinked',
     })
   }
@@ -583,10 +583,10 @@ onMounted(async () => {
           </v-chip>
         </div>
         <div class="strategy-metrics-pills">
-          <span class="pill">🎯 ເປົ້າກຳໄລ: <b>{{ money(strategy?.targetProfitPerOrder) }}</b>/ອໍເດີ</span>
-          <span class="pill">📦 ຄ່າແພັກ+ສົ່ງ: <b>{{ money((strategy?.avgPackagingCost || 0) + (strategy?.avgShippingCostStore || 0)) }}</b></span>
-          <span class="pill">🚚 ຕີກັບ COD: <b>{{ strategy?.codReturnRatePercent }}%</b></span>
-          <span class="pill">🛑 ງົບລອງແອດ: <b>{{ money(strategy?.maxTestLossBudget) }}</b></span>
+          <span class="pill"> ເປົ້າກຳໄລ: <b>{{ money(strategy?.targetProfitPerOrder) }}</b>/ອໍເດີ</span>
+          <span class="pill"> ຄ່າແພັກ+ສົ່ງ: <b>{{ money((strategy?.avgPackagingCost || 0) + (strategy?.avgShippingCostStore || 0)) }}</b></span>
+          <span class="pill"> ຕີກັບ COD: <b>{{ strategy?.codReturnRatePercent }}%</b></span>
+          <span class="pill"> ງົບລອງແອດ: <b>{{ money(strategy?.maxTestLossBudget) }}</b></span>
           <v-btn size="x-small" variant="text" prepend-icon="mdi-pencil" color="primary" @click="strategyModalOpen = true">ປັບເກນ</v-btn>
         </div>
       </div>
@@ -603,7 +603,7 @@ onMounted(async () => {
           </div>
         </div>
         <v-chip color="info" size="small" variant="tonal">
-          📅 ວັນກວດຄືນຮອບຖັດໄປ: {{ report.actionPlan.nextReviewDate }}
+           ວັນກວດຄືນຮອບຖັດໄປ: {{ report.actionPlan.nextReviewDate }}
         </v-chip>
       </div>
       <div class="action-plan-grid">
@@ -627,7 +627,7 @@ onMounted(async () => {
 
     <!-- Zone 1: Financials & Cash Flow Metrics -->
     <div class="text-caption font-weight-bold text-uppercase text-medium-emphasis mb-2">
-      💰 {{ l({ lo: 'ການເງິນ & ກະແສເງິນສົດ (Financials & Cash Flow)', th: 'การเงิน & กระแสเงินสด', en: 'Financials & Cash Flow' }) }}
+       {{ l({ lo: 'ການເງິນ & ກະແສເງິນສົດ (Financials & Cash Flow)', th: 'การเงิน & กระแสเงินสด', en: 'Financials & Cash Flow' }) }}
     </div>
     <section class="app-kpi-grid mb-4" aria-label="Financials summary">
       <!-- Total Spend with Gross + VAT -->
@@ -672,7 +672,7 @@ onMounted(async () => {
       <!-- Prepaid Track -->
       <article class="app-kpi-card accent-info">
         <div class="kpi-header">
-          <span class="kpi-label">💳 {{ l({ lo: 'ໂອນກ່ອນ (Prepaid)', th: 'โอนก่อน', en: 'Prepaid Cash' }) }}</span>
+          <span class="kpi-label"> {{ l({ lo: 'ໂອນກ່ອນ (Prepaid)', th: 'โอนก่อน', en: 'Prepaid Cash' }) }}</span>
           <span class="kpi-icon"><v-icon icon="mdi-credit-card-check-outline" size="16" /></span>
         </div>
         <strong class="kpi-value">{{ money(summary?.totalPrepaidRevenue) }}</strong>
@@ -684,7 +684,7 @@ onMounted(async () => {
       <!-- COD Delivered Track -->
       <article class="app-kpi-card accent-success">
         <div class="kpi-header">
-          <span class="kpi-label">🚚 {{ l({ lo: 'COD ສົ່ງສຳເລັດ (Delivered)', th: 'COD ส่งสำเร็จ', en: 'COD Delivered' }) }}</span>
+          <span class="kpi-label"> {{ l({ lo: 'COD ສົ່ງສຳເລັດ (Delivered)', th: 'COD ส่งสำเร็จ', en: 'COD Delivered' }) }}</span>
           <span class="kpi-icon"><v-icon icon="mdi-truck-check-outline" size="16" /></span>
         </div>
         <strong class="kpi-value">{{ money(summary?.totalCODDeliveredRev) }}</strong>
@@ -696,7 +696,7 @@ onMounted(async () => {
 
     <!-- Zone 2: Operations, Orders & Risk Control -->
     <div class="text-caption font-weight-bold text-uppercase text-medium-emphasis mb-2">
-      🎯 {{ l({ lo: 'ປະສິດທິພາບແອດ & ຄວບຄຸມຄວາມສ່ຽງ (Operations & Risk Control)', th: 'ประสิทธิภาพแอด & ควบคุมความเสี่ยง', en: 'Operations & Risk Control' }) }}
+       {{ l({ lo: 'ປະສິດທິພາບແອດ & ຄວບຄຸມຄວາມສ່ຽງ (Operations & Risk Control)', th: 'ประสิทธิภาพแอด & ควบคุมความเสี่ยง', en: 'Operations & Risk Control' }) }}
     </div>
     <section class="app-kpi-grid mb-6" aria-label="Operations summary">
       <!-- Completed Orders -->
@@ -726,7 +726,7 @@ onMounted(async () => {
       <!-- COD Pending in Transit -->
       <article class="app-kpi-card accent-warning">
         <div class="kpi-header">
-          <span class="kpi-label">⏳ {{ l({ lo: 'COD ກຳລັງສົ່ງ (Pending)', th: 'COD กำลังส่ง', en: 'COD In Transit' }) }}</span>
+          <span class="kpi-label"> {{ l({ lo: 'COD ກຳລັງສົ່ງ (Pending)', th: 'COD กำลังส่ง', en: 'COD In Transit' }) }}</span>
           <span class="kpi-icon"><v-icon icon="mdi-timer-sand" size="16" /></span>
         </div>
         <strong class="kpi-value">{{ money(summary?.totalCODPendingRev) }}</strong>
@@ -738,7 +738,7 @@ onMounted(async () => {
       <!-- COD Returned -->
       <article class="app-kpi-card accent-error">
         <div class="kpi-header">
-          <span class="kpi-label">↩️ {{ l({ lo: 'COD ຕີກັບ (Returned)', th: 'COD ตีกลับ', en: 'COD Returned' }) }}</span>
+          <span class="kpi-label"> {{ l({ lo: 'COD ຕີກັບ (Returned)', th: 'COD ตีกลับ', en: 'COD Returned' }) }}</span>
           <span class="kpi-icon"><v-icon icon="mdi-keyboard-return" size="16" /></span>
         </div>
         <strong class="kpi-value">{{ fmt(summary?.totalCODReturned) }} ອໍເດີ</strong>
@@ -759,11 +759,11 @@ onMounted(async () => {
           <v-select
             v-model="sortBy"
             :items="[
-              { title: '⚡ ຄ່າແອດສູງສຸດ (Spend)', value: 'spend' },
-              { title: '🎯 Real CPA ຕ່ຳສຸດ (ດີສຸດ)', value: 'cpa' },
-              { title: '💰 ກຳໄລສຸດທິສູງສຸດ', value: 'profit' },
-              { title: '📦 ຈຳນວນອໍເດີສູງສຸດ', value: 'orders' },
-              { title: '🔤 ຊື່ (A-Z)', value: 'name' }
+              { title: ' ຄ່າແອດສູງສຸດ (Spend)', value: 'spend' },
+              { title: ' Real CPA ຕ່ຳສຸດ (ດີສຸດ)', value: 'cpa' },
+              { title: ' ກຳໄລສຸດທິສູງສຸດ', value: 'profit' },
+              { title: ' ຈຳນວນອໍເດີສູງສຸດ', value: 'orders' },
+              { title: ' ຊື່ (A-Z)', value: 'name' }
             ]"
             item-title="title"
             item-value="value"
@@ -847,7 +847,7 @@ onMounted(async () => {
                 </div>
                 <div v-else class="d-flex align-center gap-1 mt-1">
                   <v-chip size="x-small" color="grey" variant="text" class="text-caption">
-                    {{ l({ lo: '⚠️ ຍັງບໍ່ຜູກ Auto Reply', th: '⚠️ ยังไม่ผูก Auto Reply', en: '⚠️ Unlinked' }) }}
+                    {{ l({ lo: ' ຍັງບໍ່ຜູກ Auto Reply', th: ' ยังไม่ผูก Auto Reply', en: ' Unlinked' }) }}
                   </v-chip>
                   <NuxtLink to="/auto-replies" class="text-caption text-primary text-decoration-none font-weight-medium" @click.stop>
                     + ຜູກແອດນີ້
@@ -872,7 +872,7 @@ onMounted(async () => {
 
             <!-- Col 3: Chats & Closing Rate -->
             <div class="col col-chats">
-              <span class="col-kpi-label">💬 ແຊັດ & ປິດຂາຍ</span>
+              <span class="col-kpi-label"> ແຊັດ & ປິດຂາຍ</span>
               <div>
                 <strong>{{ fmt(item.reportedResults) }} <small class="font-weight-normal text-caption">ແຊັດ</small></strong>
                 <small class="text-medium-emphasis ml-2">ປິດຂາຍ: {{ percent(item.closingRate ? item.closingRate * 100 : null) }}</small>
@@ -881,25 +881,25 @@ onMounted(async () => {
 
             <!-- Col 4: Spend -->
             <div class="col col-spend">
-              <span class="col-kpi-label">💳 ຄ່າແອດ (Spend)</span>
+              <span class="col-kpi-label"> ຄ່າແອດ (Spend)</span>
               <strong>{{ money(item.spend) }}</strong>
               <small class="text-caption text-medium-emphasis">CPM: {{ money(item.cpm) }}</small>
             </div>
 
             <!-- Col 5: Completed Orders & Payment Tracks -->
             <div class="col col-orders">
-              <span class="col-kpi-label">📦 ອໍເດີສຳເລັດ</span>
+              <span class="col-kpi-label"> ອໍເດີສຳເລັດ</span>
               <strong>{{ fmt(item.completedOrders) }} <small class="font-weight-normal text-caption">ອໍເດີ</small></strong>
               <div class="order-sub-track">
-                <span class="text-success">💳 ໂອນ: {{ item.prepaidOrders }}</span>
-                <span class="text-info">🚚 COD: {{ item.codDeliveredOrders }}</span>
-                <span v-if="item.codPendingOrders > 0" class="text-warning">⏳ ສົ່ງຢູ່: {{ item.codPendingOrders }}</span>
+                <span class="text-success"> ໂອນ: {{ item.prepaidOrders }}</span>
+                <span class="text-info"> COD: {{ item.codDeliveredOrders }}</span>
+                <span v-if="item.codPendingOrders > 0" class="text-warning"> ສົ່ງຢູ່: {{ item.codPendingOrders }}</span>
               </div>
             </div>
 
             <!-- Col 6: Real CPA vs Target -->
             <div class="col col-cpa">
-              <span class="col-kpi-label">🎯 Real CPA</span>
+              <span class="col-kpi-label"> Real CPA</span>
               <strong :class="{ 'text-success': item.realCpa && item.realCpa <= item.targetCpa, 'text-error': item.realCpa && item.realCpa >= item.breakEvenCpa }">
                 {{ money(item.realCpa) }}
               </strong>
@@ -910,7 +910,7 @@ onMounted(async () => {
 
             <!-- Col 7: Net Contribution Profit -->
             <div class="col col-profit">
-              <span class="col-kpi-label">💰 ກຳໄລສຸດທິ</span>
+              <span class="col-kpi-label"> ກຳໄລສຸດທິ</span>
               <strong :class="item.netContribution >= 0 ? 'text-success' : 'text-error'">
                 {{ money(item.netContribution) }}
               </strong>
@@ -942,7 +942,7 @@ onMounted(async () => {
                 >
                   {{ (item.effectiveStatus || item.status) === 'ACTIVE' ? 'ພັກ' : 'ເປີດ' }}
                 </v-btn>
-                <v-btn size="x-small" variant="text" icon="mdi-chevron-down" :class="{ 'rotate-180': selectedId === item.entityId }" @click="toggleItem(item)" />
+                <v-btn size="x-small" variant="text" icon="mdi-chevron-down" :aria-label="selectedId === item.entityId ? 'Collapse details' : 'Expand details'" :class="{ 'rotate-180': selectedId === item.entityId }" @click="toggleItem(item)" />
               </div>
             </div>
           </div>
@@ -1009,7 +1009,7 @@ onMounted(async () => {
                     Auto Reply: {{ group.autoReplyFlowName || 'Active' }}
                   </v-chip>
                   <v-chip v-else size="x-small" color="warning" variant="tonal">
-                    ⚠️ ຍັງບໍ່ຜູກ Auto Reply
+                     ຍັງບໍ່ຜູກ Auto Reply
                   </v-chip>
                 </div>
                 <div class="text-caption text-medium-emphasis">
@@ -1082,7 +1082,7 @@ onMounted(async () => {
                 </div>
 
                 <div class="col col-chats">
-                  <span class="col-kpi-label">💬 ແຊັດ & ປິດຂາຍ</span>
+                  <span class="col-kpi-label"> ແຊັດ & ປິດຂາຍ</span>
                   <div>
                     <strong>{{ fmt(item.reportedResults) }} <small class="font-weight-normal text-caption">ແຊັດ</small></strong>
                     <small class="text-medium-emphasis ml-2">ປິດຂາຍ: {{ percent(item.closingRate ? item.closingRate * 100 : null) }}</small>
@@ -1090,23 +1090,23 @@ onMounted(async () => {
                 </div>
 
                 <div class="col col-spend">
-                  <span class="col-kpi-label">💳 ຄ່າແອດ (Spend)</span>
+                  <span class="col-kpi-label"> ຄ່າແອດ (Spend)</span>
                   <strong>{{ money(item.spend) }}</strong>
                   <small class="text-caption text-medium-emphasis">CPM: {{ money(item.cpm) }}</small>
                 </div>
 
                 <div class="col col-orders">
-                  <span class="col-kpi-label">📦 ອໍເດີສຳເລັດ</span>
+                  <span class="col-kpi-label"> ອໍເດີສຳເລັດ</span>
                   <strong>{{ fmt(item.completedOrders) }} <small class="font-weight-normal text-caption">ອໍເດີ</small></strong>
                   <div class="order-sub-track">
-                    <span class="text-success">💳 ໂອນ: {{ item.prepaidOrders }}</span>
-                    <span class="text-info">🚚 COD: {{ item.codDeliveredOrders }}</span>
-                    <span v-if="item.codPendingOrders > 0" class="text-warning">⏳ ສົ່ງຢູ່: {{ item.codPendingOrders }}</span>
+                    <span class="text-success"> ໂອນ: {{ item.prepaidOrders }}</span>
+                    <span class="text-info"> COD: {{ item.codDeliveredOrders }}</span>
+                    <span v-if="item.codPendingOrders > 0" class="text-warning"> ສົ່ງຢູ່: {{ item.codPendingOrders }}</span>
                   </div>
                 </div>
 
                 <div class="col col-cpa">
-                  <span class="col-kpi-label">🎯 Real CPA</span>
+                  <span class="col-kpi-label"> Real CPA</span>
                   <strong :class="{ 'text-success': item.realCpa && item.realCpa <= item.targetCpa, 'text-error': item.realCpa && item.realCpa >= item.breakEvenCpa }">
                     {{ money(item.realCpa) }}
                   </strong>
@@ -1114,7 +1114,7 @@ onMounted(async () => {
                 </div>
 
                 <div class="col col-profit">
-                  <span class="col-kpi-label">💰 ກຳໄລສຸດທິ</span>
+                  <span class="col-kpi-label"> ກຳໄລສຸດທິ</span>
                   <strong :class="item.netContribution >= 0 ? 'text-success' : 'text-error'">
                     {{ money(item.netContribution) }}
                   </strong>
@@ -1142,7 +1142,7 @@ onMounted(async () => {
                     >
                       {{ (item.effectiveStatus || item.status) === 'ACTIVE' ? 'ພັກ' : 'ເປີດ' }}
                     </v-btn>
-                    <v-btn size="x-small" variant="text" icon="mdi-chevron-down" :class="{ 'rotate-180': selectedId === item.entityId }" @click="toggleItem(item)" />
+                    <v-btn size="x-small" variant="text" icon="mdi-chevron-down" :aria-label="selectedId === item.entityId ? 'Collapse details' : 'Expand details'" :class="{ 'rotate-180': selectedId === item.entityId }" @click="toggleItem(item)" />
                   </div>
                 </div>
               </div>
@@ -1181,7 +1181,7 @@ onMounted(async () => {
           <small class="text-primary font-weight-bold">SETUP AD STRATEGY</small>
           <h2>ຕັ້ງຄ່າຍຸດທະສາດໂຄສະນາ (Setup Strategy)</h2>
         </div>
-        <v-btn icon="mdi-close" variant="text" :disabled="savingStrategy" @click="strategyModalOpen = false" />
+        <v-btn icon="mdi-close" variant="text" aria-label="Close strategy settings" :disabled="savingStrategy" @click="strategyModalOpen = false" />
       </v-card-title>
       <v-card-text class="settings-body">
         <v-alert type="info" variant="tonal" density="compact" class="mb-4">
@@ -1281,7 +1281,7 @@ onMounted(async () => {
           <small class="text-primary font-weight-bold">STRATEGY TIMELINE</small>
           <h2>ປະຫວັດເກນຍຸດທະສາດ (Version History)</h2>
         </div>
-        <v-btn icon="mdi-close" variant="text" @click="historyModalOpen = false" />
+        <v-btn icon="mdi-close" variant="text" aria-label="Close change history" @click="historyModalOpen = false" />
       </v-card-title>
       <v-card-text class="settings-body">
         <v-skeleton-loader v-if="loadingHistory" type="list-item-three-line, list-item-three-line" />
@@ -1297,11 +1297,11 @@ onMounted(async () => {
               ມີຜົນ: {{ item.effectiveFrom?.slice(0, 10) }} ເຖິງ {{ item.effectiveTo ? item.effectiveTo.slice(0, 10) : 'ປະຈຸບັນ' }}
             </div>
             <div class="history-grid-pills">
-              <span>🎯 ເປົ້າກຳໄລ: {{ money(item.targetProfitPerOrder) }}</span>
-              <span>📦 ຄ່າແພັກ: {{ money(item.avgPackagingCost) }}</span>
-              <span>🚚 ຄ່າສົ່ງຮ້ານອອກ: {{ money(item.avgShippingCostStore) }}</span>
-              <span>🛑 ງົບທົດລອງ: {{ money(item.maxTestLossBudget) }}</span>
-              <span>↩️ COD Return: {{ item.codReturnRatePercent }}%</span>
+              <span> ເປົ້າກຳໄລ: {{ money(item.targetProfitPerOrder) }}</span>
+              <span> ຄ່າແພັກ: {{ money(item.avgPackagingCost) }}</span>
+              <span> ຄ່າສົ່ງຮ້ານອອກ: {{ money(item.avgShippingCostStore) }}</span>
+              <span> ງົບທົດລອງ: {{ money(item.maxTestLossBudget) }}</span>
+              <span> COD Return: {{ item.codReturnRatePercent }}%</span>
             </div>
           </div>
         </div>
@@ -1322,7 +1322,7 @@ onMounted(async () => {
           <small class="text-success font-weight-bold">SCALE BUDGET</small>
           <h2>ເພີ່ມງົບປະມານໂຄສະນາ (+20%)</h2>
         </div>
-        <v-btn icon="mdi-close" variant="text" :disabled="updatingBudget" @click="budgetModalOpen = false" />
+        <v-btn icon="mdi-close" variant="text" aria-label="Close budget editor" :disabled="updatingBudget" @click="budgetModalOpen = false" />
       </v-card-title>
       <v-card-text class="settings-body">
         <v-alert type="success" variant="tonal" density="compact" class="mb-4">
@@ -1376,13 +1376,13 @@ onMounted(async () => {
 .summary-card>span{color:var(--color-text-secondary);font-size:12px}
 .summary-card strong{font-size:clamp(20px,2.4vw,26px);line-height:1.1}
 .summary-card small{color:var(--color-text-muted);font-size: 12px}
-.summary-card.finance{border-color:rgba(32,164,100,.3);background:linear-gradient(145deg,var(--color-surface),rgba(32,164,100,.04))}
-.summary-card.finance strong{color:#167a4b}
-.summary-card.loss{border-color:rgba(239,68,68,.3);background:linear-gradient(145deg,var(--color-surface),rgba(239,68,68,.04))}
+.summary-card.finance{border-color:color-mix(in srgb,var(--color-success) 30%,var(--color-border));background:var(--color-surface)}
+.summary-card.finance strong{color:var(--color-success)}
+.summary-card.loss{border-color:color-mix(in srgb,var(--color-error) 30%,var(--color-border));background:var(--color-surface)}
 .summary-card.loss strong{color:var(--color-error)}
-.summary-card.prepaid-track{border-color:rgba(14,165,233,.3);background:linear-gradient(145deg,var(--color-surface),rgba(14,165,233,.04))}
+.summary-card.prepaid-track{border-color:color-mix(in srgb,var(--color-info) 30%,var(--color-border));background:var(--color-surface)}
 .summary-card.cod-delivered-track{border-color:rgba(16,185,129,.3)}
-.summary-card.cod-pending-track{border-color:rgba(245,158,11,.3);background:linear-gradient(145deg,var(--color-surface),rgba(245,158,11,.04))}
+.summary-card.cod-pending-track{border-color:color-mix(in srgb,var(--color-warning) 30%,var(--color-border));background:var(--color-surface)}
 .summary-card.cod-returned-track{border-color:rgba(239,68,68,.25)}
 
 .performance-section{padding:20px}
@@ -1413,7 +1413,7 @@ onMounted(async () => {
 
 .order-sub-track{display:flex;gap:6px;font-size: 12px}
 .delivery-chip{display:inline-flex;align-items:center;gap:5px;padding:3px 7px;border-radius:999px;font-size: 12px;font-weight:700}
-.delivery-chip.active{color:#167a4b;background:rgba(32,164,100,.1)}
+.delivery-chip.active{color:var(--color-success);background:rgba(32,164,100,.1)}
 .delivery-chip.paused{color:#697184;background:rgba(137,145,165,.13)}
 .delivery-chip.issues{color:#a96000;background:rgba(229,138,24,.12)}
 .status-dot{width:7px;height:7px;border-radius:50%;display:inline-block}
@@ -1423,10 +1423,10 @@ onMounted(async () => {
 
 .row-detail{padding:16px 20px;border-top:1px solid var(--color-border);display:grid;gap:14px;background:var(--color-surface)}
 .sop-reason-box{padding:14px 18px;border-radius:12px;border:1px solid var(--color-border)}
-.sop-reason-box.success{background:rgba(32,164,100,.08);border-color:rgba(32,164,100,.3);color:#167a4b}
+.sop-reason-box.success{background:rgba(32,164,100,.08);border-color:rgba(32,164,100,.3);color:var(--color-success)}
 .sop-reason-box.info{background:rgba(2,132,199,.08);border-color:rgba(2,132,199,.3);color:#0369a1}
-.sop-reason-box.warning{background:rgba(217,119,6,.08);border-color:rgba(217,119,6,.3);color:#b45309}
-.sop-reason-box.error{background:rgba(220,38,38,.08);border-color:rgba(220,38,38,.3);color:#b91c1c}
+.sop-reason-box.warning{background:rgba(217,119,6,.08);border-color:rgba(217,119,6,.3);color:var(--color-warning)}
+.sop-reason-box.error{background:rgba(220,38,38,.08);border-color:rgba(220,38,38,.3);color:var(--color-error)}
 .sop-reason-box.secondary{background:var(--color-surface-soft);border-color:var(--color-border);color:var(--color-text-secondary)}
 
 .metric-detail-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
@@ -1458,7 +1458,7 @@ onMounted(async () => {
 .history-grid-pills span{background:var(--color-surface);padding:3px 6px;border-radius:6px;border:1px solid var(--color-border)}
 
 .product-group-card{border:1px solid var(--color-border);border-radius:var(--radius-lg);background:var(--color-surface);overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.03)}
-.product-group-header{padding:16px 20px;background:linear-gradient(145deg,var(--color-surface),color-mix(in srgb,var(--color-primary) 6%,var(--color-surface)));border-bottom:1px solid var(--color-border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px}
+.product-group-header{padding:16px 20px;background:var(--color-surface-soft);border-bottom:1px solid var(--color-border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px}
 .group-metrics{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
 .metric-box{display:grid;text-align:right;gap:2px}
 .metric-box small{font-size: 12px;color:var(--color-text-secondary)}

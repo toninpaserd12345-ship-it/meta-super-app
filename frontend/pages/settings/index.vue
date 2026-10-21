@@ -16,61 +16,12 @@ const { l } = useLocale()
       <div class="info">
         <h3>{{ user.name }}</h3>
         <p>{{ user.email }}</p>
-        <span class="role-badge">User ID: {{ user.id }}</span>
+ <dl><div><dt>User ID</dt><dd>{{ user.id }}</dd></div></dl>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.settings-section h2 {
-  font-size: 20px;
-  font-weight: 700;
-  margin-bottom: 4px;
-}
-.subtitle {
-  color: var(--color-text-secondary);
-  font-size: 14px;
-  margin-bottom: 24px;
-}
-.profile-card {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  padding: 24px;
-  border-radius: 12px;
-  border: 1px solid var(--color-border);
-  background: var(--color-background);
-}
-.avatar {
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  background: var(--color-primary);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 24px;
-  font-weight: 700;
-}
-.info h3 {
-  font-size: 18px;
-  font-weight: 700;
-  margin-bottom: 4px;
-}
-.info p {
-  color: var(--color-text-secondary);
-  font-size: 14px;
-  margin-bottom: 8px;
-}
-.role-badge {
-  display: inline-block;
-  padding: 4px 8px;
-  background: var(--color-surface-hover);
-  border-radius: 6px;
-  font-size: 12px;
-  color: var(--color-text-secondary);
-  font-family: monospace;
-}
+.settings-section h2{margin:0 0 5px;font-size:20px}.subtitle{margin:0 0 24px;color:var(--color-text-secondary);font-size:13px}.profile-card{display:grid;grid-template-columns:52px minmax(0,1fr);gap:16px;align-items:start;padding:20px 0;border-top:1px solid var(--color-border);border-bottom:1px solid var(--color-border)}.avatar{display:grid;place-items:center;width:52px;height:52px;border-radius:10px;background:var(--color-primary-deep);color:var(--color-surface);font-size:18px;font-weight:780}.info h3{margin:0 0 3px;font-size:16px}.info p{margin:0 0 16px;color:var(--color-text-secondary);font-size:13px}.info dl{margin:0}.info dl div{display:grid;grid-template-columns:90px minmax(0,1fr);gap:12px;padding-top:12px;border-top:1px solid var(--color-border-subtle)}.info dt{color:var(--color-text-muted);font-size:12px}.info dd{margin:0;overflow-wrap:anywhere;color:var(--color-text);font-family:var(--font-mono);font-size:12px}
 </style>

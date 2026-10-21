@@ -1,0 +1,2 @@
+import{af as t,aa as e,v as o}from"../virtual/entry.mjs";function useState(...a){const s="string"==typeof a[a.length-1]?a.pop():void 0;"string"!=typeof a[0]&&a.unshift(s);const[f,i]=a;if(!f||"string"!=typeof f)throw t.NUXT_E7009({key:f});if(void 0!==i&&"function"!=typeof i)throw t.NUXT_E7007({type:typeof i});const n="$s"+f,r=e(),p=o.toRef(r.payload.state,n);if(i&&(r._state[n]??={_default:i}),void 0===p.value&&i){const t=i();if(o.isRef(t))return r.payload.state[n]=t,t;p.value=t}return p}export{useState as u};
+//# sourceMappingURL=state-D0PGTU6v.mjs.map
