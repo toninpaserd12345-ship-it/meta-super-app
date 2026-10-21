@@ -17,6 +17,7 @@ type AccountRepository interface {
 	AddMember(ctx context.Context, accountID, userID string, role Role, claims []Permission) error
 	UpdateMemberRole(ctx context.Context, accountID, userID string, role Role, claims []Permission) error
 	RemoveMember(ctx context.Context, accountID, userID string) error
+	EnsureDefaultAccount(ctx context.Context, userID, name string) error
 }
 
 // MembershipUser combines Membership and User data for display

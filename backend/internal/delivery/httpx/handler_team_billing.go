@@ -48,8 +48,19 @@ func (h *Handler) teamUpdateRole(c fiber.Ctx) error {
 }
 
 func (h *Handler) teamRemove(c fiber.Ctx) error {
-	userID := c.Params("userID")
-	if err := h.team.RemoveMember(c.Context(), c.Locals("accountID").(string), userID); err != nil {
+	targetUserID := c.Params("userID")
+	callerID := userID(c)
+	if targetUserID == callerID {
+		return fail(c, fiber.StatusBadRequest, "cannot_remove_self", "You cannot remove yourself from the workspace.")
+	}
+
+	accountID := c.Locals("accountID").(string)
+	mem, err := h.auth.Membership(c.Context(), targetUserID, accountID)
+	if err == nil && mem != nil && mem.Role == domain.RoleOwner {
+		return fail(c, fiber.StatusBadRequest, "cannot_remove_owner", "You cannot remove the owner of the workspace.")
+	}
+
+	if err := h.team.RemoveMember(c.Context(), accountID, targetUserID); err != nil {
 		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
 	}
 	return c.JSON(fiber.Map{"status": "ok"})

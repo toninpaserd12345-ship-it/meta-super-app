@@ -47,9 +47,14 @@ func (u *Auth) Login(ctx context.Context, in LoginInput) (*LoginOutput, error) {
 	if err != nil {
 		return nil, err
 	}
-	user.Accounts, err = u.accounts.ListForUser(ctx, user.ID)
-	if err != nil {
-		return nil, err
+	if len(user.Accounts) == 0 {
+		if err := u.accounts.EnsureDefaultAccount(ctx, user.ID, user.Name); err != nil {
+			return nil, fmt.Errorf("ensure default account: %w", err)
+		}
+		user.Accounts, err = u.accounts.ListForUser(ctx, user.ID)
+		if err != nil {
+			return nil, err
+		}
 	}
 	token, err := u.tokens.Issue(user.ID)
 	if err != nil {
@@ -67,6 +72,15 @@ func (u *Auth) LoginByUserID(ctx context.Context, userID string) (*LoginOutput, 
 	if err != nil {
 		return nil, err
 	}
+	if len(user.Accounts) == 0 {
+		if err := u.accounts.EnsureDefaultAccount(ctx, user.ID, user.Name); err != nil {
+			return nil, fmt.Errorf("ensure default account: %w", err)
+		}
+		user.Accounts, err = u.accounts.ListForUser(ctx, user.ID)
+		if err != nil {
+			return nil, err
+		}
+	}
 	token, err := u.tokens.Issue(user.ID)
 	if err != nil {
 		return nil, err
@@ -80,7 +94,15 @@ func (u *Auth) Me(ctx context.Context, userID string) (*domain.User, error) {
 		return nil, err
 	}
 	user.Accounts, err = u.accounts.ListForUser(ctx, user.ID)
-	return user, err
+	if err != nil {
+		return nil, err
+	}
+	if len(user.Accounts) == 0 {
+		if err := u.accounts.EnsureDefaultAccount(ctx, user.ID, user.Name); err == nil {
+			user.Accounts, _ = u.accounts.ListForUser(ctx, user.ID)
+		}
+	}
+	return user, nil
 }
 
 func (u *Auth) Membership(ctx context.Context, userID, accountID string) (*domain.Membership, error) {
@@ -128,6 +150,15 @@ func (u *Auth) LoginOrCreateByFacebook(ctx context.Context, fbid, name, email st
 	user.Accounts, err = u.accounts.ListForUser(ctx, user.ID)
 	if err != nil {
 		return nil, err
+	}
+	if len(user.Accounts) == 0 {
+		if err := u.accounts.EnsureDefaultAccount(ctx, user.ID, user.Name); err != nil {
+			return nil, fmt.Errorf("ensure default account: %w", err)
+		}
+		user.Accounts, err = u.accounts.ListForUser(ctx, user.ID)
+		if err != nil {
+			return nil, err
+		}
 	}
 	token, err := u.tokens.Issue(user.ID)
 	if err != nil {

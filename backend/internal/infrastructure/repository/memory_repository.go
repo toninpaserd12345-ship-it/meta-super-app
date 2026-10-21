@@ -88,6 +88,9 @@ func (r *MemoryRepository) UpdateMemberRole(ctx context.Context, accountID, user
 func (r *MemoryRepository) RemoveMember(ctx context.Context, accountID, userID string) error {
 	return nil
 }
+func (r *MemoryRepository) EnsureDefaultAccount(ctx context.Context, userID, name string) error {
+	return nil
+}
 
 func (r *MemoryRepository) ListPlans(ctx context.Context) ([]domain.Plan, error) { return nil, nil }
 func (r *MemoryRepository) GetSubscription(ctx context.Context, accountID string) (*domain.Subscription, error) {

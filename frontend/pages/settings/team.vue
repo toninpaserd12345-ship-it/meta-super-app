@@ -1,7 +1,7 @@
 <script setup lang="ts">
 definePageMeta({ middleware: 'auth' })
 const fetchApi = (url: string, options?: any) => $fetch(url, options)
-const { can } = useAuth()
+const { user, can } = useAuth()
 const { l } = useLocale()
 
 const members = ref<any[]>([])
@@ -66,12 +66,21 @@ const closeInviteModal = () => {
 }
 
 const removeMember = async (id: string) => {
+  if (id === user.value?.id) {
+    alert(l({lo:'ທ່ານບໍ່ສາມາດລຶບຕົນເອງອອກຈາກ Workspace ໄດ້',th:'คุณไม่สามารถลบตัวเองออกจากเวิร์กสเปซได้',en:'You cannot remove yourself from the workspace.'}))
+    return
+  }
+  const target = members.value.find(m => m.user?.id === id)
+  if (target?.role === 'owner') {
+    alert(l({lo:'ບໍ່ສາມາດລຶບ Owner ໄດ້',th:'ไม่สามารถลบเจ้าของ (Owner) ได้',en:'Cannot remove the workspace owner.'}))
+    return
+  }
   if (!confirm(l({lo:'ຢືນຢັນການລຶບສະມາຊິກນີ້?',th:'ยืนยันการลบสมาชิกคนนี้?',en:'Are you sure you want to remove this member?'}))) return
   try {
     await fetchApi(`/api/proxy/api/v1/team/${id}`, { method: 'DELETE' })
     await loadMembers()
   } catch (err: any) {
-    alert(err.message || 'Failed to remove member')
+    alert(err?.data?.message || err.message || 'Failed to remove member')
   }
 }
 
@@ -116,16 +125,22 @@ onMounted(() => {
                 class="role-select" 
                 :value="member.role" 
                 :aria-label="l({ lo: 'ປ່ຽນບົດບາດ', th: 'เปลี่ยนบทบาท', en: 'Change Role' })"
-                :disabled="!can('users:update') || updatingMember===member.user.id" 
+                :disabled="!can('users:update') || updatingMember===member.user.id || member.role==='owner'" 
                 @change="updateRole(member, ($event.target as HTMLSelectElement).value)"
               >
+                <option v-if="member.role==='owner'" value="owner" disabled>{{ l({lo:'ເຈົ້າຂອງຮ້ານ (Owner)',th:'เจ้าของ (Owner)',en:'Owner'}) }}</option>
                 <option value="admin">Admin</option>
                 <option value="manager">Manager</option>
                 <option value="employee">Employee</option>
               </select>
             </td>
             <td>
-              <button class="btn-icon text-danger" :disabled="!can('users:remove')" @click="removeMember(member.user.id)" title="Remove">
+              <button 
+                class="btn-icon text-danger" 
+                :disabled="!can('users:remove') || member.user.id === user?.id || member.role === 'owner'" 
+                @click="removeMember(member.user.id)" 
+                :title="member.role === 'owner' ? l({lo:'ບໍ່ສາມາດລຶບ Owner ໄດ້',th:'ไม่สามารถลบ Owner ได้',en:'Cannot remove owner'}) : member.user.id === user?.id ? l({lo:'ບໍ່ສາມາດລຶບຕົນເອງໄດ້',th:'ไม่สามารถลบตัวเองได้',en:'Cannot remove yourself'}) : l({lo:'ລຶບສະມາຊິກ',th:'ลบสมาชิก',en:'Remove member'})"
+              >
                 <v-icon icon="mdi-delete-outline" />
               </button>
             </td>
