@@ -605,7 +605,7 @@ function openChat(senderId: string) {
   gap: 3px;
   padding: 5px 10px;
   border-radius: 14px;
-  background: var(--color-success);
+  background: var(--color-primary);
   color: var(--color-surface);
   border: none;
   font-size: 12px;
@@ -613,7 +613,7 @@ function openChat(senderId: string) {
   cursor: pointer;
   transition: background 0.15s ease;
 }
-.btn-quick-buy:hover { background: var(--color-success); }
+.btn-quick-buy:hover { background: var(--color-primary-hover); }
 
 .btn-quick-chat {
   width: 30px;

@@ -123,9 +123,9 @@ watch(() => route.path, () => {
   position: fixed;
   inset: 0 auto 0 0;
   z-index: 90;
-  padding: 18px 13px 14px;
-  background: var(--color-rail);
-  border-right: 0;
+  padding: 16px 14px 14px;
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
@@ -136,7 +136,7 @@ watch(() => route.path, () => {
   align-items: center;
   gap: 10px;
   padding: 2px 4px;
-  color: var(--color-surface);
+  color: var(--color-text);
   text-decoration: none;
 }
 .brand span {
@@ -145,12 +145,12 @@ watch(() => route.path, () => {
   border-radius: 10px;
   display: grid;
   place-items: center;
-  color: var(--color-primary);
-  background: var(--color-primary-soft);
+  color: #ffffff;
+  background: var(--gradient-brand);
   font-weight: 850;
   font-size: 17px;
   flex-shrink: 0;
-  box-shadow: none;
+  box-shadow: 0 4px 12px rgba(0, 100, 224, 0.28);
 }
 .brand-text {
   display: flex;
@@ -161,10 +161,11 @@ watch(() => route.path, () => {
   font-size: 15px;
   font-weight: 800;
   letter-spacing: -0.02em;
+  color: var(--color-text);
 }
 .brand-text small {
   font-size: 12px;
-  color: var(--color-rail-muted);
+  color: var(--color-text-muted);
   font-weight: 600;
 }
 
@@ -189,31 +190,31 @@ watch(() => route.path, () => {
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--color-rail-muted);
+  color: var(--color-text-muted);
   padding: 6px 10px 4px;
 }
 
 .app-sidebar nav a {
-  min-height: 36px;
+  min-height: 38px;
   border-radius: 9px;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 6px 10px;
-  color: var(--color-rail-text);
+  padding: 6px 12px;
+  color: var(--color-text-secondary);
   text-decoration: none;
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 600;
   transition: all 0.14s ease;
   flex-shrink: 0;
 }
 .app-sidebar nav a:hover {
-  color: var(--color-surface);
-  background: rgba(255,255,255,.07);
+  color: var(--color-primary);
+  background: var(--color-surface-hover);
 }
 .app-sidebar nav a.active {
-  color: var(--color-surface);
-  background: var(--color-primary);
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
   font-weight: 750;
 }
 
@@ -223,7 +224,7 @@ watch(() => route.path, () => {
   flex-direction: column;
   gap: 6px;
   padding-top: 10px;
-  border-top: 1px solid rgba(255,255,255,.12);
+  border-top: 1px solid var(--color-border-subtle);
   flex-shrink: 0;
 }
 
@@ -232,7 +233,7 @@ watch(() => route.path, () => {
   grid-template-columns: repeat(3, 1fr);
   gap: 3px;
   padding: 3px;
-  background: rgba(255,255,255,.06);
+  background: var(--color-background);
   border-radius: 9px;
 }
 .language button {
@@ -240,16 +241,16 @@ watch(() => route.path, () => {
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: var(--color-rail-text);
+  color: var(--color-text-secondary);
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.12s ease;
 }
 .language button.active {
-  color: var(--color-rail);
+  color: var(--color-primary);
   background: var(--color-surface);
-  box-shadow: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 .version-badge {
@@ -268,14 +269,14 @@ watch(() => route.path, () => {
   align-items: center;
   gap: 10px;
   padding: 6px 10px;
-  color: var(--color-rail-text);
+  color: var(--color-text-secondary);
   font-size: 12.5px;
   font-weight: 600;
   transition: all 0.14s ease;
 }
 .signout:hover {
-  color: var(--color-surface);
-  background: rgba(255,255,255,.07);
+  color: var(--color-error);
+  background: var(--color-error-soft);
 }
 
 /* Tablet compact view (641px to 1023px) */

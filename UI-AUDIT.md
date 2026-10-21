@@ -4,7 +4,7 @@ Audit scope: all 24 Nuxt routes, shared app shell, cards, tables, forms, dialogs
 
 ## Design decision
 
-The product now follows the Meta / Facebook enterprise operations language: Facebook gray canvas (`#F0F2F5`), a Meta dark navigation rail (`#1C1E21`), Meta Blue primary actions (`#0866FF`), semantic status colors, compact data density, 44 px interaction targets, and Noto Sans Lao/Thai localization. Decorative gradients, glass effects, floating card stacks, rainbow icon tiles, oversized labels, and ornamental emoji are not part of the product language.
+The product now follows the Meta Business Suite enterprise operations language: Facebook gray canvas (`#F0F2F5`), a clean light navigation sidebar (`#FFFFFF`), Meta Blue primary actions (`#0064E0`), semantic status colors, compact data density, 44 px interaction targets, and Noto Sans Lao/Thai localization. Decorative gradients, glass effects, floating card stacks, rainbow icon tiles, oversized labels, and ornamental emoji are not part of the product language.
 
 ## Route coverage
 

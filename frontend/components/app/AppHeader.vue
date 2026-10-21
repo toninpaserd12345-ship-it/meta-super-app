@@ -185,11 +185,11 @@ async function changeAccount(event: Event) {
   border-radius: 8px;
   display: grid;
   place-items: center;
-  color: var(--color-surface);
-  background: var(--color-primary-deep);
+  color: #ffffff;
+  background: var(--gradient-brand);
   font-size: 12px;
   font-weight: 800;
-  box-shadow: none;
+  box-shadow: 0 2px 8px rgba(0, 100, 224, 0.25);
 }
 
 .locale-switch {
