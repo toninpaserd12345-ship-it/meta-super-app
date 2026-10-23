@@ -71,9 +71,9 @@ async function markPurchased(senderId: string) {
       body: { status: 'purchased' },
     })
     quickNotice.value = l({
-      lo: `ປິດການຂາຍສຳເລັດ! ສົ່ງ Meta CAPI ຮຽບຮ້ອຍແລ້ວ`,
-      th: `ปิดการขายสำเร็จ! ส่ง Meta CAPI เรียบร้อยแล้ว`,
-      en: `Lead marked as Purchased and reported to Meta CAPI.`,
+      lo: `ປິດການຂາຍສຳເລັດ! ບັນທຶກອໍເດີຮຽບຮ້ອຍແລ້ວ`,
+      th: `ปิดการขายสำเร็จ! บันทึกออเดอร์เรียบร้อยแล้ว`,
+      en: `Order marked as Purchased successfully.`,
     })
     setTimeout(() => { quickNotice.value = '' }, 4000)
     await refreshLeads()
@@ -102,10 +102,10 @@ function openChat(senderId: string) {
       <div class="hero-left">
         <div class="live-pill">
           <span class="live-pulse"></span>
-          <span>{{ l({ lo: 'ລະບົບ Real-time ເປີດໃຊ້ງານຢູ່', th: 'ระบบ Real-time ทำงานอยู่', en: 'Real-time System Online' }) }}</span>
+          <span>{{ l({ lo: 'ລະບົບພ້ອມເຮັດວຽກ 24/7', th: 'ระบบพร้อมทำงาน 24/7', en: 'System Ready 24/7' }) }}</span>
         </div>
-        <h2>{{ activeAccount?.name || 'Workspace' }}</h2>
-        <p>{{ l({ lo: 'ສູນຄວບຄຸມການຂາຍ, ບອດຕອບອັດຕະໂນມັດ, ຈັດການໂຄສະນາ ແລະ ການສົນທະນາ', th: 'ศูนย์ควบคุมการขาย บอทตอบอัตโนมัติ จัดการโฆษณา และการสนทนา', en: 'Central command for sales automation, bot replies, Meta ads and customer messaging.' }) }}</p>
+        <h2>{{ activeAccount?.name || 'Packdee Shop' }}</h2>
+        <p>{{ l({ lo: 'ສູນຄວບຄຸມການຂາຍ, ບອດຕອບລູກຄ້າ, ຈັດການໂຄສະນາ ແລະ ພິມໃບບິນຂົນສົ່ງ', th: 'ศูนย์ควบคุมการขาย บอทตอบลูกค้า จัดการโฆษณา และพิมพ์ใบปะหน้าขนส่ง', en: 'Central hub for sales, auto-replies, ad campaigns, and order shipping.' }) }}</p>
       </div>
 
       <div class="hero-right">
@@ -118,8 +118,8 @@ function openChat(senderId: string) {
     <!-- Quick Actions Launchpad (6 Instant Action Tiles) -->
     <section class="launchpad-section">
       <div class="section-header">
-        <small class="section-tag">QUICK LAUNCHPAD</small>
-        <h3>{{ l({ lo: 'ປຸ່ມລັດໃຊ້ງານດ່ວນ', th: 'ปุ่มลัดใช้งานด่วน', en: 'Quick Launchpad' }) }}</h3>
+        <small class="section-tag">{{ l({ lo: 'ເມນູຊ່ວຍຂາຍດ່ວນ', th: 'เมนูช่วยขายด่วน', en: 'QUICK ACTIONS' }) }}</small>
+        <h3>{{ l({ lo: 'ປຸ່ມລັດໃຊ້ງານດ່ວນ', th: 'ปุ่มลัดใช้งานด่วน', en: 'Quick Actions' }) }}</h3>
       </div>
       <div class="launchpad-grid">
         <NuxtLink to="/live-chat" class="launch-tile primary-tile">
@@ -134,8 +134,8 @@ function openChat(senderId: string) {
         <NuxtLink to="/leads" class="launch-tile">
           <div class="tile-icon leads-icon"><v-icon icon="mdi-account-group-outline" size="26"/></div>
           <div class="tile-body">
-            <strong>{{ l({ lo: 'CRM & Leads', th: 'CRM & Leads', en: 'Leads & CRM' }) }}</strong>
-            <small>{{ newLeads.length }} {{ l({ lo: 'Lead ໃໝ່', th: 'Lead ใหม่', en: 'new leads' }) }}</small>
+            <strong>{{ l({ lo: 'ລູກຄ້າທີ່ສົນໃຈ (Leads)', th: 'ลูกค้าที่สนใจ (Leads)', en: 'Customers & Leads' }) }}</strong>
+            <small>{{ newLeads.length }} {{ l({ lo: 'ລູກຄ້າໃໝ່', th: 'ลูกค้าใหม่', en: 'new leads' }) }}</small>
           </div>
           <v-icon icon="mdi-arrow-top-right" size="18" class="tile-arrow"/>
         </NuxtLink>
@@ -152,7 +152,7 @@ function openChat(senderId: string) {
         <NuxtLink to="/products" class="launch-tile">
           <div class="tile-icon products-icon"><v-icon icon="mdi-package-variant-closed" size="26"/></div>
           <div class="tile-body">
-            <strong>{{ l({ lo: 'ຈັດການສິນຄ້າ', th: 'จัดการสินค้า', en: 'Products' }) }}</strong>
+            <strong>{{ l({ lo: 'ຈັດການສິນຄ້າ & ສະຕັອກ', th: 'จัดการสินค้า & สต็อก', en: 'Products & Stock' }) }}</strong>
             <small>{{ products.length }} {{ l({ lo: 'ລາຍການ', th: 'รายการ', en: 'items' }) }}</small>
           </div>
           <v-icon icon="mdi-arrow-top-right" size="18" class="tile-arrow"/>
@@ -161,17 +161,17 @@ function openChat(senderId: string) {
         <NuxtLink to="/auto-replies" class="launch-tile">
           <div class="tile-icon bot-icon"><v-icon icon="mdi-robot-happy-outline" size="26"/></div>
           <div class="tile-body">
-            <strong>{{ l({ lo: 'ບອດ Auto-Reply', th: 'บอท Auto-Reply', en: 'Bot Automations' }) }}</strong>
-            <small>{{ activeAutomations.length }} {{ l({ lo: 'Flow ເປີດໃຊ້', th: 'Flow เปิดใช้', en: 'active' }) }}</small>
+            <strong>{{ l({ lo: 'ຕອບແຊັດອັດຕະໂນມັດ', th: 'ตอบแชทอัตโนมัติ', en: 'Auto-Replies' }) }}</strong>
+            <small>{{ activeAutomations.length }} {{ l({ lo: 'ຊຸດຕອບກັບ', th: 'ชุดตอบกลับ', en: 'active' }) }}</small>
           </div>
           <v-icon icon="mdi-arrow-top-right" size="18" class="tile-arrow"/>
         </NuxtLink>
 
-        <NuxtLink to="/ads" class="launch-tile">
-          <div class="tile-icon ads-icon"><v-icon icon="mdi-bullhorn-outline" size="26"/></div>
+        <NuxtLink to="/orders" class="launch-tile">
+          <div class="tile-icon ads-icon"><v-icon icon="mdi-clipboard-list-outline" size="26"/></div>
           <div class="tile-body">
-            <strong>{{ l({ lo: 'Meta Ads (ໂຄສະນາ)', th: 'Meta Ads (โฆษณา)', en: 'Meta Ads' }) }}</strong>
-            <small>{{ l({ lo: 'ຕັ້ງຄ່າດັກທັກແຊັດ', th: 'ตั้งค่าดักทักแชท', en: 'Ad comment rules' }) }}</small>
+            <strong>{{ l({ lo: 'ອໍເດີ & ພິມໃບບິນ', th: 'ออเดอร์ & พิมพ์ใบปะหน้า', en: 'Orders & Waybills' }) }}</strong>
+            <small>{{ l({ lo: 'ແພັກດີ & ຂົນສົ່ງ', th: 'แพ็คของ & จัดส่ง', en: 'Packing & Shipping' }) }}</small>
           </div>
           <v-icon icon="mdi-arrow-top-right" size="18" class="tile-arrow"/>
         </NuxtLink>
@@ -183,7 +183,7 @@ function openChat(senderId: string) {
       <div class="kpi-card">
         <div class="kpi-icon-box leads"><v-icon icon="mdi-account-plus" size="24"/></div>
         <div class="kpi-meta">
-          <small>{{ l({ lo: 'Leads ທັງໝົດ', th: 'Leads ทั้งหมด', en: 'Total Leads' }) }}</small>
+          <small>{{ l({ lo: 'ລູກຄ້າທັງໝົດ', th: 'ลูกค้าทั้งหมด', en: 'Total Customers' }) }}</small>
           <strong>{{ leads.length }}</strong>
         </div>
       </div>
@@ -191,7 +191,7 @@ function openChat(senderId: string) {
       <div class="kpi-card">
         <div class="kpi-icon-box purchased"><v-icon icon="mdi-check-decagram" size="24"/></div>
         <div class="kpi-meta">
-          <small>{{ l({ lo: 'ປິດການຂາຍແລ້ວ (CAPI)', th: 'ปิดการขายแล้ว (CAPI)', en: 'Deals Closed (CAPI)' }) }}</small>
+          <small>{{ l({ lo: 'ປິດການຂາຍແລ້ວ', th: 'ปิดการขายแล้ว', en: 'Deals Closed' }) }}</small>
           <strong class="text-success">{{ purchasedLeads.length }}</strong>
         </div>
       </div>
@@ -205,9 +205,9 @@ function openChat(senderId: string) {
       </div>
 
       <div class="kpi-card">
-        <div class="kpi-icon-box flows"><v-icon icon="mdi-target" size="24"/></div>
+        <div class="kpi-icon-box flows"><v-icon icon="mdi-robot-outline" size="24"/></div>
         <div class="kpi-meta">
-          <small>{{ l({ lo: 'Automation ທີ່ເປີດໃຊ້', th: 'Automation ที่เปิดใช้', en: 'Active Automations' }) }}</small>
+          <small>{{ l({ lo: 'ບອດຕອບທີ່ເປີດໃຊ້', th: 'บอทตอบที่เปิดใช้', en: 'Active Auto-Bots' }) }}</small>
           <strong>{{ activeAutomations.length }}</strong>
         </div>
       </div>

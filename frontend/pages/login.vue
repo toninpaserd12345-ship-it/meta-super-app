@@ -18,16 +18,16 @@ const route = useRoute()
 const facebookResult = route.query.facebook
 if (facebookResult === 'error') {
   errorMessage.value = l({
-    lo: 'ບໍ່ສາມາດເຂົ້າດ້ວຍ Facebook ໄດ້ ກະລຸນາເລີ່ມໃໝ່',
-    th: 'ไม่สามารถเข้าสู่ระบบด้วย Facebook ได้ โปรดเริ่มใหม่',
+    lo: 'ບໍ່ສາມາດເຂົ້າສູ່ລະບົບດ້ວຍ Facebook ໄດ້ ກະລຸນາລອງໃໝ່ອີກຄັ້ງ',
+    th: 'ไม่สามารถเข้าสู่ระบบด้วย Facebook ได้ กรุณาลองใหม่อีกครั้ง',
     en: 'Facebook sign-in could not be completed. Please try again.'
   })
 }
 if (facebookResult === 'expired') {
   errorMessage.value = l({
-    lo: 'ຄຳຮ້ອງຂໍ Facebook ໝົດອາຍຸ ກະລຸນາກົດປຸ່ມເຂົ້າສູ່ລະບົບໃໝ່',
-    th: 'คำขอ Facebook หมดอายุ โปรดกดปุ่มเข้าสู่ระบบใหม่อีกครั้ง',
-    en: 'This Facebook session expired. Please click Continue with Facebook again.'
+    lo: 'ການເຊື່ອມຕໍ່ໝົດເວລາ ກະລຸນາກົດປຸ່ມເຂົ້າສູ່ລະບົບໃໝ່',
+    th: 'การเชื่อมต่อหมดอายุ กรุณากดปุ่มเข้าสู่ระบบใหม่อีกครั้ง',
+    en: 'This session expired. Please click Continue with Facebook again.'
   })
 }
 
@@ -39,9 +39,9 @@ async function loginWithFacebook() {
     window.location.assign(result.authorizationUrl)
   } catch {
     errorMessage.value = l({
-      lo: 'ບໍ່ສາມາດເລີ່ມຕົ້ນ Facebook Login ໄດ້ ກະລຸນາລອງໃໝ່',
-      th: 'ไม่สามารถเริ่ม Facebook Login ได้ กรุณาลองใหม่อีกครั้ง',
-      en: 'Unable to initialize Facebook Login. Please try again.'
+      lo: 'ບໍ່ສາມາດເຊື່ອມຕໍ່ Facebook ໄດ້ໃນເວລານີ້ ກະລຸນາລອງໃໝ່',
+      th: 'ไม่สามารถเชื่อมต่อ Facebook ได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง',
+      en: 'Unable to connect to Facebook. Please try again.'
     })
     facebookLoading.value = false
   }
@@ -50,8 +50,8 @@ async function loginWithFacebook() {
 async function loginWithEmail() {
   if (!email.value.trim() || !password.value) {
     errorMessage.value = l({
-      lo: 'ກະລຸນາໃສ່ອີເມວ ແລະ ລະຫັດຜ່ານ',
-      th: 'กรุณากรอกอีเมลและรหัสผ่าน',
+      lo: 'ກະລຸນາປ້ອນອີເມວ ແລະ ລະຫັດຜ່ານໃຫ້ຄົບຖ້ວນ',
+      th: 'กรุณากรอกอีเมลและรหัสผ่านให้ครบถ้วน',
       en: 'Email and password are required.'
     })
     return
@@ -66,9 +66,9 @@ async function loginWithEmail() {
     navigateTo('/meta-pages')
   } catch (err: any) {
     errorMessage.value = err?.statusMessage || err?.data?.message || err?.message || l({
-      lo: 'ອີເມວ ຫຼື ລະຫັດຜ່ານບໍ່ຖືກຕ້ອງ',
-      th: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง',
-      en: 'Invalid email or password.'
+      lo: 'ອີເມວ ຫຼື ລະຫັດຜ່ານບໍ່ຖືກຕ້ອງ ກະລຸນາກວດສອບຄືນ',
+      th: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง',
+      en: 'Invalid email or password. Please try again.'
     })
     emailLoading.value = false
   }
@@ -77,683 +77,778 @@ async function loginWithEmail() {
 
 <template>
   <main class="login-page">
-    <!-- Top-Right Language Switcher -->
-    <header class="login-header">
-      <div class="lang-switch" :aria-label="l({ lo: 'ເລືອກພາສາ', th: 'เลือกภาษา', en: 'Select Language' })">
+    <!-- Top Floating Language Switcher -->
+    <header class="lang-bar">
+      <div class="lang-pill">
         <button
           type="button"
           :class="{ active: locale === 'lo' }"
           @click="setLocale('lo')"
         >
-          ລາວ
+          🇱🇦 ລາວ
         </button>
         <button
           type="button"
           :class="{ active: locale === 'th' }"
           @click="setLocale('th')"
         >
-          ไทย
+          🇹🇭 ไทย
         </button>
         <button
           type="button"
           :class="{ active: locale === 'en' }"
           @click="setLocale('en')"
         >
-          EN
+          🇬🇧 EN
         </button>
       </div>
     </header>
 
-    <!-- Main Login Shell -->
-    <section class="login-shell">
-      <!-- Left Side: Modern Brand & Feature Showcase -->
-      <aside class="brand-panel">
-        <div class="brand-top">
-          <div class="brand-badge-row">
-            <div class="brand-logo">
-              <v-icon icon="mdi-package-variant-closed" size="24" color="white" />
+    <!-- Main Card Container -->
+    <div class="login-wrapper">
+      <div class="login-card">
+        <!-- Left Side: Warm, Friendly Merchant Showcase -->
+        <div class="showcase-side">
+          <!-- Brand Header -->
+          <div class="showcase-brand">
+            <div class="logo-box">
+              <v-icon icon="mdi-package-variant-closed" size="26" color="white" />
             </div>
-            <div class="brand-naming">
-              <span class="brand-name">Packdee</span>
-              <span class="brand-tag">E-Commerce OS</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="brand-hero">
-          <h1>
-            {{ l({
-              lo: 'ຈັດການຮ້ານ, ແພັກອໍເດີ, ແຊັດ ແລະ ໂຄສະນາ ຄົບຈົບໃນບ່ອນດຽວ',
-              th: 'จัดการร้าน, แพ็คออเดอร์, แชท และโฆษณา ครบจบในที่เดียว',
-              en: 'Orders, Fulfillment, Live Chat & Ads Intelligence in One Platform'
-            }) }}
-          </h1>
-          <p class="hero-desc">
-            {{ l({
-              lo: 'ຕິດຕາມເສັ້ນທາງຈາກ Campaign ໂຄສະນາ ຫາ Auto Reply, ອໍເດີ, ການແພັກ ແລະ ລາຍຮັບ ໂດຍບໍ່ຕ້ອງສະຫຼັບຫຼາຍແອັບ.',
-              th: 'ติดตามเส้นทางจากแคมเปญโฆษณา สู่ระบบตอบกลับอัตโนมัติ ออเดอร์ การแพ็ค และรายได้ โดยไม่ต้องสลับหลายระบบ',
-              en: 'Streamline customer conversations, multi-warehouse stock, express waybills, and real-time ad performance.'
-            }) }}
-          </p>
-        </div>
-
-        <!-- Value Highlights -->
-        <div class="features-list">
-          <div class="feature-card">
-            <div class="feature-icon icon-emerald">
-              <v-icon icon="mdi-package-variant-closed-check" size="20" />
-            </div>
-            <div class="feature-text">
-              <strong>
-                {{ l({
-                  lo: 'Orders & Fulfillment (ແພັກດີ & ສົ່ງໄວ)',
-                  th: 'Orders & Fulfillment (แพ็คไว & จัดส่งแม่นยำ)',
-                  en: 'Orders & Fulfillment'
-                }) }}
-              </strong>
-              <span>
-                {{ l({
-                  lo: 'ຈັດການອໍເດີ, ຕັດສະຕັອກສິນຄ້າ, ພິມໃບບິນ Anousith Express ທັນທີ',
-                  th: 'จัดการออเดอร์, ตัดสต็อกอัตโนมัติ, พิมพ์ใบปะหน้าขนส่งทันที',
-                  en: 'Order workflow, inventory sync, and instant express shipping waybills'
-                }) }}
+            <div class="logo-title">
+              <span class="app-name">Packdee</span>
+              <span class="app-slogan">
+                {{ l({ lo: 'ແພັກດີ · ລະບົບຊ່ວຍຂາຍອອນລາຍ', th: 'แพ็คดี · ระบบช่วยขายออนไลน์', en: 'Online Store Assistant' }) }}
               </span>
             </div>
           </div>
 
-          <div class="feature-card">
-            <div class="feature-icon icon-blue">
-              <v-icon icon="mdi-forum" size="20" />
-            </div>
-            <div class="feature-text">
-              <strong>
-                {{ l({
-                  lo: 'Live Chat & WhatsApp (ຕອບໄວ 24/7)',
-                  th: 'Live Chat & WhatsApp (ตอบไว 24/7)',
-                  en: 'Omnichannel Chat & Automation'
-                }) }}
-              </strong>
-              <span>
-                {{ l({
-                  lo: 'ລວມທຸກ Inbox ຂອງທຸກ Facebook Page, ຕອບລູກຄ້າອັດຕະໂນມັດ ບໍ່ພາດທຸກ Lead',
-                  th: 'รวมทุก Inbox ของทุกเพจ, ตอบกลับอัตโนมัติ ไม่พลาดทุกลีดการขาย',
-                  en: 'Unified Facebook & WhatsApp inboxes with 24/7 smart auto-replies'
-                }) }}
-              </span>
-            </div>
-          </div>
-
-          <div class="feature-card">
-            <div class="feature-icon icon-indigo">
-              <v-icon icon="mdi-chart-line-variant" size="20" />
-            </div>
-            <div class="feature-text">
-              <strong>
-                {{ l({
-                  lo: 'Meta Ads Intelligence (ວິເຄາະໂຄສະນາ)',
-                  th: 'Meta Ads Intelligence (วิเคราะห์โฆษณา)',
-                  en: 'Meta Ads Intelligence'
-                }) }}
-              </strong>
-              <span>
-                {{ l({
-                  lo: 'ວັດຜົນ ROAS ແບບ Real-time, ປິດແອດຂາດທຶນ, ເພີ່ມກຳໄລຮ້ານຄ້າ',
-                  th: 'วัดผล ROAS แบบ Real-time, ปิดแอดขาดทุน, ขยายกำไรธุรกิจ',
-                  en: 'Real-time ROAS tracking, cost-per-lead analysis, and smart ad rules'
-                }) }}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Trust & Security Footer -->
-        <div class="brand-security">
-          <v-icon icon="mdi-shield-check" size="18" color="#38bdf8" />
-          <span>
-            {{ l({
-              lo: 'ລະບົບມາດຕະຖານ Meta · ເຂົ້າສູ່ລະບົບດ້ວຍ Facebook ປອດໄພ 100% ບໍ່ເກັບລະຫັດຜ່ານ',
-              th: 'ระบบมาตรฐาน Meta · เข้าสู่ระบบด้วย Facebook ปลอดภัย 100% ไม่จัดเก็บรหัสผ่าน',
-              en: 'Meta Standard Platform · Secure Facebook OAuth authentication without storing passwords'
-            }) }}
-          </span>
-        </div>
-      </aside>
-
-      <!-- Right Side: Login Form -->
-      <section class="form-panel">
-        <div class="form-container">
-          <!-- Mobile Brand Indicator -->
-          <div class="mobile-brand">
-            <div class="mobile-brand-icon">
-              <v-icon icon="mdi-package-variant-closed" size="22" color="white" />
-            </div>
-            <div class="mobile-brand-text">
-              <strong>Packdee</strong>
-              <span>E-Commerce OS</span>
-            </div>
-          </div>
-
-          <!-- Titles -->
-          <div class="form-head">
-            <h2>
+          <!-- Hero Headline -->
+          <div class="showcase-headline">
+            <h1>
               {{ l({
-                lo: 'ເຂົ້າສູ່ລະບົບ Packdee',
-                th: 'เข้าสู่ระบบ Packdee',
-                en: 'Sign in to Packdee'
+                lo: 'ຊ່ວຍໃຫ້ທຸກການຂາຍ, ແພັກເຄື່ອງ ແລະ ຕອບແຊັດ ເປັນເລື່ອງງ່າຍ',
+                th: 'ช่วยให้ทุกการขาย, แพ็คสินค้า และตอบแชท เป็นเรื่องง่าย',
+                en: 'Make selling, packing, and chatting effortless for your shop'
               }) }}
-            </h2>
-            <p class="form-subtitle">
+            </h1>
+            <p>
               {{ l({
-                lo: 'ເຂົ້າສູ່ Workspace ຂອງທ່ານເພື່ອຈັດການຮ້ານຄ້າ, ອໍເດີ ແລະ ໂຄສະນາ',
-                th: 'เข้าสู่เวิร์กสเปซของคุณเพื่อจัดการร้านค้า ออเดอร์ และโฆษณา',
-                en: 'Access your workspace to manage stores, orders, and ad campaigns'
+                lo: 'ລວມແຊັດ Facebook & WhatsApp, ຕອບລູກຄ້າອັດຕະໂນມັດ 24 ຊົ່ວໂມງ, ຕັດສະຕັອກ ແລະ ພິມໃບບິນຂົນສົ່ງ ຄົບຈົບໃນແອັບດຽວ.',
+                th: 'รวมแชท Facebook & WhatsApp, ตอบลูกค้าอัตโนมัติ 24 ชม., ตัดสต็อก และพิมพ์ใบปะหน้าขนส่ง ครบจบในที่เดียว',
+                en: 'Unified chats, 24/7 auto-replies, inventory tracking, and express waybills in one friendly place.'
               }) }}
             </p>
           </div>
 
-          <!-- Error Alert -->
-          <transition name="fade">
-            <div v-if="errorMessage" class="error-banner">
-              <v-icon icon="mdi-alert-circle-outline" size="20" color="#dc2626" />
-              <div class="error-text">{{ errorMessage }}</div>
-              <button type="button" class="error-dismiss" @click="errorMessage = ''" aria-label="Close">
-                <v-icon icon="mdi-close" size="16" />
-              </button>
-            </div>
-          </transition>
-
-          <!-- Email / Password Form -->
-          <form class="login-form" @submit.prevent="loginWithEmail">
-            <div class="form-group">
-              <label for="login-email">
-                {{ l({ lo: 'ອີເມວ (Email)', th: 'อีเมล (Email)', en: 'Email Address' }) }}
-              </label>
-              <div class="input-wrapper">
-                <v-icon icon="mdi-email-outline" size="20" class="input-icon" />
-                <input
-                  id="login-email"
-                  v-model="email"
-                  type="email"
-                  required
-                  autocomplete="email"
-                  placeholder="name@business.com"
-                  class="field-input"
-                  :class="{ 'has-error': !!errorMessage }"
-                />
+          <!-- Visual Activity Mockups (Demonstrates Real Shop Usage) -->
+          <div class="shop-demo-cards">
+            <!-- Demo 1: Customer Chat -->
+            <div class="demo-card chat-demo">
+              <div class="demo-badge">
+                <v-icon icon="mdi-chat" size="14" />
+                <span>{{ l({ lo: 'ແຊັດສົດ & ຕອບອັດຕະໂນມັດ', th: 'แชทสด & ตอบอัตโนมัติ', en: 'Live Chat & Bot' }) }}</span>
+              </div>
+              <div class="chat-bubble-user">
+                <span>{{ l({ lo: '👤 ລູກຄ້າ: ສົນໃຈຊຸດນີ້ເຈົ້າ ມີເຄື່ອງພ້ອມສົ່ງບໍ່?', th: '👤 ลูกค้า: สนใจชุดนี้ค่ะ มีของพร้อมส่งไหม?', en: '👤 Customer: Is this item in stock?' }) }}</span>
+              </div>
+              <div class="chat-bubble-bot">
+                <span>{{ l({ lo: '🤖 ບອດແພັກດີ: ມີພ້ອມສົ່ງເຈົ້າ! ລະບົບລັອກສະຕັອກໃຫ້ແລ້ວ 📦', th: '🤖 บอทแพ็คดี: มีพร้อมส่งค่ะ! ระบบล็อคสต็อกให้แล้ว 📦', en: '🤖 Packdee: In stock! Reserved for you 📦' }) }}</span>
               </div>
             </div>
 
-            <div class="form-group">
-              <div class="label-row">
-                <label for="login-password">
-                  {{ l({ lo: 'ລະຫັດຜ່ານ (Password)', th: 'รหัสผ่าน (Password)', en: 'Password' }) }}
-                </label>
+            <!-- Demo 2: Quick Packing & Waybill -->
+            <div class="demo-card waybill-demo">
+              <div class="waybill-left">
+                <div class="waybill-icon">
+                  <v-icon icon="mdi-printer-check" size="22" color="#059669" />
+                </div>
+                <div class="waybill-info">
+                  <strong>{{ l({ lo: 'ພິມໃບບິນ Anousith Express', th: 'พิมพ์ใบปะหน้าขนส่ง', en: 'Express Waybill Printing' }) }}</strong>
+                  <small>{{ l({ lo: 'ອໍເດີ #PK-8821 · ພ້ອມສົ່ງທັນທີ', th: 'ออเดอร์ #PK-8821 · พร้อมส่งทันที', en: 'Order #PK-8821 · Ready to ship' }) }}</small>
+                </div>
               </div>
-              <div class="input-wrapper">
-                <v-icon icon="mdi-lock-outline" size="20" class="input-icon" />
-                <input
-                  id="login-password"
-                  v-model="password"
-                  :type="showPassword ? 'text' : 'password'"
-                  required
-                  autocomplete="current-password"
-                  :placeholder="l({ lo: 'ໃສ່ລະຫັດຜ່ານ', th: 'กรอกรหัสผ่าน', en: 'Enter your password' })"
-                  class="field-input"
-                  :class="{ 'has-error': !!errorMessage }"
-                />
-                <button
-                  type="button"
-                  class="password-toggle"
-                  :aria-label="showPassword ? 'Hide password' : 'Show password'"
-                  @click="showPassword = !showPassword"
-                >
-                  <v-icon :icon="showPassword ? 'mdi-eye-off-outline' : 'mdi-eye-outline'" size="20" />
-                </button>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              class="btn-submit"
-              :disabled="emailLoading"
-            >
-              <v-progress-circular v-if="emailLoading" indeterminate size="20" width="2" color="white" />
-              <span v-else>
-                {{ l({ lo: 'ເຂົ້າສູ່ລະບົບ', th: 'เข้าสู่ระบบ', en: 'Sign In' }) }}
+              <span class="status-pill-ready">
+                <v-icon icon="mdi-check" size="14" />
+                {{ l({ lo: 'ແພັກແລ້ວ', th: 'แพ็คแล้ว', en: 'Packed' }) }}
               </span>
-            </button>
-          </form>
+            </div>
 
-          <!-- Divider -->
-          <div class="divider">
-            <span class="divider-line"></span>
-            <span class="divider-text">
-              {{ l({ lo: 'ຫຼື ເຂົ້າດ້ວຍບັນຊີເຈົ້າຂອງຮ້ານ', th: 'หรือ เข้าด้วยบัญชีเจ้าของร้าน', en: 'Or Continue as Store Owner' }) }}
-            </span>
-            <span class="divider-line"></span>
+            <!-- Demo 3: Shop Sales Today -->
+            <div class="demo-card stats-demo">
+              <div class="stats-item">
+                <small>{{ l({ lo: 'ຍອດຂາຍມື້ນີ້', th: 'ยอดขายวันนี้', en: 'Today’s Sales' }) }}</small>
+                <span class="sales-number">₭ 4,850,000</span>
+              </div>
+              <div class="stats-growth">
+                <v-icon icon="mdi-trending-up" size="16" />
+                <span>+32 {{ l({ lo: 'ອໍເດີ', th: 'ออเดอร์', en: 'orders' }) }}</span>
+              </div>
+            </div>
           </div>
 
-          <!-- Facebook Login Button -->
-          <button
-            type="button"
-            class="btn-facebook"
-            :disabled="facebookLoading"
-            @click="loginWithFacebook"
-          >
-            <v-progress-circular v-if="facebookLoading" indeterminate size="22" width="2" color="white" />
-            <template v-else>
-              <v-icon icon="mdi-facebook" size="22" color="white" />
-              <span>
-                {{ l({ lo: 'ສືບຕໍ່ດ້ວຍ Facebook', th: 'ดำเนินการต่อด้วย Facebook', en: 'Continue with Facebook' }) }}
-              </span>
-            </template>
-          </button>
-
-          <p class="facebook-hint">
-            <v-icon icon="mdi-shield-account-outline" size="16" />
+          <!-- Trust Footer -->
+          <div class="showcase-trust">
+            <v-icon icon="mdi-shield-check" size="18" color="#60a5fa" />
             <span>
               {{ l({
-                lo: 'ສຳລັບເຈົ້າຂອງຮ້ານຄ້າ (Owner) ເພື່ອເຊື່ອມຕໍ່ Facebook Page, Ads ແລະ WhatsApp ໂດຍກົງ.',
-                th: 'สำหรับเจ้าของร้านค้า เพื่อเชื่อมต่อ Facebook Page, Ads และ WhatsApp โดยตรง',
-                en: 'For store owners to seamlessly link Facebook Pages, Ads Manager and WhatsApp.'
+                lo: 'ເຊື່ອມຕໍ່ປອດໄພດ້ວຍ Facebook ຢ່າງເປັນທາງການ · ໃຊ້ງານງ່າຍ ບໍ່ຕ້ອງມີຄວາມຮູ້ໄອທີ',
+                th: 'เชื่อมต่อปลอดภัยด้วย Facebook อย่างเป็นทางการ · ใช้งานง่าย ไม่ต้องมีความรู้ไอที',
+                en: 'Official Facebook Partner Integration · Simple, secure and easy to use'
               }) }}
             </span>
-          </p>
-
-          <footer class="form-footer">
-            <span>© {{ new Date().getFullYear() }} Packdee. All rights reserved.</span>
-          </footer>
+          </div>
         </div>
-      </section>
-    </section>
+
+        <!-- Right Side: Friendly Form Side -->
+        <div class="form-side">
+          <div class="form-inner">
+            <!-- Mobile Brand Header -->
+            <div class="mobile-logo-row">
+              <div class="logo-box-mobile">
+                <v-icon icon="mdi-package-variant-closed" size="24" color="white" />
+              </div>
+              <div>
+                <strong class="mobile-name">Packdee</strong>
+                <span class="mobile-tag">{{ l({ lo: 'ລະບົບຊ່ວຍຂາຍອອນລາຍ', th: 'ระบบช่วยขายออนไลน์', en: 'Shop Assistant' }) }}</span>
+              </div>
+            </div>
+
+            <!-- Header Titles -->
+            <div class="form-intro">
+              <h2>
+                {{ l({
+                  lo: 'ເຂົ້າສູ່ລະບົບຮ້ານຄ້າ',
+                  th: 'เข้าสู่ระบบร้านค้า',
+                  en: 'Sign In to Your Shop'
+                }) }}
+              </h2>
+              <p>
+                {{ l({
+                  lo: 'ຍິນດີຕ້ອນຮັບສູ່ Packdee! ເຂົ້າຈັດການອໍເດີ ແລະ ຕອບແຊັດລູກຄ້າ',
+                  th: 'ยินดีต้อนรับสู่ Packdee! เข้าจัดการออเดอร์และตอบแชทลูกค้า',
+                  en: 'Welcome to Packdee! Manage orders and customer messages'
+                }) }}
+              </p>
+            </div>
+
+            <!-- Error Notification -->
+            <transition name="fade">
+              <div v-if="errorMessage" class="friendly-error">
+                <v-icon icon="mdi-alert-circle" size="20" color="#dc2626" />
+                <span>{{ errorMessage }}</span>
+                <button type="button" @click="errorMessage = ''" class="close-err">
+                  <v-icon icon="mdi-close" size="16" />
+                </button>
+              </div>
+            </transition>
+
+            <!-- 1-Click Facebook Login for Shop Owners (Prominent, Big, Friendly) -->
+            <div class="facebook-section">
+              <button
+                type="button"
+                class="fb-main-btn"
+                :disabled="facebookLoading"
+                @click="loginWithFacebook"
+              >
+                <v-progress-circular v-if="facebookLoading" indeterminate size="22" width="2" color="white" />
+                <template v-else>
+                  <div class="fb-icon-circle">
+                    <v-icon icon="mdi-facebook" size="24" color="#1877f2" />
+                  </div>
+                  <div class="fb-btn-text">
+                    <span class="fb-title">
+                      {{ l({
+                        lo: 'ເຂົ້າສູ່ລະບົບດ້ວຍ Facebook',
+                        th: 'เข้าสู่ระบบด้วย Facebook',
+                        en: 'Continue with Facebook'
+                      }) }}
+                    </span>
+                    <small class="fb-subtitle">
+                      {{ l({
+                        lo: 'ແນະນຳສຳລັບເຈົ້າຂອງຮ້ານ (ເຊື່ອມຕໍ່ເພຈອັດຕະໂນມັດ)',
+                        th: 'แนะนำสำหรับเจ้าของร้าน (เชื่อมต่อเพจทันที)',
+                        en: 'Recommended for Store Owners'
+                      }) }}
+                    </small>
+                  </div>
+                </template>
+              </button>
+            </div>
+
+            <!-- Friendly Divider -->
+            <div class="form-divider">
+              <span>{{ l({ lo: 'ຫຼື ເຂົ້າດ້ວຍອີເມວຂອງທີມງານ', th: 'หรือ เข้าด้วยอีเมลของทีมงาน', en: 'Or sign in with email' }) }}</span>
+            </div>
+
+            <!-- Email & Password Form -->
+            <form class="clean-form" @submit.prevent="loginWithEmail">
+              <div class="input-block">
+                <label for="shop-email">
+                  {{ l({ lo: 'ອີເມວ (Email)', th: 'อีเมล (Email)', en: 'Email' }) }}
+                </label>
+                <div class="input-field-wrap">
+                  <v-icon icon="mdi-email-outline" size="20" class="field-icon" />
+                  <input
+                    id="shop-email"
+                    v-model="email"
+                    type="email"
+                    required
+                    autocomplete="email"
+                    :placeholder="l({ lo: 'ອີເມວຮ້ານຄ້າຂອງທ່ານ', th: 'อีเมลร้านค้าของคุณ', en: 'your-email@example.com' })"
+                    class="shop-input"
+                  />
+                </div>
+              </div>
+
+              <div class="input-block">
+                <label for="shop-password">
+                  {{ l({ lo: 'ລະຫັດຜ່ານ (Password)', th: 'รหัสผ่าน (Password)', en: 'Password' }) }}
+                </label>
+                <div class="input-field-wrap">
+                  <v-icon icon="mdi-lock-outline" size="20" class="field-icon" />
+                  <input
+                    id="shop-password"
+                    v-model="password"
+                    :type="showPassword ? 'text' : 'password'"
+                    required
+                    autocomplete="current-password"
+                    :placeholder="l({ lo: 'ໃສ່ລະຫັດຜ່ານ', th: 'กรอกรหัสผ่าน', en: 'Enter password' })"
+                    class="shop-input"
+                  />
+                  <button
+                    type="button"
+                    class="eye-btn"
+                    :title="showPassword ? 'Hide password' : 'Show password'"
+                    @click="showPassword = !showPassword"
+                  >
+                    <v-icon :icon="showPassword ? 'mdi-eye-off-outline' : 'mdi-eye-outline'" size="20" />
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                class="login-submit-btn"
+                :disabled="emailLoading"
+              >
+                <v-progress-circular v-if="emailLoading" indeterminate size="20" width="2" color="white" />
+                <span v-else>
+                  {{ l({ lo: 'ເຂົ້າສູ່ລະບົບ', th: 'เข้าสู่ระบบ', en: 'Sign In' }) }}
+                </span>
+              </button>
+            </form>
+
+            <div class="card-footer-info">
+              <span>Packdee (ແພັກດີ) · {{ l({ lo: 'ລະບົບຊ່ວຍຂາຍອອນລາຍຄົບວົງຈອນ', th: 'ระบบช่วยขายออนไลน์ครบวงจร', en: 'All-in-One E-Commerce' }) }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </main>
 </template>
 
 <style scoped>
 .login-page {
   min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: 32px 20px;
-  background: #f1f5f9;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 32px 16px;
+  background: linear-gradient(135deg, #f0f4ff 0%, #f8faff 50%, #eef2ff 100%);
   position: relative;
   font-family: inherit;
 }
 
-/* Language selector floating top-right */
-.login-header {
+/* Floating Language Bar */
+.lang-bar {
   position: absolute;
-  top: 24px;
-  right: 28px;
+  top: 20px;
+  right: 24px;
   z-index: 10;
 }
 
-.lang-switch {
+.lang-pill {
   display: flex;
-  background: #ffffff;
-  padding: 4px;
-  border-radius: 12px;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+  align-items: center;
   gap: 4px;
+  background: #ffffff;
+  padding: 4px 6px;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
 }
 
-.lang-switch button {
-  padding: 6px 14px;
-  border-radius: 8px;
+.lang-pill button {
   border: none;
   background: transparent;
-  color: #64748b;
+  padding: 6px 12px;
   font-size: 13px;
   font-weight: 600;
+  color: #64748b;
+  border-radius: 999px;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
-.lang-switch button:hover {
-  color: #0f172a;
-  background: #f8fafc;
+.lang-pill button:hover {
+  color: #1e40af;
+  background: #f1f5f9;
 }
 
-.lang-switch button.active {
+.lang-pill button.active {
   background: #2563eb;
   color: #ffffff;
-  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
 }
 
-/* Main card shell */
-.login-shell {
-  width: min(1080px, 100%);
-  min-height: 680px;
+/* Wrapper & Main Card */
+.login-wrapper {
+  width: 100%;
+  max-width: 1080px;
+}
+
+.login-card {
   display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  grid-template-columns: 1.1fr 1fr;
   background: #ffffff;
-  border-radius: 24px;
+  border-radius: 28px;
+  box-shadow: 0 20px 60px -15px rgba(30, 58, 138, 0.12), 0 0 0 1px rgba(226, 232, 240, 0.8);
   overflow: hidden;
-  box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.15), 0 0 0 1px rgba(15, 23, 42, 0.05);
+  min-height: 640px;
 }
 
-/* Left Hero Brand Panel (Dark Slate / Deep Navy) */
-.brand-panel {
+/* Left: Warm, Vibrant Showcase Side */
+.showcase-side {
+  background: linear-gradient(150deg, #1e3a8a 0%, #2563eb 55%, #3b82f6 100%);
+  color: #ffffff;
+  padding: 44px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: 48px;
-  background: linear-gradient(150deg, #090e1a 0%, #0f172a 45%, #132247 100%);
-  color: #ffffff;
   position: relative;
   overflow: hidden;
 }
 
-.brand-panel::before {
+.showcase-side::before {
   content: '';
   position: absolute;
-  top: -120px;
-  right: -120px;
-  width: 340px;
-  height: 340px;
+  top: -80px;
+  right: -80px;
+  width: 260px;
+  height: 260px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(37, 99, 235, 0.25) 0%, rgba(37, 99, 235, 0) 70%);
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0) 70%);
   pointer-events: none;
 }
 
-.brand-panel::after {
-  content: '';
-  position: absolute;
-  bottom: -100px;
-  left: -80px;
-  width: 280px;
-  height: 280px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(6, 182, 212, 0.18) 0%, rgba(6, 182, 212, 0) 70%);
-  pointer-events: none;
-}
-
-.brand-badge-row {
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-  position: relative;
-  z-index: 1;
-}
-
-.brand-logo {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #2563eb 0%, #06b6d4 100%);
-  display: grid;
-  place-items: center;
-  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
-}
-
-.brand-naming {
+.showcase-brand {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
 }
 
-.brand-name {
-  font-size: 22px;
+.logo-box {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  display: grid;
+  place-items: center;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+}
+
+.logo-title {
+  display: flex;
+  flex-direction: column;
+}
+
+.app-name {
+  font-size: 24px;
   font-weight: 800;
   letter-spacing: -0.02em;
   color: #ffffff;
 }
 
-.brand-tag {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 3px 8px;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.1);
-  color: #38bdf8;
-  border: 1px solid rgba(56, 189, 248, 0.25);
+.app-slogan {
+  font-size: 12px;
+  font-weight: 600;
+  color: #dbeafe;
 }
 
-.brand-hero {
-  margin: 36px 0 28px;
-  position: relative;
-  z-index: 1;
+.showcase-headline {
+  margin: 28px 0 20px;
 }
 
-.brand-hero h1 {
-  font-size: clamp(24px, 2.5vw, 32px);
+.showcase-headline h1 {
+  font-size: clamp(22px, 2.2vw, 28px);
   font-weight: 800;
-  line-height: 1.28;
-  letter-spacing: -0.025em;
+  line-height: 1.35;
   color: #ffffff;
-  margin: 0 0 14px;
+  margin: 0 0 12px;
 }
 
-.hero-desc {
-  font-size: 14.5px;
-  line-height: 1.65;
-  color: #94a3b8;
+.showcase-headline p {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #eff6ff;
   margin: 0;
-  max-width: 440px;
+  opacity: 0.95;
 }
 
-/* Feature list */
-.features-list {
+/* Shop Activity Demo Cards */
+.shop-demo-cards {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  margin-bottom: 28px;
-  position: relative;
-  z-index: 1;
+  margin: 16px 0 24px;
 }
 
-.feature-card {
+.demo-card {
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 16px;
+  padding: 12px 16px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+}
+
+/* Chat Demo */
+.chat-demo {
   display: flex;
-  align-items: flex-start;
-  gap: 14px;
-  padding: 13px 16px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(8px);
-  transition: all 0.2s ease;
+  flex-direction: column;
+  gap: 7px;
 }
 
-.feature-card:hover {
-  background: rgba(255, 255, 255, 0.07);
-  border-color: rgba(255, 255, 255, 0.16);
-  transform: translateY(-1px);
+.demo-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fef08a;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
-.feature-icon {
+.chat-bubble-user,
+.chat-bubble-bot {
+  font-size: 12.5px;
+  line-height: 1.45;
+  padding: 7px 11px;
+  border-radius: 10px;
+}
+
+.chat-bubble-user {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  align-self: flex-start;
+}
+
+.chat-bubble-bot {
+  background: #ffffff;
+  color: #1e3a8a;
+  font-weight: 600;
+  align-self: flex-start;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+/* Waybill Demo */
+.waybill-demo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.waybill-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.waybill-icon {
   width: 36px;
   height: 36px;
   border-radius: 10px;
+  background: #ecfdf5;
   display: grid;
   place-items: center;
-  flex-shrink: 0;
 }
 
-.icon-emerald {
-  background: rgba(16, 185, 129, 0.16);
-  color: #34d399;
-}
-
-.icon-blue {
-  background: rgba(37, 99, 235, 0.2);
-  color: #60a5fa;
-}
-
-.icon-indigo {
-  background: rgba(147, 51, 234, 0.2);
-  color: #c084fc;
-}
-
-.feature-text {
+.waybill-info {
   display: flex;
   flex-direction: column;
-  gap: 2px;
 }
 
-.feature-text strong {
-  font-size: 13.5px;
+.waybill-info strong {
+  font-size: 13px;
+  color: #ffffff;
+}
+
+.waybill-info small {
+  font-size: 11.5px;
+  color: #dbeafe;
+}
+
+.status-pill-ready {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #10b981;
+  color: #ffffff;
+  font-size: 11.5px;
   font-weight: 700;
-  color: #f1f5f9;
+  padding: 4px 10px;
+  border-radius: 999px;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
 }
 
-.feature-text span {
-  font-size: 12px;
-  line-height: 1.5;
-  color: #94a3b8;
-}
-
-.brand-security {
+/* Stats Demo */
+.stats-demo {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding-top: 18px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  color: #94a3b8;
-  font-size: 12px;
-  line-height: 1.5;
-  position: relative;
-  z-index: 1;
+  justify-content: space-between;
+  padding: 10px 16px;
 }
 
-/* Right Side: Form Panel */
-.form-panel {
+.stats-item small {
+  display: block;
+  font-size: 11px;
+  color: #dbeafe;
+}
+
+.sales-number {
+  font-size: 16px;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.stats-growth {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 8px;
+}
+
+.showcase-trust {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #dbeafe;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+/* Right: Clean, Friendly Form Side */
+.form-side {
+  padding: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 48px;
   background: #ffffff;
 }
 
-.form-container {
+.form-inner {
   width: 100%;
-  max-width: 400px;
+  max-width: 380px;
 }
 
-.mobile-brand {
+.mobile-logo-row {
   display: none;
   align-items: center;
   gap: 12px;
-  margin-bottom: 28px;
+  margin-bottom: 24px;
 }
 
-.mobile-brand-icon {
+.logo-box-mobile {
   width: 42px;
   height: 42px;
   border-radius: 12px;
-  background: linear-gradient(135deg, #2563eb 0%, #06b6d4 100%);
+  background: linear-gradient(135deg, #1e40af 0%, #2563eb 100%);
   display: grid;
   place-items: center;
 }
 
-.mobile-brand-text {
-  display: flex;
-  flex-direction: column;
-}
-
-.mobile-brand-text strong {
+.mobile-name {
+  display: block;
   font-size: 20px;
   font-weight: 800;
   color: #0f172a;
 }
 
-.mobile-brand-text span {
-  font-size: 11px;
+.mobile-tag {
+  font-size: 12px;
   color: #2563eb;
-  font-weight: 700;
-  text-transform: uppercase;
+  font-weight: 600;
 }
 
-.form-head {
+.form-intro {
   margin-bottom: 24px;
 }
 
-.form-head h2 {
+.form-intro h2 {
   font-size: 26px;
   font-weight: 800;
   color: #0f172a;
   letter-spacing: -0.02em;
-  margin: 0 0 8px;
+  margin: 0 0 6px;
 }
 
-.form-subtitle {
+.form-intro p {
   font-size: 14px;
   color: #64748b;
   line-height: 1.5;
   margin: 0;
 }
 
-/* Error Banner */
-.error-banner {
+/* Friendly Error Banner */
+.friendly-error {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px 14px;
   background: #fef2f2;
-  border: 1px solid #fecaca;
+  border: 1px solid #fee2e2;
   border-radius: 12px;
+  padding: 10px 14px;
   color: #b91c1c;
   font-size: 13px;
   margin-bottom: 20px;
 }
 
-.error-text {
+.friendly-error span {
   flex: 1;
-  font-weight: 500;
   line-height: 1.4;
 }
 
-.error-dismiss {
+.close-err {
   border: none;
   background: transparent;
   color: #991b1b;
   cursor: pointer;
   padding: 2px;
+}
+
+/* Facebook Primary Option */
+.facebook-section {
+  margin-bottom: 20px;
+}
+
+.fb-main-btn {
+  width: 100%;
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 16px;
+  background: #1877f2;
+  color: #ffffff;
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 16px rgba(24, 119, 242, 0.28);
+  text-align: left;
+}
+
+.fb-main-btn:hover:not(:disabled) {
+  background: #166fe5;
+  box-shadow: 0 6px 20px rgba(24, 119, 242, 0.38);
+  transform: translateY(-1px);
+}
+
+.fb-main-btn:disabled {
+  opacity: 0.75;
+  cursor: not-allowed;
+}
+
+.fb-icon-circle {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #ffffff;
   display: grid;
   place-items: center;
+  flex-shrink: 0;
 }
 
-/* Form inputs */
-.login-form {
+.fb-btn-text {
   display: flex;
   flex-direction: column;
-  gap: 18px;
 }
 
-.form-group {
+.fb-title {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.fb-subtitle {
+  font-size: 11.5px;
+  color: #dbeafe;
+  line-height: 1.3;
+  margin-top: 2px;
+}
+
+/* Divider */
+.form-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 22px 0 20px;
+  color: #94a3b8;
+  font-size: 12.5px;
+}
+
+.form-divider::before,
+.form-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #e2e8f0;
+}
+
+/* Clean Form */
+.clean-form {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 16px;
 }
 
-.form-group label {
+.input-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.input-block label {
   font-size: 13px;
   font-weight: 600;
   color: #334155;
 }
 
-.label-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.input-wrapper {
+.input-field-wrap {
   position: relative;
   display: flex;
   align-items: center;
 }
 
-.input-icon {
+.field-icon {
   position: absolute;
   left: 14px;
   color: #94a3b8;
   pointer-events: none;
 }
 
-.field-input {
+.shop-input {
   width: 100%;
   height: 48px;
   padding: 0 16px 0 44px;
@@ -766,23 +861,18 @@ async function loginWithEmail() {
   font-family: inherit;
 }
 
-.field-input:focus {
+.shop-input:focus {
   outline: none;
   background: #ffffff;
   border-color: #2563eb;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
-.field-input.has-error {
-  border-color: #ef4444;
-  background: #fffafa;
-}
-
-.password-toggle {
+.eye-btn {
   position: absolute;
   right: 12px;
-  background: transparent;
   border: none;
+  background: transparent;
   color: #94a3b8;
   cursor: pointer;
   padding: 6px;
@@ -791,17 +881,17 @@ async function loginWithEmail() {
   border-radius: 8px;
 }
 
-.password-toggle:hover {
+.eye-btn:hover {
   color: #334155;
 }
 
 /* Submit Button */
-.btn-submit {
+.login-submit-btn {
   height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  background: #0f172a;
   color: #ffffff;
   border: none;
   border-radius: 12px;
@@ -809,92 +899,23 @@ async function loginWithEmail() {
   font-weight: 700;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.15);
   margin-top: 4px;
 }
 
-.btn-submit:hover:not(:disabled) {
-  background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
-  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.4);
+.login-submit-btn:hover:not(:disabled) {
+  background: #1e293b;
   transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.22);
 }
 
-.btn-submit:disabled {
+.login-submit-btn:disabled {
   opacity: 0.75;
   cursor: not-allowed;
 }
 
-/* Divider */
-.divider {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 22px 0 18px;
-}
-
-.divider-line {
-  flex: 1;
-  height: 1px;
-  background: #e2e8f0;
-}
-
-.divider-text {
-  font-size: 12px;
-  font-weight: 600;
-  color: #94a3b8;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  white-space: nowrap;
-}
-
-/* Facebook Button */
-.btn-facebook {
-  width: 100%;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  background: #1877f2;
-  color: #ffffff;
-  border: none;
-  border-radius: 12px;
-  font-size: 14.5px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 4px 14px rgba(24, 119, 242, 0.25);
-}
-
-.btn-facebook:hover:not(:disabled) {
-  background: #166fe5;
-  box-shadow: 0 6px 18px rgba(24, 119, 242, 0.35);
-  transform: translateY(-1px);
-}
-
-.btn-facebook:disabled {
-  opacity: 0.75;
-  cursor: not-allowed;
-}
-
-.facebook-hint {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  margin: 14px 0 0;
-  font-size: 12px;
-  line-height: 1.5;
-  color: #64748b;
-}
-
-.facebook-hint .v-icon {
-  color: #1877f2;
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-
-.form-footer {
-  margin-top: 28px;
+.card-footer-info {
+  margin-top: 26px;
   text-align: center;
   font-size: 12px;
   color: #94a3b8;
@@ -910,24 +931,24 @@ async function loginWithEmail() {
   opacity: 0;
 }
 
-/* Responsive adjustments */
-@media (max-width: 960px) {
-  .login-shell {
+/* Responsive */
+@media (max-width: 920px) {
+  .login-card {
     grid-template-columns: 1fr;
-    max-width: 520px;
+    max-width: 480px;
     min-height: auto;
   }
 
-  .brand-panel {
+  .showcase-side {
     display: none;
   }
 
-  .form-panel {
-    padding: 40px 28px;
+  .mobile-logo-row {
+    display: flex;
   }
 
-  .mobile-brand {
-    display: flex;
+  .form-side {
+    padding: 36px 24px;
   }
 }
 
@@ -936,20 +957,20 @@ async function loginWithEmail() {
     padding: 12px;
   }
 
-  .login-header {
-    top: 16px;
-    right: 16px;
+  .lang-bar {
+    top: 14px;
+    right: 14px;
   }
 
-  .login-shell {
-    border-radius: 18px;
+  .login-card {
+    border-radius: 20px;
   }
 
-  .form-panel {
-    padding: 32px 20px;
+  .form-side {
+    padding: 28px 18px;
   }
 
-  .form-head h2 {
+  .form-intro h2 {
     font-size: 22px;
   }
 }
