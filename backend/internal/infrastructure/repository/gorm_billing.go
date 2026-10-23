@@ -70,14 +70,20 @@ func (r *GormRepository) UpsertSubscription(ctx context.Context, sub *domain.Sub
 }
 
 func (r *GormRepository) CreateTransaction(ctx context.Context, txn *domain.Transaction) error {
+	planID := txn.PlanID
+	if planID == "" {
+		planID = "pro"
+	}
 	model := database.TransactionModel{
-		ID:            txn.ID,
-		AccountID:     txn.AccountID,
-		Amount:        txn.Amount,
-		Currency:      txn.Currency,
-		Status:        txn.Status,
-		PaymentMethod: txn.PaymentMethod,
-		Reference:     txn.Reference,
+		ID:              txn.ID,
+		AccountID:       txn.AccountID,
+		PlanID:          planID,
+		Amount:          txn.Amount,
+		Currency:        txn.Currency,
+		Status:          txn.Status,
+		PaymentMethod:   txn.PaymentMethod,
+		Reference:       txn.Reference,
+		RejectionReason: txn.RejectionReason,
 	}
 	if err := r.db.WithContext(ctx).Create(&model).Error; err != nil {
 		return fmt.Errorf("create transaction: %w", err)
@@ -100,14 +106,16 @@ func (r *GormRepository) ListTransactions(ctx context.Context, accountID string)
 	result := make([]domain.Transaction, 0, len(models))
 	for _, m := range models {
 		result = append(result, domain.Transaction{
-			ID:            m.ID,
-			AccountID:     m.AccountID,
-			Amount:        m.Amount,
-			Currency:      m.Currency,
-			Status:        m.Status,
-			PaymentMethod: m.PaymentMethod,
-			Reference:     m.Reference,
-			CreatedAt:     m.CreatedAt,
+			ID:              m.ID,
+			AccountID:       m.AccountID,
+			PlanID:          m.PlanID,
+			Amount:          m.Amount,
+			Currency:        m.Currency,
+			Status:          m.Status,
+			PaymentMethod:   m.PaymentMethod,
+			Reference:       m.Reference,
+			RejectionReason: m.RejectionReason,
+			CreatedAt:       m.CreatedAt,
 		})
 	}
 	return result, nil

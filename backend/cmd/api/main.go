@@ -68,9 +68,10 @@ func main() {
 	auth := usecase.NewAuth(users, accounts, passwords, tokens)
 	metaMode := "live"
 	metaConnector := metainfra.NewGraphConnector(metainfra.GraphConfig{AppID: cfg.MetaAppID, AppSecret: cfg.MetaAppSecret, RedirectURI: cfg.MetaRedirectURI, Version: cfg.MetaGraphVersion, WebhookFields: cfg.MetaWebhookFields, WebhookVerifyToken: cfg.MetaWebhookVerifyToken, StateFile: cfg.MetaStateFile, EncryptionKey: cfg.JWTSecret, WhatsAppConfigID: cfg.MetaWhatsAppConfigID, PublicMediaURL: cfg.R2PublicURL}, db)
-	meta := usecase.NewMeta(metaConnector)
+	meta := usecase.NewMeta(metaConnector, billingRepo)
 	team := usecase.NewTeam(accounts, users, passwords)
 	billing := usecase.NewBilling(billingRepo)
+	admin := usecase.NewAdmin(repo, billingRepo, users, passwords, tokens)
 
 	// Initialize Storage (R2)
 	ctxR2 := context.Background()
@@ -131,7 +132,7 @@ func main() {
 	adAnalyzerUseCase := usecase.NewAdAnalyzer(db, meta)
 	notificationPreferencesUseCase := usecase.NewNotificationPreferences(db)
 
-	app := httpx.NewHandler(auth, meta, team, billing, storageUseCase, replyUseCase, automationUseCase, productUseCase, chatStream, leads, inventoryUseCase, ordersUseCase, adAnalyzerUseCase, notificationPreferencesUseCase, tokens, metaMode, cfg.MetaFrontendRedirect).App()
+	app := httpx.NewHandler(auth, meta, team, billing, storageUseCase, replyUseCase, automationUseCase, productUseCase, chatStream, leads, inventoryUseCase, ordersUseCase, adAnalyzerUseCase, notificationPreferencesUseCase, tokens, metaMode, cfg.MetaFrontendRedirect, admin).App()
 	go func() {
 		slog.Info("Fiber API listening", "address", cfg.HTTPAddr, "environment", cfg.Environment, "storage", cfg.StorageDriver, "meta", metaMode)
 		if err := app.Listen(cfg.HTTPAddr); err != nil {

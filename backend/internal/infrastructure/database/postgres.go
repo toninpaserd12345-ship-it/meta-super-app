@@ -46,12 +46,18 @@ func MigrateMetaCredentials(db *gorm.DB) error {
 // used on every deployment. Production may disable full seed migrations, but
 // it must never start with a schema older than the running automation API.
 func MigrateRuntimeSchema(db *gorm.DB) error {
-	if err := db.AutoMigrate(&AutomationRuleModel{}, &ChatMessageModel{}, &ProductModel{}, &ReplySetModel{}, &LeadModel{}, &LeadSettingsModel{}, &NotificationPreferenceModel{}, &LeadFollowUpStepModel{}, &CAPIEventModel{}, &WarehouseModel{}, &WarehouseStockModel{}, &OrderModel{}, &OrderItemModel{}, &AdStrategySettingsModel{}); err != nil {
+	if err := db.AutoMigrate(&UserModel{}, &AccountModel{}, &PlanModel{}, &SubscriptionModel{}, &TransactionModel{}, &AutomationRuleModel{}, &ChatMessageModel{}, &ProductModel{}, &ReplySetModel{}, &LeadModel{}, &LeadSettingsModel{}, &NotificationPreferenceModel{}, &LeadFollowUpStepModel{}, &CAPIEventModel{}, &WarehouseModel{}, &WarehouseStockModel{}, &OrderModel{}, &OrderItemModel{}, &AdStrategySettingsModel{}); err != nil {
 		return err
 	}
 	if err := migrateReplySetCodes(db); err != nil {
 		return err
 	}
+	// Backfill status for existing accounts
+	_ = db.Exec(`
+		UPDATE account_models
+		SET status = 'active'
+		WHERE status IS NULL OR status = ''
+	`).Error
 	// Ensure trigger_name can hold long Facebook post captions
 	_ = db.Exec(`
 		ALTER TABLE automation_rule_models ALTER COLUMN trigger_name TYPE text;

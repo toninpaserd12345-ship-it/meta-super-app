@@ -25,14 +25,17 @@ type Subscription struct {
 }
 
 type Transaction struct {
-	ID            string    `json:"id"`
-	AccountID     string    `json:"accountId"`
-	Amount        int       `json:"amount"`
-	Currency      string    `json:"currency"`
-	Status        string    `json:"status"` // pending, completed, failed
-	PaymentMethod string    `json:"paymentMethod"`
-	Reference     string    `json:"reference"`
-	CreatedAt     time.Time `json:"createdAt"`
+	ID              string    `json:"id"`
+	AccountID       string    `json:"accountId"`
+	AccountName     string    `json:"accountName,omitempty"`
+	PlanID          string    `json:"planId,omitempty"`
+	Amount          int       `json:"amount"`
+	Currency        string    `json:"currency"`
+	Status          string    `json:"status"` // pending, completed, failed
+	PaymentMethod   string    `json:"paymentMethod"`
+	Reference       string    `json:"reference"`
+	RejectionReason string    `json:"rejectionReason,omitempty"`
+	CreatedAt       time.Time `json:"createdAt"`
 }
 
 type BillingRepository interface {

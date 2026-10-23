@@ -38,6 +38,7 @@ type Handler struct {
 	Orders        *usecase.Orders
 	AdAnalyzer    *usecase.AdAnalyzer
 	Notifications *usecase.NotificationPreferences
+	admin         *usecase.Admin
 
 	tokens                         domain.TokenService
 	metaMode, metaFrontendRedirect string
@@ -57,8 +58,16 @@ type facebookLoginExchange struct {
 	AccountID string `json:"accountId,omitempty"`
 }
 
-func NewHandler(auth *usecase.Auth, meta *usecase.Meta, team *usecase.Team, billing *usecase.Billing, storage *usecase.StorageUseCase, reply *usecase.Reply, automation *usecase.Automation, product *usecase.Product, stream *usecase.ChatStream, leads *usecase.Leads, inventory *usecase.Inventory, orders *usecase.Orders, adAnalyzer *usecase.AdAnalyzer, notifications *usecase.NotificationPreferences, tokens domain.TokenService, metaMode, metaFrontendRedirect string) *Handler {
-	return &Handler{auth: auth, meta: meta, team: team, billing: billing, Storage: storage, Reply: reply, Automation: automation, Product: product, Stream: stream, Leads: leads, Inventory: inventory, Orders: orders, AdAnalyzer: adAnalyzer, Notifications: notifications, tokens: tokens, metaMode: metaMode, metaFrontendRedirect: metaFrontendRedirect, tickets: make(map[string]loginTicket)}
+func NewHandler(auth *usecase.Auth, meta *usecase.Meta, team *usecase.Team, billing *usecase.Billing, storage *usecase.StorageUseCase, reply *usecase.Reply, automation *usecase.Automation, product *usecase.Product, stream *usecase.ChatStream, leads *usecase.Leads, inventory *usecase.Inventory, orders *usecase.Orders, adAnalyzer *usecase.AdAnalyzer, notifications *usecase.NotificationPreferences, tokens domain.TokenService, metaMode, metaFrontendRedirect string, admin ...*usecase.Admin) *Handler {
+	var adminUC *usecase.Admin
+	if len(admin) > 0 {
+		adminUC = admin[0]
+	}
+	return &Handler{auth: auth, meta: meta, team: team, billing: billing, Storage: storage, Reply: reply, Automation: automation, Product: product, Stream: stream, Leads: leads, Inventory: inventory, Orders: orders, AdAnalyzer: adAnalyzer, Notifications: notifications, admin: adminUC, tokens: tokens, metaMode: metaMode, metaFrontendRedirect: metaFrontendRedirect, tickets: make(map[string]loginTicket)}
+}
+
+func (h *Handler) SetAdmin(admin *usecase.Admin) {
+	h.admin = admin
 }
 
 func (h *Handler) App() *fiber.App {
@@ -170,6 +179,17 @@ func (h *Handler) App() *fiber.App {
 	auth.Get("/api/v1/billing/plans", requireAccount(h.auth, "dashboard:read"), h.billingPlans)
 	auth.Get("/api/v1/billing/subscription", requireAccount(h.auth, "billing:read"), h.billingSubscription)
 	auth.Post("/api/v1/billing/checkout", requireAccount(h.auth, "billing:read"), h.billingCheckout)
+
+	// Super Admin Platform API
+	app.Post("/api/v1/admin/auth/login", h.adminLogin)
+	adminGroup := app.Group("/api/v1/admin", authenticate(h.tokens), requireSuperAdmin(h.admin))
+	adminGroup.Get("/overview", h.adminOverview)
+	adminGroup.Get("/tenants", h.adminListTenants)
+	adminGroup.Put("/tenants/:id/status", h.adminSetTenantStatus)
+	adminGroup.Delete("/tenants/:id", h.adminDeleteTenant)
+	adminGroup.Get("/transactions", h.adminListTransactions)
+	adminGroup.Post("/transactions/:id/approve", h.adminApproveTransaction)
+	adminGroup.Post("/transactions/:id/reject", h.adminRejectTransaction)
 
 	return app
 }

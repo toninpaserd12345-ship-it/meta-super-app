@@ -56,14 +56,29 @@ func (r *GormRepository) FindMembership(ctx context.Context, userID, accountID s
 }
 
 func mapUser(m database.UserModel) *domain.User {
-	return &domain.User{ID: m.ID, Name: m.Name, Email: m.Email, Password: m.PasswordHash, FacebookID: m.FacebookID}
+	return &domain.User{ID: m.ID, Name: m.Name, Email: m.Email, Password: m.PasswordHash, FacebookID: m.FacebookID, IsSuperAdmin: m.IsSuperAdmin}
 }
 func mapMembership(m database.MembershipModel) domain.Membership {
 	claims := make([]domain.Permission, 0, len(m.Claims))
 	for _, claim := range m.Claims {
 		claims = append(claims, domain.Permission(claim.Claim))
 	}
-	return domain.Membership{Account: domain.Account{ID: m.Account.ID, Name: m.Account.Name, Slug: m.Account.Slug, LogoURL: m.Account.LogoURL, CreatedAt: m.Account.CreatedAt}, Role: domain.Role(m.Role), Claims: claims}
+	status := m.Account.Status
+	if status == "" {
+		status = "active"
+	}
+	return domain.Membership{
+		Account: domain.Account{
+			ID:        m.Account.ID,
+			Name:      m.Account.Name,
+			Slug:      m.Account.Slug,
+			LogoURL:   m.Account.LogoURL,
+			Status:    status,
+			CreatedAt: m.Account.CreatedAt,
+		},
+		Role:   domain.Role(m.Role),
+		Claims: claims,
+	}
 }
 func mapError(err error) error {
 	if errors.Is(err, gorm.ErrRecordNotFound) {

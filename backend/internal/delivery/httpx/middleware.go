@@ -51,10 +51,36 @@ func requireAccount(auth *usecase.Auth, claim domain.Permission) fiber.Handler {
 		if err != nil {
 			return fail(c, 403, "account_forbidden", "Account access was denied.")
 		}
+		if membership.Account.Status == "suspended" {
+			path := c.Path()
+			isBillingOrUpload := strings.HasPrefix(path, "/api/v1/billing") || strings.HasPrefix(path, "/api/v1/storage")
+			if !isBillingOrUpload {
+				return fail(c, 403, "account_suspended", "This workspace has been suspended. Please renew subscription to reactivate.")
+			}
+		}
 		if !membership.Can(claim) {
 			return fail(c, 403, "permission_denied", "Required permission: "+string(claim))
 		}
 		c.Locals("accountID", accountID)
+		return c.Next()
+	}
+}
+
+func requireSuperAdmin(admin *usecase.Admin) fiber.Handler {
+	return func(c fiber.Ctx) error {
+		uid := userID(c)
+		if uid == "" {
+			return fail(c, 401, "unauthorized", "Authentication required.")
+		}
+		if admin == nil {
+			return fail(c, 500, "internal_error", "Admin service unavailable.")
+		}
+		ctx, cancel := requestContext(c)
+		defer cancel()
+		isSuper, err := admin.IsSuperAdmin(ctx, uid)
+		if err != nil || !isSuper {
+			return fail(c, 403, "super_admin_required", "Super Admin privileges are required to access this endpoint.")
+		}
 		return c.Next()
 	}
 }

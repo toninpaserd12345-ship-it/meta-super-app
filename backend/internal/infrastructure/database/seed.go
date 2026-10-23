@@ -16,19 +16,19 @@ func SeedAdmin(db *gorm.DB, hasher Hasher, email, password, accountName string) 
 		return nil
 	}
 	return db.Transaction(func(tx *gorm.DB) error {
-		var count int64
-		if err := tx.Model(&UserModel{}).Where("email = ?", strings.ToLower(email)).Count(&count).Error; err != nil {
-			return err
-		}
-		if count > 0 {
+		var user UserModel
+		if err := tx.Where("email = ?", strings.ToLower(email)).First(&user).Error; err == nil {
+			if !user.IsSuperAdmin {
+				_ = tx.Model(&user).Update("is_super_admin", true).Error
+			}
 			return nil
 		}
 		hash, err := hasher.Hash(password)
 		if err != nil {
 			return err
 		}
-		user := UserModel{ID: "00000000-0000-4000-8000-000000000001", Name: "System Admin", Email: strings.ToLower(email), PasswordHash: hash}
-		account := AccountModel{ID: "00000000-0000-4000-8000-000000000002", Name: accountName, Slug: slugify(accountName)}
+		user = UserModel{ID: "00000000-0000-4000-8000-000000000001", Name: "System Admin", Email: strings.ToLower(email), PasswordHash: hash, IsSuperAdmin: true}
+		account := AccountModel{ID: "00000000-0000-4000-8000-000000000002", Name: accountName, Slug: slugify(accountName), Status: "active"}
 		membership := MembershipModel{ID: uuid.NewString(), UserID: user.ID, AccountID: account.ID, Role: string(domain.RoleOwner)}
 		if err = tx.Create(&user).Error; err != nil {
 			return err

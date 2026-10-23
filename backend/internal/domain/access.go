@@ -22,6 +22,7 @@ type Account struct {
 	Name      string    `json:"name"`
 	Slug      string    `json:"slug"`
 	LogoURL   string    `json:"logoUrl,omitempty"`
+	Status    string    `json:"status,omitempty"`
 	CreatedAt time.Time `json:"createdAt"`
 }
 
@@ -32,12 +33,13 @@ type Membership struct {
 }
 
 type User struct {
-	ID         string       `json:"id"`
-	Name       string       `json:"name"`
-	Email      string       `json:"email"`
-	Password   string       `json:"-"`
-	FacebookID *string      `json:"facebookId,omitempty"`
-	Accounts   []Membership `json:"accounts"`
+	ID           string       `json:"id"`
+	Name         string       `json:"name"`
+	Email        string       `json:"email"`
+	Password     string       `json:"-"`
+	FacebookID   *string      `json:"facebookId,omitempty"`
+	IsSuperAdmin bool         `json:"isSuperAdmin"`
+	Accounts     []Membership `json:"accounts"`
 }
 
 func (m Membership) Can(required Permission) bool {

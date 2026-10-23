@@ -8,6 +8,7 @@ type UserModel struct {
 	Email        string  `gorm:"size:255;uniqueIndex;not null"`
 	PasswordHash string  `gorm:"size:255;not null"`
 	FacebookID   *string `gorm:"size:100;uniqueIndex"`
+	IsSuperAdmin bool    `gorm:"default:false;not null"`
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
@@ -17,6 +18,7 @@ type AccountModel struct {
 	Name      string `gorm:"size:160;not null"`
 	Slug      string `gorm:"size:100;uniqueIndex;not null"`
 	LogoURL   string `gorm:"size:500"`
+	Status    string `gorm:"size:30;not null;default:'active'"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
@@ -135,16 +137,18 @@ type SubscriptionModel struct {
 }
 
 type TransactionModel struct {
-	ID            string       `gorm:"type:uuid;primaryKey"`
-	AccountID     string       `gorm:"type:uuid;not null;index"`
-	Account       AccountModel `gorm:"foreignKey:AccountID;constraint:OnDelete:CASCADE"`
-	Amount        int          `gorm:"not null"`
-	Currency      string       `gorm:"size:10;not null"`
-	Status        string       `gorm:"size:50;not null"` // e.g., "pending", "completed", "failed"
-	PaymentMethod string       `gorm:"size:50"`
-	Reference     string       `gorm:"size:255"` // Transfer ref or Stripe Session ID
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	ID              string       `gorm:"type:uuid;primaryKey"`
+	AccountID       string       `gorm:"type:uuid;not null;index"`
+	Account         AccountModel `gorm:"foreignKey:AccountID;constraint:OnDelete:CASCADE"`
+	PlanID          string       `gorm:"size:50;default:'pro'"`
+	Amount          int          `gorm:"not null"`
+	Currency        string       `gorm:"size:10;not null"`
+	Status          string       `gorm:"size:50;not null"` // e.g., "pending", "completed", "failed"
+	PaymentMethod   string       `gorm:"size:50"`
+	Reference       string       `gorm:"size:500"` // Transfer ref, slip image URL, or Stripe Session ID
+	RejectionReason string       `gorm:"size:500"`
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 type MetaConnectionModel struct {

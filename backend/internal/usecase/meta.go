@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -13,10 +14,15 @@ var ErrPageNotFound = errors.New("meta page not found")
 
 type Meta struct {
 	connector domain.MetaConnector
+	billing   domain.BillingRepository
 }
 
-func NewMeta(connector domain.MetaConnector) *Meta {
-	return &Meta{connector: connector}
+func NewMeta(connector domain.MetaConnector, billing ...domain.BillingRepository) *Meta {
+	var b domain.BillingRepository
+	if len(billing) > 0 {
+		b = billing[0]
+	}
+	return &Meta{connector: connector, billing: b}
 }
 func (u *Meta) AuthorizationURL(ctx context.Context, userID, accountID string, permissions []string) (string, error) {
 	return u.connector.AuthorizationURL(ctx, userID, accountID, permissions)
@@ -60,6 +66,33 @@ func (u *Meta) ConnectPage(ctx context.Context, userID, accountID, pageID string
 	if pageID == "" {
 		return nil, ErrPageNotFound
 	}
+
+	// Quota check: verify max pages allowed by workspace subscription plan
+	if u.billing != nil {
+		sub, err := u.billing.GetSubscription(ctx, accountID)
+		maxPages := 1 // Default free tier limit
+		if err == nil && sub != nil {
+			if (sub.Status == "active" || sub.Status == "trialing") && sub.Plan != nil {
+				maxPages = sub.Plan.MaxPages
+			} else if sub.Status == "expired" {
+				maxPages = 1
+			}
+		}
+
+		pages, listErr := u.connector.ListPages(ctx, userID, accountID)
+		if listErr == nil {
+			connectedCount := 0
+			for _, p := range pages {
+				if p.Connected && p.ID != pageID {
+					connectedCount++
+				}
+			}
+			if connectedCount >= maxPages {
+				return nil, fmt.Errorf("plan_limit_exceeded: Your current plan allows maximum %d connected Facebook page(s). Please upgrade to connect more pages.", maxPages)
+			}
+		}
+	}
+
 	page, err := u.connector.ConnectPage(ctx, userID, accountID, pageID)
 	return page, err
 }
