@@ -87,6 +87,7 @@ func (h *Handler) App() *fiber.App {
 	app.Use(func(c fiber.Ctx) error { c.Set(fiber.HeaderCacheControl, "no-store"); return c.Next() })
 	app.Get("/health", func(c fiber.Ctx) error { return c.JSON(fiber.Map{"status": "ok"}) })
 	app.Post("/auth/login", h.login)
+	app.Post("/api/v1/admin/auth/login", h.adminLogin)
 	app.Post("/auth/facebook/start", h.startFacebookLogin)
 	app.Post("/auth/facebook/exchange", h.exchangeFacebookLogin)
 	app.Get("/api/v1/meta/oauth/callback", h.completeMetaOAuth)
@@ -181,7 +182,6 @@ func (h *Handler) App() *fiber.App {
 	auth.Post("/api/v1/billing/checkout", requireAccount(h.auth, "billing:read"), h.billingCheckout)
 
 	// Super Admin Platform API
-	app.Post("/api/v1/admin/auth/login", h.adminLogin)
 	adminGroup := app.Group("/api/v1/admin", authenticate(h.tokens), requireSuperAdmin(h.admin))
 	adminGroup.Get("/overview", h.adminOverview)
 	adminGroup.Get("/tenants", h.adminListTenants)
