@@ -1,7 +1,7 @@
 import vuetify, { transformAssetUrls } from 'vite-plugin-vuetify'
 
 // @ts-ignore
-const apiBase = (typeof process !== 'undefined' && process.env?.API_BASE_URL) || 'https://api2.157.230.245.52.nip.io'
+const apiBase = (typeof process !== 'undefined' && (process.env?.NUXT_PUBLIC_API_BASE_URL || process.env?.API_BASE_URL)) || 'https://api2.157.230.245.52.nip.io'
 
 export default defineNuxtConfig({
   compatibilityDate: '2026-09-11',
