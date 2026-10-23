@@ -1,0 +1,1 @@
+import{m as e}from"./TIH-PpFI.js";import{c as t,u as n}from"./FFv7Ot56.js";import{t as r}from"./QupNAreN.js";var i=t(async()=>{let t,i,{user:a,fetchUser:o}=r();if(a.value||([t,i]=e(()=>o()),t=await t,i()),!a.value)return n(`/login`)},1);export{i as default};

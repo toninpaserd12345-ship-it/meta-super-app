@@ -33,9 +33,9 @@ watch(() => route.path, () => {
     <aside class="app-sidebar" :class="{ 'drawer-open': isOpen }">
       <div class="sidebar-top">
         <NuxtLink to="/" class="brand" @click="close">
-          <span>M</span>
+          <span>P</span>
           <div class="brand-text">
-            <strong>Meta Super App</strong>
+            <strong>Packdee</strong>
             <small>{{ t('nav.dashboard') }}</small>
           </div>
         </NuxtLink>

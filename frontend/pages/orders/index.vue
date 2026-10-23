@@ -1710,7 +1710,7 @@ async function saveStatusUpdate() {
 
             <!-- 7. Footer Tagline -->
             <div class="an-footer-tagline">
-              <small>ANOUSITH EXPRESS · ວ່ອງໄວ ປອດໄພ ທົ່ວປະເທດ · Powered by Meta Super App</small>
+              <small>ANOUSITH EXPRESS · ວ່ອງໄວ ປອດໄພ ທົ່ວປະເທດ · Powered by Packdee</small>
             </div>
           </div>
         </v-card-text>

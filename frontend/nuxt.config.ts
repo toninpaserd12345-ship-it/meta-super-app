@@ -5,10 +5,10 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
   app: {
     head: {
-      title: 'Meta Super App',
+      title: 'Packdee — E-Commerce & Ads Intelligence',
       meta: [
         { name: 'viewport', content: 'width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover' },
-        { name: 'description', content: 'A secure workspace for your business.' },
+        { name: 'description', content: 'Packdee - ລະບົບຈັດການຮ້ານຄ້າ, ອໍເດີ, ແຊັດ ແລະ ໂຄສະນາ ຄົບຈົບໃນບ່ອນດຽວ' },
         { name: 'theme-color', content: '#F6F7FB' },
       ],
     },
@@ -47,7 +47,7 @@ export default defineNuxtConfig({
     sessionCookieName: 'app_session',
     accountCookieName: 'active_account',
     sessionMaxAge: 60 * 60 * 8,
-    public: { appName: 'Meta Super App' },
+    public: { appName: 'Packdee' },
   },
   routeRules: {
     '/**': {

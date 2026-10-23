@@ -19,7 +19,7 @@ async function changeAccount(event: Event) {
 
       <div class="workspace-crumb">
         <div class="crumb-text">
-          <span class="account-name">{{ activeAccount?.name || 'Meta Super App' }}</span>
+          <span class="account-name">{{ activeAccount?.name || 'Packdee' }}</span>
           <span v-if="membership?.role" class="role-pill">{{ membership.role }}</span>
         </div>
       </div>

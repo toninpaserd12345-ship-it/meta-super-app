@@ -8,10 +8,10 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
   app: {
     head: {
-      title: 'Meta Super App — Admin Platform',
+      title: 'Packdee Admin — Management Platform',
       meta: [
         { name: 'viewport', content: 'width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover' },
-        { name: 'description', content: 'Super Admin Management Platform for Meta Super App.' },
+        { name: 'description', content: 'Super Admin Management Platform for Packdee.' },
         { name: 'theme-color', content: '#0F172A' },
       ],
     },
@@ -46,7 +46,7 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       apiBaseUrl: apiBase,
-      appName: 'Meta Super App Admin',
+      appName: 'Packdee Admin',
     },
   },
   devServer: {

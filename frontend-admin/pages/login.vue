@@ -41,7 +41,7 @@ const handleLogin = async () => {
         <div class="brand-badge">
           <v-icon icon="mdi-shield-crown" color="white" size="28" />
         </div>
-        <h1>Meta Super App</h1>
+        <h1>Packdee</h1>
         <p>Super Admin Platform</p>
       </div>
 
