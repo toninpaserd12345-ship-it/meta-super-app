@@ -63,7 +63,7 @@ async function loginWithEmail() {
       method: 'POST',
       body: { email: email.value.trim(), password: password.value }
     })
-    navigateTo('/meta-pages')
+    navigateTo('/')
   } catch (err: any) {
     errorMessage.value = err?.statusMessage || err?.data?.message || err?.message || l({
       lo: 'ອີເມວ ຫຼື ລະຫັດຜ່ານບໍ່ຖືກຕ້ອງ ກະລຸນາກວດສອບຄືນ',

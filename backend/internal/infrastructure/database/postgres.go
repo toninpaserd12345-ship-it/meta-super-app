@@ -81,6 +81,13 @@ func MigrateRuntimeSchema(db *gorm.DB) error {
 		SET email = concat('fb_', COALESCE(facebook_id, id::text), '@users.meta-app.internal')
 		WHERE email = '' OR email IS NULL
 	`).Error
+	// Backfill locked_price for existing subscriptions from their plan price
+	_ = db.Exec(`
+		UPDATE subscription_models sm
+		SET locked_price = pm.price
+		FROM plan_models pm
+		WHERE sm.plan_id = pm.id AND (sm.locked_price IS NULL OR sm.locked_price = 0)
+	`).Error
 	// Older releases stored one row per Ad/Post without a flow identity. Group
 	// compatible rows deterministically so the new dashboard shows one
 	// automation with many targets and keeps all existing bindings intact.

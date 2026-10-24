@@ -90,6 +90,7 @@ func (r *GormRepository) ListTenants(ctx context.Context, search string) ([]doma
 		planID := "free"
 		planName := "Free Plan"
 		planStatus := "active"
+		lockedPrice := 0
 		var currentPeriodEnd *time.Time
 
 		if err := r.db.WithContext(ctx).Preload("Plan").Where("account_id = ?", acc.ID).First(&sub).Error; err == nil {
@@ -98,6 +99,10 @@ func (r *GormRepository) ListTenants(ctx context.Context, search string) ([]doma
 				planName = sub.Plan.Name
 			}
 			planStatus = sub.Status
+			lockedPrice = sub.LockedPrice
+			if lockedPrice == 0 && sub.Plan.Price > 0 {
+				lockedPrice = sub.Plan.Price
+			}
 			end := sub.CurrentPeriodEnd
 			currentPeriodEnd = &end
 		}
@@ -150,6 +155,7 @@ func (r *GormRepository) ListTenants(ctx context.Context, search string) ([]doma
 			PlanID:              planID,
 			PlanName:            planName,
 			PlanStatus:          planStatus,
+			LockedPrice:         lockedPrice,
 			CurrentPeriodEnd:    currentPeriodEnd,
 			Users:               tenantUsers,
 			Pages:               tenantPages,
@@ -382,7 +388,7 @@ func (r *GormRepository) DeletePlan(ctx context.Context, planID string) error {
 	return r.db.WithContext(ctx).Where("id = ?", planID).Delete(&database.PlanModel{}).Error
 }
 
-func (r *GormRepository) SetTenantPlan(ctx context.Context, accountID, planID string, days int, status string) error {
+func (r *GormRepository) SetTenantPlan(ctx context.Context, accountID, planID string, days, lockedPrice int, status string) error {
 	if status == "" {
 		status = "active"
 	}
@@ -394,6 +400,12 @@ func (r *GormRepository) SetTenantPlan(ctx context.Context, accountID, planID st
 		periodEnd = time.Now().AddDate(100, 0, 0)
 	}
 
+	var plan database.PlanModel
+	_ = r.db.WithContext(ctx).Where("id = ?", planID).First(&plan).Error
+	if lockedPrice <= 0 && plan.Price > 0 {
+		lockedPrice = plan.Price
+	}
+
 	var sub database.SubscriptionModel
 	err := r.db.WithContext(ctx).Where("account_id = ?", accountID).First(&sub).Error
 	if err != nil {
@@ -402,6 +414,7 @@ func (r *GormRepository) SetTenantPlan(ctx context.Context, accountID, planID st
 			AccountID:        accountID,
 			PlanID:           planID,
 			Status:           status,
+			LockedPrice:      lockedPrice,
 			CurrentPeriodEnd: periodEnd,
 			CreatedAt:        time.Now(),
 			UpdatedAt:        time.Now(),
@@ -412,6 +425,7 @@ func (r *GormRepository) SetTenantPlan(ctx context.Context, accountID, planID st
 	return r.db.WithContext(ctx).Model(&sub).Updates(map[string]interface{}{
 		"plan_id":            planID,
 		"status":             status,
+		"locked_price":       lockedPrice,
 		"current_period_end": periodEnd,
 		"updated_at":         time.Now(),
 	}).Error

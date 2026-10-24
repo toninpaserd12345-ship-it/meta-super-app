@@ -96,3 +96,84 @@ func (h *Handler) billingCheckout(c fiber.Ctx) error {
 	}
 	return c.JSON(fiber.Map{"status": "ok"})
 }
+
+func (h *Handler) billingStartTrial(c fiber.Ctx) error {
+	accountID := c.Locals("accountID").(string)
+	ctx, cancel := requestContext(c)
+	defer cancel()
+
+	sub, err := h.billing.StartTrial(ctx, accountID)
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+	return c.JSON(fiber.Map{"status": "ok", "subscription": sub})
+}
+
+func (h *Handler) billingSelectFree(c fiber.Ctx) error {
+	accountID := c.Locals("accountID").(string)
+	ctx, cancel := requestContext(c)
+	defer cancel()
+
+	sub, err := h.billing.SelectFree(ctx, accountID)
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+	return c.JSON(fiber.Map{"status": "ok", "subscription": sub})
+}
+
+func (h *Handler) onboardingStatus(c fiber.Ctx) error {
+	accountID := c.Locals("accountID").(string)
+	ctx, cancel := requestContext(c)
+	defer cancel()
+
+	sub, err := h.billing.GetSubscription(ctx, accountID)
+	hasPlan := (err == nil && sub != nil && (sub.Status == "active" || sub.Status == "trialing"))
+
+	pages, _ := h.meta.ListPages(ctx, userID(c), accountID)
+	connectedCount := 0
+	var connectedPages []fiber.Map
+	for _, p := range pages {
+		if p.Connected {
+			connectedCount++
+			connectedPages = append(connectedPages, fiber.Map{
+				"id":         p.ID,
+				"name":       p.Name,
+				"category":   p.Category,
+				"pictureUrl": p.PictureURL,
+			})
+		}
+	}
+
+	step := "completed"
+	if !hasPlan {
+		step = "plan"
+	} else if connectedCount == 0 {
+		step = "page"
+	}
+
+	var planInfo fiber.Map
+	if sub != nil && sub.Plan != nil {
+		lockedPrice := sub.LockedPrice
+		if lockedPrice == 0 {
+			lockedPrice = sub.Plan.Price
+		}
+		planInfo = fiber.Map{
+			"id":               sub.PlanID,
+			"name":             sub.Plan.Name,
+			"price":            sub.Plan.Price,
+			"lockedPrice":      lockedPrice,
+			"status":           sub.Status,
+			"currentPeriodEnd": sub.CurrentPeriodEnd,
+		}
+	}
+
+	return c.JSON(fiber.Map{
+		"hasPlan":             hasPlan,
+		"plan":                planInfo,
+		"connectedPagesCount": connectedCount,
+		"connectedPages":      connectedPages,
+		"totalAvailablePages": len(pages),
+		"step":                step, // "plan", "page", "completed"
+		"isCompleted":         step == "completed",
+	})
+}

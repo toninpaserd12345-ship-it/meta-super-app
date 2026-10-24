@@ -180,6 +180,9 @@ func (h *Handler) App() *fiber.App {
 	auth.Get("/api/v1/billing/plans", requireAccount(h.auth, "dashboard:read"), h.billingPlans)
 	auth.Get("/api/v1/billing/subscription", requireAccount(h.auth, "billing:read"), h.billingSubscription)
 	auth.Post("/api/v1/billing/checkout", requireAccount(h.auth, "billing:read"), h.billingCheckout)
+	auth.Post("/api/v1/billing/start-trial", requireAccount(h.auth, "billing:read"), h.billingStartTrial)
+	auth.Post("/api/v1/billing/select-free", requireAccount(h.auth, "billing:read"), h.billingSelectFree)
+	auth.Get("/api/v1/onboarding/status", requireAccount(h.auth, "dashboard:read"), h.onboardingStatus)
 
 	// Super Admin Platform API
 	adminGroup := app.Group("/api/v1/admin", authenticate(h.tokens), requireSuperAdmin(h.admin))

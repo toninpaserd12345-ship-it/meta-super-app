@@ -32,7 +32,7 @@ export default defineEventHandler(async (event) => {
     const cookie = { httpOnly: true, secure: !import.meta.dev, sameSite: 'lax' as const, path: '/', maxAge: Number(config.sessionMaxAge) }
     setCookie(event, config.sessionCookieName, result.access_token, cookie)
     setCookie(event, config.accountCookieName, membership.account.id, cookie)
-    return sendRedirect(event, '/meta-pages?meta=connected')
+    return sendRedirect(event, '/onboarding?meta=connected')
   } catch (error) {
     upstreamError(error)
     return sendRedirect(event, '/login?facebook=error')

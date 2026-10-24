@@ -93,8 +93,12 @@ func (u *Admin) ApproveTransaction(ctx context.Context, txnID string) error {
 	}
 
 	subID := uuid.NewString()
+	lockedPrice := txn.Amount
 	if sub != nil && sub.ID != "" {
 		subID = sub.ID
+		if sub.LockedPrice > 0 {
+			lockedPrice = sub.LockedPrice
+		}
 	}
 
 	newSub := domain.Subscription{
@@ -102,6 +106,7 @@ func (u *Admin) ApproveTransaction(ctx context.Context, txnID string) error {
 		AccountID:        txn.AccountID,
 		PlanID:           planID,
 		Status:           "active",
+		LockedPrice:      lockedPrice,
 		CurrentPeriodEnd: newEnd,
 	}
 
@@ -176,13 +181,13 @@ func (u *Admin) DeletePlan(ctx context.Context, planID string) error {
 	return u.adminRepo.DeletePlan(ctx, planID)
 }
 
-func (u *Admin) SetTenantPlan(ctx context.Context, accountID, planID string, days int, status string) error {
+func (u *Admin) SetTenantPlan(ctx context.Context, accountID, planID string, days, lockedPrice int, status string) error {
 	if strings.TrimSpace(accountID) == "" {
 		return errors.New("account id is required")
 	}
 	if strings.TrimSpace(planID) == "" {
 		return errors.New("plan id is required")
 	}
-	return u.adminRepo.SetTenantPlan(ctx, accountID, planID, days, status)
+	return u.adminRepo.SetTenantPlan(ctx, accountID, planID, days, lockedPrice, status)
 }
 

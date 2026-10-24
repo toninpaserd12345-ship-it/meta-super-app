@@ -131,6 +131,7 @@ type SubscriptionModel struct {
 	PlanID           string       `gorm:"size:50;not null"`
 	Plan             PlanModel    `gorm:"foreignKey:PlanID;constraint:OnDelete:RESTRICT"`
 	Status           string       `gorm:"size:50;not null"` // e.g., "active", "expired", "canceled"
+	LockedPrice      int          `gorm:"default:0"`        // Grandfathered / locked subscription price in LAK for this store
 	CurrentPeriodEnd time.Time    `gorm:"not null"`
 	CreatedAt        time.Time
 	UpdatedAt        time.Time

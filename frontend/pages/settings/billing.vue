@@ -2,7 +2,7 @@
 definePageMeta({ middleware: 'auth' })
 
 type Plan = { id: string; name: string; price: number; maxUsers: number; maxPages: number; isActive: boolean }
-type Subscription = { planId: string; status: string; currentPeriodEnd: string; plan?: Plan }
+type Subscription = { planId: string; status: string; lockedPrice?: number; currentPeriodEnd: string; plan?: Plan }
 
 const { locale, l } = useLocale()
 const plans = ref<Plan[]>([])
@@ -21,6 +21,14 @@ const checkoutError = ref('')
 
 const activePlans = computed(() => plans.value.filter(plan => plan.isActive))
 const currentPlan = computed(() => subscription.value?.plan || activePlans.value.find(plan => plan.id === subscription.value?.planId))
+
+const payAmount = computed(() => {
+  if (!selectedPlan.value) return 0
+  if (subscription.value?.planId === selectedPlan.value.id && subscription.value?.lockedPrice && subscription.value.lockedPrice > 0) {
+    return subscription.value.lockedPrice
+  }
+  return selectedPlan.value.price
+})
 
 const loadBilling = async () => {
   loading.value = true
@@ -287,7 +295,13 @@ onMounted(loadBilling)
               <div class="account-info">
                 <div><label>{{ l({ lo: 'ຊື່ບັນຊີ', th: 'ชื่อบัญชี', en: 'Account Name' }) }}:</label> <strong>META SUPER APP (TONXAYIN)</strong></div>
                 <div><label>{{ l({ lo: 'ເລກບັນຊີ BCEL', th: 'เลขบัญชี BCEL', en: 'BCEL Account' }) }}:</label> <strong class="copyable">010-12-00-01234567-001</strong></div>
-                <div><label>{{ l({ lo: 'ຈຳນວນເງິນ', th: 'ยอดเงิน', en: 'Amount' }) }}:</label> <strong class="price-highlight">{{ formatPrice(selectedPlan.price) }} LAK</strong></div>
+                <div>
+                  <label>{{ l({ lo: 'ຈຳນວນເງິນ', th: 'ยอดเงิน', en: 'Amount' }) }}:</label>
+                  <strong class="price-highlight">{{ formatPrice(payAmount) }} LAK</strong>
+                  <div v-if="payAmount < selectedPlan.price" class="locked-price-note">
+                    🔒 {{ l({ lo: 'ລາຄາພິເສດທີ່ລັອກໄວ້ສຳລັບທ່ານ (ປົກກະຕິ: ' + formatPrice(selectedPlan.price) + ' LAK)', th: 'ราคาพิเศษที่ล็อกไว้สำหรับคุณ (ปกติ: ' + formatPrice(selectedPlan.price) + ' LAK)', en: 'Locked member price (regular: ' + formatPrice(selectedPlan.price) + ' LAK)' }) }}
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -388,6 +402,7 @@ onMounted(loadBilling)
 .account-info label{color:var(--color-text-secondary)}
 .copyable{font-family:monospace;letter-spacing:.5px}
 .price-highlight{color:var(--color-primary);font-size:var(--text-md)}
+.locked-price-note{font-size:11px;font-weight:700;color:#B45309;background:#FEF3C7;padding:3px 6px;border-radius:4px;margin-top:4px}
 .upload-column{display:flex;flex-direction:column;gap:var(--space-3)}
 .upload-column h4{margin:0;font-size:var(--text-md);font-weight:700}
 .upload-desc{margin:0;font-size:var(--text-sm);color:var(--color-text-secondary)}

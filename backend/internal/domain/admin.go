@@ -67,6 +67,7 @@ type TenantDetail struct {
 	PlanID              string       `json:"planId"`
 	PlanName            string       `json:"planName"`
 	PlanStatus          string       `json:"planStatus"`
+	LockedPrice         int          `json:"lockedPrice"`
 	CurrentPeriodEnd    *time.Time   `json:"currentPeriodEnd,omitempty"`
 	Users               []TenantUser `json:"users"`
 	Pages               []TenantPage `json:"pages"`
@@ -98,5 +99,5 @@ type AdminRepository interface {
 	ListAdminPlans(ctx context.Context) ([]AdminPlanItem, error)
 	SavePlan(ctx context.Context, plan Plan) error
 	DeletePlan(ctx context.Context, planID string) error
-	SetTenantPlan(ctx context.Context, accountID, planID string, days int, status string) error
+	SetTenantPlan(ctx context.Context, accountID, planID string, days, lockedPrice int, status string) error
 }

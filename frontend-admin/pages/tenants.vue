@@ -33,6 +33,7 @@ interface Tenant {
   planId: string
   planName: string
   planStatus: string
+  lockedPrice?: number
   currentPeriodEnd?: string
   users?: TenantUser[]
   pages?: TenantPage[]
@@ -218,6 +219,7 @@ const availablePlans = ref<{ id: string; name: string; price: number }[]>([])
 const changePlanForm = ref({
   planId: 'pro',
   days: 30,
+  lockedPrice: 500000,
   status: 'active',
 })
 
@@ -226,11 +228,16 @@ const openTenantPlanChange = async () => {
   changePlanForm.value = {
     planId: selectedTenant.value.planId || 'pro',
     days: 30,
+    lockedPrice: selectedTenant.value.lockedPrice || 0,
     status: 'active',
   }
   try {
     const res = await adminFetch<{ items: { id: string; name: string; price: number }[] }>('/api/v1/admin/plans')
     availablePlans.value = res.items || []
+    if (changePlanForm.value.lockedPrice <= 0) {
+      const match = availablePlans.value.find(p => p.id === changePlanForm.value.planId)
+      if (match) changePlanForm.value.lockedPrice = match.price
+    }
   } catch (err) {
     console.error('Failed to load plans:', err)
   }
@@ -246,6 +253,7 @@ const submitTenantPlanChange = async () => {
       body: {
         planId: changePlanForm.value.planId,
         days: Number(changePlanForm.value.days) || 30,
+        lockedPrice: Number(changePlanForm.value.lockedPrice) || 0,
         status: changePlanForm.value.status,
       },
     })
@@ -666,6 +674,9 @@ onMounted(loadTenants)
               <span class="meta-lbl">{{ l({ lo: 'ແພັກເກດ (Plan)', th: 'แพ็กเกจ (Plan)', en: 'Plan' }) }}</span>
               <div class="plan-change-wrap">
                 <span class="plan-chip" :class="selectedTenant.planId">{{ selectedTenant.planName }}</span>
+                <span v-if="selectedTenant.lockedPrice" class="locked-price-pill" title="Locked renewal price for this store">
+                  🔒 {{ new Intl.NumberFormat().format(selectedTenant.lockedPrice) }} ₭
+                </span>
                 <button type="button" class="btn-change-plan" @click="openTenantPlanChange">
                   <v-icon icon="mdi-pencil" size="13" />
                   <span>{{ l({ lo: 'ປ່ຽນ', th: 'เปลี่ยน', en: 'Change' }) }}</span>
@@ -815,6 +826,12 @@ onMounted(loadTenants)
                 <option :value="365">{{ l({ lo: '365 ວັນ (1 ປີ)', th: '365 วัน (1 ปี)', en: '365 Days (1 Year)' }) }}</option>
                 <option :value="0">{{ l({ lo: 'ຕະຫຼອດຊີບ / ບໍ່ມີກຳນົດ (Lifetime / Free)', th: 'ตลอดชีพ / ไม่มีกำหนด (Lifetime / Free)', en: 'Lifetime / No Expiry' }) }}</option>
               </select>
+            </div>
+
+            <div class="form-field">
+              <label>{{ l({ lo: 'ລາຄາລັອກໄວ້ສຳລັບຮ້ານນີ້ (Locked Price LAK)', th: 'ราคาที่ล็อกไว้สำหรับร้านนี้ (Locked Price LAK)', en: 'Locked Price (LAK)' }) }}</label>
+              <input v-model.number="changePlanForm.lockedPrice" type="number" min="0" step="10000" class="modal-select">
+              <small class="sub-txt">{{ l({ lo: 'ຮ້ານຄ້າຈະສຳລະລາຄານີ້ໃນຮອບຕໍ່ອາຍຸ ເຖິງແມ່ນວ່າ Admin ຈະປັບຂຶ້ນລາຄາແພັກເກດກໍ່ຕາມ', th: 'ร้านค้าจะจ่ายราคานี้ในการต่ออายุ แม้ว่าจะมีการปรับราคาขึ้นก็ตาม', en: 'Grandfathered price for this tenant, immune to future price increases' }) }}</small>
             </div>
 
             <div class="form-field">
@@ -1415,6 +1432,16 @@ onMounted(loadTenants)
   align-items: center;
   gap: 8px;
   margin-top: 4px;
+}
+
+.locked-price-pill {
+  font-size: 11px;
+  font-weight: 700;
+  background-color: #FEF3C7;
+  color: #B45309;
+  border: 1px solid #FDE68A;
+  padding: 2px 7px;
+  border-radius: 4px;
 }
 
 .btn-change-plan {

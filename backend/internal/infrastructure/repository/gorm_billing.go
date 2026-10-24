@@ -48,6 +48,7 @@ func (r *GormRepository) GetSubscription(ctx context.Context, accountID string) 
 		PlanID:           model.PlanID,
 		Plan:             plan,
 		Status:           model.Status,
+		LockedPrice:      model.LockedPrice,
 		CurrentPeriodEnd: model.CurrentPeriodEnd,
 		CreatedAt:        model.CreatedAt,
 	}, nil
@@ -59,6 +60,7 @@ func (r *GormRepository) UpsertSubscription(ctx context.Context, sub *domain.Sub
 		AccountID:        sub.AccountID,
 		PlanID:           sub.PlanID,
 		Status:           sub.Status,
+		LockedPrice:      sub.LockedPrice,
 		CurrentPeriodEnd: sub.CurrentPeriodEnd,
 	}
 

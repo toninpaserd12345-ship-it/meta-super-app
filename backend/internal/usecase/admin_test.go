@@ -105,7 +105,7 @@ func (m *mockAdminRepo) DeletePlan(ctx context.Context, planID string) error {
 	return nil
 }
 
-func (m *mockAdminRepo) SetTenantPlan(ctx context.Context, accountID, planID string, days int, status string) error {
+func (m *mockAdminRepo) SetTenantPlan(ctx context.Context, accountID, planID string, days, lockedPrice int, status string) error {
 	return nil
 }
 
@@ -261,7 +261,7 @@ func TestAdminPlans(t *testing.T) {
 		t.Fatalf("delete plan error: %v", err)
 	}
 
-	err = admin.SetTenantPlan(ctx, "acc-1", "pro", 30, "active")
+	err = admin.SetTenantPlan(ctx, "acc-1", "pro", 30, 500000, "active")
 	if err != nil {
 		t.Fatalf("set tenant plan error: %v", err)
 	}

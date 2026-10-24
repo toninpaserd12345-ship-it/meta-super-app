@@ -203,9 +203,10 @@ func (h *Handler) adminDeletePlan(c fiber.Ctx) error {
 func (h *Handler) adminSetTenantPlan(c fiber.Ctx) error {
 	accountID := c.Params("id")
 	var body struct {
-		PlanID string `json:"planId"`
-		Days   int    `json:"days"`
-		Status string `json:"status"`
+		PlanID      string `json:"planId"`
+		Days        int    `json:"days"`
+		LockedPrice int    `json:"lockedPrice"`
+		Status      string `json:"status"`
 	}
 	if err := c.Bind().JSON(&body); err != nil || body.PlanID == "" {
 		return fail(c, fiber.StatusBadRequest, "invalid_request", "planId is required.")
@@ -214,8 +215,8 @@ func (h *Handler) adminSetTenantPlan(c fiber.Ctx) error {
 	ctx, cancel := requestContext(c)
 	defer cancel()
 
-	if err := h.admin.SetTenantPlan(ctx, accountID, body.PlanID, body.Days, body.Status); err != nil {
+	if err := h.admin.SetTenantPlan(ctx, accountID, body.PlanID, body.Days, body.LockedPrice, body.Status); err != nil {
 		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
 	}
-	return c.JSON(fiber.Map{"status": "ok", "accountId": accountID, "planId": body.PlanID})
+	return c.JSON(fiber.Map{"status": "ok", "accountId": accountID, "planId": body.PlanID, "lockedPrice": body.LockedPrice})
 }
