@@ -490,7 +490,13 @@ func (h *Handler) connectMetaPage(c fiber.Ctx) error {
 	page, err := h.meta.ConnectPage(ctx, userID(c), c.Locals("accountID").(string), body.PageID)
 	if err != nil {
 		slog.Error("meta page subscription failed", "page_id", body.PageID, "error", err)
-		return fail(c, fiber.StatusBadGateway, "meta_subscription_failed", "Meta rejected the Page Webhook subscription. Verify Page access and pages_manage_metadata permission.")
+		if strings.HasPrefix(err.Error(), "plan_limit_exceeded") {
+			return fail(c, fiber.StatusForbidden, "plan_limit_exceeded", err.Error())
+		}
+		if errors.Is(err, usecase.ErrPageNotFound) || strings.Contains(strings.ToLower(err.Error()), "not found") {
+			return fail(c, fiber.StatusNotFound, "meta_page_not_found", "The Meta Page was not found in this workspace.")
+		}
+		return fail(c, fiber.StatusBadGateway, "meta_subscription_failed", "Meta rejected the Page Webhook subscription: "+err.Error())
 	}
 	return c.JSON(fiber.Map{"page": page})
 }
@@ -506,7 +512,10 @@ func (h *Handler) disconnectMetaPage(c fiber.Ctx) error {
 	page, err := h.meta.DisconnectPage(ctx, userID(c), c.Locals("accountID").(string), body.PageID)
 	if err != nil {
 		slog.Error("meta page unsubscription failed", "page_id", body.PageID, "error", err)
-		return fail(c, fiber.StatusBadGateway, "meta_unsubscription_failed", "Meta rejected the Page Webhook unsubscription.")
+		if errors.Is(err, usecase.ErrPageNotFound) || strings.Contains(strings.ToLower(err.Error()), "not found") {
+			return fail(c, fiber.StatusNotFound, "meta_page_not_found", "The Meta Page was not found in this workspace.")
+		}
+		return fail(c, fiber.StatusBadGateway, "meta_unsubscription_failed", "Meta rejected the Page Webhook unsubscription: "+err.Error())
 	}
 	return c.JSON(fiber.Map{"page": page})
 }

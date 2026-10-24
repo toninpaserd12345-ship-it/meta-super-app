@@ -94,7 +94,14 @@ async function connectFacebook(){
   }
   catch{messageType.value='error';message.value='Unable to start Facebook Login. Please sign in to this app again and retry.';authorizing.value=false}
 }
-function apiMessage(error:any,fallback:string){return error?.data?.error?.message||error?.data?.message||error?.data?.statusMessage||error?.statusMessage||fallback}
+function apiMessage(error:any,fallback:string){
+  const code = error?.data?.error?.code
+  const msg = error?.data?.error?.message||error?.data?.message||error?.data?.statusMessage||error?.statusMessage
+  if (code === 'plan_limit_exceeded' || (msg && msg.includes('plan_limit_exceeded'))) {
+    return 'ແພັກເກດປັດຈຸບັນຂອງທ່ານເຊື່ອມຕໍ່ໄດ້ຕາມໂຄຕ້າເທົ່ານັ້ນ ກະລຸນາອັບເກຣດແພັກເກດເພື່ອເຊື່ອມຕໍ່ເພີ່ມ'
+  }
+  return msg || fallback
+}
 async function setPageEnabled(page:MetaPage,enabled:boolean){
   if(!enabled&&!confirm(`ປິດການໃຊ້ງານສຳລັບ “${page.name}”? ຂໍ້ຄວາມໃໝ່ຈາກເພຈນີ້ຈະບໍ່ເຂົ້າລະບົບຈົນກວ່າຈະເປີດຄືນ.`))return
   toggling.value=page.id;message.value=''
@@ -111,7 +118,10 @@ async function activateSelected(){
   const failed=chosen.length-successIds.length
   selected.value=selected.value.filter(id=>!successIds.includes(id));await refresh();activating.value=false
   if(!failed){pickerOpen.value=false;messageType.value='success';message.value=`ເປີດການໃຊ້ງານສຳເລັດ ${successIds.length} ບັນຊີ. ລະບົບພ້ອມຮັບຂໍ້ຄວາມແລ້ວ.`;return}
-  messageType.value='error';message.value=`ເປີດການໃຊ້ງານສຳເລັດ ${successIds.length} ຈາກ ${chosen.length} ບັນຊີ. ຜິດພາດ ${failed} ບັນຊີ ເນື່ອງຈາກ Meta ປະຕິເສດສິດໃນການເຂົ້າເຖິງ.`
+  const firstRejection = results.find(r => r.status === 'rejected') as PromiseRejectedResult | undefined
+  const failReason = firstRejection?.reason
+  messageType.value='error'
+  message.value=`ເປີດການໃຊ້ງານສຳເລັດ ${successIds.length} ຈາກ ${chosen.length} ບັນຊີ. ຜິດພາດ ${failed} ບັນຊີ: ${apiMessage(failReason, 'ເນື່ອງຈາກ Meta ປະຕິເສດສິດໃນການເຂົ້າເຖິງ')}`
 }
 
 declare global {

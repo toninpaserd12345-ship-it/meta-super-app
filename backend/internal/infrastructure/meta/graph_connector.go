@@ -2180,6 +2180,11 @@ func (g *GraphConnector) SubscribePageOnMeta(ctx context.Context, pageID, access
 }
 
 func (g *GraphConnector) ConnectPage(ctx context.Context, _ string, accountID, pageID string) (*domain.MetaPage, error) {
+	pageID = strings.TrimSpace(pageID)
+	if pageID == "" {
+		return nil, errors.New("pageID is required")
+	}
+
 	g.mu.RLock()
 	session := g.sessions[accountID]
 	var page graphPage
@@ -2188,6 +2193,24 @@ func (g *GraphConnector) ConnectPage(ctx context.Context, _ string, accountID, p
 		page, ok = session.Pages[pageID]
 	}
 	g.mu.RUnlock()
+
+	if !ok {
+		foundAccountID, savedPage, saved := g.findPage(pageID)
+		if saved && (foundAccountID == accountID || foundAccountID == "") {
+			page, ok = savedPage, true
+		}
+	}
+	if !ok {
+		token, err := g.userToken(ctx, accountID)
+		if err == nil {
+			pages, _, err := g.fetchPages(ctx, token)
+			if err == nil {
+				if p, found := pages[pageID]; found {
+					page, ok = p, true
+				}
+			}
+		}
+	}
 	if !ok {
 		return nil, errors.New("meta page not found")
 	}
@@ -2203,6 +2226,14 @@ func (g *GraphConnector) ConnectPage(ctx context.Context, _ string, accountID, p
 	}
 
 	g.mu.Lock()
+	if g.sessions[accountID] == nil {
+		g.sessions[accountID] = &graphSession{Pages: make(map[string]graphPage)}
+	}
+	session = g.sessions[accountID]
+	if session.Pages == nil {
+		session.Pages = make(map[string]graphPage)
+	}
+
 	page.Connected = true
 	if page.Category != "WhatsApp" {
 		page.WebhookStatus = "subscribed"
@@ -2231,6 +2262,11 @@ func (g *GraphConnector) ConnectPage(ctx context.Context, _ string, accountID, p
 }
 
 func (g *GraphConnector) DisconnectPage(ctx context.Context, _ string, accountID, pageID string) (*domain.MetaPage, error) {
+	pageID = strings.TrimSpace(pageID)
+	if pageID == "" {
+		return nil, errors.New("pageID is required")
+	}
+
 	g.mu.RLock()
 	session := g.sessions[accountID]
 	var page graphPage
@@ -2239,11 +2275,29 @@ func (g *GraphConnector) DisconnectPage(ctx context.Context, _ string, accountID
 		page, ok = session.Pages[pageID]
 	}
 	g.mu.RUnlock()
+
+	if !ok {
+		foundAccountID, savedPage, saved := g.findPage(pageID)
+		if saved && (foundAccountID == accountID || foundAccountID == "") {
+			page, ok = savedPage, true
+		}
+	}
+	if !ok {
+		token, err := g.userToken(ctx, accountID)
+		if err == nil {
+			pages, _, err := g.fetchPages(ctx, token)
+			if err == nil {
+				if p, found := pages[pageID]; found {
+					page, ok = p, true
+				}
+			}
+		}
+	}
 	if !ok {
 		return nil, errors.New("meta page not found")
 	}
 
-	if page.Category != "WhatsApp" {
+	if page.Category != "WhatsApp" && page.AccessToken != "" {
 		req, err := http.NewRequestWithContext(ctx, http.MethodDelete, "https://graph.facebook.com/"+g.cfg.Version+"/"+url.PathEscape(pageID)+"/subscribed_apps?access_token="+url.QueryEscape(page.AccessToken), nil)
 		if err != nil {
 			return nil, err
@@ -2272,6 +2326,14 @@ func (g *GraphConnector) DisconnectPage(ctx context.Context, _ string, accountID
 	}
 
 	g.mu.Lock()
+	if g.sessions[accountID] == nil {
+		g.sessions[accountID] = &graphSession{Pages: make(map[string]graphPage)}
+	}
+	session = g.sessions[accountID]
+	if session.Pages == nil {
+		session.Pages = make(map[string]graphPage)
+	}
+
 	page.Connected = false
 	page.WebhookStatus = ""
 	session.Pages[pageID] = page

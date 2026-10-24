@@ -72,7 +72,9 @@ const loadData = async () => {
     plans.value = plansData
 
     // Route step
-    if (route.query.meta === 'connected') {
+    if (currentStep.value === 2) {
+      // Keep on step 2 so user can select/review pages according to their plan
+    } else if (route.query.meta === 'connected') {
       currentStep.value = 2
     } else if (statusData.step === 'plan') {
       currentStep.value = 1
@@ -207,6 +209,10 @@ const connectFacebook = async () => {
 
 // Action: Toggle Page Connection
 const togglingPage = ref<string | null>(null)
+const hasConnectedPages = computed(() => {
+  return (onboardingStatus.value?.connectedPagesCount || 0) > 0 || pages.value.some(p => p.connected)
+})
+
 const togglePage = async (page: MetaPage) => {
   togglingPage.value = page.id
   errorMessage.value = ''
@@ -219,7 +225,17 @@ const togglePage = async (page: MetaPage) => {
     await loadPages()
     await loadData()
   } catch (err: any) {
-    errorMessage.value = err?.data?.message || err?.message || 'Could not update page.'
+    const code = err?.data?.error?.code
+    const rawMsg = err?.data?.error?.message || err?.data?.message || err?.message || ''
+    if (code === 'plan_limit_exceeded' || rawMsg.includes('plan_limit_exceeded')) {
+      errorMessage.value = l({
+        lo: 'ແພັກເກດປັດຈຸບັນຂອງທ່ານເຊື່ອມຕໍ່ໄດ້ຕາມໂຄຕ້າເທົ່ານັ້ນ (ກະລຸນາອັບເກຣດແພັກເກດເພື່ອເຊື່ອມຕໍ່ເພີ່ມ)',
+        th: 'แพ็กเกจปัจจุบันของคุณเชื่อมต่อได้ตามโควตาแล้ว (กรุณาอัปเกรดเพื่อเชื่อมต่อเพิ่ม)',
+        en: 'Your current plan limit has been reached. Please upgrade to connect more pages.',
+      })
+    } else {
+      errorMessage.value = rawMsg || 'Could not update page.'
+    }
     await loadPages()
   } finally {
     togglingPage.value = null
@@ -452,7 +468,7 @@ onMounted(loadData)
           <span>{{ l({ lo: 'ແພັກເກດຂອງທ່ານ:', th: 'แพ็กเกจของคุณ:', en: 'Your Plan:' }) }} <strong>{{ onboardingStatus?.plan?.name || 'Pro Plan' }}</strong></span>
           <span class="quota-tag">
             {{ l({ lo: 'ເຊື່ອມຕໍ່ແລ້ວ', th: 'เชื่อมต่อแล้ว', en: 'Connected' }) }}:
-            <strong>{{ onboardingStatus?.connectedPagesCount || 0 }}</strong> {{ l({ lo: 'ເພຈ', th: 'เพจ', en: 'pages' }) }}
+            <strong>{{ pages.filter(p => p.connected).length || onboardingStatus?.connectedPagesCount || 0 }}</strong> {{ l({ lo: 'ເພຈ', th: 'เพจ', en: 'pages' }) }}
           </span>
         </div>
 
@@ -524,7 +540,7 @@ onMounted(loadData)
             <button
               type="button"
               class="btn-next"
-              :disabled="(onboardingStatus?.connectedPagesCount || 0) === 0"
+              :disabled="!hasConnectedPages"
               @click="currentStep = 3"
             >
               <span>{{ l({ lo: 'ຕໍ່ໄປ: ສຳເລັດການຕັ້ງຄ່າ ➔', th: 'ถัดไป: สำเร็จการตั้งค่า ➔', en: 'Next: Finish Setup ➔' }) }}</span>
