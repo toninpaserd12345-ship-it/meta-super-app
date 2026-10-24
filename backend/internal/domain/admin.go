@@ -16,25 +16,68 @@ type PlatformOverview struct {
 	TotalRevenue     int64 `json:"totalRevenue"`
 }
 
+type TenantUser struct {
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	Email     string    `json:"email"`
+	Role      string    `json:"role"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+type TenantPage struct {
+	PageID      string    `json:"pageId"`
+	Name        string    `json:"name"`
+	Category    string    `json:"category"`
+	PictureURL  string    `json:"pictureUrl"`
+	IsConnected bool      `json:"isConnected"`
+	CreatedAt   time.Time `json:"createdAt"`
+}
+
+type GlobalPageItem struct {
+	PageID      string    `json:"pageId"`
+	PageName    string    `json:"pageName"`
+	Category    string    `json:"category"`
+	PictureURL  string    `json:"pictureUrl"`
+	IsConnected bool      `json:"isConnected"`
+	AccountID   string    `json:"accountId"`
+	StoreName   string    `json:"storeName"`
+	CreatedAt   time.Time `json:"createdAt"`
+}
+
+type GlobalUserItem struct {
+	UserID       string    `json:"userId"`
+	UserName     string    `json:"userName"`
+	Email        string    `json:"email"`
+	IsSuperAdmin bool      `json:"isSuperAdmin"`
+	AccountID    string    `json:"accountId"`
+	StoreName    string    `json:"storeName"`
+	Role         string    `json:"role"`
+	CreatedAt    time.Time `json:"createdAt"`
+}
+
 type TenantDetail struct {
-	ID                  string     `json:"id"`
-	Name                string     `json:"name"`
-	Slug                string     `json:"slug"`
-	Status              string     `json:"status"` // "active", "suspended"
-	OwnerName           string     `json:"ownerName"`
-	OwnerEmail          string     `json:"ownerEmail"`
-	UserCount           int64      `json:"userCount"`
-	ConnectedPagesCount int64      `json:"connectedPagesCount"`
-	PlanID              string     `json:"planId"`
-	PlanName            string     `json:"planName"`
-	PlanStatus          string     `json:"planStatus"`
-	CurrentPeriodEnd    *time.Time `json:"currentPeriodEnd,omitempty"`
-	CreatedAt           time.Time  `json:"createdAt"`
+	ID                  string       `json:"id"`
+	Name                string       `json:"name"`
+	Slug                string       `json:"slug"`
+	Status              string       `json:"status"` // "active", "suspended"
+	OwnerName           string       `json:"ownerName"`
+	OwnerEmail          string       `json:"ownerEmail"`
+	UserCount           int64        `json:"userCount"`
+	ConnectedPagesCount int64        `json:"connectedPagesCount"`
+	PlanID              string       `json:"planId"`
+	PlanName            string       `json:"planName"`
+	PlanStatus          string       `json:"planStatus"`
+	CurrentPeriodEnd    *time.Time   `json:"currentPeriodEnd,omitempty"`
+	Users               []TenantUser `json:"users"`
+	Pages               []TenantPage `json:"pages"`
+	CreatedAt           time.Time    `json:"createdAt"`
 }
 
 type AdminRepository interface {
 	GetPlatformOverview(ctx context.Context) (*PlatformOverview, error)
 	ListTenants(ctx context.Context, search string) ([]TenantDetail, error)
+	ListAllPages(ctx context.Context) ([]GlobalPageItem, error)
+	ListAllUsers(ctx context.Context) ([]GlobalUserItem, error)
 	SetTenantStatus(ctx context.Context, accountID, status string) error
 	DeleteTenant(ctx context.Context, accountID string) error
 	ListAdminTransactions(ctx context.Context, status string) ([]Transaction, error)

@@ -49,6 +49,28 @@ func (h *Handler) adminListTenants(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"items": tenants})
 }
 
+func (h *Handler) adminListPages(c fiber.Ctx) error {
+	ctx, cancel := requestContext(c)
+	defer cancel()
+
+	pages, err := h.admin.ListAllPages(ctx)
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+	return c.JSON(fiber.Map{"items": pages})
+}
+
+func (h *Handler) adminListUsers(c fiber.Ctx) error {
+	ctx, cancel := requestContext(c)
+	defer cancel()
+
+	users, err := h.admin.ListAllUsers(ctx)
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+	return c.JSON(fiber.Map{"items": users})
+}
+
 func (h *Handler) adminSetTenantStatus(c fiber.Ctx) error {
 	accountID := c.Params("id")
 	var body struct {

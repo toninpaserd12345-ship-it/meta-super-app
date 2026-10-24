@@ -42,6 +42,14 @@ func (u *Admin) ListTenants(ctx context.Context, search string) ([]domain.Tenant
 	return u.adminRepo.ListTenants(ctx, search)
 }
 
+func (u *Admin) ListAllPages(ctx context.Context) ([]domain.GlobalPageItem, error) {
+	return u.adminRepo.ListAllPages(ctx)
+}
+
+func (u *Admin) ListAllUsers(ctx context.Context) ([]domain.GlobalUserItem, error) {
+	return u.adminRepo.ListAllUsers(ctx)
+}
+
 func (u *Admin) SetTenantStatus(ctx context.Context, accountID, status string) error {
 	return u.adminRepo.SetTenantStatus(ctx, accountID, status)
 }

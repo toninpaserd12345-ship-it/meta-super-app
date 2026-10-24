@@ -106,6 +106,37 @@ func (r *GormRepository) ListTenants(ctx context.Context, search string) ([]doma
 			status = "active"
 		}
 
+		// Get users in this tenant
+		var memberships []database.MembershipModel
+		var tenantUsers []domain.TenantUser
+		if err := r.db.WithContext(ctx).Preload("User").Where("account_id = ?", acc.ID).Order("created_at asc").Find(&memberships).Error; err == nil {
+			for _, m := range memberships {
+				tenantUsers = append(tenantUsers, domain.TenantUser{
+					ID:        m.UserID,
+					Name:      m.User.Name,
+					Email:     m.User.Email,
+					Role:      m.Role,
+					CreatedAt: m.CreatedAt,
+				})
+			}
+		}
+
+		// Get connected pages in this tenant
+		var pageModels []database.MetaPageTokenModel
+		var tenantPages []domain.TenantPage
+		if err := r.db.WithContext(ctx).Where("account_id = ?", acc.ID).Order("created_at asc").Find(&pageModels).Error; err == nil {
+			for _, p := range pageModels {
+				tenantPages = append(tenantPages, domain.TenantPage{
+					PageID:      p.PageID,
+					Name:        p.Name,
+					Category:    p.Category,
+					PictureURL:  p.PictureURL,
+					IsConnected: p.IsConnected,
+					CreatedAt:   p.CreatedAt,
+				})
+			}
+		}
+
 		result = append(result, domain.TenantDetail{
 			ID:                  acc.ID,
 			Name:                acc.Name,
@@ -119,10 +150,64 @@ func (r *GormRepository) ListTenants(ctx context.Context, search string) ([]doma
 			PlanName:            planName,
 			PlanStatus:          planStatus,
 			CurrentPeriodEnd:    currentPeriodEnd,
+			Users:               tenantUsers,
+			Pages:               tenantPages,
 			CreatedAt:           acc.CreatedAt,
 		})
 	}
 
+	return result, nil
+}
+
+func (r *GormRepository) ListAllPages(ctx context.Context) ([]domain.GlobalPageItem, error) {
+	var pages []database.MetaPageTokenModel
+	if err := r.db.WithContext(ctx).Preload("Account").Order("created_at desc").Find(&pages).Error; err != nil {
+		return nil, fmt.Errorf("list all pages: %w", err)
+	}
+
+	result := make([]domain.GlobalPageItem, 0, len(pages))
+	for _, p := range pages {
+		storeName := p.Account.Name
+		if storeName == "" {
+			storeName = "Unassigned Store"
+		}
+		result = append(result, domain.GlobalPageItem{
+			PageID:      p.PageID,
+			PageName:    p.Name,
+			Category:    p.Category,
+			PictureURL:  p.PictureURL,
+			IsConnected: p.IsConnected,
+			AccountID:   p.AccountID,
+			StoreName:   storeName,
+			CreatedAt:   p.CreatedAt,
+		})
+	}
+	return result, nil
+}
+
+func (r *GormRepository) ListAllUsers(ctx context.Context) ([]domain.GlobalUserItem, error) {
+	var memberships []database.MembershipModel
+	if err := r.db.WithContext(ctx).Preload("User").Preload("Account").Order("created_at desc").Find(&memberships).Error; err != nil {
+		return nil, fmt.Errorf("list all users: %w", err)
+	}
+
+	result := make([]domain.GlobalUserItem, 0, len(memberships))
+	for _, m := range memberships {
+		storeName := m.Account.Name
+		if storeName == "" {
+			storeName = "Unassigned Store"
+		}
+		result = append(result, domain.GlobalUserItem{
+			UserID:       m.UserID,
+			UserName:     m.User.Name,
+			Email:        m.User.Email,
+			IsSuperAdmin: m.User.IsSuperAdmin,
+			AccountID:    m.AccountID,
+			StoreName:    storeName,
+			Role:         m.Role,
+			CreatedAt:    m.CreatedAt,
+		})
+	}
 	return result, nil
 }
 

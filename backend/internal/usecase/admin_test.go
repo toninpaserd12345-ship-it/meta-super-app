@@ -78,6 +78,14 @@ func (m *mockAdminRepo) RejectTransaction(ctx context.Context, txnID, reason str
 	return nil
 }
 
+func (m *mockAdminRepo) ListAllPages(ctx context.Context) ([]domain.GlobalPageItem, error) {
+	return []domain.GlobalPageItem{}, nil
+}
+
+func (m *mockAdminRepo) ListAllUsers(ctx context.Context) ([]domain.GlobalUserItem, error) {
+	return []domain.GlobalUserItem{}, nil
+}
+
 func (m *mockAdminRepo) IsUserSuperAdmin(ctx context.Context, userID string) (bool, error) {
 	return m.isSuper, nil
 }

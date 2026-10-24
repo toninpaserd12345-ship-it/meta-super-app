@@ -185,6 +185,8 @@ func (h *Handler) App() *fiber.App {
 	adminGroup := app.Group("/api/v1/admin", authenticate(h.tokens), requireSuperAdmin(h.admin))
 	adminGroup.Get("/overview", h.adminOverview)
 	adminGroup.Get("/tenants", h.adminListTenants)
+	adminGroup.Get("/pages", h.adminListPages)
+	adminGroup.Get("/users", h.adminListUsers)
 	adminGroup.Put("/tenants/:id/status", h.adminSetTenantStatus)
 	adminGroup.Delete("/tenants/:id", h.adminDeleteTenant)
 	adminGroup.Get("/transactions", h.adminListTransactions)
