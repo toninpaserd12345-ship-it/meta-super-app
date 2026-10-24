@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/meta-super-app/backend/internal/domain"
 	"github.com/meta-super-app/backend/internal/infrastructure/database"
 )
@@ -310,4 +311,108 @@ func (r *GormRepository) IsUserSuperAdmin(ctx context.Context, userID string) (b
 		return false, mapError(err)
 	}
 	return user.IsSuperAdmin, nil
+}
+
+func (r *GormRepository) ListAdminPlans(ctx context.Context) ([]domain.AdminPlanItem, error) {
+	var models []database.PlanModel
+	if err := r.db.WithContext(ctx).Order("price asc").Find(&models).Error; err != nil {
+		return nil, fmt.Errorf("list admin plans: %w", err)
+	}
+
+	result := make([]domain.AdminPlanItem, 0, len(models))
+	for _, m := range models {
+		var subCount int64
+		_ = r.db.WithContext(ctx).Model(&database.SubscriptionModel{}).
+			Where("plan_id = ? AND (status = 'active' OR status = 'trialing')", m.ID).
+			Count(&subCount).Error
+
+		result = append(result, domain.AdminPlanItem{
+			ID:              m.ID,
+			Name:            m.Name,
+			Price:           m.Price,
+			MaxUsers:        m.MaxUsers,
+			MaxPages:        m.MaxPages,
+			IsActive:        m.IsActive,
+			SubscriberCount: subCount,
+		})
+	}
+	return result, nil
+}
+
+func (r *GormRepository) SavePlan(ctx context.Context, plan domain.Plan) error {
+	m := database.PlanModel{
+		ID:        plan.ID,
+		Name:      plan.Name,
+		Price:     plan.Price,
+		MaxUsers:  plan.MaxUsers,
+		MaxPages:  plan.MaxPages,
+		IsActive:  plan.IsActive,
+		UpdatedAt: time.Now(),
+	}
+
+	var existing database.PlanModel
+	err := r.db.WithContext(ctx).Where("id = ?", plan.ID).First(&existing).Error
+	if err != nil {
+		m.CreatedAt = time.Now()
+		if err := r.db.WithContext(ctx).Create(&m).Error; err != nil {
+			return fmt.Errorf("create plan: %w", err)
+		}
+		return nil
+	}
+
+	if err := r.db.WithContext(ctx).Model(&existing).Updates(map[string]interface{}{
+		"name":       m.Name,
+		"price":      m.Price,
+		"max_users":  m.MaxUsers,
+		"max_pages":  m.MaxPages,
+		"is_active":  m.IsActive,
+		"updated_at": time.Now(),
+	}).Error; err != nil {
+		return fmt.Errorf("update plan: %w", err)
+	}
+	return nil
+}
+
+func (r *GormRepository) DeletePlan(ctx context.Context, planID string) error {
+	var subCount int64
+	_ = r.db.WithContext(ctx).Model(&database.SubscriptionModel{}).Where("plan_id = ?", planID).Count(&subCount).Error
+	if subCount > 0 {
+		return r.db.WithContext(ctx).Model(&database.PlanModel{}).Where("id = ?", planID).Update("is_active", false).Error
+	}
+	return r.db.WithContext(ctx).Where("id = ?", planID).Delete(&database.PlanModel{}).Error
+}
+
+func (r *GormRepository) SetTenantPlan(ctx context.Context, accountID, planID string, days int, status string) error {
+	if status == "" {
+		status = "active"
+	}
+
+	var periodEnd time.Time
+	if days > 0 {
+		periodEnd = time.Now().AddDate(0, 0, days)
+	} else {
+		periodEnd = time.Now().AddDate(100, 0, 0)
+	}
+
+	var sub database.SubscriptionModel
+	err := r.db.WithContext(ctx).Where("account_id = ?", accountID).First(&sub).Error
+	if err != nil {
+		newSub := database.SubscriptionModel{
+			ID:               uuid.NewString(),
+			AccountID:        accountID,
+			PlanID:           planID,
+			Status:           status,
+			CurrentPeriodEnd: periodEnd,
+			CreatedAt:        time.Now(),
+			UpdatedAt:        time.Now(),
+		}
+		return r.db.WithContext(ctx).Create(&newSub).Error
+	}
+
+	return r.db.WithContext(ctx).Model(&sub).Updates(map[string]interface{}{
+		"plan_id":            planID,
+		"status":             status,
+		"current_period_end": periodEnd,
+		"updated_at":         time.Now(),
+	}).Error
 }

@@ -19,6 +19,11 @@ const navItems = computed(() => [
     icon: 'mdi-credit-card-check-outline',
     to: '/approvals',
   },
+  {
+    title: l({ lo: 'ຈັດການແພັກເກດ (Plans)', th: 'จัดการแพ็กเกจ (Plans)', en: 'Plan Management' }),
+    icon: 'mdi-tag-multiple-outline',
+    to: '/plans',
+  },
 ])
 </script>
 

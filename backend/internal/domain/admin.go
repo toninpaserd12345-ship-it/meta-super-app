@@ -73,6 +73,16 @@ type TenantDetail struct {
 	CreatedAt           time.Time    `json:"createdAt"`
 }
 
+type AdminPlanItem struct {
+	ID              string `json:"id"`
+	Name            string `json:"name"`
+	Price           int    `json:"price"`
+	MaxUsers        int    `json:"maxUsers"`
+	MaxPages        int    `json:"maxPages"`
+	IsActive        bool   `json:"isActive"`
+	SubscriberCount int64  `json:"subscriberCount"`
+}
+
 type AdminRepository interface {
 	GetPlatformOverview(ctx context.Context) (*PlatformOverview, error)
 	ListTenants(ctx context.Context, search string) ([]TenantDetail, error)
@@ -85,4 +95,8 @@ type AdminRepository interface {
 	ApproveTransaction(ctx context.Context, txnID string) error
 	RejectTransaction(ctx context.Context, txnID, reason string) error
 	IsUserSuperAdmin(ctx context.Context, userID string) (bool, error)
+	ListAdminPlans(ctx context.Context) ([]AdminPlanItem, error)
+	SavePlan(ctx context.Context, plan Plan) error
+	DeletePlan(ctx context.Context, planID string) error
+	SetTenantPlan(ctx context.Context, accountID, planID string, days int, status string) error
 }

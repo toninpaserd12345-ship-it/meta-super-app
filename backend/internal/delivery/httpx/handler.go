@@ -192,6 +192,11 @@ func (h *Handler) App() *fiber.App {
 	adminGroup.Get("/transactions", h.adminListTransactions)
 	adminGroup.Post("/transactions/:id/approve", h.adminApproveTransaction)
 	adminGroup.Post("/transactions/:id/reject", h.adminRejectTransaction)
+	adminGroup.Get("/plans", h.adminListPlans)
+	adminGroup.Post("/plans", h.adminSavePlan)
+	adminGroup.Put("/plans/:id", h.adminSavePlan)
+	adminGroup.Delete("/plans/:id", h.adminDeletePlan)
+	adminGroup.Put("/tenants/:id/plan", h.adminSetTenantPlan)
 
 	return app
 }

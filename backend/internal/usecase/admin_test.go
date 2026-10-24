@@ -90,6 +90,25 @@ func (m *mockAdminRepo) IsUserSuperAdmin(ctx context.Context, userID string) (bo
 	return m.isSuper, nil
 }
 
+func (m *mockAdminRepo) ListAdminPlans(ctx context.Context) ([]domain.AdminPlanItem, error) {
+	return []domain.AdminPlanItem{
+		{ID: "free", Name: "Free Plan", Price: 0, MaxUsers: 3, MaxPages: 1, IsActive: true, SubscriberCount: 5},
+		{ID: "pro", Name: "Pro Plan", Price: 500000, MaxUsers: 10, MaxPages: 10, IsActive: true, SubscriberCount: 5},
+	}, nil
+}
+
+func (m *mockAdminRepo) SavePlan(ctx context.Context, plan domain.Plan) error {
+	return nil
+}
+
+func (m *mockAdminRepo) DeletePlan(ctx context.Context, planID string) error {
+	return nil
+}
+
+func (m *mockAdminRepo) SetTenantPlan(ctx context.Context, accountID, planID string, days int, status string) error {
+	return nil
+}
+
 type mockBillingRepo struct {
 	subs map[string]*domain.Subscription
 }
@@ -209,5 +228,41 @@ func TestAdminRejectTransaction(t *testing.T) {
 	}
 	if txn.RejectionReason != "Payment slip is blurry or invalid" {
 		t.Errorf("txn rejectionReason = %s", txn.RejectionReason)
+	}
+}
+
+func TestAdminPlans(t *testing.T) {
+	ctx := context.Background()
+	adminRepo := &mockAdminRepo{tenants: map[string]string{}}
+	billingRepo := &mockBillingRepo{subs: map[string]*domain.Subscription{}}
+	admin := NewAdmin(adminRepo, billingRepo, nil, nil, nil)
+
+	plans, err := admin.ListPlans(ctx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(plans) != 2 {
+		t.Errorf("plans len = %d, want 2", len(plans))
+	}
+
+	err = admin.SavePlan(ctx, domain.Plan{ID: "vip", Name: "VIP Plan", Price: 1000000, MaxUsers: 50, MaxPages: 50, IsActive: true})
+	if err != nil {
+		t.Fatalf("save plan error: %v", err)
+	}
+
+	// Validation checks
+	err = admin.SavePlan(ctx, domain.Plan{ID: "", Name: "Bad"})
+	if err == nil {
+		t.Error("expected error for empty plan id")
+	}
+
+	err = admin.DeletePlan(ctx, "vip")
+	if err != nil {
+		t.Fatalf("delete plan error: %v", err)
+	}
+
+	err = admin.SetTenantPlan(ctx, "acc-1", "pro", 30, "active")
+	if err != nil {
+		t.Fatalf("set tenant plan error: %v", err)
 	}
 }

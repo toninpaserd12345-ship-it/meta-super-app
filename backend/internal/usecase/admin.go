@@ -151,3 +151,38 @@ func (u *Admin) Login(ctx context.Context, email, password string) (*LoginOutput
 		User:        user,
 	}, nil
 }
+
+func (u *Admin) ListPlans(ctx context.Context) ([]domain.AdminPlanItem, error) {
+	return u.adminRepo.ListAdminPlans(ctx)
+}
+
+func (u *Admin) SavePlan(ctx context.Context, plan domain.Plan) error {
+	if strings.TrimSpace(plan.ID) == "" {
+		return errors.New("plan id is required")
+	}
+	if strings.TrimSpace(plan.Name) == "" {
+		return errors.New("plan name is required")
+	}
+	if plan.Price < 0 {
+		return errors.New("price cannot be negative")
+	}
+	return u.adminRepo.SavePlan(ctx, plan)
+}
+
+func (u *Admin) DeletePlan(ctx context.Context, planID string) error {
+	if strings.TrimSpace(planID) == "" {
+		return errors.New("plan id is required")
+	}
+	return u.adminRepo.DeletePlan(ctx, planID)
+}
+
+func (u *Admin) SetTenantPlan(ctx context.Context, accountID, planID string, days int, status string) error {
+	if strings.TrimSpace(accountID) == "" {
+		return errors.New("account id is required")
+	}
+	if strings.TrimSpace(planID) == "" {
+		return errors.New("plan id is required")
+	}
+	return u.adminRepo.SetTenantPlan(ctx, accountID, planID, days, status)
+}
+

@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/meta-super-app/backend/internal/domain"
 )
 
 func (h *Handler) adminLogin(c fiber.Ctx) error {
@@ -145,4 +146,76 @@ func (h *Handler) adminRejectTransaction(c fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
 	}
 	return c.JSON(fiber.Map{"status": "ok", "transactionId": txnID, "rejected": true})
+}
+
+func (h *Handler) adminListPlans(c fiber.Ctx) error {
+	ctx, cancel := requestContext(c)
+	defer cancel()
+
+	plans, err := h.admin.ListPlans(ctx)
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+	return c.JSON(fiber.Map{"items": plans})
+}
+
+func (h *Handler) adminSavePlan(c fiber.Ctx) error {
+	var body domain.Plan
+	if err := c.Bind().JSON(&body); err != nil {
+		return fail(c, fiber.StatusBadRequest, "invalid_request", "Invalid plan JSON payload.")
+	}
+
+	if id := c.Params("id"); id != "" {
+		body.ID = id
+	}
+
+	body.ID = strings.ToLower(strings.TrimSpace(body.ID))
+	body.Name = strings.TrimSpace(body.Name)
+
+	if body.ID == "" || body.Name == "" {
+		return fail(c, fiber.StatusBadRequest, "invalid_request", "Plan ID and Name are required.")
+	}
+
+	ctx, cancel := requestContext(c)
+	defer cancel()
+
+	if err := h.admin.SavePlan(ctx, body); err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+	return c.JSON(fiber.Map{"status": "ok", "plan": body})
+}
+
+func (h *Handler) adminDeletePlan(c fiber.Ctx) error {
+	planID := c.Params("id")
+	if planID == "" {
+		return fail(c, fiber.StatusBadRequest, "invalid_request", "Plan ID is required.")
+	}
+
+	ctx, cancel := requestContext(c)
+	defer cancel()
+
+	if err := h.admin.DeletePlan(ctx, planID); err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+	return c.JSON(fiber.Map{"status": "ok", "deletedPlanId": planID})
+}
+
+func (h *Handler) adminSetTenantPlan(c fiber.Ctx) error {
+	accountID := c.Params("id")
+	var body struct {
+		PlanID string `json:"planId"`
+		Days   int    `json:"days"`
+		Status string `json:"status"`
+	}
+	if err := c.Bind().JSON(&body); err != nil || body.PlanID == "" {
+		return fail(c, fiber.StatusBadRequest, "invalid_request", "planId is required.")
+	}
+
+	ctx, cancel := requestContext(c)
+	defer cancel()
+
+	if err := h.admin.SetTenantPlan(ctx, accountID, body.PlanID, body.Days, body.Status); err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+	return c.JSON(fiber.Map{"status": "ok", "accountId": accountID, "planId": body.PlanID})
 }

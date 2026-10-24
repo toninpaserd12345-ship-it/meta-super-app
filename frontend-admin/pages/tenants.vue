@@ -211,6 +211,59 @@ const formatDate = (val?: string) => {
   return new Date(val).toLocaleDateString()
 }
 
+// Plan adjustment in tenant detail
+const changePlanDialog = ref(false)
+const changePlanLoading = ref(false)
+const availablePlans = ref<{ id: string; name: string; price: number }[]>([])
+const changePlanForm = ref({
+  planId: 'pro',
+  days: 30,
+  status: 'active',
+})
+
+const openTenantPlanChange = async () => {
+  if (!selectedTenant.value) return
+  changePlanForm.value = {
+    planId: selectedTenant.value.planId || 'pro',
+    days: 30,
+    status: 'active',
+  }
+  try {
+    const res = await adminFetch<{ items: { id: string; name: string; price: number }[] }>('/api/v1/admin/plans')
+    availablePlans.value = res.items || []
+  } catch (err) {
+    console.error('Failed to load plans:', err)
+  }
+  changePlanDialog.value = true
+}
+
+const submitTenantPlanChange = async () => {
+  if (!selectedTenant.value) return
+  changePlanLoading.value = true
+  try {
+    await adminFetch(`/api/v1/admin/tenants/${selectedTenant.value.id}/plan`, {
+      method: 'PUT',
+      body: {
+        planId: changePlanForm.value.planId,
+        days: Number(changePlanForm.value.days) || 30,
+        status: changePlanForm.value.status,
+      },
+    })
+    changePlanDialog.value = false
+    detailDialog.value = false
+    alert(l({
+      lo: 'ປ່ຽນແພັກເກດໃຫ້ຮ້ານຄ້າສຳເລັດແລ້ວ!',
+      th: 'เปลี่ยนแพ็กเกจให้ร้านค้าสำเร็จแล้ว!',
+      en: 'Store subscription plan updated!'
+    }))
+    await loadTenants()
+  } catch (err: any) {
+    alert(err?.data?.message || err?.message || 'Failed to update plan')
+  } finally {
+    changePlanLoading.value = false
+  }
+}
+
 onMounted(loadTenants)
 </script>
 
@@ -611,7 +664,13 @@ onMounted(loadTenants)
             </div>
             <div>
               <span class="meta-lbl">{{ l({ lo: 'ແພັກເກດ (Plan)', th: 'แพ็กเกจ (Plan)', en: 'Plan' }) }}</span>
-              <span class="plan-chip" :class="selectedTenant.planId">{{ selectedTenant.planName }}</span>
+              <div class="plan-change-wrap">
+                <span class="plan-chip" :class="selectedTenant.planId">{{ selectedTenant.planName }}</span>
+                <button type="button" class="btn-change-plan" @click="openTenantPlanChange">
+                  <v-icon icon="mdi-pencil" size="13" />
+                  <span>{{ l({ lo: 'ປ່ຽນ', th: 'เปลี่ยน', en: 'Change' }) }}</span>
+                </button>
+              </div>
             </div>
             <div>
               <span class="meta-lbl">{{ l({ lo: 'ສະຖານະ (Status)', th: 'สถานะ (Status)', en: 'Status' }) }}</span>
@@ -714,6 +773,67 @@ onMounted(loadTenants)
         <div class="modal-footer">
           <button type="button" class="btn-secondary" @click="detailDialog = false">
             {{ l({ lo: 'ປິດໜ້າຕ່າງ', th: 'ปิดหน้าต่าง', en: 'Close' }) }}
+          </button>
+        </div>
+      </div>
+    </v-dialog>
+
+    <!-- Change Tenant Plan Modal -->
+    <v-dialog v-model="changePlanDialog" max-width="480">
+      <div v-if="selectedTenant" class="tenant-modal-card">
+        <div class="modal-header">
+          <div class="modal-title-left">
+            <v-icon icon="mdi-tag-edit" size="22" color="#7C3AED" />
+            <div>
+              <h3>{{ l({ lo: 'ປ່ຽນແພັກເກດໃຫ້ຮ້ານຄ້າ', th: 'เปลี่ยนแพ็กเกจให้ร้านค้า', en: 'Change Store Plan' }) }}</h3>
+              <p class="sub-txt">{{ selectedTenant.name }} ({{ selectedTenant.slug }})</p>
+            </div>
+          </div>
+          <button type="button" class="close-btn" @click="changePlanDialog = false">
+            <v-icon icon="mdi-close" size="20" />
+          </button>
+        </div>
+
+        <div class="modal-body">
+          <div class="plan-form-grid">
+            <div class="form-field">
+              <label>{{ l({ lo: 'ເລືອກແພັກເກດ (Plan)', th: 'เลือกแพ็กเกจ (Plan)', en: 'Select Plan' }) }}</label>
+              <select v-model="changePlanForm.planId" class="modal-select">
+                <option v-for="p in availablePlans" :key="'plan-opt-' + p.id" :value="p.id">
+                  {{ p.name }} ({{ p.price > 0 ? (new Intl.NumberFormat().format(p.price) + ' ₭') : 'ຟຣີ' }})
+                </option>
+              </select>
+            </div>
+
+            <div class="form-field">
+              <label>{{ l({ lo: 'ໄລຍະເວລາຕໍ່ອາຍຸ', th: 'ระยะเวลาต่ออายุ', en: 'Duration' }) }}</label>
+              <select v-model.number="changePlanForm.days" class="modal-select">
+                <option :value="7">{{ l({ lo: '7 ວັນ (Trial)', th: '7 วัน (Trial)', en: '7 Days (Trial)' }) }}</option>
+                <option :value="30">{{ l({ lo: '30 ວັນ (1 ເດືອນ)', th: '30 วัน (1 เดือน)', en: '30 Days (1 Month)' }) }}</option>
+                <option :value="90">{{ l({ lo: '90 ວັນ (3 ເດືອນ)', th: '90 วัน (3 เดือน)', en: '90 Days (3 Months)' }) }}</option>
+                <option :value="180">{{ l({ lo: '180 ວັນ (6 ເດືອນ)', th: '180 วัน (6 เดือน)', en: '180 Days (6 Months)' }) }}</option>
+                <option :value="365">{{ l({ lo: '365 ວັນ (1 ປີ)', th: '365 วัน (1 ปี)', en: '365 Days (1 Year)' }) }}</option>
+                <option :value="0">{{ l({ lo: 'ຕະຫຼອດຊີບ / ບໍ່ມີກຳນົດ (Lifetime / Free)', th: 'ตลอดชีพ / ไม่มีกำหนด (Lifetime / Free)', en: 'Lifetime / No Expiry' }) }}</option>
+              </select>
+            </div>
+
+            <div class="form-field">
+              <label>{{ l({ lo: 'ສະຖານະ (Status)', th: 'สถานะ (Status)', en: 'Status' }) }}</label>
+              <select v-model="changePlanForm.status" class="modal-select">
+                <option value="active">{{ l({ lo: 'ໃຊ້ງານຢູ່ (Active)', th: 'ใช้งานอยู่ (Active)', en: 'Active' }) }}</option>
+                <option value="trialing">{{ l({ lo: 'ທົດລອງໃຊ້ (Trialing)', th: 'ทดลองใช้ (Trialing)', en: 'Trialing' }) }}</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" @click="changePlanDialog = false">
+            {{ l({ lo: 'ຍົກເລີກ', th: 'ยกเลิก', en: 'Cancel' }) }}
+          </button>
+          <button type="button" class="btn-primary" :disabled="changePlanLoading" @click="submitTenantPlanChange">
+            <v-progress-circular v-if="changePlanLoading" indeterminate size="18" color="white" />
+            <span v-else>{{ l({ lo: 'ບັນທຶກການປ່ຽນແປງ', th: 'บันทึกการเปลี่ยนแปลง', en: 'Save Changes' }) }}</span>
           </button>
         </div>
       </div>
@@ -1288,5 +1408,86 @@ onMounted(loadTenants)
   display: flex;
   justify-content: flex-end;
   background: #f8fafc;
+}
+
+.plan-change-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.btn-change-plan {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background-color: #EDE9FE;
+  color: #6D28D9;
+  border: 1px solid #DDD6FE;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-change-plan:hover {
+  background-color: #DDD6FE;
+}
+
+.tenant-modal-card {
+  background-color: #FFFFFF;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+.modal-title-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.modal-title-left h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.sub-txt {
+  margin: 0;
+  font-size: 12px;
+  color: #64748B;
+}
+
+.plan-form-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.form-field label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.modal-select {
+  padding: 8px 12px;
+  border: 1px solid #CBD5E1;
+  border-radius: 6px;
+  font-size: 13px;
+  background-color: #FFFFFF;
+}
+
+.modal-select:focus {
+  border-color: #7C3AED;
+  outline: none;
 }
 </style>
