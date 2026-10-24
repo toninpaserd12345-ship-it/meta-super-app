@@ -24,12 +24,6 @@ func (u *Billing) ListPlans(ctx context.Context) ([]domain.Plan, error) {
 func (u *Billing) GetSubscription(ctx context.Context, accountID string) (*domain.Subscription, error) {
 	sub, err := u.billing.GetSubscription(ctx, accountID)
 	if err != nil {
-		if accountID != "" {
-			freeSub, freeErr := u.SelectFree(ctx, accountID)
-			if freeErr == nil && freeSub != nil {
-				return freeSub, nil
-			}
-		}
 		return nil, err
 	}
 

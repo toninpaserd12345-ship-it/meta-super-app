@@ -2,6 +2,7 @@ package database
 
 import (
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/google/uuid"
@@ -20,6 +21,20 @@ func SeedAdmin(db *gorm.DB, hasher Hasher, email, password, accountName string) 
 		if err := tx.Where("email = ?", strings.ToLower(email)).First(&user).Error; err == nil {
 			if !user.IsSuperAdmin {
 				_ = tx.Model(&user).Update("is_super_admin", true).Error
+			}
+			var mem MembershipModel
+			if tx.Where("user_id = ?", user.ID).First(&mem).Error == nil {
+				var sub SubscriptionModel
+				if tx.Where("account_id = ?", mem.AccountID).First(&sub).Error != nil {
+					_ = tx.Create(&SubscriptionModel{
+						ID:               uuid.NewString(),
+						AccountID:        mem.AccountID,
+						PlanID:           "pro",
+						Status:           "active",
+						LockedPrice:      500000,
+						CurrentPeriodEnd: time.Now().AddDate(100, 0, 0),
+					}).Error
+				}
 			}
 			return nil
 		}
@@ -44,6 +59,14 @@ func SeedAdmin(db *gorm.DB, hasher Hasher, email, password, accountName string) 
 				return err
 			}
 		}
+		_ = tx.Create(&SubscriptionModel{
+			ID:               uuid.NewString(),
+			AccountID:        account.ID,
+			PlanID:           "pro",
+			Status:           "active",
+			LockedPrice:      500000,
+			CurrentPeriodEnd: time.Now().AddDate(100, 0, 0),
+		}).Error
 		return nil
 	})
 }

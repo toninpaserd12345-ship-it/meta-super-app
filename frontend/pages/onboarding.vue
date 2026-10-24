@@ -79,9 +79,9 @@ const loadData = async () => {
       // Keep on step 2 so user can select/review pages according to their plan
     } else if (route.query.meta === 'connected') {
       currentStep.value = 2
-    } else if (statusData.step === 'plan') {
+    } else if (!statusData.hasPlan) {
       currentStep.value = 1
-    } else if (statusData.step === 'page') {
+    } else if (statusData.step === 'page' || !statusData.isCompleted) {
       currentStep.value = 2
     } else if (statusData.isCompleted) {
       currentStep.value = 3
@@ -329,6 +329,20 @@ onMounted(loadData)
           <p>{{ l({ lo: 'ທົດລອງໃຊ້ Pro ຟຣີ 7 ວັນໄດ້ທັນທີ ຫຼື ເລືອກແຜນ Free ຕະຫຼອດຊີບ', th: 'ทดลองใช้ Pro ฟรี 7 วันได้ทันที หรือเลือกแผน Free ตลอดชีพ', en: 'Start with our 7-Day Pro Free Trial or pick the Free Forever plan.' }) }}</p>
         </div>
 
+        <!-- Banner if workspace already has an active plan -->
+        <div v-if="onboardingStatus?.hasPlan" class="active-plan-banner">
+          <div class="active-plan-info">
+            <v-icon icon="mdi-check-decagram" color="#059669" size="28" />
+            <div>
+              <strong>{{ l({ lo: 'ຮ້ານຄ້າຂອງທ່ານເລືອກແພັກເກດແລ້ວ:', th: 'ร้านค้าของคุณเลือกแพ็กเกจแล้ว:', en: 'Your store already has an active plan:' }) }} <span class="text-blue">{{ onboardingStatus.plan?.name }}</span></strong>
+              <p>{{ l({ lo: 'ທ່ານສາມາດກົດປຸ່ມດ້ານລຸ່ມເພື່ອໄປຂັ້ນຕອນເລືອກ Facebook Page ໄດ້ທັນທີ.', th: 'คุณสามารถกดปุ่มเพื่อไปขั้นตอนเลือกเพจได้ทันที', en: 'You can proceed directly to connect Facebook Pages.' }) }}</p>
+            </div>
+          </div>
+          <button type="button" class="btn-goto-step2" @click="currentStep = 2">
+            <span>{{ l({ lo: 'ຕໍ່ໄປ: ເລືອກ Facebook Page ➔', th: 'ถัดไป: เลือก Facebook Page ➔', en: 'Next: Select Facebook Page ➔' }) }}</span>
+          </button>
+        </div>
+
         <div class="pricing-cards-grid">
           <!-- CARD 1: PRO TRIAL (RECOMMENDED) -->
           <div class="plan-box popular-card">
@@ -356,6 +370,16 @@ onMounted(loadData)
             </ul>
 
             <button
+              v-if="onboardingStatus?.plan?.id === 'pro'"
+              type="button"
+              class="btn-select-plan btn-current"
+              disabled
+            >
+              <v-icon icon="mdi-check-circle" size="18" />
+              <span>{{ l({ lo: 'ແພັກເກດປັດຈຸບັນຂອງທ່ານ (Active)', th: 'แพ็กเกจปัจจุบันของคุณ (Active)', en: 'Current Plan (Active)' }) }}</span>
+            </button>
+            <button
+              v-else
               type="button"
               class="btn-select-plan btn-glow"
               :disabled="actionLoading"
@@ -447,6 +471,16 @@ onMounted(loadData)
             </ul>
 
             <button
+              v-if="onboardingStatus?.plan?.id === 'free'"
+              type="button"
+              class="btn-select-secondary btn-current"
+              disabled
+            >
+              <v-icon icon="mdi-check-circle" size="18" />
+              <span>{{ l({ lo: 'ແພັກເກດປັດຈຸບັນຂອງທ່ານ (Active)', th: 'แพ็กเกจปัจจุบันของคุณ (Active)', en: 'Current Plan (Active)' }) }}</span>
+            </button>
+            <button
+              v-else
               type="button"
               class="btn-select-secondary"
               :disabled="actionLoading"
@@ -967,6 +1001,59 @@ onMounted(loadData)
 
 .btn-select-secondary:hover {
   background-color: #F8FAFC;
+}
+
+.btn-current {
+  background-color: #ECFDF5 !important;
+  color: #065F46 !important;
+  border: 1px solid #A7F3D0 !important;
+  cursor: default !important;
+  opacity: 1 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+}
+
+.active-plan-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: #F0FDF4;
+  border: 1px solid #BBF7D0;
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-4);
+  gap: var(--space-3);
+}
+
+.active-plan-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.active-plan-info p {
+  font-size: var(--text-xs);
+  color: #64748B;
+  margin: 2px 0 0;
+}
+
+.btn-goto-step2 {
+  background-color: #059669;
+  color: #FFFFFF;
+  border: 0;
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  font-weight: 700;
+  font-size: var(--text-xs);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.2s ease;
+}
+
+.btn-goto-step2:hover {
+  background-color: #047857;
 }
 
 /* Payment Accordion */
