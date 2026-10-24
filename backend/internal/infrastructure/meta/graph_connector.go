@@ -1882,7 +1882,24 @@ func (g *GraphConnector) ListPages(ctx context.Context, _ string, accountID stri
 			}
 			return result, nil
 		}
-		return nil, fmt.Errorf("facebook connection not found or invalid: %w", err)
+		// If there is no active Facebook token, return any saved pages or an empty list gracefully
+		if g.db != nil {
+			var savedTokens []database.MetaPageTokenModel
+			if errFind := g.db.Where("account_id = ?", accountID).Find(&savedTokens).Error; errFind == nil && len(savedTokens) > 0 {
+				result := make([]domain.MetaPage, 0, len(savedTokens))
+				for _, st := range savedTokens {
+					result = append(result, domain.MetaPage{
+						ID:         st.PageID,
+						Name:       st.Name,
+						Category:   st.Category,
+						PictureURL: st.PictureURL,
+						Connected:  st.IsConnected,
+					})
+				}
+				return result, nil
+			}
+		}
+		return []domain.MetaPage{}, nil
 	}
 	g.mu.RLock()
 	session := g.sessions[accountID]
