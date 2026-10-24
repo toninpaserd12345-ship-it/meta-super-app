@@ -72,24 +72,35 @@ func (u *Meta) ConnectPage(ctx context.Context, userID, accountID, pageID string
 		sub, err := u.billing.GetSubscription(ctx, accountID)
 		maxPages := 1 // Default free tier limit
 		if err == nil && sub != nil {
-			if (sub.Status == "active" || sub.Status == "trialing") && sub.Plan != nil {
+			if sub.PlanID == "free" {
+				maxPages = 1
+			} else if (sub.Status == "active" || sub.Status == "trialing") && sub.Plan != nil && sub.Plan.MaxPages > 0 {
 				maxPages = sub.Plan.MaxPages
 			} else if sub.Status == "expired" {
 				maxPages = 1
 			}
 		}
 
-		pages, listErr := u.connector.ListPages(ctx, userID, accountID)
-		if listErr == nil {
-			connectedCount := 0
-			for _, p := range pages {
-				if p.Connected && p.ID != pageID {
-					connectedCount++
+		// 1. Direct query of connected pages from database/connector state (excluding pageID)
+		connectedCount, countErr := u.connector.CountConnectedPages(ctx, accountID, pageID)
+		if countErr != nil || connectedCount == 0 {
+			// Fallback: check via ListPages
+			pages, listErr := u.connector.ListPages(ctx, userID, accountID)
+			if listErr == nil {
+				activeInList := 0
+				for _, p := range pages {
+					if p.Connected && p.ID != pageID {
+						activeInList++
+					}
+				}
+				if activeInList > connectedCount {
+					connectedCount = activeInList
 				}
 			}
-			if connectedCount >= maxPages {
-				return nil, fmt.Errorf("plan_limit_exceeded: Your current plan allows maximum %d connected Facebook page(s). Please upgrade to connect more pages.", maxPages)
-			}
+		}
+
+		if connectedCount >= maxPages {
+			return nil, fmt.Errorf("plan_limit_exceeded: Your current plan allows maximum %d connected Facebook page(s). Please upgrade to connect more pages.", maxPages)
 		}
 	}
 

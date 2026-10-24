@@ -151,17 +151,35 @@ func (h *Handler) onboardingStatus(c fiber.Ctx) error {
 		step = "page"
 	}
 
+	maxPages := 1
 	var planInfo fiber.Map
 	if sub != nil && sub.Plan != nil {
 		lockedPrice := sub.LockedPrice
 		if lockedPrice == 0 {
 			lockedPrice = sub.Plan.Price
 		}
+		if sub.PlanID == "free" {
+			maxPages = 1
+		} else if sub.Plan.MaxPages > 0 {
+			maxPages = sub.Plan.MaxPages
+		}
 		planInfo = fiber.Map{
 			"id":               sub.PlanID,
 			"name":             sub.Plan.Name,
 			"price":            sub.Plan.Price,
 			"lockedPrice":      lockedPrice,
+			"maxPages":         maxPages,
+			"status":           sub.Status,
+			"currentPeriodEnd": sub.CurrentPeriodEnd,
+		}
+	} else if sub != nil && sub.PlanID == "free" {
+		maxPages = 1
+		planInfo = fiber.Map{
+			"id":               "free",
+			"name":             "Free Plan",
+			"price":            0,
+			"lockedPrice":      0,
+			"maxPages":         1,
 			"status":           sub.Status,
 			"currentPeriodEnd": sub.CurrentPeriodEnd,
 		}
@@ -170,6 +188,7 @@ func (h *Handler) onboardingStatus(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"hasPlan":             hasPlan,
 		"plan":                planInfo,
+		"maxPages":            maxPages,
 		"connectedPagesCount": connectedCount,
 		"connectedPages":      connectedPages,
 		"totalAvailablePages": len(pages),

@@ -15,6 +15,12 @@ const { data, pending, error, refresh } = await useApi<PageList>('/proxy/api/v1/
 const { data: automationData } = await useApi<ItemsResponse<AutomationFlow>>('/proxy/api/v1/automations')
 const { data: productData } = await useApi<ItemsResponse<Product>>('/proxy/api/v1/products')
 const { data: replySetData } = await useApi<ReplySet[]>('/proxy/api/v1/replies')
+const { data: subData } = await useApi<any>('/proxy/api/v1/billing/subscription').catch(() => ({ data: ref(null) }))
+const planMaxPages = computed(() => {
+  const sub = subData.value
+  if (!sub || sub.planId === 'free' || !sub.plan) return 1
+  return sub.plan.maxPages || 1
+})
 const loadErrorMessage = computed(() => {
   const value:any = error.value
   return value?.data?.error?.message || value?.data?.message || value?.statusMessage || 'Unable to load Pages from Meta. Reconnect Facebook and try again.'
@@ -103,11 +109,43 @@ function apiMessage(error:any,fallback:string){
   return msg || fallback
 }
 async function setPageEnabled(page:MetaPage,enabled:boolean){
+  if(enabled && activePages.value.length >= planMaxPages.value) {
+    messageType.value='error'
+    message.value=`ແພັກເກດປັດຈຸບັນຂອງທ່ານເຊື່ອມຕໍ່ໄດ້ສູງສຸດ ${planMaxPages.value} ເພຈເທົ່ານັ້ນ (ກະລຸນາປິດເພຈເກົ່າກ່ອນ ຫຼື ອັບເກຣດແພັກເກດເພື່ອເຊື່ອມຕໍ່ເພີ່ມ)`
+    return
+  }
   if(!enabled&&!confirm(`ປິດການໃຊ້ງານສຳລັບ “${page.name}”? ຂໍ້ຄວາມໃໝ່ຈາກເພຈນີ້ຈະບໍ່ເຂົ້າລະບົບຈົນກວ່າຈະເປີດຄືນ.`))return
   toggling.value=page.id;message.value=''
   try{await $fetch(`/api/proxy/api/v1/meta/pages/${enabled?'connect':'disconnect'}`,{method:'POST',body:{pageId:page.id}});await refresh();messageType.value='success';message.value=`${page.name}: ${enabled?'ເປີດການໃຊ້ງານສຳເລັດ':'ປິດການໃຊ້ງານສຳເລັດ'}.`}
   catch(error:any){messageType.value='error';message.value=apiMessage(error,`Unable to ${enabled?'enable':'pause'} ${page.name}. Check the Page permission and try again.`);await refresh()}
   finally{toggling.value=null}
+}
+
+function togglePagePicker(pageId: string) {
+  if (selected.value.includes(pageId)) {
+    selected.value = selected.value.filter(id => id !== pageId)
+  } else {
+    if (activePages.value.length + selected.value.length >= planMaxPages.value) {
+      messageType.value = 'error'
+      message.value = `ແພັກເກດປັດຈຸບັນຂອງທ່ານເຊື່ອມຕໍ່ໄດ້ສູງສຸດ ${planMaxPages.value} ເພຈເທົ່ານັ້ນ (ກະລຸນາອັບເກຣດແພັກເກດເພື່ອເຊື່ອມຕໍ່ເພີ່ມ)`
+      return
+    }
+    selected.value.push(pageId)
+  }
+}
+
+function toggleSelectAll() {
+  const remaining = Math.max(0, planMaxPages.value - activePages.value.length)
+  if (selected.value.length > 0) {
+    selected.value = []
+  } else {
+    if (remaining <= 0) {
+      messageType.value = 'error'
+      message.value = `ແພັກເກດປັດຈຸບັນຂອງທ່ານເຊື່ອມຕໍ່ໄດ້ສູງສຸດ ${planMaxPages.value} ເພຈເທົ່ານັ້ນ (ກະລຸນາອັບເກຣດແພັກເກດເພື່ອເຊື່ອມຕໍ່ເພີ່ມ)`
+      return
+    }
+    selected.value = availablePages.value.slice(0, remaining).map(p => p.id)
+  }
 }
 async function activateSelected(){
   if(!selected.value.length)return
@@ -388,7 +426,7 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
           
           <div class="pc-content">
             <div v-if="availablePages.length" class="pc-grid">
-              <div v-for="page in availablePages" :key="page.id" class="pc-card" :class="{'selected':selected.includes(page.id)}" @click="selected.includes(page.id)?selected=selected.filter(id=>id!==page.id):selected.push(page.id)">
+              <div v-for="page in availablePages" :key="page.id" class="pc-card" :class="{'selected':selected.includes(page.id)}" @click="togglePagePicker(page.id)">
                 <div class="pc-card-avatar">
                   <img v-if="pictureAvailable(page)" :src="pagePictureUrl(page)" :alt="`${page.name} profile picture`" referrerpolicy="no-referrer" class="profile-image" @error="handlePictureError(page.id)">
                   <v-icon v-else-if="page.category.toLowerCase().includes('whatsapp')" icon="mdi-whatsapp" color="success" size="32"></v-icon>
@@ -401,7 +439,7 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
                     <span>{{page.phoneNumber||page.id}}</span>
                   </div>
                 </div>
-                <v-checkbox-btn :model-value="selected.includes(page.id)" color="primary" class="pc-card-check" @click.stop/>
+                <v-checkbox-btn :model-value="selected.includes(page.id)" color="primary" class="pc-card-check" @click.stop="togglePagePicker(page.id)"/>
               </div>
             </div>
             <div v-else class="pc-empty">
@@ -410,7 +448,7 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
           </div>
 
           <div class="pc-footer">
-            <div class="pc-footer-left" @click="selected.length === availablePages.length ? selected=[] : selected=availablePages.map(p=>p.id)">
+            <div class="pc-footer-left" @click="toggleSelectAll">
               <v-icon size="18" class="mr-2">mdi-checkbox-multiple-marked-outline</v-icon>
               <span>ເລືອກທັງໝົດ / ບໍ່ເລືອກທັງໝົດ</span>
             </div>

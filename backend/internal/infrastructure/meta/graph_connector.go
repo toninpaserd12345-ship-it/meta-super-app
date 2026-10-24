@@ -2374,6 +2374,51 @@ func (g *GraphConnector) DisconnectPage(ctx context.Context, _ string, accountID
 	return &ret, nil
 }
 
+func (g *GraphConnector) CountConnectedPages(ctx context.Context, accountID string, excludePageIDs ...string) (int, error) {
+	excludeMap := make(map[string]bool)
+	for _, id := range excludePageIDs {
+		if id != "" {
+			excludeMap[id] = true
+		}
+	}
+
+	// 1. Direct count from PostgreSQL database (persists across restarts)
+	if g.db != nil {
+		var count int64
+		query := g.db.WithContext(ctx).Model(&database.MetaPageTokenModel{}).
+			Where("account_id = ? AND is_connected = ?", accountID, true)
+		if len(excludePageIDs) > 0 && excludePageIDs[0] != "" {
+			query = query.Where("page_id NOT IN ?", excludePageIDs)
+		}
+		if err := query.Count(&count).Error; err == nil {
+			var waCount int64
+			waQuery := g.db.WithContext(ctx).Model(&database.MetaWhatsAppConnectionModel{}).
+				Where("account_id = ? AND is_connected = ?", accountID, true)
+			if len(excludePageIDs) > 0 && excludePageIDs[0] != "" {
+				waQuery = waQuery.Where("phone_number_id NOT IN ?", excludePageIDs)
+			}
+			_ = waQuery.Count(&waCount).Error
+			return int(count + waCount), nil
+		}
+	}
+
+	// 2. In-memory session fallback
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	session := g.sessions[accountID]
+	if session != nil && session.Pages != nil {
+		memCount := 0
+		for id, page := range session.Pages {
+			if page.Connected && !excludeMap[id] {
+				memCount++
+			}
+		}
+		return memCount, nil
+	}
+
+	return 0, nil
+}
+
 func (g *GraphConnector) ListPosts(ctx context.Context, _ string, accountID, pageID string) ([]domain.MetaPost, error) {
 	g.mu.RLock()
 	session := g.sessions[accountID]

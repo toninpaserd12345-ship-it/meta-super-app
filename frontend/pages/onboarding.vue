@@ -29,9 +29,11 @@ interface OnboardingStatus {
     name: string
     price: number
     lockedPrice: number
+    maxPages?: number
     status: string
     currentPeriodEnd: string
   }
+  maxPages?: number
   connectedPagesCount: number
   connectedPages: { id: string; name: string; category: string; pictureUrl?: string }[]
   totalAvailablePages: number
@@ -216,7 +218,28 @@ const hasConnectedPages = computed(() => {
   return (onboardingStatus.value?.connectedPagesCount || 0) > 0 || pages.value.some(p => p.connected)
 })
 
+const planMaxPages = computed(() => {
+  if (onboardingStatus.value?.plan?.id === 'free') return 1
+  return onboardingStatus.value?.plan?.maxPages || onboardingStatus.value?.maxPages || 1
+})
+
+const connectedCount = computed(() => {
+  return pages.value.filter(p => p.connected).length
+})
+
+const isQuotaReached = computed(() => {
+  return connectedCount.value >= planMaxPages.value
+})
+
 const togglePage = async (page: MetaPage) => {
+  if (!page.connected && isQuotaReached.value) {
+    errorMessage.value = l({
+      lo: `ແພັກເກດ ${onboardingStatus.value?.plan?.name || 'Free'} ອະນຸຍາດໃຫ້ເຊື່ອມຕໍ່ສູງສຸດ ${planMaxPages.value} ເພຈເທົ່ານັ້ນ. ກະລຸນາຍົກເລີກເພຈທີ່ເລືອກໄວ້ກ່ອນ ຫຼື ອັບເກຣດເປັນ Pro.`,
+      th: `แพ็กเกจ ${onboardingStatus.value?.plan?.name || 'Free'} อนุญาตให้เชื่อมต่อสูงสุด ${planMaxPages.value} เพจเท่านั้น กรุณายกเลิกเพจเดิมก่อนหรืออัปเกรดเป็น Pro`,
+      en: `Your ${onboardingStatus.value?.plan?.name || 'Free'} plan allows a maximum of ${planMaxPages.value} page(s). Please disconnect your current page first or upgrade to Pro.`,
+    })
+    return
+  }
   togglingPage.value = page.id
   errorMessage.value = ''
   const newConnected = !page.connected
@@ -232,9 +255,9 @@ const togglePage = async (page: MetaPage) => {
     const rawMsg = err?.data?.error?.message || err?.data?.message || err?.message || ''
     if (code === 'plan_limit_exceeded' || rawMsg.includes('plan_limit_exceeded')) {
       errorMessage.value = l({
-        lo: 'ແພັກເກດປັດຈຸບັນຂອງທ່ານເຊື່ອມຕໍ່ໄດ້ຕາມໂຄຕ້າເທົ່ານັ້ນ (ກະລຸນາອັບເກຣດແພັກເກດເພື່ອເຊື່ອມຕໍ່ເພີ່ມ)',
-        th: 'แพ็กเกจปัจจุบันของคุณเชื่อมต่อได้ตามโควตาแล้ว (กรุณาอัปเกรดเพื่อเชื่อมต่อเพิ่ม)',
-        en: 'Your current plan limit has been reached. Please upgrade to connect more pages.',
+        lo: `ແພັກເກດປັດຈຸບັນຂອງທ່ານເຊື່ອມຕໍ່ໄດ້ສູງສຸດ ${planMaxPages.value} ເພຈເທົ່ານັ້ນ (ກະລຸນາຍົກເລີກເພຈເກົ່າກ່ອນ ຫຼື ອັບເກຣດແພັກເກດ)`,
+        th: `แพ็กเกจปัจจุบันของคุณเชื่อมต่อได้สูงสุด ${planMaxPages.value} เพจเท่านั้น (กรุณายกเลิกเพจเดิมก่อน หรืออัปเกรดแพ็กเกจ)`,
+        en: `Your current plan allows maximum ${planMaxPages.value} connected page(s). Please disconnect your active page first or upgrade.`,
       })
     } else {
       errorMessage.value = rawMsg || 'Could not update page.'
@@ -501,12 +524,36 @@ onMounted(loadData)
 
         <!-- Plan Info Pill -->
         <div class="plan-summary-pill">
-          <v-icon icon="mdi-shield-check" color="#059669" size="18" />
-          <span>{{ l({ lo: 'ແພັກເກດຂອງທ່ານ:', th: 'แพ็กเกจของคุณ:', en: 'Your Plan:' }) }} <strong>{{ onboardingStatus?.plan?.name || 'Pro Plan' }}</strong></span>
-          <span class="quota-tag">
-            {{ l({ lo: 'ເຊື່ອມຕໍ່ແລ້ວ', th: 'เชื่อมต่อแล้ว', en: 'Connected' }) }}:
-            <strong>{{ pages.filter(p => p.connected).length || onboardingStatus?.connectedPagesCount || 0 }}</strong> {{ l({ lo: 'ເພຈ', th: 'เพจ', en: 'pages' }) }}
-          </span>
+          <div class="plan-pill-info">
+            <v-icon icon="mdi-shield-check" color="#059669" size="18" />
+            <span>{{ l({ lo: 'ແພັກເກດຂອງທ່ານ:', th: 'แพ็กเกจของคุณ:', en: 'Your Plan:' }) }} <strong>{{ onboardingStatus?.plan?.name || (onboardingStatus?.plan?.id === 'free' ? 'Free Plan' : 'Pro Plan') }}</strong></span>
+            <span class="quota-tag" :class="{ 'quota-full': isQuotaReached }">
+              {{ l({ lo: 'ໂຄຕ້າເພຈ:', th: 'โควตาเพจ:', en: 'Page Quota:' }) }}
+              <strong>{{ connectedCount }} / {{ planMaxPages }}</strong> {{ l({ lo: 'ເພຈ', th: 'เพจ', en: 'pages' }) }}
+              <span v-if="isQuotaReached" class="quota-badge-full">({{ l({ lo: 'ຄົບໂຄຕ້າແລ້ວ', th: 'เต็มโควตาแล้ว', en: 'Quota Full' }) }})</span>
+            </span>
+          </div>
+          <button
+            v-if="onboardingStatus?.plan?.id === 'free'"
+            type="button"
+            class="btn-upgrade-pill"
+            @click="currentStep = 1"
+          >
+            <v-icon icon="mdi-star" size="14" />
+            <span>{{ l({ lo: 'ອັບເກຣດ Pro ເພື່ອເຊື່ອມຕໍ່ 10 ເພຈ', th: 'อัปเกรดเป็น Pro เพื่อเชื่อมต่อ 10 เพจ', en: 'Upgrade Pro for 10 Pages' }) }}</span>
+          </button>
+        </div>
+
+        <!-- Quota Alert Banner if quota is full on Free Plan -->
+        <div v-if="isQuotaReached && onboardingStatus?.plan?.id === 'free'" class="quota-alert-banner">
+          <v-icon icon="mdi-information-outline" color="#D97706" size="20" />
+          <div class="quota-alert-text">
+            <strong>{{ l({ lo: 'ແພັກເກດ Free ສາມາດເລືອກໄດ້ສູງສຸດ 1 ເພຈ (ຄົບໂຄຕ້າແລ້ວ)', th: 'แพ็กเกจ Free สามารถเลือกได้สูงสุด 1 เพจ (เต็มโควตาแล้ว)', en: 'Free Plan allows 1 Facebook Page only (Quota full)' }) }}</strong>
+            <p>{{ l({ lo: 'ຫາກຕ້ອງການປ່ຽນເພຈ, ກະລຸນາກົດຍົກເລີກເພຈທີ່ເລືອກໄວ້ກ່ອນ ຫຼື ອັບເກຣດເປັນ Pro ເພື່ອເຊື່ອມຕໍ່ໄດ້ສູງສຸດ 10 ເພຈ.', th: 'หากต้องการเปลี่ยนเพจ กรุณากดยกเลิกเพจเดิมก่อน หรืออัปเกรดเป็น Pro เพื่อเชื่อมต่อได้หลายเพจ', en: 'To switch pages, click to disconnect your active page, or upgrade to Pro to manage up to 10 pages.' }) }}</p>
+          </div>
+          <button type="button" class="btn-upgrade-banner" @click="currentStep = 1">
+            {{ l({ lo: 'ອັບເກຣດ Pro ➔', th: 'อัปเกรด Pro ➔', en: 'Upgrade Pro ➔' }) }}
+          </button>
         </div>
 
         <!-- If No Pages Available: Connect Facebook Button -->
@@ -551,7 +598,7 @@ onMounted(loadData)
               v-for="p in pages"
               :key="p.id"
               class="page-select-card"
-              :class="{ connected: p.connected }"
+              :class="{ connected: p.connected, 'quota-locked': !p.connected && isQuotaReached }"
             >
               <div class="page-card-avatar">
                 <img v-if="p.pictureUrl" :src="p.pictureUrl" class="page-img" alt="Page avatar" />
@@ -564,14 +611,18 @@ onMounted(loadData)
               <button
                 type="button"
                 class="btn-toggle-page"
-                :class="p.connected ? 'btn-connected' : 'btn-connect'"
-                :disabled="togglingPage === p.id"
+                :class="p.connected ? 'btn-connected' : isQuotaReached ? 'btn-quota-locked' : 'btn-connect'"
+                :disabled="togglingPage === p.id || (!p.connected && isQuotaReached)"
                 @click="togglePage(p)"
               >
                 <v-progress-circular v-if="togglingPage === p.id" indeterminate size="16" color="currentColor" />
                 <span v-else-if="p.connected">
                   <v-icon icon="mdi-check" size="16" />
                   {{ l({ lo: 'ເລືອກແລ້ວ', th: 'เลือกแล้ว', en: 'Selected' }) }}
+                </span>
+                <span v-else-if="isQuotaReached">
+                  <v-icon icon="mdi-lock" size="14" />
+                  {{ l({ lo: 'ໂຄຕ້າເຕັມ (1/1)', th: 'เต็มโควตา (1/1)', en: 'Quota Full (1/1)' }) }}
                 </span>
                 <span v-else>
                   <v-icon icon="mdi-plus" size="16" />
@@ -1091,16 +1142,24 @@ onMounted(loadData)
 
 /* Step 2: Page Selection */
 .plan-summary-pill {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
+  gap: 12px;
   background-color: #F0FDF4;
   border: 1px solid #BBF7D0;
   padding: 8px 16px;
-  border-radius: 9999px;
+  border-radius: var(--radius-md);
   font-size: var(--text-xs);
   color: #166534;
   margin-bottom: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.plan-pill-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .quota-tag {
@@ -1108,6 +1167,79 @@ onMounted(loadData)
   padding: 2px 8px;
   border-radius: 9999px;
   margin-left: 6px;
+  font-size: 11px;
+}
+
+.quota-tag.quota-full {
+  background-color: #FEF3C7;
+  color: #92400E;
+}
+
+.quota-badge-full {
+  font-weight: 700;
+  margin-left: 4px;
+}
+
+.btn-upgrade-pill {
+  background-color: #0284C7;
+  color: #FFFFFF;
+  border: 0;
+  border-radius: 9999px;
+  padding: 4px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.btn-upgrade-pill:hover {
+  background-color: #0369A1;
+}
+
+.quota-alert-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background-color: #FFFBEB;
+  border: 1px solid #FDE68A;
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  margin-bottom: var(--space-3);
+}
+
+.quota-alert-text {
+  flex: 1;
+}
+
+.quota-alert-text strong {
+  display: block;
+  font-size: var(--text-xs);
+  color: #B45309;
+}
+
+.quota-alert-text p {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: #78350F;
+}
+
+.btn-upgrade-banner {
+  background-color: #D97706;
+  color: #FFFFFF;
+  border: 0;
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-upgrade-banner:hover {
+  background-color: #B45309;
 }
 
 .connect-fb-box {
@@ -1266,6 +1398,18 @@ onMounted(loadData)
   background-color: #FFFFFF;
   color: #0284C7;
   border: 1px solid #0284C7;
+}
+
+.btn-quota-locked {
+  background-color: #F1F5F9 !important;
+  color: #94A3B8 !important;
+  border: 1px solid #CBD5E1 !important;
+  cursor: not-allowed !important;
+}
+
+.page-select-card.quota-locked {
+  opacity: 0.72;
+  background-color: #FAFAFA;
 }
 
 .connect-fb-actions {

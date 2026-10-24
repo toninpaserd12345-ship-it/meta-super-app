@@ -377,4 +377,5 @@ type MetaConnector interface {
 	ReceiveWebhook(context.Context, []byte, string) error
 	SetAutomationProvider(AutomationProvider)
 	SetLeadSink(LeadSink)
+	CountConnectedPages(context.Context, string, ...string) (int, error)
 }
