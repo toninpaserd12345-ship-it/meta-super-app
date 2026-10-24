@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import { useWorkspacePlan } from '~/composables/useWorkspacePlan'
 definePageMeta({ layout: 'auth', middleware: 'auth' })
 
 const { l, locale } = useLocale()
 const { user } = useAuth()
+const { refreshPlanStatus } = useWorkspacePlan()
 
 interface Plan {
   id: string
@@ -72,6 +74,7 @@ const loadData = async () => {
     ])
     onboardingStatus.value = statusData
     plans.value = plansData
+    refreshPlanStatus().catch(() => {})
 
     // Route step
     if (route.query.meta === 'error') {

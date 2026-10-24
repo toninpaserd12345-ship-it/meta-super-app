@@ -1,9 +1,15 @@
 <script setup lang="ts">
 import { useNavDrawer } from '~/composables/useNavDrawer'
+import { useWorkspacePlan } from '~/composables/useWorkspacePlan'
 const { user, activeAccount, switchAccount } = useAuth()
 const { locale, setLocale, t, l } = useLocale()
 const { toggle: toggleDrawer } = useNavDrawer()
+const { planStatus, isFree, isTrial, isPro, planName, maxPages, connectedPagesCount, fetchPlanStatus } = useWorkspacePlan()
 const membership = computed(() => user.value?.accounts.find(item => item.account.id === activeAccount.value?.id))
+
+onMounted(() => {
+  fetchPlanStatus()
+})
 
 async function changeAccount(event: Event) {
   await switchAccount((event.target as HTMLSelectElement).value)
@@ -21,6 +27,19 @@ async function changeAccount(event: Event) {
         <div class="crumb-text">
           <span class="account-name">{{ activeAccount?.name || 'Packdee' }}</span>
           <span v-if="membership?.role" class="role-pill">{{ membership.role }}</span>
+          
+          <!-- Plan Badge -->
+          <NuxtLink
+            v-if="planStatus?.hasPlan"
+            to="/settings/billing"
+            class="plan-badge-pill"
+            :class="{ 'badge-trial': isTrial, 'badge-pro': isPro && !isTrial, 'badge-free': isFree }"
+            :title="l({ lo: 'ຄລິກເພື່ອຈັດການແພັກເກດ / ອັບເກຣດ', th: 'คลิกเพื่อจัดการแพ็กเกจ / อัปเกรด', en: 'Click to manage plan & billing' })"
+          >
+            <v-icon :icon="isPro ? (isTrial ? 'mdi-star-face' : 'mdi-crown-outline') : 'mdi-shield-check-outline'" size="13" />
+            <span class="plan-pill-title">{{ planName }}</span>
+            <span class="pages-count">({{ connectedPagesCount }}/{{ maxPages }})</span>
+          </NuxtLink>
         </div>
       </div>
     </div>
@@ -113,6 +132,58 @@ async function changeAccount(event: Event) {
   padding: 2px 8px;
   border-radius: 4px;
   border: 1px solid var(--color-border);
+}
+
+.plan-badge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 2.5px 9px;
+  border-radius: 999px;
+  text-decoration: none;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.plan-badge-pill:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.06);
+}
+.plan-badge-pill .pages-count {
+  font-size: 10.5px;
+  opacity: 0.85;
+  font-weight: 600;
+}
+
+/* Free badge */
+.plan-badge-pill.badge-free {
+  background: rgba(100, 116, 139, 0.1);
+  color: #475569;
+  border: 1px solid rgba(100, 116, 139, 0.25);
+}
+.plan-badge-pill.badge-free:hover {
+  border-color: rgba(100, 116, 139, 0.45);
+}
+
+/* Trial badge */
+.plan-badge-pill.badge-trial {
+  background: rgba(245, 158, 11, 0.12);
+  color: #b45309;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+.plan-badge-pill.badge-trial:hover {
+  border-color: rgba(245, 158, 11, 0.6);
+}
+
+/* Pro badge */
+.plan-badge-pill.badge-pro {
+  background: rgba(0, 100, 224, 0.1);
+  color: var(--color-primary, #0064e0);
+  border: 1px solid rgba(0, 100, 224, 0.3);
+}
+.plan-badge-pill.badge-pro:hover {
+  border-color: var(--color-primary, #0064e0);
 }
 
 .account-actions {
@@ -253,9 +324,20 @@ async function changeAccount(event: Event) {
     height: 30px;
     font-size: 12px;
   }
+  .plan-badge-pill .pages-count {
+    display: none;
+  }
+}
+@media(max-width: 480px) {
+  .plan-badge-pill .plan-pill-title {
+    max-width: 70px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }
 @media(max-width: 400px) {
   .role-pill { display: none; }
   .account-name { max-width: 95px; }
+  .plan-badge-pill { display: none; }
 }
 </style>

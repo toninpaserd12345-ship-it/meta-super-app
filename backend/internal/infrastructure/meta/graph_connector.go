@@ -1675,6 +1675,11 @@ func (g *GraphConnector) findPage(pageID string) (string, graphPage, bool) {
 					if fPage.Category != "WhatsApp" && fPage.AccessToken != "" {
 						encTok := g.encryptToken(fPage.AccessToken)
 						if encTok != "" {
+							var existing database.MetaPageTokenModel
+							isConnected := false
+							if g.db.Where("page_id = ? AND account_id = ?", pID, conn.AccountID).First(&existing).Error == nil {
+								isConnected = existing.IsConnected
+							}
 							_ = g.db.Save(&database.MetaPageTokenModel{
 								PageID:      pID,
 								AccountID:   conn.AccountID,
@@ -1682,7 +1687,7 @@ func (g *GraphConnector) findPage(pageID string) (string, graphPage, bool) {
 								Category:    fPage.Category,
 								PictureURL:  fPage.PictureURL,
 								AccessToken: encTok,
-								IsConnected: true,
+								IsConnected: isConnected,
 							}).Error
 						}
 					}
@@ -1819,6 +1824,11 @@ func (g *GraphConnector) AttachAccount(ctx context.Context, accountID, accessTok
 			if page.Category != "WhatsApp" && page.AccessToken != "" {
 				encTok := g.encryptToken(page.AccessToken)
 				if encTok != "" {
+					var existing database.MetaPageTokenModel
+					isConnected := false
+					if g.db.Where("page_id = ? AND account_id = ?", id, accountID).First(&existing).Error == nil {
+						isConnected = existing.IsConnected
+					}
 					_ = g.db.Save(&database.MetaPageTokenModel{
 						PageID:      id,
 						AccountID:   accountID,
@@ -1826,25 +1836,39 @@ func (g *GraphConnector) AttachAccount(ctx context.Context, accountID, accessTok
 						Category:    page.Category,
 						PictureURL:  page.PictureURL,
 						AccessToken: encTok,
-						IsConnected: true,
+						IsConnected: isConnected,
 					}).Error
-				}
-				// Auto-subscribe page to webhook events on Meta immediately upon completing OAuth
-				go func(pID, tok string) {
-					subCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-					defer cancel()
-					if subErr := g.SubscribePageOnMeta(subCtx, pID, tok); subErr != nil {
-						slog.Warn("auto-subscription on attach account failed", "page_id", pID, "error", subErr)
-					} else {
-						slog.Info("auto-subscribed page on Meta during attach account", "page_id", pID)
+
+					// Auto-subscribe ONLY IF this page was already explicitly connected by the merchant
+					if isConnected {
+						go func(pID, tok string) {
+							subCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+							defer cancel()
+							if subErr := g.SubscribePageOnMeta(subCtx, pID, tok); subErr != nil {
+								slog.Warn("auto-subscription on attach account failed", "page_id", pID, "error", subErr)
+							} else {
+								slog.Info("auto-subscribed page on Meta during attach account", "page_id", pID)
+							}
+						}(id, page.AccessToken)
 					}
-				}(id, page.AccessToken)
+				}
 			}
 		}
 	}
 
 	g.mu.Lock()
 	for id, page := range pages {
+		var existing database.MetaPageTokenModel
+		isConnected := false
+		if g.db != nil && g.db.Where("page_id = ? AND account_id = ?", id, accountID).First(&existing).Error == nil {
+			isConnected = existing.IsConnected
+		}
+		page.Connected = isConnected
+		if isConnected {
+			page.WebhookStatus = "subscribed"
+		} else {
+			page.WebhookStatus = "disconnected"
+		}
 		page.TokenExpiresAt = debug.Data.ExpiresAt
 		page.DataAccessExpiresAt = debug.Data.DataAccessExpiresAt
 		page.GrantedPermissions = append([]string(nil), debug.Data.Scopes...)
@@ -1931,23 +1955,43 @@ func (g *GraphConnector) ListPages(ctx context.Context, _ string, accountID stri
 		page.GrantedPermissions = append([]string(nil), grantedPermissions...)
 		pages[id] = page
 	}
-	// Meta is the source of truth for webhook subscriptions. The local
-	// connector may restart while subscriptions remain active on Meta, so sync
-	// every Page instead of relying only on the in-memory Connected flag.
-	for id, page := range pages {
-		connected, subscriptionErr := g.isPageSubscribed(ctx, page)
-		if subscriptionErr != nil {
-			return nil, subscriptionErr
+	// Sanitize / Enforce Plan Quota on stored connections:
+	// If the account has more pages marked as connected than allowed by its plan,
+	// keep only the latest allowed page(s) and reset the rest to is_connected = false.
+	if g.db != nil && accountID != "" {
+		var sub database.SubscriptionModel
+		maxAllowed := 1
+		if errSub := g.db.Where("account_id = ?", accountID).First(&sub).Error; errSub == nil {
+			if sub.PlanID == "pro" && (sub.Status == "active" || sub.Status == "trialing") {
+				maxAllowed = 10
+			}
 		}
-		// Auto-heal: If page was supposed to be connected in DB but Meta dropped/lacked subscription, re-subscribe immediately!
-		if !connected && page.AccessToken != "" && page.Category != "WhatsApp" {
-			var existing database.MetaPageTokenModel
-			if g.db != nil && g.db.Where("page_id = ? AND is_connected = ?", id, true).First(&existing).Error == nil {
+		var connectedRows []database.MetaPageTokenModel
+		if errRows := g.db.Where("account_id = ? AND is_connected = ?", accountID, true).Order("updated_at desc").Find(&connectedRows).Error; errRows == nil {
+			if len(connectedRows) > maxAllowed {
+				for i := maxAllowed; i < len(connectedRows); i++ {
+					_ = g.db.Model(&database.MetaPageTokenModel{}).Where("page_id = ? AND account_id = ?", connectedRows[i].PageID, accountID).Update("is_connected", false)
+				}
+			}
+		}
+	}
+
+	for id, page := range pages {
+		var existing database.MetaPageTokenModel
+		dbConnected := false
+		if g.db != nil && g.db.Where("page_id = ? AND account_id = ?", id, accountID).First(&existing).Error == nil {
+			dbConnected = existing.IsConnected
+		}
+
+		connected := false
+		if dbConnected {
+			isSub, subErr := g.isPageSubscribed(ctx, page)
+			if subErr == nil && isSub {
+				connected = true
+			} else if page.AccessToken != "" && page.Category != "WhatsApp" {
 				if subErr := g.SubscribePageOnMeta(ctx, id, page.AccessToken); subErr == nil {
 					connected = true
 					slog.Info("auto-healed page webhook subscription on Meta in ListPages", "page_id", id)
-				} else {
-					slog.Warn("auto-heal page webhook subscription failed in ListPages", "page_id", id, "error", subErr)
 				}
 			}
 		}

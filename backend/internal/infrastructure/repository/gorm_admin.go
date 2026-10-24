@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/meta-super-app/backend/internal/domain"
 	"github.com/meta-super-app/backend/internal/infrastructure/database"
+	"gorm.io/gorm"
 )
 
 func (r *GormRepository) GetPlatformOverview(ctx context.Context) (*domain.PlatformOverview, error) {
@@ -230,10 +231,23 @@ func (r *GormRepository) SetTenantStatus(ctx context.Context, accountID, status 
 }
 
 func (r *GormRepository) DeleteTenant(ctx context.Context, accountID string) error {
-	if err := r.db.WithContext(ctx).Where("id = ?", accountID).Delete(&database.AccountModel{}).Error; err != nil {
-		return fmt.Errorf("delete tenant: %w", err)
-	}
-	return nil
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		_ = tx.Where("account_id = ?", accountID).Delete(&database.SubscriptionModel{}).Error
+		_ = tx.Where("account_id = ?", accountID).Delete(&database.MetaPageTokenModel{}).Error
+		_ = tx.Where("account_id = ?", accountID).Delete(&database.MetaConnectionModel{}).Error
+		_ = tx.Where("account_id = ?", accountID).Delete(&database.MetaWhatsAppConnectionModel{}).Error
+		_ = tx.Where("account_id = ?", accountID).Delete(&database.MembershipModel{}).Error
+		_ = tx.Where("account_id = ?", accountID).Delete(&database.TransactionModel{}).Error
+		_ = tx.Where("account_id = ?", accountID).Delete(&database.ProductModel{}).Error
+		_ = tx.Where("account_id = ?", accountID).Delete(&database.OrderModel{}).Error
+		_ = tx.Where("account_id = ?", accountID).Delete(&database.ReplySetModel{}).Error
+		_ = tx.Where("account_id = ?", accountID).Delete(&database.AutomationRuleModel{}).Error
+		_ = tx.Where("account_id = ?", accountID).Delete(&database.LeadModel{}).Error
+		if err := tx.Where("id = ?", accountID).Delete(&database.AccountModel{}).Error; err != nil {
+			return fmt.Errorf("delete tenant: %w", err)
+		}
+		return nil
+	})
 }
 
 func (r *GormRepository) ListAdminTransactions(ctx context.Context, status string) ([]domain.Transaction, error) {

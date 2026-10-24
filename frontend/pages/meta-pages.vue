@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { AutomationFlow, ItemsResponse, Product, ReplySet } from '~/types/automation'
+import { useWorkspacePlan } from '~/composables/useWorkspacePlan'
 definePageMeta({ middleware: 'auth' })
 interface MetaPage { id:string;name:string;category:string;pictureUrl?:string;phoneNumber?:string;tokenReady:boolean;connected:boolean;webhookStatus:string;tokenExpiresAt?:number;dataAccessExpiresAt?:number;grantedPermissions?:string[] }
 interface WhatsAppDiagnostics { state:string;message:string;requiredPermissions:string[];grantedPermissions?:string[];missingPermissions?:string[];issues?:string[];businessCount:number;whatsAppBusinessAccountCount:number;phoneNumberCount:number }
@@ -9,6 +10,7 @@ interface WhatsAppSignupConfig { appId:string;configId:string;version:string;ena
 interface WhatsAppSignupSession { businessId?:string;wabaId?:string;phoneNumberId?:string }
 const { can } = useAuth()
 const { l } = useLocale()
+const { refreshPlanStatus } = useWorkspacePlan()
 const route = useRoute()
 if (!can('pages:read')) throw createError({statusCode:403,statusMessage:'You do not have permission to view Meta Pages.'})
 const { data, pending, error, refresh } = await useApi<PageList>('/proxy/api/v1/meta/pages')
@@ -116,8 +118,8 @@ async function setPageEnabled(page:MetaPage,enabled:boolean){
   }
   if(!enabled&&!confirm(`ປິດການໃຊ້ງານສຳລັບ “${page.name}”? ຂໍ້ຄວາມໃໝ່ຈາກເພຈນີ້ຈະບໍ່ເຂົ້າລະບົບຈົນກວ່າຈະເປີດຄືນ.`))return
   toggling.value=page.id;message.value=''
-  try{await $fetch(`/api/proxy/api/v1/meta/pages/${enabled?'connect':'disconnect'}`,{method:'POST',body:{pageId:page.id}});await refresh();messageType.value='success';message.value=`${page.name}: ${enabled?'ເປີດການໃຊ້ງານສຳເລັດ':'ປິດການໃຊ້ງານສຳເລັດ'}.`}
-  catch(error:any){messageType.value='error';message.value=apiMessage(error,`Unable to ${enabled?'enable':'pause'} ${page.name}. Check the Page permission and try again.`);await refresh()}
+  try{await $fetch(`/api/proxy/api/v1/meta/pages/${enabled?'connect':'disconnect'}`,{method:'POST',body:{pageId:page.id}});await refresh();await refreshPlanStatus();messageType.value='success';message.value=`${page.name}: ${enabled?'ເປີດການໃຊ້ງານສຳເລັດ':'ປິດການໃຊ້ງານສຳເລັດ'}.`}
+  catch(error:any){messageType.value='error';message.value=apiMessage(error,`Unable to ${enabled?'enable':'pause'} ${page.name}. Check the Page permission and try again.`);await refresh();await refreshPlanStatus()}
   finally{toggling.value=null}
 }
 
@@ -154,7 +156,7 @@ async function activateSelected(){
   const results=await Promise.allSettled(chosen.map(pageId=>$fetch('/api/proxy/api/v1/meta/pages/connect',{method:'POST',body:{pageId}})))
   const successIds=chosen.filter((_,index)=>results[index]?.status==='fulfilled')
   const failed=chosen.length-successIds.length
-  selected.value=selected.value.filter(id=>!successIds.includes(id));await refresh();activating.value=false
+  selected.value=selected.value.filter(id=>!successIds.includes(id));await refresh();await refreshPlanStatus();activating.value=false
   if(!failed){pickerOpen.value=false;messageType.value='success';message.value=`ເປີດການໃຊ້ງານສຳເລັດ ${successIds.length} ບັນຊີ. ລະບົບພ້ອມຮັບຂໍ້ຄວາມແລ້ວ.`;return}
   const firstRejection = results.find(r => r.status === 'rejected') as PromiseRejectedResult | undefined
   const failReason = firstRejection?.reason
