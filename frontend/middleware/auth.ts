@@ -3,18 +3,17 @@ export default defineNuxtRouteMiddleware(async (to) => {
   if (!user.value) await fetchUser()
   if (!user.value) return navigateTo('/login')
 
-  if (to.path !== '/login') {
-    try {
-      const status = await $fetch<{ isCompleted: boolean; step: string }>('/api/proxy/api/v1/onboarding/status')
-      if (!status.isCompleted) {
-        if (to.path !== '/onboarding') {
-          return navigateTo('/onboarding')
-        }
-      } else if (to.path === '/onboarding') {
-        return navigateTo('/')
-      }
-    } catch {
-      // Continue without blocking
+  // Don't intercept auth-related or exempt routes
+  const exemptPaths = ['/onboarding', '/login', '/meta-pages', '/billing']
+  if (exemptPaths.includes(to.path)) return
+
+  try {
+    const status = await $fetch<{ isCompleted: boolean; hasPlan: boolean; step: string }>('/api/proxy/api/v1/onboarding/status')
+    // Only redirect to onboarding if workspace has not selected any plan yet
+    if (!status.hasPlan && to.path !== '/onboarding') {
+      return navigateTo('/onboarding')
     }
+  } catch {
+    // Continue without blocking if status endpoint fails
   }
 })

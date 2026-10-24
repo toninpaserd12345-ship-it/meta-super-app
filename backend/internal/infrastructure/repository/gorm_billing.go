@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/meta-super-app/backend/internal/domain"
 	"github.com/meta-super-app/backend/internal/infrastructure/database"
 )
@@ -55,6 +56,17 @@ func (r *GormRepository) GetSubscription(ctx context.Context, accountID string) 
 }
 
 func (r *GormRepository) UpsertSubscription(ctx context.Context, sub *domain.Subscription) error {
+	var existing database.SubscriptionModel
+	if err := r.db.WithContext(ctx).Where("account_id = ?", sub.AccountID).First(&existing).Error; err == nil {
+		// Update existing subscription for this account
+		return r.db.WithContext(ctx).Model(&existing).Updates(map[string]interface{}{
+			"plan_id":            sub.PlanID,
+			"status":             sub.Status,
+			"locked_price":       sub.LockedPrice,
+			"current_period_end": sub.CurrentPeriodEnd,
+		}).Error
+	}
+
 	model := database.SubscriptionModel{
 		ID:               sub.ID,
 		AccountID:        sub.AccountID,
@@ -63,9 +75,11 @@ func (r *GormRepository) UpsertSubscription(ctx context.Context, sub *domain.Sub
 		LockedPrice:      sub.LockedPrice,
 		CurrentPeriodEnd: sub.CurrentPeriodEnd,
 	}
+	if model.ID == "" {
+		model.ID = uuid.NewString()
+	}
 
-	// Create or Update (Upsert based on AccountID which is a unique index or ID)
-	if err := r.db.WithContext(ctx).Save(&model).Error; err != nil {
+	if err := r.db.WithContext(ctx).Create(&model).Error; err != nil {
 		return fmt.Errorf("upsert subscription: %w", err)
 	}
 	return nil

@@ -72,7 +72,10 @@ const loadData = async () => {
     plans.value = plansData
 
     // Route step
-    if (currentStep.value === 2) {
+    if (route.query.meta === 'error') {
+      errorMessage.value = String(route.query.reason || 'Facebook authorization failed.')
+      currentStep.value = 2
+    } else if (currentStep.value === 2) {
       // Keep on step 2 so user can select/review pages according to their plan
     } else if (route.query.meta === 'connected') {
       currentStep.value = 2
@@ -479,15 +482,24 @@ onMounted(loadData)
           </div>
           <h3>{{ l({ lo: 'ຍັງບໍ່ທັນໄດ້ເຊື່ອມຕໍ່ບັນຊີ Facebook', th: 'ยังไม่ได้เชื่อมต่อบัญชี Facebook', en: 'Connect Your Facebook Account' }) }}</h3>
           <p>{{ l({ lo: 'ກົດປຸ່ມດ້ານລຸ່ມເພື່ອເຂົ້າສູ່ລະບົບ Facebook ແລະ ອະນຸຍາດໃຫ້ Packdee ດຶງລາຍຊື່ເພຈຂອງທ່ານມາສະແດງ.', th: 'กดปุ่มด้านล่างเพื่อเชื่อมต่อ Facebook และเลือกเพจร้านค้าของคุณ', en: 'Click below to authorize Facebook so we can import your Facebook Pages.' }) }}</p>
-          <button
-            type="button"
-            class="btn-facebook"
-            :disabled="actionLoading"
-            @click="connectFacebook"
-          >
-            <v-icon icon="mdi-facebook" size="22" />
-            <span>{{ l({ lo: 'ເຊື່ອມຕໍ່ກັບ Facebook (Connect Facebook)', th: 'เชื่อมต่อกับ Facebook (Connect Facebook)', en: 'Connect with Facebook' }) }}</span>
-          </button>
+          <div class="connect-fb-actions">
+            <button
+              type="button"
+              class="btn-facebook"
+              :disabled="actionLoading"
+              @click="connectFacebook"
+            >
+              <v-icon icon="mdi-facebook" size="22" />
+              <span>{{ l({ lo: 'ເຊື່ອມຕໍ່ກັບ Facebook (Connect Facebook)', th: 'เชื่อมต่อกับ Facebook (Connect Facebook)', en: 'Connect with Facebook' }) }}</span>
+            </button>
+            <button
+              type="button"
+              class="btn-skip-subtle"
+              @click="navigateTo('/')"
+            >
+              <span>{{ l({ lo: 'ຕັ້ງຄ່າພາຍຫຼັງ / ຂ້າມໄປໜ້າ Dashboard ➔', th: 'ตั้งค่าภายหลัง / ข้ามไปหน้า Dashboard ➔', en: 'Setup later / Go to Dashboard ➔' }) }}</span>
+            </button>
+          </div>
         </div>
 
         <!-- If Pages Available: List of Pages to Choose -->
@@ -535,8 +547,17 @@ onMounted(loadData)
             </div>
           </div>
 
-          <!-- Bottom Next Button -->
+          <!-- Bottom Next Button & Skip Action -->
           <div class="step-actions">
+            <button
+              type="button"
+              class="btn-skip-setup"
+              @click="navigateTo('/')"
+            >
+              <v-icon icon="mdi-arrow-right" size="16" />
+              <span>{{ l({ lo: 'ຂ້າມໄປໜ້າຫຼັກກ່ອນ (Skip to Dashboard)', th: 'ข้ามไปหน้าหลักก่อน (Skip to Dashboard)', en: 'Skip to Dashboard' }) }}</span>
+            </button>
+
             <button
               type="button"
               class="btn-next"
@@ -1160,10 +1181,55 @@ onMounted(loadData)
   border: 1px solid #0284C7;
 }
 
+.connect-fb-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.btn-skip-subtle {
+  background: transparent;
+  color: #64748B;
+  border: 0;
+  font-size: var(--text-xs);
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 6px 12px;
+  transition: color 0.2s ease;
+}
+
+.btn-skip-subtle:hover {
+  color: #0F172A;
+}
+
 .step-actions {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
   margin-top: var(--space-3);
+  gap: var(--space-2);
+}
+
+.btn-skip-setup {
+  background: transparent;
+  color: #64748B;
+  border: 1px solid #CBD5E1;
+  padding: 10px 18px;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.btn-skip-setup:hover {
+  background-color: #F8FAFC;
+  color: #0F172A;
+  border-color: #94A3B8;
 }
 
 .btn-next {
