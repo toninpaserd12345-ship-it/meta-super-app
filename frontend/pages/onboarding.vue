@@ -76,24 +76,24 @@ const loadData = async () => {
     plans.value = plansData
     refreshPlanStatus().catch(() => {})
 
-    // Route step
-    if (route.query.meta === 'error') {
+    // Route step: Always require picking a plan first if no active plan
+    if (!statusData.hasPlan) {
+      currentStep.value = 1
+    } else if (route.query.meta === 'error') {
       errorMessage.value = String(route.query.reason || 'Facebook authorization failed.')
       currentStep.value = 2
     } else if (currentStep.value === 2) {
       // Keep on step 2 so user can select/review pages according to their plan
     } else if (route.query.meta === 'connected') {
       currentStep.value = 2
-    } else if (!statusData.hasPlan) {
-      currentStep.value = 1
     } else if (statusData.step === 'page' || !statusData.isCompleted) {
       currentStep.value = 2
     } else if (statusData.isCompleted) {
       currentStep.value = 3
     }
 
-    // If on step 2, load pages
-    if (currentStep.value === 2 || statusData.hasPlan) {
+    // Only load pages if user has a plan and is on step 2 (Connect Pages)
+    if (statusData.hasPlan && currentStep.value === 2) {
       await loadPages()
     }
   } catch (err: any) {

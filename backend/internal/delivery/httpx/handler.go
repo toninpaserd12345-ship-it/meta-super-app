@@ -50,12 +50,14 @@ type Handler struct {
 type loginTicket struct {
 	Result    *usecase.LoginOutput
 	AccountID string
+	IsConnect bool
 	ExpiresAt time.Time
 }
 
 type facebookLoginExchange struct {
 	*usecase.LoginOutput
 	AccountID string `json:"accountId,omitempty"`
+	IsConnect bool   `json:"isConnect"`
 }
 
 func NewHandler(auth *usecase.Auth, meta *usecase.Meta, team *usecase.Team, billing *usecase.Billing, storage *usecase.StorageUseCase, reply *usecase.Reply, automation *usecase.Automation, product *usecase.Product, stream *usecase.ChatStream, leads *usecase.Leads, inventory *usecase.Inventory, orders *usecase.Orders, adAnalyzer *usecase.AdAnalyzer, notifications *usecase.NotificationPreferences, tokens domain.TokenService, metaMode, metaFrontendRedirect string, admin ...*usecase.Admin) *Handler {
@@ -306,7 +308,7 @@ func (h *Handler) exchangeFacebookLogin(c fiber.Ctx) error {
 	if !ok || time.Now().After(item.ExpiresAt) {
 		return fail(c, 401, "invalid_ticket", "Login ticket is invalid or expired.")
 	}
-	return c.JSON(facebookLoginExchange{LoginOutput: item.Result, AccountID: item.AccountID})
+	return c.JSON(facebookLoginExchange{LoginOutput: item.Result, AccountID: item.AccountID, IsConnect: item.IsConnect})
 }
 func (h *Handler) me(c fiber.Ctx) error {
 	ctx, cancel := requestContext(c)
@@ -410,14 +412,10 @@ func (h *Handler) completeMetaOAuth(c fiber.Ctx) error {
 		slog.Error("facebook app login failed", "error", errLogin)
 		return c.Redirect().To(redirect + "?meta=error")
 	}
-	targetAccountID := result.AccountID
-	if targetAccountID == "" && login != nil && login.User != nil && len(login.User.Accounts) > 0 {
-		targetAccountID = login.User.Accounts[0].Account.ID
-		result.AccountID = targetAccountID
-		if targetAccountID != "" && result.AccessToken != "" {
-			if err := h.meta.AttachAccount(ctx, targetAccountID, result.AccessToken); err != nil {
-				slog.Warn("failed to attach meta authorization to account", "account_id", targetAccountID, "error", err)
-			}
+	isConnect := result.AccountID != ""
+	if isConnect && result.AccessToken != "" {
+		if err := h.meta.AttachAccount(ctx, result.AccountID, result.AccessToken); err != nil {
+			slog.Warn("failed to attach meta authorization to account", "account_id", result.AccountID, "error", err)
 		}
 	}
 	bytes := make([]byte, 32)
@@ -431,9 +429,13 @@ func (h *Handler) completeMetaOAuth(c fiber.Ctx) error {
 			delete(h.tickets, key)
 		}
 	}
-	h.tickets[ticket] = loginTicket{Result: login, AccountID: result.AccountID, ExpiresAt: time.Now().Add(2 * time.Minute)}
+	h.tickets[ticket] = loginTicket{Result: login, AccountID: result.AccountID, IsConnect: isConnect, ExpiresAt: time.Now().Add(2 * time.Minute)}
 	h.ticketMu.Unlock()
-	return c.Redirect().To(redirect + "?ticket=" + url.QueryEscape(ticket))
+	redirectURL := redirect + "?ticket=" + url.QueryEscape(ticket)
+	if isConnect {
+		redirectURL += "&meta=connected"
+	}
+	return c.Redirect().To(redirectURL)
 }
 
 // metaOAuthFailureReason deliberately exposes only the failed OAuth stage.

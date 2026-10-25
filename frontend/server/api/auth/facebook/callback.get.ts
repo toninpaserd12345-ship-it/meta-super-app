@@ -1,7 +1,7 @@
 import type { User } from '~/types/auth'
 import { getUpstreamUrl, upstreamError } from '~/server/utils/upstream'
 
-interface LoginResult { access_token?: string; user?: User; accountId?: string }
+interface LoginResult { access_token?: string; user?: User; accountId?: string; isConnect?: boolean }
 
 export default defineEventHandler(async (event) => {
   const query = getQuery(event)
@@ -32,7 +32,12 @@ export default defineEventHandler(async (event) => {
     const cookie = { httpOnly: true, secure: !import.meta.dev, sameSite: 'lax' as const, path: '/', maxAge: Number(config.sessionMaxAge) }
     setCookie(event, config.sessionCookieName, result.access_token, cookie)
     setCookie(event, config.accountCookieName, membership.account.id, cookie)
-    return sendRedirect(event, '/onboarding?meta=connected')
+
+    const isConnect = result.isConnect ?? (query.meta === 'connected')
+    if (isConnect) {
+      return sendRedirect(event, '/onboarding?meta=connected')
+    }
+    return sendRedirect(event, '/')
   } catch (error) {
     upstreamError(error)
     return sendRedirect(event, '/login?facebook=error')
