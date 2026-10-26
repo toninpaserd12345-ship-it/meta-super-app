@@ -1708,21 +1708,14 @@ func (g *GraphConnector) findPage(pageID string) (string, graphPage, bool) {
 }
 
 func (g *GraphConnector) AuthorizationURL(_ context.Context, userID, accountID string, requested []string) (string, error) {
-	var scopes []string
-	if userID == "" && accountID == "" {
-		// Pure login flow: Only request basic identity so Facebook Login is fast,
-		// without prompting the user to pick/check pages before they've even chosen a plan.
-		scopes = []string{"public_profile", "email"}
-	} else {
-		allowed := map[string]bool{"pages_show_list": true, "pages_manage_metadata": true, "pages_read_engagement": true, "pages_messaging": true, "pages_manage_posts": true, "read_insights": true, "ads_read": true, "ads_management": true, "business_management": true, "whatsapp_business_management": true, "whatsapp_business_messaging": true}
-		base := []string{"pages_show_list", "pages_manage_metadata", "pages_read_engagement", "pages_messaging", "ads_read", "business_management", "whatsapp_business_management", "whatsapp_business_messaging"}
-		seen := map[string]bool{}
-		scopes = make([]string, 0, len(base)+len(requested))
-		for _, scope := range append(base, requested...) {
-			if allowed[scope] && !seen[scope] {
-				seen[scope] = true
-				scopes = append(scopes, scope)
-			}
+	allowed := map[string]bool{"pages_show_list": true, "pages_manage_metadata": true, "pages_read_engagement": true, "pages_messaging": true, "pages_manage_posts": true, "read_insights": true, "ads_read": true, "ads_management": true, "business_management": true, "whatsapp_business_management": true, "whatsapp_business_messaging": true}
+	base := []string{"pages_show_list", "pages_manage_metadata", "pages_read_engagement", "pages_messaging", "ads_read", "business_management", "whatsapp_business_management", "whatsapp_business_messaging"}
+	seen := map[string]bool{}
+	scopes := make([]string, 0, len(base)+len(requested))
+	for _, scope := range append(base, requested...) {
+		if allowed[scope] && !seen[scope] {
+			seen[scope] = true
+			scopes = append(scopes, scope)
 		}
 	}
 	stateBytes := make([]byte, 32)

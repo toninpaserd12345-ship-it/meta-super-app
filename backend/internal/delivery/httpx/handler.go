@@ -412,10 +412,25 @@ func (h *Handler) completeMetaOAuth(c fiber.Ctx) error {
 		slog.Error("facebook app login failed", "error", errLogin)
 		return c.Redirect().To(redirect + "?meta=error")
 	}
+	targetAccountID := result.AccountID
 	isConnect := result.AccountID != ""
-	if isConnect && result.AccessToken != "" {
-		if err := h.meta.AttachAccount(ctx, result.AccountID, result.AccessToken); err != nil {
-			slog.Warn("failed to attach meta authorization to account", "account_id", result.AccountID, "error", err)
+	if targetAccountID == "" && login != nil && login.User != nil && len(login.User.Accounts) > 0 {
+		targetAccountID = login.User.Accounts[0].Account.ID
+	}
+	if targetAccountID != "" && result.AccessToken != "" {
+		if isConnect {
+			if err := h.meta.AttachAccount(ctx, targetAccountID, result.AccessToken); err != nil {
+				slog.Warn("failed to attach meta authorization to account", "account_id", targetAccountID, "error", err)
+			}
+		} else {
+			// At login: Import in background so sign-in redirect is instant and doesn't freeze the browser
+			go func(accID, token string) {
+				bgCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+				defer cancel()
+				if err := h.meta.AttachAccount(bgCtx, accID, token); err != nil {
+					slog.Warn("background attach meta account failed", "account_id", accID, "error", err)
+				}
+			}(targetAccountID, result.AccessToken)
 		}
 	}
 	bytes := make([]byte, 32)
@@ -429,7 +444,7 @@ func (h *Handler) completeMetaOAuth(c fiber.Ctx) error {
 			delete(h.tickets, key)
 		}
 	}
-	h.tickets[ticket] = loginTicket{Result: login, AccountID: result.AccountID, IsConnect: isConnect, ExpiresAt: time.Now().Add(2 * time.Minute)}
+	h.tickets[ticket] = loginTicket{Result: login, AccountID: targetAccountID, IsConnect: isConnect, ExpiresAt: time.Now().Add(2 * time.Minute)}
 	h.ticketMu.Unlock()
 	redirectURL := redirect + "?ticket=" + url.QueryEscape(ticket)
 	if isConnect {
