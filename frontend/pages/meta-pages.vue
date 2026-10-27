@@ -189,12 +189,37 @@ function startWhatsAppTimers(){
   },120000)
 }
 async function loadFacebookSDK(config:WhatsAppSignupConfig){
-  if(window.FB)return
+  if(window.FB){
+    try{window.FB.init({appId:config.appId,cookie:true,xfbml:false,version:config.version})}catch{}
+    return
+  }
   await new Promise<void>((resolve,reject)=>{
     const existing=document.getElementById('facebook-jssdk') as HTMLScriptElement|null
-    window.fbAsyncInit=()=>{window.FB?.init({appId:config.appId,cookie:true,xfbml:false,version:config.version});resolve()}
-    if(existing){if(window.FB)resolve();return}
-    const script=document.createElement('script');script.id='facebook-jssdk';script.async=true;script.defer=true;script.crossOrigin='anonymous';script.src='https://connect.facebook.net/en_US/sdk.js';script.onerror=()=>reject(new Error('Facebook SDK could not be loaded'));document.head.appendChild(script)
+    window.fbAsyncInit=()=>{
+      try{window.FB?.init({appId:config.appId,cookie:true,xfbml:false,version:config.version})}catch{}
+      resolve()
+    }
+    if(existing){
+      if(window.FB){
+        try{window.FB.init({appId:config.appId,cookie:true,xfbml:false,version:config.version})}catch{}
+        resolve()
+      }
+      return
+    }
+    const script=document.createElement('script')
+    script.id='facebook-jssdk'
+    script.async=true
+    script.defer=true
+    script.crossOrigin='anonymous'
+    script.src='https://connect.facebook.net/en_US/sdk.js'
+    script.onload=()=>{
+      if(window.FB){
+        try{window.FB.init({appId:config.appId,cookie:true,xfbml:false,version:config.version})}catch{}
+        resolve()
+      }
+    }
+    script.onerror=()=>reject(new Error('Facebook SDK could not be loaded'))
+    document.head.appendChild(script)
   })
 }
 async function finishWhatsAppSignup(){
