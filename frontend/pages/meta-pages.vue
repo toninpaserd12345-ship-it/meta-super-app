@@ -198,13 +198,28 @@ async function loadFacebookSDK(config:WhatsAppSignupConfig){
   })
 }
 async function finishWhatsAppSignup(){
-  if(!whatsAppCode.value||!whatsAppSession.value.wabaId)return
+  if(!whatsAppCode.value)return
   clearWhatsAppTimers()
   const code=whatsAppCode.value;const session={...whatsAppSession.value};whatsAppCode.value='';whatsAppSession.value={}
   try{
-    await $fetch('/api/proxy/api/v1/meta/whatsapp/signup/complete',{method:'POST',body:{code,businessId:session.businessId||'',wabaId:session.wabaId,phoneNumberId:session.phoneNumberId||''},timeout:30000})
-    await refresh();messageType.value='success';message.value='ເຊື່ອມຕໍ່ WhatsApp ສຳເລັດ. ລະບົບພ້ອມຮັບຂໍ້ຄວາມແລ້ວ.'
-  }catch(error:any){messageType.value='error';message.value=apiMessage(error,'WhatsApp setup could not be completed. Check the selected Business Account and phone number.')}
+    await $fetch('/api/proxy/api/v1/meta/whatsapp/signup/complete',{
+      method:'POST',
+      body:{
+        code,
+        businessId:session.businessId||'',
+        wabaId:session.wabaId||'',
+        phoneNumberId:session.phoneNumberId||''
+      },
+      timeout:30000
+    })
+    await refresh()
+    await refreshPlanStatus()
+    messageType.value='success'
+    message.value='ເຊື່ອມຕໍ່ WhatsApp ສຳເລັດ. ລະບົບພ້ອມຮັບຂໍ້ຄວາມແລ້ວ.'
+  }catch(error:any){
+    messageType.value='error'
+    message.value=apiMessage(error,'WhatsApp setup could not be completed. Check the selected Business Account and phone number.')
+  }
   finally{whatsAppConnecting.value=false}
 }
 async function connectWhatsApp(){
@@ -220,8 +235,17 @@ async function connectWhatsApp(){
     window.FB.login((response:any)=>{
       const code=response?.authResponse?.code
       if(!code){clearWhatsAppTimers();whatsAppConnecting.value=false;messageType.value='error';message.value='WhatsApp connection was cancelled or Meta did not return an authorization code.';return}
-      whatsAppCode.value=String(code);void finishWhatsAppSignup()
-    },{config_id:config.configId,response_type:'code',override_default_response_type:true})
+      whatsAppCode.value=String(code)
+      setTimeout(()=>{void finishWhatsAppSignup()},500)
+    },{
+      config_id:config.configId,
+      response_type:'code',
+      override_default_response_type:true,
+      extras:{
+        setup:{},
+        sessionInfoVersion:'3'
+      }
+    })
   }catch(error:any){clearWhatsAppTimers();whatsAppConnecting.value=false;messageType.value='error';message.value=error?.message||'Unable to start WhatsApp connection.'}
 }
 function cancelWhatsAppConnection(){
@@ -234,7 +258,7 @@ function cancelWhatsAppConnection(){
 onMounted(()=>{
   void $fetch<WhatsAppSignupConfig>('/api/proxy/api/v1/meta/whatsapp/signup/config').then(config=>{whatsAppConfig.value=config}).catch(()=>{})
   whatsAppMessageHandler=(event:MessageEvent)=>{
-    if(!['https://www.facebook.com','https://web.facebook.com'].includes(event.origin))return
+    if(!event.origin.endsWith('facebook.com'))return
     let payload:any=event.data
     if(typeof payload==='string'){try{payload=JSON.parse(payload)}catch{return}}
     if(payload?.type!=='WA_EMBEDDED_SIGNUP')return
@@ -242,7 +266,7 @@ onMounted(()=>{
     if(payload.event!=='FINISH')return
     const info=payload.data||{}
     whatsAppSession.value={businessId:String(info.business_id||''),wabaId:String(info.waba_id||''),phoneNumberId:String(info.phone_number_id||'')}
-    void finishWhatsAppSignup()
+    if(whatsAppCode.value){void finishWhatsAppSignup()}
   }
   window.addEventListener('message',whatsAppMessageHandler)
 })
@@ -266,6 +290,9 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
       <v-btn v-if="inactivePages.length" variant="outlined" prepend-icon="mdi-checkbox-multiple-marked-outline" @click="search='';pickerOpen=true">
         {{ l({ lo: 'ເລືອກບັນຊີ', th: 'เลือกบัญชี', en: 'Select accounts' }) }}
       </v-btn>
+      <v-btn color="success" variant="flat" prepend-icon="mdi-whatsapp" :loading="whatsAppConnecting" :disabled="authorizing" @click="connectWhatsApp">
+        {{ whatsAppConnecting ? 'ກຳລັງລໍຖ້າ Meta…' : 'ເຊື່ອມຕໍ່ WhatsApp' }}
+      </v-btn>
       <v-btn color="primary" variant="flat" prepend-icon="mdi-facebook" :loading="authorizing" :disabled="whatsAppConnecting" @click="permissionsOpen=true">
         {{ needsReconnect ? 'ເຊື່ອມ Facebook ໃໝ່' : 'ເຊື່ອມຕໍ່ Facebook' }}
       </v-btn>
@@ -280,7 +307,7 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
   </v-alert>
   <section v-if="!error" class="connection-summary">
     <button :class="{active:statusFilter==='all'&&mainPlatformFilter==='all'}" @click="statusFilter='all';mainPlatformFilter='all'"><v-icon icon="mdi-facebook"/><span><small>ALL ACCOUNTS</small><strong>{{pages.length}}</strong></span></button>
-    <button v-if="false" :class="{active:mainPlatformFilter==='whatsapp'}" @click="statusFilter='all';mainPlatformFilter='whatsapp'"><v-icon icon="mdi-whatsapp"/><span><small>WHATSAPP NUMBERS</small><strong>{{whatsappPages.length}}</strong></span></button>
+    <button v-if="whatsappPages.length" :class="{active:mainPlatformFilter==='whatsapp'}" @click="statusFilter='all';mainPlatformFilter='whatsapp'"><v-icon icon="mdi-whatsapp"/><span><small>WHATSAPP NUMBERS</small><strong>{{whatsappPages.length}}</strong></span></button>
     <button :class="{active:statusFilter==='active'&&mainPlatformFilter==='all'}" @click="statusFilter='active';mainPlatformFilter='all'"><v-icon icon="mdi-webhook"/><span><small>ເປີດນຳໃຊ້ແລ້ວ</small><strong>{{activePages.length}}</strong></span></button>
     <button :class="{active:statusFilter==='available'&&mainPlatformFilter==='all'}" @click="statusFilter='available';mainPlatformFilter='all'"><v-icon icon="mdi-power-plug-off-outline"/><span><small>NOT ACTIVE</small><strong>{{inactivePages.length}}</strong></span></button>
   </section>
@@ -301,7 +328,7 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
       {{ visiblePages.length }} / {{ pages.length }} ເພຈ
     </v-chip>
   </div>
-  <section v-if="false" class="whatsapp-setup">
+  <section v-if="whatsAppConnecting || whatsAppDetailsOpen" class="whatsapp-setup">
     <div class="whatsapp-setup-icon"><v-icon icon="mdi-whatsapp" size="34"/></div>
     <div class="whatsapp-setup-copy">
       <small>WHATSAPP SETUP</small>

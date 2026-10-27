@@ -1977,6 +1977,24 @@ func (g *GraphConnector) ListPages(ctx context.Context, _ string, accountID stri
 	}
 
 	for id, page := range pages {
+		if page.Category == "WhatsApp" {
+			dbConnected := page.Connected
+			if g.db != nil {
+				var waModel database.MetaWhatsAppConnectionModel
+				if err := g.db.Where("phone_number_id = ? AND account_id = ?", id, accountID).First(&waModel).Error; err == nil {
+					dbConnected = waModel.IsConnected
+				}
+			}
+			page.Connected = dbConnected
+			if dbConnected {
+				page.WebhookStatus = "subscribed"
+			} else {
+				page.WebhookStatus = "disconnected"
+			}
+			pages[id] = page
+			continue
+		}
+
 		var existing database.MetaPageTokenModel
 		dbConnected := false
 		if g.db != nil && g.db.Where("page_id = ? AND account_id = ?", id, accountID).First(&existing).Error == nil {
@@ -2166,6 +2184,10 @@ type debugTokenResponse struct {
 		ExpiresAt           int64    `json:"expires_at"`
 		DataAccessExpiresAt int64    `json:"data_access_expires_at"`
 		Scopes              []string `json:"scopes"`
+		GranularScopes      []struct {
+			Scope     string   `json:"scope"`
+			TargetIDs []string `json:"target_ids"`
+		} `json:"granular_scopes"`
 	} `json:"data"`
 }
 

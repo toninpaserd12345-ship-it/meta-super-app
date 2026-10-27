@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -37,8 +38,8 @@ func (g *GraphConnector) CompleteWhatsAppSignup(ctx context.Context, accountID s
 	input.BusinessID = strings.TrimSpace(input.BusinessID)
 	input.WABAID = strings.TrimSpace(input.WABAID)
 	input.PhoneNumberID = strings.TrimSpace(input.PhoneNumberID)
-	if input.Code == "" || input.WABAID == "" {
-		return nil, errors.New("WhatsApp signup did not return a code and WABA ID")
+	if input.Code == "" {
+		return nil, errors.New("WhatsApp signup did not return an authorization code")
 	}
 
 	query := url.Values{
@@ -55,18 +56,50 @@ func (g *GraphConnector) CompleteWhatsAppSignup(ctx context.Context, accountID s
 	if tokenResponse.AccessToken == "" {
 		return nil, errors.New("Meta returned an empty WhatsApp access token")
 	}
+
+	// If WABA ID wasn't delivered via postMessage, extract it from debug_token granular scopes
+	if input.WABAID == "" {
+		dbg, err := g.debugToken(ctx, tokenResponse.AccessToken)
+		if err == nil && dbg != nil {
+			for _, gs := range dbg.Data.GranularScopes {
+				if (gs.Scope == "whatsapp_business_management" || gs.Scope == "whatsapp_business_messaging") && len(gs.TargetIDs) > 0 {
+					input.WABAID = strings.TrimSpace(gs.TargetIDs[0])
+					break
+				}
+			}
+			if input.WABAID == "" {
+				for _, gs := range dbg.Data.GranularScopes {
+					if len(gs.TargetIDs) > 0 {
+						input.WABAID = strings.TrimSpace(gs.TargetIDs[0])
+						break
+					}
+				}
+			}
+		}
+	}
+	if input.WABAID == "" {
+		return nil, errors.New("WhatsApp signup did not return a WABA ID and could not resolve from token")
+	}
+
 	encryptedToken := g.encryptToken(tokenResponse.AccessToken)
 	if encryptedToken == "" {
 		return nil, errors.New("unable to encrypt WhatsApp access token")
 	}
 
 	if err := g.subscribeWhatsAppBusinessAccount(ctx, input.WABAID, tokenResponse.AccessToken); err != nil {
-		return nil, fmt.Errorf("subscribe WhatsApp webhook: %w", err)
+		slog.Warn("subscribe WhatsApp webhook error (continuing)", "waba_id", input.WABAID, "error", err)
 	}
 
 	phones, err := g.whatsAppPhoneNumbers(ctx, input.WABAID, tokenResponse.AccessToken)
 	if err != nil {
-		return nil, fmt.Errorf("load WhatsApp phone numbers: %w", err)
+		slog.Warn("load WhatsApp phone numbers returned error", "waba_id", input.WABAID, "error", err)
+	}
+	if len(phones) == 0 && input.PhoneNumberID != "" {
+		var singlePhone whatsAppPhone
+		pQuery := url.Values{"fields": {"id,display_phone_number,verified_name"}, "access_token": {tokenResponse.AccessToken}}
+		if err := g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/"+url.PathEscape(input.PhoneNumberID)+"?"+pQuery.Encode(), &singlePhone); err == nil && singlePhone.ID != "" {
+			phones = append(phones, singlePhone)
+		}
 	}
 	if len(phones) == 0 {
 		return nil, errors.New("the selected WhatsApp account has no accessible phone number")
@@ -118,6 +151,7 @@ func (g *GraphConnector) subscribeWhatsAppBusinessAccount(ctx context.Context, w
 		return err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Authorization", "Bearer "+accessToken)
 	resp, err := g.client.Do(req)
 	if err != nil {
 		return err
