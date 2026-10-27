@@ -1938,7 +1938,42 @@ func (g *GraphConnector) ListPages(ctx context.Context, _ string, accountID stri
 
 	pages, whatsAppDiagnostics, err := g.fetchPages(ctx, token)
 	if err != nil {
-		return nil, fmt.Errorf("facebook api error: %w", err)
+		slog.Warn("fetchPages from Meta failed", "account_id", accountID, "error", err)
+		pages = make(map[string]graphPage)
+		for id, page := range persistedWhatsApp {
+			pages[id] = page
+		}
+		if g.db != nil {
+			var savedTokens []database.MetaPageTokenModel
+			if errFind := g.db.Where("account_id = ?", accountID).Find(&savedTokens).Error; errFind == nil {
+				for _, st := range savedTokens {
+					if _, exists := pages[st.PageID]; !exists {
+						tok := g.decryptToken(st.AccessToken)
+						pages[st.PageID] = graphPage{
+							MetaPage: domain.MetaPage{
+								ID:            st.PageID,
+								Name:          st.Name,
+								Category:      st.Category,
+								PictureURL:    st.PictureURL,
+								Connected:     st.IsConnected,
+								TokenReady:    tok != "",
+								WebhookStatus: map[bool]string{true: "subscribed", false: "disconnected"}[st.IsConnected],
+							},
+							AccessToken: tok,
+						}
+					}
+				}
+			}
+		}
+		if len(pages) > 0 {
+			whatsAppDiagnostics.State = "reconnect_required"
+			whatsAppDiagnostics.Message = "Meta session expired. Reconnect Facebook to discover new pages."
+		} else {
+			if errors.Is(err, domain.ErrMetaReconnectRequired) {
+				return nil, err
+			}
+			return nil, fmt.Errorf("%w: %v", domain.ErrMetaReconnectRequired, err)
+		}
 	}
 	applyWhatsAppPermissions(&whatsAppDiagnostics, grantedPermissions)
 	for id, page := range persistedWhatsApp {
@@ -4509,9 +4544,10 @@ func applyWhatsAppPermissions(diagnostics *domain.MetaWhatsAppDiagnostics, grant
 }
 
 type graphError struct {
-	Message string `json:"message"`
-	Type    string `json:"type"`
-	Code    int    `json:"code"`
+	Message      string `json:"message"`
+	Type         string `json:"type"`
+	Code         int    `json:"code"`
+	ErrorSubcode int    `json:"error_subcode"`
 }
 
 func (g *GraphConnector) getJSON(ctx context.Context, endpoint string, target any) error {
@@ -4542,6 +4578,11 @@ func (g *GraphConnector) getJSON(ctx context.Context, endpoint string, target an
 func graphResponseError(status int, value *graphError) error {
 	if value == nil {
 		return fmt.Errorf("meta graph request failed with status %d", status)
+	}
+	msgLower := strings.ToLower(value.Message)
+	if value.Code == 190 || value.Code == 102 || value.ErrorSubcode == 463 || value.ErrorSubcode == 467 || value.ErrorSubcode == 460 ||
+		strings.Contains(msgLower, "access token") || strings.Contains(msgLower, "session has expired") || value.Type == "OAuthException" {
+		return fmt.Errorf("%w: meta graph error %d: %s", domain.ErrMetaReconnectRequired, value.Code, value.Message)
 	}
 	return fmt.Errorf("meta graph error %d: %s", value.Code, value.Message)
 }

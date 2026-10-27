@@ -300,12 +300,23 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
   </section>
   <v-alert v-if="message" :type="messageType" variant="tonal" closable class="mb-4" @click:close="message=''">{{message}}</v-alert>
   <v-alert v-if="error" type="error" variant="tonal" class="mb-4">
-    <strong>{{loadErrorMessage}}</strong><br>
-    <span v-if="needsReconnect">The saved Facebook authorization is no longer usable. Authorize once more, then the system will renew it automatically while it remains valid.</span>
-    <span v-else>The API could not load the Meta connection. Retry after a moment; if it continues, reconnect Facebook.</span>
-    <div class="mt-3 d-flex ga-2 flex-wrap"><v-btn color="primary" prepend-icon="mdi-facebook" :loading="authorizing" @click="permissionsOpen=true">Reconnect Facebook</v-btn><v-btn variant="outlined" prepend-icon="mdi-refresh" @click="refresh()">Retry</v-btn></div>
+    <strong>{{ needsReconnect ? l({ lo: 'ການເຊື່ອມຕໍ່ Facebook ໝົດອາຍຸ ຫຼື ຕ້ອງເຊື່ອມຕໍ່ໃໝ່', th: 'การเชื่อมต่อ Facebook หมดอายุหรือต้องเชื่อมต่อใหม่', en: 'Facebook authorization expired or requires reconnect.' }) : loadErrorMessage }}</strong><br>
+    <span>
+      {{ needsReconnect 
+          ? l({ lo: 'ກະລຸນາກົດ “ເຊື່ອມຕໍ່ Facebook ໃໝ່” ເພື່ອຕໍ່ອາຍຸສິດການເຂົ້າເຖິງເພຈ ແລະ ຊິ້ງຂໍ້ມູນລ່າສຸດ.', th: 'กรุณากด “เชื่อมต่อ Facebook ใหม่” เพื่อต่ออายุสิทธิ์การเข้าถึงเพจและซิงค์ข้อมูลล่าสุด', en: 'Please click “Reconnect Facebook” to renew access and sync the latest pages.' })
+          : l({ lo: 'ບໍ່ສາມາດໂຫຼດຂໍ້ມູນຈາກ Meta ໄດ້ໃນຂະນະນີ້. ກະລຸນາລອງໃໝ່ ຫຼື ເຊື່ອມຕໍ່ Facebook ຄືນໃໝ່.', th: 'ไม่สามารถโหลดข้อมูลจาก Meta ได้ในขณะนี้ กรุณาลองใหม่หรือเชื่อมต่อ Facebook อีกครั้ง', en: 'Unable to load connection from Meta. Retry after a moment or reconnect Facebook.' }) 
+      }}
+    </span>
+    <div class="mt-3 d-flex ga-2 flex-wrap">
+      <v-btn color="primary" prepend-icon="mdi-facebook" :loading="authorizing" @click="permissionsOpen=true">
+        {{ l({ lo: 'ເຊື່ອມຕໍ່ Facebook ໃໝ່', th: 'เชื่อมต่อ Facebook ใหม่', en: 'Reconnect Facebook' }) }}
+      </v-btn>
+      <v-btn variant="outlined" prepend-icon="mdi-refresh" @click="refresh()">
+        {{ l({ lo: 'ລອງໃໝ່', th: 'ลองใหม่', en: 'Retry' }) }}
+      </v-btn>
+    </div>
   </v-alert>
-  <section v-if="!error" class="connection-summary">
+  <section v-if="!error || pages.length" class="connection-summary">
     <button :class="{active:statusFilter==='all'&&mainPlatformFilter==='all'}" @click="statusFilter='all';mainPlatformFilter='all'"><v-icon icon="mdi-facebook"/><span><small>ALL ACCOUNTS</small><strong>{{pages.length}}</strong></span></button>
     <button v-if="whatsappPages.length" :class="{active:mainPlatformFilter==='whatsapp'}" @click="statusFilter='all';mainPlatformFilter='whatsapp'"><v-icon icon="mdi-whatsapp"/><span><small>WHATSAPP NUMBERS</small><strong>{{whatsappPages.length}}</strong></span></button>
     <button :class="{active:statusFilter==='active'&&mainPlatformFilter==='all'}" @click="statusFilter='active';mainPlatformFilter='all'"><v-icon icon="mdi-webhook"/><span><small>ເປີດນຳໃຊ້ແລ້ວ</small><strong>{{activePages.length}}</strong></span></button>
@@ -313,7 +324,7 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
   </section>
 
   <!-- Page Search & Filter Toolbar -->
-  <div v-if="!error && pages.length" class="mb-4 d-flex align-center gap-3 flex-wrap">
+  <div v-if="pages.length" class="mb-4 d-flex align-center gap-3 flex-wrap">
     <v-text-field
       v-model="pageSearch"
       density="compact"
@@ -363,7 +374,7 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
       </v-expand-transition>
     </div>
   </section>
-  <section v-if="!error" class="page-grid" :aria-busy="pending">
+  <section v-if="!error || visiblePages.length" class="page-grid" :aria-busy="pending">
     <v-skeleton-loader v-if="pending" v-for="i in 3" :key="i" type="card"/>
     <article v-for="page in visiblePages" v-else :key="page.id" class="page-card">
       <div class="page-avatar">
