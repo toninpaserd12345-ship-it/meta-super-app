@@ -52,6 +52,12 @@ type MetaWhatsAppSignupInput struct {
 	PhoneNumberID string `json:"phoneNumberId"`
 }
 
+type MetaWhatsAppDirectInput struct {
+	AccessToken   string `json:"accessToken"`
+	WABAID        string `json:"wabaId"`
+	PhoneNumberID string `json:"phoneNumberId"`
+}
+
 type MetaOAuthResult struct {
 	UserID      string
 	AccountID   string
@@ -361,6 +367,7 @@ type MetaConnector interface {
 	WhatsAppDiagnostics(context.Context, string) (*MetaWhatsAppDiagnostics, error)
 	WhatsAppSignupConfig(context.Context) MetaWhatsAppSignupConfig
 	CompleteWhatsAppSignup(context.Context, string, MetaWhatsAppSignupInput) ([]MetaPage, error)
+	ConnectWhatsAppDirect(context.Context, string, MetaWhatsAppDirectInput) ([]MetaPage, error)
 	PagePicture(context.Context, string, string) (*MetaPagePicture, error)
 	ConnectPage(context.Context, string, string, string) (*MetaPage, error)
 	DisconnectPage(context.Context, string, string, string) (*MetaPage, error)

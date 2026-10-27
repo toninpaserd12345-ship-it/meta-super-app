@@ -137,6 +137,7 @@ func (h *Handler) App() *fiber.App {
 	auth.Get("/api/v1/meta/pages", requireAccount(h.auth, domain.ClaimPagesRead), h.metaPages)
 	auth.Get("/api/v1/meta/whatsapp/signup/config", requireAccount(h.auth, domain.ClaimPagesRead), h.whatsAppSignupConfig)
 	auth.Post("/api/v1/meta/whatsapp/signup/complete", requireAccount(h.auth, domain.ClaimPagesConnect), h.completeWhatsAppSignup)
+	auth.Post("/api/v1/meta/whatsapp/direct-connect", requireAccount(h.auth, domain.ClaimPagesConnect), h.connectWhatsAppDirect)
 	auth.Get("/api/v1/meta/pages/:pageID/picture", requireAccount(h.auth, domain.ClaimPagesRead), h.metaPagePicture)
 	auth.Post("/api/v1/meta/oauth/start", requireAccount(h.auth, domain.ClaimPagesConnect), h.startMetaOAuth)
 	auth.Post("/api/v1/meta/pages/connect", requireAccount(h.auth, domain.ClaimPagesConnect), h.connectMetaPage)
@@ -357,6 +358,20 @@ func (h *Handler) completeWhatsAppSignup(c fiber.Ctx) error {
 	if err != nil {
 		slog.Error("WhatsApp Embedded Signup failed", "error", err)
 		return fail(c, fiber.StatusBadGateway, "whatsapp_signup_failed", err.Error())
+	}
+	return c.JSON(fiber.Map{"items": items})
+}
+func (h *Handler) connectWhatsAppDirect(c fiber.Ctx) error {
+	var body domain.MetaWhatsAppDirectInput
+	if err := c.Bind().JSON(&body); err != nil {
+		return fail(c, fiber.StatusBadRequest, "invalid_request", "WhatsApp direct connection input is invalid.")
+	}
+	ctx, cancel := requestContext(c)
+	defer cancel()
+	items, err := h.meta.ConnectWhatsAppDirect(ctx, c.Locals("accountID").(string), body)
+	if err != nil {
+		slog.Error("WhatsApp direct connect failed", "error", err)
+		return fail(c, fiber.StatusBadGateway, "whatsapp_connect_failed", err.Error())
 	}
 	return c.JSON(fiber.Map{"items": items})
 }

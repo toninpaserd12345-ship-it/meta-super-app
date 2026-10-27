@@ -280,6 +280,45 @@ function cancelWhatsAppConnection(){
   whatsAppSession.value={}
   message.value=''
 }
+const directWhatsAppOpen = ref(false)
+const directConnecting = ref(false)
+const directForm = ref({
+  accessToken: '',
+  wabaId: '938451375791489',
+  phoneNumberId: ''
+})
+
+async function submitDirectWhatsApp(){
+  if(!directForm.value.accessToken.trim()){
+    messageType.value='error'
+    message.value='ກະລຸນາປ້ອນ WhatsApp Access Token / System User Token'
+    return
+  }
+  directConnecting.value=true
+  message.value=''
+  try{
+    await $fetch('/api/proxy/api/v1/meta/whatsapp/direct-connect',{
+      method:'POST',
+      body:{
+        accessToken: directForm.value.accessToken.trim(),
+        wabaId: directForm.value.wabaId.trim(),
+        phoneNumberId: directForm.value.phoneNumberId.trim()
+      },
+      timeout:30000
+    })
+    directWhatsAppOpen.value=false
+    directForm.value.accessToken=''
+    await refresh()
+    await refreshPlanStatus()
+    messageType.value='success'
+    message.value='ເຊື່ອມຕໍ່ WhatsApp ສຳເລັດຮຽບຮ້ອຍແລ້ວ! ລະບົບພ້ອມຮັບ ແລະ ສົ່ງຂໍ້ຄວາມແລ້ວ.'
+  }catch(error:any){
+    messageType.value='error'
+    message.value=apiMessage(error, 'ບໍ່ສາມາດເຊື່ອມຕໍ່ WhatsApp ໄດ້. ກະລຸນາກວດສອບ Token ແລະ ສິດການເຂົ້າເຖິງ.')
+  }finally{
+    directConnecting.value=false
+  }
+}
 onMounted(()=>{
   void $fetch<WhatsAppSignupConfig>('/api/proxy/api/v1/meta/whatsapp/signup/config').then(config=>{whatsAppConfig.value=config}).catch(()=>{})
   whatsAppMessageHandler=(event:MessageEvent)=>{
@@ -315,9 +354,25 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
       <v-btn v-if="inactivePages.length" variant="outlined" prepend-icon="mdi-checkbox-multiple-marked-outline" @click="search='';pickerOpen=true">
         {{ l({ lo: 'ເລືອກບັນຊີ', th: 'เลือกบัญชี', en: 'Select accounts' }) }}
       </v-btn>
-      <v-btn color="success" variant="flat" prepend-icon="mdi-whatsapp" :loading="whatsAppConnecting" :disabled="authorizing" @click="connectWhatsApp">
-        {{ whatsAppConnecting ? 'ກຳລັງລໍຖ້າ Meta…' : 'ເຊື່ອມຕໍ່ WhatsApp' }}
-      </v-btn>
+      <v-menu>
+        <template #activator="{ props }">
+          <v-btn color="success" variant="flat" prepend-icon="mdi-whatsapp" :loading="whatsAppConnecting" :disabled="authorizing" v-bind="props">
+            {{ whatsAppConnecting ? 'ກຳລັງລໍຖ້າ Meta…' : 'ເຊື່ອມຕໍ່ WhatsApp' }}
+            <v-icon icon="mdi-menu-down" end />
+          </v-btn>
+        </template>
+        <v-list density="compact" min-width="290">
+          <v-list-item prepend-icon="mdi-key-variant" @click="directWhatsAppOpen=true">
+            <v-list-item-title><strong>ເຊື່ອມຕໍ່ດ້ວຍ Token (ແນະນຳ)</strong></v-list-item-title>
+            <v-list-item-subtitle>ເຊື່ອມຕໍ່ເບີ WABA ໂດຍກົງ ບໍ່ຕິດ Meta Block</v-list-item-subtitle>
+          </v-list-item>
+          <v-divider />
+          <v-list-item prepend-icon="mdi-open-in-new" :disabled="whatsAppConnecting || authorizing" @click="connectWhatsApp">
+            <v-list-item-title>ເຊື່ອມຕໍ່ຜ່ານ Meta Pop-up</v-list-item-title>
+            <v-list-item-subtitle>Embedded Signup</v-list-item-subtitle>
+          </v-list-item>
+        </v-list>
+      </v-menu>
       <v-btn color="primary" variant="flat" prepend-icon="mdi-facebook" :loading="authorizing" :disabled="whatsAppConnecting" @click="permissionsOpen=true">
         {{ needsReconnect ? 'ເຊື່ອມ Facebook ໃໝ່' : 'ເຊື່ອມຕໍ່ Facebook' }}
       </v-btn>
@@ -377,7 +432,10 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
       </ol>
       <div class="setup-actions">
         <v-btn color="success" :prepend-icon="whatsAppConnecting?'mdi-loading':'mdi-whatsapp'" :disabled="whatsAppConnecting" @click="connectWhatsApp">
-          {{whatsAppConnecting?'Waiting for Meta…':'Connect WhatsApp'}}
+          {{whatsAppConnecting?'Waiting for Meta…':'Connect WhatsApp (Pop-up)'}}
+        </v-btn>
+        <v-btn color="teal" variant="tonal" prepend-icon="mdi-key-variant" @click="directWhatsAppOpen=true">
+          ເຊື່ອມຕໍ່ດ້ວຍ Token (ແນະນຳ)
         </v-btn>
         <v-btn v-if="whatsAppConnecting" variant="text" @click="cancelWhatsAppConnection">Cancel</v-btn>
         <v-btn v-if="whatsappDiagnostics" variant="text" append-icon="mdi-chevron-down" @click="whatsAppDetailsOpen=!whatsAppDetailsOpen">{{whatsAppDetailsOpen?'Hide technical details':'Technical details'}}</v-btn>
@@ -437,6 +495,68 @@ onBeforeUnmount(()=>{clearWhatsAppTimers();if(whatsAppMessageHandler)window.remo
     </v-alert>
     <v-alert v-else-if="!pending&&!visiblePages.length" type="info" variant="tonal">{{mainPlatformFilter==='whatsapp'?'No WhatsApp phone numbers were returned for this Meta account. Confirm the number belongs to an accessible Business Portfolio, then reconnect Facebook.':'No Pages match this filter.'}}</v-alert>
   </section>
+
+  <v-dialog v-model="directWhatsAppOpen" max-width="580" persistent>
+    <v-card class="pa-4">
+      <v-card-title class="d-flex align-center justify-space-between pb-1">
+        <div class="d-flex align-center ga-2">
+          <v-icon icon="mdi-whatsapp" color="success" size="26" />
+          <span class="text-h6 font-weight-bold">ເຊື່ອມຕໍ່ WhatsApp ດ້ວຍ Token</span>
+        </div>
+        <v-btn icon="mdi-close" variant="text" size="small" :disabled="directConnecting" @click="directWhatsAppOpen = false" />
+      </v-card-title>
+      <v-card-subtitle class="pb-3 text-wrap">
+        ເຊື່ອມຕໍ່ WhatsApp Business ດ້ວຍ System User Token ຫຼື Permanent Token ໂດຍກົງ ເພື່ອຫຼີກລ່ຽງບັນຫາ Meta Popup Barrier.
+      </v-card-subtitle>
+      <v-card-text class="pt-1">
+        <v-alert type="info" variant="tonal" density="compact" class="mb-4">
+          <div class="font-weight-bold mb-1">ວິທີເອົາ Token ຈາກ Meta Business Settings:</div>
+          <div class="text-caption">
+            1. ເຂົ້າ <strong>Meta Business Settings</strong> &gt; <strong>System Users (ຜູ້ໃຊ້ລະບົບ)</strong><br>
+            2. ເພີ່ມ Assets ໃຫ້ສິດ WABA <code>Nana shop</code> (Full Control)<br>
+            3. ກົດ <strong>Generate New Token</strong> ເລືອກແອັບ <code>1475667466743089</code><br>
+            4. ຕິກເລືອກສິດ: <code>whatsapp_business_management</code> ແລະ <code>whatsapp_business_messaging</code><br>
+            5. Copy Token ນັ້ນມາວາງໃສ່ຊ່ອງລຸ່ມນີ້
+          </div>
+        </v-alert>
+        <v-text-field
+          v-model="directForm.accessToken"
+          label="Permanent Access Token / System User Token *"
+          placeholder="EAA..."
+          type="password"
+          variant="outlined"
+          density="comfortable"
+          required
+          class="mb-3"
+          hint="Token ທີ່ສ້າງຈາກ Meta System User"
+          persistent-hint
+        />
+        <v-text-field
+          v-model="directForm.wabaId"
+          label="WhatsApp Business Account (WABA) ID"
+          placeholder="938451375791489"
+          variant="outlined"
+          density="comfortable"
+          class="mb-3"
+          hint="ID ບັນຊີ WhatsApp Business ຂອງທ່ານ (ຕົວຢ່າງ: 938451375791489)"
+          persistent-hint
+        />
+        <v-text-field
+          v-model="directForm.phoneNumberId"
+          label="Phone Number ID (ທາງເລືອກ)"
+          placeholder="ຕົວເລກ Phone Number ID"
+          variant="outlined"
+          density="comfortable"
+          hint="ຫາກປ່ອຍວ່າງ ລະບົບຈະຄົ້ນຫາເບີໂທລະສັບທັງໝົດໃນ WABA ໃຫ້ອັດຕະໂນມັດ"
+          persistent-hint
+        />
+      </v-card-text>
+      <v-card-actions class="justify-end ga-2 pt-2">
+        <v-btn variant="text" :disabled="directConnecting" @click="directWhatsAppOpen = false">ຍົກເລີກ</v-btn>
+        <v-btn color="success" variant="flat" prepend-icon="mdi-check" :loading="directConnecting" @click="submitDirectWhatsApp">ເຊື່ອມຕໍ່ທັນທີ</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
 
   <v-dialog v-model="permissionsOpen" max-width="620">
     <v-card class="picker-card"><v-card-title class="picker-head"><div><small>FACEBOOK PERMISSIONS</small><h2>Choose features</h2></div><v-btn icon="mdi-close" variant="text" aria-label="Close permission settings" @click="permissionsOpen=false"/></v-card-title><v-card-text class="permission-body">

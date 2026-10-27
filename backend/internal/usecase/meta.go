@@ -50,11 +50,17 @@ func (u *Meta) WhatsAppSignupConfig(ctx context.Context) domain.MetaWhatsAppSign
 	return u.connector.WhatsAppSignupConfig(ctx)
 }
 func (u *Meta) CompleteWhatsAppSignup(ctx context.Context, accountID string, input domain.MetaWhatsAppSignupInput) ([]domain.MetaPage, error) {
-	if accountID == "" || input.Code == "" || input.WABAID == "" {
-		return nil, errors.New("WhatsApp signup code and business account are required")
+	if accountID == "" || input.Code == "" {
+		return nil, errors.New("WhatsApp signup code is required")
 	}
 	items, err := u.connector.CompleteWhatsAppSignup(ctx, accountID, input)
 	return items, err
+}
+func (u *Meta) ConnectWhatsAppDirect(ctx context.Context, accountID string, input domain.MetaWhatsAppDirectInput) ([]domain.MetaPage, error) {
+	if accountID == "" || strings.TrimSpace(input.AccessToken) == "" {
+		return nil, errors.New("WhatsApp access token is required")
+	}
+	return u.connector.ConnectWhatsAppDirect(ctx, accountID, input)
 }
 func (u *Meta) PagePicture(ctx context.Context, accountID, pageID string) (*domain.MetaPagePicture, error) {
 	if pageID == "" {

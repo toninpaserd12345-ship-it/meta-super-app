@@ -144,6 +144,115 @@ func (g *GraphConnector) CompleteWhatsAppSignup(ctx context.Context, accountID s
 	return pages, nil
 }
 
+// ConnectWhatsAppDirect connects a WhatsApp Business Account directly using a System User
+// or permanent access token, bypassing Embedded Signup popups.
+func (g *GraphConnector) ConnectWhatsAppDirect(ctx context.Context, accountID string, input domain.MetaWhatsAppDirectInput) ([]domain.MetaPage, error) {
+	if g.db == nil {
+		return nil, errors.New("WhatsApp connections require database storage")
+	}
+	token := strings.TrimSpace(input.AccessToken)
+	if token == "" {
+		return nil, errors.New("Meta WhatsApp access token is required")
+	}
+	wabaID := strings.TrimSpace(input.WABAID)
+	phoneID := strings.TrimSpace(input.PhoneNumberID)
+
+	// If WABA ID is not provided, attempt to detect from token
+	if wabaID == "" {
+		dbg, err := g.debugToken(ctx, token)
+		if err == nil && dbg != nil {
+			for _, gs := range dbg.Data.GranularScopes {
+				if (gs.Scope == "whatsapp_business_management" || gs.Scope == "whatsapp_business_messaging") && len(gs.TargetIDs) > 0 {
+					wabaID = strings.TrimSpace(gs.TargetIDs[0])
+					break
+				}
+			}
+			if wabaID == "" {
+				for _, gs := range dbg.Data.GranularScopes {
+					if len(gs.TargetIDs) > 0 {
+						wabaID = strings.TrimSpace(gs.TargetIDs[0])
+						break
+					}
+				}
+			}
+		}
+	}
+
+	encryptedToken := g.encryptToken(token)
+	if encryptedToken == "" {
+		return nil, errors.New("unable to encrypt WhatsApp access token")
+	}
+
+	// Subscribe webhook if WABA ID is present
+	if wabaID != "" {
+		if err := g.subscribeWhatsAppBusinessAccount(ctx, wabaID, token); err != nil {
+			slog.Warn("subscribe WhatsApp webhook error (continuing)", "waba_id", wabaID, "error", err)
+		}
+	}
+
+	// Fetch phone numbers under this WABA
+	var phones []whatsAppPhone
+	if wabaID != "" {
+		pList, err := g.whatsAppPhoneNumbers(ctx, wabaID, token)
+		if err == nil {
+			phones = pList
+		} else {
+			slog.Warn("fetch WhatsApp phone numbers failed", "waba_id", wabaID, "error", err)
+		}
+	}
+
+	// If phones list is empty and phoneID is provided, fetch direct phone
+	if len(phones) == 0 && phoneID != "" {
+		var singlePhone whatsAppPhone
+		pQuery := url.Values{"fields": {"id,display_phone_number,verified_name"}, "access_token": {token}}
+		if err := g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/"+url.PathEscape(phoneID)+"?"+pQuery.Encode(), &singlePhone); err == nil && singlePhone.ID != "" {
+			phones = append(phones, singlePhone)
+		}
+	}
+
+	if len(phones) == 0 {
+		return nil, errors.New("no accessible WhatsApp phone number found for this token and WABA ID")
+	}
+
+	pages := make([]domain.MetaPage, 0, len(phones))
+	for _, phone := range phones {
+		if phoneID != "" && phone.ID != phoneID {
+			continue
+		}
+		pictureURL := g.whatsAppProfilePicture(ctx, phone.ID, token)
+		model := database.MetaWhatsAppConnectionModel{
+			PhoneNumberID:      phone.ID,
+			AccountID:          accountID,
+			WABAID:             wabaID,
+			DisplayPhoneNumber: phone.DisplayPhoneNumber,
+			VerifiedName:       phone.VerifiedName,
+			PictureURL:         pictureURL,
+			AccessToken:        encryptedToken,
+			IsConnected:        true,
+		}
+		if err := g.db.Save(&model).Error; err != nil {
+			return nil, fmt.Errorf("save WhatsApp connection: %w", err)
+		}
+		page := graphPage{MetaPage: domain.MetaPage{
+			ID:            phone.ID,
+			Name:          firstNonEmpty(phone.VerifiedName, phone.DisplayPhoneNumber, "WhatsApp"),
+			Category:      "WhatsApp",
+			PictureURL:    pictureURL,
+			PhoneNumber:   phone.DisplayPhoneNumber,
+			TokenReady:    true,
+			Connected:     true,
+			WebhookStatus: "subscribed",
+		}, AccessToken: token}
+		g.cachePage(accountID, page)
+		pages = append(pages, page.MetaPage)
+	}
+
+	if len(pages) == 0 {
+		return nil, errors.New("the specified WhatsApp phone number was not found")
+	}
+	return pages, nil
+}
+
 func (g *GraphConnector) subscribeWhatsAppBusinessAccount(ctx context.Context, wabaID, accessToken string) error {
 	form := url.Values{"access_token": {accessToken}}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://graph.facebook.com/"+g.cfg.Version+"/"+url.PathEscape(wabaID)+"/subscribed_apps", strings.NewReader(form.Encode()))
