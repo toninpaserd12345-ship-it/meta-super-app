@@ -4479,7 +4479,9 @@ func (g *GraphConnector) fetchPages(ctx context.Context, token string) (map[stri
 				if err := g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/"+biz.ID+"/"+edge+"?"+wabaQuery.Encode(), &wabaResponse); err != nil {
 					wabaErrors++
 					diagnostics.Issues = append(diagnostics.Issues, diagnosticIssue(edge, err))
-					slog.Warn("unable to discover WhatsApp Business Accounts", "business_id", biz.ID, "edge", edge, "error", err)
+					if !strings.Contains(err.Error(), "Requires business_management") {
+						slog.Warn("unable to discover WhatsApp Business Accounts", "business_id", biz.ID, "edge", edge, "error", err)
+					}
 					continue
 				}
 				for _, waba := range wabaResponse.Data {
@@ -4580,8 +4582,10 @@ func graphResponseError(status int, value *graphError) error {
 		return fmt.Errorf("meta graph request failed with status %d", status)
 	}
 	msgLower := strings.ToLower(value.Message)
-	if value.Code == 190 || value.Code == 102 || value.ErrorSubcode == 463 || value.ErrorSubcode == 467 || value.ErrorSubcode == 460 ||
-		strings.Contains(msgLower, "access token") || strings.Contains(msgLower, "session has expired") || value.Type == "OAuthException" {
+	isTokenExpiry := value.Code == 190 || value.Code == 102 ||
+		value.ErrorSubcode == 463 || value.ErrorSubcode == 467 || value.ErrorSubcode == 460 ||
+		strings.Contains(msgLower, "access token") || strings.Contains(msgLower, "session has expired")
+	if isTokenExpiry {
 		return fmt.Errorf("%w: meta graph error %d: %s", domain.ErrMetaReconnectRequired, value.Code, value.Message)
 	}
 	return fmt.Errorf("meta graph error %d: %s", value.Code, value.Message)
