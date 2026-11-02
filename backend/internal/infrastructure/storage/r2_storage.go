@@ -99,6 +99,8 @@ func (s *R2StorageService) UploadFile(ctx context.Context, fileHeader *multipart
 			ext = ".webp"
 		case "image/gif":
 			ext = ".gif"
+		case "image/heic", "image/heif", "image/heic-sequence", "image/heif-sequence", "image/x-heic", "image/x-heif":
+			ext = ".heic"
 		default:
 			if ext == "" {
 				ext = ".bin"

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { AutomationFlow, ItemsResponse, Product, ProductVariant, Warehouse, WarehouseStock } from '~/types/automation'
 import { useProductAdStrategy, type ProductAdStrategy } from '~/composables/useProductAdStrategy'
+import { normalizeMediaFile } from '~/composables/useMediaUpload'
 
 definePageMeta({ middleware: 'auth' })
 
@@ -309,11 +310,12 @@ function errorMessage(error: unknown, fallback: string) {
 async function uploadProductImage(event: Event) {
   const input = event.target as HTMLInputElement
   if (!input.files?.length) return
-  const file = input.files[0]
-  if (!file) return
+  const rawFile = input.files[0]
+  if (!rawFile) return
   uploading.value = true
   notice.value = ''
   try {
+    const file = await normalizeMediaFile(rawFile)
     const formData = new FormData()
     formData.append('file', file)
     formData.append('folder', 'products')
@@ -766,7 +768,7 @@ function goToProductAds(productId: string) {
               <v-btn variant="outlined" size="small" prepend-icon="mdi-upload" :loading="uploading" @click="fileInput?.click()">
                 {{ l({ lo: 'ອັບໂຫຼດຮູບ', th: 'อัปโหลดรูป', en: 'Upload image' }) }}
               </v-btn>
-              <input ref="fileInput" type="file" accept="image/*" hidden :aria-label="l({ lo: 'ອັບໂຫຼດຮູບ', th: 'อัปโหลดรูป', en: 'Upload image' })" @change="uploadProductImage"/>
+              <input ref="fileInput" type="file" accept="image/*, .jpg, .jpeg, .png, .webp, .gif, .heic, .heif" hidden :aria-label="l({ lo: 'ອັບໂຫຼດຮູບ', th: 'อัปโหลดรูป', en: 'Upload image' })" @change="uploadProductImage"/>
               <div class="text-caption text-grey mt-1">{{ l({ lo: 'ຫຼືວາງ URL ດ້ານລຸ່ມ', th: 'หรือวาง URL ด้านล่าง', en: 'Or paste a URL below:' }) }}</div>
             </div>
           </div>

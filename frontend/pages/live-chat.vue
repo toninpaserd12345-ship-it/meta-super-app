@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import type { ItemsResponse, Order, Product, ReplySet, Warehouse } from '~/types/automation'
+import { normalizeMediaFile } from '~/composables/useMediaUpload'
 
 definePageMeta({ middleware: 'auth' })
 
@@ -883,8 +884,19 @@ const triggerMediaPick = () => {
 
 const handleMediaSelected = async (event: Event) => {
   const target = event.target as HTMLInputElement
-  const file = target.files?.[0]
-  if (!file || !activeSender.value) return
+  const rawFile = target.files?.[0]
+  if (!rawFile || !activeSender.value) return
+
+  uploadingMedia.value = true
+  loadError.value = ''
+  sendSuccessNotice.value = ''
+
+  let file = rawFile
+  try {
+    file = await normalizeMediaFile(rawFile)
+  } catch (e) {
+    console.warn('normalizeMediaFile error:', e)
+  }
 
   if (file.size > 25 * 1024 * 1024) {
     loadError.value = l({
@@ -892,6 +904,7 @@ const handleMediaSelected = async (event: Event) => {
       th: 'ขนาดไฟล์ใหญ่เกิน 25MB (โปรดเลือกไฟล์ที่ขนาดไม่เกิน 25MB)',
       en: 'File size exceeds 25MB limit. Please choose a smaller file.'
     })
+    uploadingMedia.value = false
     target.value = ''
     return
   }
@@ -899,15 +912,11 @@ const handleMediaSelected = async (event: Event) => {
   let mediaType = 'image'
   const fileType = file.type.toLowerCase()
   const fileName = file.name.toLowerCase()
-  if (fileType.startsWith('video/') || fileName.endsWith('.mp4') || fileName.endsWith('.mov') || fileName.endsWith('.webm') || fileName.endsWith('.3gp')) {
+  if (fileType.startsWith('video/') || fileName.endsWith('.mp4') || fileName.endsWith('.mov') || fileName.endsWith('.qt') || fileName.endsWith('.webm') || fileName.endsWith('.3gp')) {
     mediaType = 'video'
   } else if (fileType.startsWith('audio/') || fileName.endsWith('.mp3') || fileName.endsWith('.m4a') || fileName.endsWith('.wav') || fileName.endsWith('.ogg') || fileName.endsWith('.aac') || fileName.endsWith('.weba')) {
     mediaType = 'audio'
   }
-
-  uploadingMedia.value = true
-  loadError.value = ''
-  sendSuccessNotice.value = ''
 
   try {
     const formData = new FormData()
@@ -1321,7 +1330,7 @@ const formatTime = (ts: string) => {
                 :alt="locale==='lo'?'ຮູບຈາກການສົນທະນາ':'Conversation image'"
                 class="message-image"
               />
-              <video v-else-if="msg.type === 'video' && msg.message" :src="msg.message" controls class="message-video"/>
+              <video v-else-if="msg.type === 'video' && msg.message" :src="msg.message" controls playsinline preload="metadata" class="message-video"/>
               <audio v-else-if="msg.type === 'audio' && msg.message" :src="msg.message" controls class="message-audio"/>
               <span v-else-if="msg.type === 'image'" class="media-placeholder">{{locale==='lo'?'ຮູບພາບ':'Image'}}</span>
               <span v-else>{{ msg.message }}</span>
@@ -1402,7 +1411,7 @@ const formatTime = (ts: string) => {
           <input
             ref="mediaFileInput"
             type="file"
-            accept="image/*,video/*,audio/*,.mp3,.m4a,.wav,.ogg,.opus,.aac,.mp4,.mov,.webm,.3gp"
+            accept="image/*,video/*,audio/*,.jpg,.jpeg,.png,.webp,.gif,.heic,.heif,.mp3,.m4a,.wav,.ogg,.opus,.aac,.mp4,.mov,.webm,.3gp,.qt"
             style="display: none"
             @change="handleMediaSelected"
           />

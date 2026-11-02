@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { normalizeMediaFile } from '~/composables/useMediaUpload'
 definePageMeta({ middleware: 'auth' })
 
 type Plan = { id: string; name: string; price: number; maxUsers: number; maxPages: number; isActive: boolean }
@@ -110,13 +111,14 @@ const showEnterprise = () => {
 const onSlipSelected = async (e: Event) => {
   const target = e.target as HTMLInputElement
   if (!target.files || target.files.length === 0) return
-  const file = target.files[0]
-  if (!file) return
-  slipFile.value = file
+  const rawFile = target.files[0]
+  if (!rawFile) return
   slipUploading.value = true
   checkoutError.value = ''
 
   try {
+    const file = await normalizeMediaFile(rawFile)
+    slipFile.value = file
     const formData = new FormData()
     formData.append('file', file)
     formData.append('folder', 'slips')
@@ -311,12 +313,12 @@ onMounted(loadBilling)
               <p class="upload-desc">{{ l({ lo: 'ຫຼັງຈາກໂອນເງິນແລ້ວ ກະລຸນາອັບໂຫຼດຮູບສະລິບ ຫຼື ປ້ອນເລກທີອ້າງອີງການໂອນ:', th: 'หลังจากโอนเงินแล้ว กรุณาอัปโหลดรูปสลิปหรือระบุเลขอ้างอิง:', en: 'After transferring, please upload the receipt slip or enter the transfer reference:' }) }}</p>
 
               <div class="file-dropzone">
-                <input id="slip-file" type="file" accept="image/*" @change="onSlipSelected" />
+                <input id="slip-file" type="file" accept="image/*, .jpg, .jpeg, .png, .heic, .heif" @change="onSlipSelected" />
                 <label for="slip-file" class="dropzone-label">
                   <v-icon :icon="slipUploading ? 'mdi-loading mdi-spin' : 'mdi-cloud-upload-outline'" size="32" color="primary" />
                   <span v-if="slipUploading">{{ l({ lo: 'ກຳລັງອັບໂຫຼດຮູບ...', th: 'กำลังอัปโหลดรูป...', en: 'Uploading slip...' }) }}</span>
                   <span v-else-if="slipFile">{{ slipFile.name }} ({{ l({ lo: 'ປ່ຽນຮູບ', th: 'เปลี่ยนรูป', en: 'Change' }) }})</span>
-                  <span v-else>{{ l({ lo: 'ຄລິກເພື່ອເລືອກຮູບສະລິບ (JPG, PNG)', th: 'คลิกเพื่อเลือกรูปสลิป (JPG, PNG)', en: 'Click to upload slip photo (JPG, PNG)' }) }}</span>
+                  <span v-else>{{ l({ lo: 'ຄລິກເພື່ອເລືອກຮູບສະລິບ (JPG, PNG, HEIC)', th: 'คลิกเพื่อเลือกรูปสลิป (JPG, PNG, HEIC)', en: 'Click to upload slip photo (JPG, PNG, HEIC)' }) }}</span>
                 </label>
               </div>
 

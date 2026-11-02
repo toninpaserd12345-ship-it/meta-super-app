@@ -73,6 +73,12 @@ func TestStorageUseCaseAcceptsSupportedMediaTypes(t *testing.T) {
 		{name: "apple x-m4a audio", contentType: "audio/x-m4a", filename: "voice.m4a"},
 		{name: "audio octet-stream fallback", contentType: "application/octet-stream", filename: "recording.m4a"},
 		{name: "video 3gp", contentType: "video/3gpp", filename: "clip.3gp"},
+		{name: "ios heic image", contentType: "image/heic", filename: "photo.heic"},
+		{name: "ios heif image", contentType: "image/heif", filename: "photo.heif"},
+		{name: "ios heic octet-stream fallback", contentType: "application/octet-stream", filename: "IMG_0001.HEIC"},
+		{name: "ios mov video with video/mov", contentType: "video/mov", filename: "IMG_0002.MOV"},
+		{name: "ios mov video with video/x-quicktime", contentType: "video/x-quicktime", filename: "video.mov"},
+		{name: "ios mov video octet-stream fallback", contentType: "application/octet-stream", filename: "clip.mov"},
 	}
 
 	for _, tt := range tests {

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ReplyItem, ReplyItemType, ReplySet } from '~/types/automation'
+import { normalizeMediaFile } from '~/composables/useMediaUpload'
 
 definePageMeta({ middleware: 'auth' })
 
@@ -76,8 +77,8 @@ function moveItem(index: number, direction: number) {
 
 function acceptFor(type: ReplyItemType) {
   if (type === 'audio') return 'audio/*, .mp3, .m4a, .wav, .ogg, .opus, .aac, .weba'
-  if (type === 'video') return 'video/*, .mp4, .mov, .webm, .3gp'
-  if (type === 'image') return 'image/*, .jpg, .jpeg, .png, .webp, .gif'
+  if (type === 'video') return 'video/*, .mp4, .mov, .webm, .3gp, .qt'
+  if (type === 'image') return 'image/*, .jpg, .jpeg, .png, .webp, .gif, .heic, .heif'
   return `${type}/*`
 }
 
@@ -162,15 +163,25 @@ function triggerNativeUpload(index: number) {
 
 async function uploadMedia(value: unknown, index: number) {
   const files = extractFiles(value)
-  const file = files[0]
-  if (!file || !items.value[index]) return
+  const rawFile = files[0]
+  if (!rawFile || !items.value[index]) return
+
+  uploadingIndex.value = index
+  notice.value = ''
+
+  let file = rawFile
+  try {
+    file = await normalizeMediaFile(rawFile)
+  } catch (e) {
+    console.warn('normalizeMediaFile error:', e)
+  }
+
   if (file.size > 25 * 1024 * 1024) {
     noticeType.value = 'error'
     notice.value = locale.value === 'lo' ? 'ຂະໜາດໄຟລ໌ເກີນກຳນົດ (ສູງສຸດ 25MB)' : 'File size exceeds 25MB limit.'
+    uploadingIndex.value = -1
     return
   }
-  uploadingIndex.value = index
-  notice.value = ''
   try {
     const formData = new FormData()
     formData.append('file', file)
@@ -369,7 +380,7 @@ async function saveChanges() {
                   >
                     {{ locale==='lo' ? ` ເລືອກໄຟລ໌ ${item.type === 'audio' ? 'ສຽງ (Voice)' : item.type === 'video' ? 'ວິດີໂອ (Video)' : 'ຮູບພາບ'} ຂຶ້ນ Cloudflare` : ` Choose ${item.type} file` }}
                   </v-btn>
-                  <span class="text-caption text-medium-emphasis">({{ item.type === 'audio' ? 'MP3, M4A, WAV, OGG, AAC' : item.type === 'video' ? 'MP4, MOV, WebM, 3GP' : 'JPG, PNG, WebP' }} · Max 25MB)</span>
+                  <span class="text-caption text-medium-emphasis">({{ item.type === 'audio' ? 'MP3, M4A, WAV, OGG, AAC' : item.type === 'video' ? 'MP4, MOV, WebM, 3GP' : 'JPG, PNG, HEIC, WebP' }} · Max 25MB)</span>
                 </div>
               </template>
             </div>

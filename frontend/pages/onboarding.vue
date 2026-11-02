@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useWorkspacePlan } from '~/composables/useWorkspacePlan'
+import { normalizeMediaFile } from '~/composables/useMediaUpload'
 definePageMeta({ layout: 'auth', middleware: 'auth' })
 
 const { l, locale } = useLocale()
@@ -145,19 +146,21 @@ const selectFree = async () => {
 // Action: Submit Pro Slip
 const onSlipSelected = async (e: Event) => {
   const target = e.target as HTMLInputElement
-  const file = target.files?.[0]
-  if (!file) return
-  slipFile.value = file
+  const rawFile = target.files?.[0]
+  if (!rawFile) return
   slipUploading.value = true
   errorMessage.value = ''
   try {
+    const file = await normalizeMediaFile(rawFile)
+    slipFile.value = file
     const formData = new FormData()
     formData.append('file', file)
-    const res = await $fetch<{ fileUrl: string; filename: string }>('/api/proxy/api/v1/storage/upload', {
+    formData.append('folder', 'slips')
+    const res = await $fetch<{ url?: string; fileUrl?: string; filename?: string; path?: string }>('/api/proxy/api/v1/storage/upload', {
       method: 'POST',
       body: formData,
     })
-    slipReference.value = res.fileUrl || res.filename || 'slip-uploaded'
+    slipReference.value = res.url || res.fileUrl || res.path || res.filename || 'slip-uploaded'
   } catch (err: any) {
     errorMessage.value = err?.data?.message || err?.message || 'Slip upload failed.'
   } finally {
@@ -455,7 +458,7 @@ onMounted(loadData)
               </div>
 
               <div class="slip-upload-area">
-                <input id="onboard-slip" type="file" accept="image/*" class="sr-only" @change="onSlipSelected" />
+                <input id="onboard-slip" type="file" accept="image/*, .jpg, .jpeg, .png, .heic, .heif" class="sr-only" @change="onSlipSelected" />
                 <label for="onboard-slip" class="slip-btn-label">
                   <v-icon :icon="slipUploading ? 'mdi-loading mdi-spin' : 'mdi-cloud-upload'" size="18" />
                   <span v-if="slipUploading">{{ l({ lo: 'ກຳລັງອັບໂຫຼດ...', th: 'กำลังอัปโหลด...', en: 'Uploading...' }) }}</span>
