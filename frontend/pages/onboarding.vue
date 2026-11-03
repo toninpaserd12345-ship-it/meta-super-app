@@ -165,6 +165,7 @@ const onSlipSelected = async (e: Event) => {
     errorMessage.value = err?.data?.message || err?.message || 'Slip upload failed.'
   } finally {
     slipUploading.value = false
+    target.value = ''
   }
 }
 

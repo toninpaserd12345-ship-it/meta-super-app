@@ -177,8 +177,9 @@ async function uploadMedia(value: unknown, index: number) {
   }
 
   if (file.size > 25 * 1024 * 1024) {
+    const sizeMb = (file.size / (1024 * 1024)).toFixed(1)
     noticeType.value = 'error'
-    notice.value = locale.value === 'lo' ? 'ຂະໜາດໄຟລ໌ເກີນກຳນົດ (ສູງສຸດ 25MB)' : 'File size exceeds 25MB limit.'
+    notice.value = locale.value === 'lo' ? `ຂະໜາດໄຟລ໌ (${sizeMb}MB) ເກີນກຳນົດ (ສູງສຸດ 25MB)` : `File size (${sizeMb}MB) exceeds 25MB limit.`
     uploadingIndex.value = -1
     return
   }

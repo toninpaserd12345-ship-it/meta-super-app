@@ -135,6 +135,7 @@ const onSlipSelected = async (e: Event) => {
     })
   } finally {
     slipUploading.value = false
+    target.value = ''
   }
 }
 

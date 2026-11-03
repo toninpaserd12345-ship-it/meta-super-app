@@ -899,10 +899,11 @@ const handleMediaSelected = async (event: Event) => {
   }
 
   if (file.size > 25 * 1024 * 1024) {
+    const sizeMb = (file.size / (1024 * 1024)).toFixed(1)
     loadError.value = l({
-      lo: 'ຂະໜາດໄຟລ໌ໃຫຍ່ເກີນ 25MB (ກະລຸນາເລືອກໄຟລ໌ທີ່ນ້ອຍກວ່າ 25MB)',
-      th: 'ขนาดไฟล์ใหญ่เกิน 25MB (โปรดเลือกไฟล์ที่ขนาดไม่เกิน 25MB)',
-      en: 'File size exceeds 25MB limit. Please choose a smaller file.'
+      lo: `ຂະໜາດໄຟລ໌ (${sizeMb}MB) ໃຫຍ່ເກີນ 25MB (ກະລຸນາເລືອກໄຟລ໌ທີ່ນ້ອຍກວ່າ 25MB)`,
+      th: `ขนาดไฟล์ (${sizeMb}MB) ใหญ่เกิน 25MB (โปรดเลือกไฟล์ที่ขนาดไม่เกิน 25MB)`,
+      en: `File size (${sizeMb}MB) exceeds 25MB limit. Please choose a smaller file.`
     })
     uploadingMedia.value = false
     target.value = ''
@@ -952,7 +953,10 @@ const handleMediaSelected = async (event: Event) => {
     await fetchHistoryAndLeads(true)
     scrollToBottom()
   } catch (err: any) {
-    loadError.value = err?.data?.error || err?.message || l({
+    console.error('Failed to send media:', err)
+    const upstream = err?.data?.error
+    const upstreamMsg = typeof upstream === 'string' ? upstream : upstream?.message || err?.data?.message
+    loadError.value = upstreamMsg || err?.statusMessage || err?.message || l({
       lo: 'ອັບໂຫລດໄຟລ໌ຂຶ້ນ Cloudflare ບໍ່ສຳເລັດ',
       th: 'อัปโหลดไฟล์ขึ้น Cloudflare ไม่สำเร็จ',
       en: 'Failed to upload media to Cloudflare.'
