@@ -1,8 +1,11 @@
 package storage
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
 	"fmt"
+	"io"
 	"mime/multipart"
 	"net/url"
 	"path/filepath"
@@ -120,15 +123,40 @@ func (s *R2StorageService) UploadFile(ctx context.Context, fileHeader *multipart
 		}
 	}
 
+	// Normalize any QuickTime / MOV video format to standard MP4
+	isMov := ext == ".mov" || ext == ".qt" || contentType == "video/quicktime"
+	if isMov {
+		ext = ".mp4"
+		contentType = "video/mp4"
+	}
+
 	newFilename := uuid.New().String() + ext
 
 	// Construct the object key (path in bucket). We only store the filename to support easy migration.
 	objectKey := newFilename
 
+	var uploadBody io.Reader = file
+	if isMov {
+		header := make([]byte, 1024)
+		n, _ := io.ReadFull(file, header)
+		if n >= 16 && string(header[4:8]) == "ftyp" {
+			boxSize := binary.BigEndian.Uint32(header[0:4])
+			if string(header[8:12]) == "qt  " {
+				copy(header[8:12], "mp42")
+				for i := uint32(16); i+4 <= boxSize && i+4 <= uint32(n); i += 4 {
+					if string(header[i:i+4]) == "qt  " {
+						copy(header[i:i+4], "mp42")
+					}
+				}
+			}
+		}
+		uploadBody = io.MultiReader(bytes.NewReader(header[:n]), file)
+	}
+
 	_, err = s.client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:       aws.String(s.bucketName),
 		Key:          aws.String(objectKey),
-		Body:         file,
+		Body:         uploadBody,
 		ContentType:  aws.String(contentType),
 		CacheControl: aws.String("no-store"),
 	})
