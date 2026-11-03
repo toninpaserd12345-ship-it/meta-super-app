@@ -22,6 +22,14 @@ const saving = ref(false)
 const uploading = ref(false)
 const notice = ref('')
 const noticeType = ref<'success' | 'error'>('success')
+const fullImageModalUrl = ref('')
+const fullImageModalOpen = ref(false)
+
+function viewFullProductImage(url: string) {
+  if (!url) return
+  fullImageModalUrl.value = url
+  fullImageModalOpen.value = true
+}
 
 const form = reactive<Product & { code?: string; salePrice: number | null; cost: number | null; quantity: number | null; currency: string; packagingCost: number | null; shippingCostStore: number | null; targetProfit: number | null }>({
   id: '',
@@ -760,14 +768,28 @@ function goToProductAds(productId: string) {
         </v-card-title>
         <v-card-text class="form">
           <div class="image-upload-wrapper mb-3">
-            <div class="image-preview" :style="form.imageUrl ? `background-image: url(${form.imageUrl})` : ''">
+            <div
+              class="image-preview"
+              :class="{ 'cursor-pointer': !!form.imageUrl }"
+              :style="form.imageUrl ? `background-image: url(${form.imageUrl})` : ''"
+              @click="form.imageUrl && viewFullProductImage(form.imageUrl)"
+            >
               <v-icon v-if="!form.imageUrl" icon="mdi-image-outline" size="32" color="grey"/>
               <v-progress-circular v-if="uploading" indeterminate color="primary" class="upload-loader"/>
+              <div v-if="form.imageUrl" class="preview-hover-tag">
+                <v-icon icon="mdi-magnify-plus" size="16" color="white" />
+              </div>
             </div>
             <div class="upload-actions">
-              <v-btn variant="outlined" size="small" prepend-icon="mdi-upload" :loading="uploading" @click="fileInput?.click()">
-                {{ l({ lo: 'ອັບໂຫຼດຮູບ', th: 'อัปโหลดรูป', en: 'Upload image' }) }}
-              </v-btn>
+              <div class="d-flex align-center gap-2">
+                <v-btn variant="outlined" size="small" prepend-icon="mdi-upload" :loading="uploading" @click="fileInput?.click()">
+                  {{ l({ lo: 'ອັບໂຫຼດຮູບ', th: 'อัปโหลดรูป', en: 'Upload image' }) }}
+                </v-btn>
+                <v-btn v-if="form.imageUrl" variant="text" size="small" color="primary" prepend-icon="mdi-eye" @click="viewFullProductImage(form.imageUrl)">
+                  {{ l({ lo: 'ເບິ່ງຮູບ', th: 'ดูรูป', en: 'View' }) }}
+                </v-btn>
+                <v-btn v-if="form.imageUrl" variant="text" size="small" color="error" icon="mdi-close" density="compact" @click="form.imageUrl = ''" />
+              </div>
               <input ref="fileInput" type="file" accept="image/*, .jpg, .jpeg, .png, .webp, .gif, .heic, .heif" hidden :aria-label="l({ lo: 'ອັບໂຫຼດຮູບ', th: 'อัปโหลดรูป', en: 'Upload image' })" @change="uploadProductImage"/>
               <div class="text-caption text-grey mt-1">{{ l({ lo: 'ຫຼືວາງ URL ດ້ານລຸ່ມ', th: 'หรือวาง URL ด้านล่าง', en: 'Or paste a URL below:' }) }}</div>
             </div>
@@ -1502,6 +1524,17 @@ function goToProductAds(productId: string) {
             {{ l({ lo: 'ໄປຈັດການ Automation', th: 'ไปจัดการ Automation', en: 'Manage Automations' }) }}
           </v-btn>
         </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- Fullscreen Product Image Dialog -->
+    <v-dialog v-model="fullImageModalOpen" max-width="640">
+      <v-card class="pa-2 bg-grey-darken-4 text-center">
+        <div class="d-flex justify-space-between align-center px-2 py-1">
+          <span class="text-subtitle-2 font-weight-bold text-white">{{ l({ lo: 'ຮູບພາບສິນຄ້າ', th: 'รูปภาพสินค้า', en: 'Product Image' }) }}</span>
+          <v-btn icon="mdi-close" variant="text" size="small" color="white" @click="fullImageModalOpen = false" />
+        </div>
+        <img :src="fullImageModalUrl" alt="Product Image" style="max-height: 80vh; max-width: 100%; object-fit: contain; border-radius: 8px;" />
       </v-card>
     </v-dialog>
   </div>

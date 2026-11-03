@@ -57,6 +57,14 @@ const showProPayment = ref(false)
 const slipFile = ref<File | null>(null)
 const slipUploading = ref(false)
 const slipReference = ref('')
+const slipPreviewUrl = ref('')
+const viewFullSlip = ref(false)
+
+const clearSlip = () => {
+  slipFile.value = null
+  slipPreviewUrl.value = ''
+  slipReference.value = ''
+}
 
 const route = useRoute()
 
@@ -160,6 +168,7 @@ const onSlipSelected = async (e: Event) => {
       method: 'POST',
       body: formData,
     })
+    slipPreviewUrl.value = res.url || res.fileUrl || (typeof window !== 'undefined' ? URL.createObjectURL(file) : '')
     slipReference.value = res.url || res.fileUrl || res.path || res.filename || 'slip-uploaded'
   } catch (err: any) {
     errorMessage.value = err?.data?.message || err?.message || 'Slip upload failed.'
@@ -458,12 +467,33 @@ onMounted(loadData)
                 <small>BCEL: 010-12-00-01234567-001</small>
               </div>
 
-              <div class="slip-upload-area">
+              <div v-if="slipPreviewUrl" class="onboard-slip-preview mb-3">
+                <div class="onboard-slip-thumb-wrap" @click="viewFullSlip = true">
+                  <img :src="slipPreviewUrl" alt="Slip Preview" class="onboard-slip-thumb" />
+                  <div class="onboard-slip-overlay">
+                    <v-icon icon="mdi-magnify-plus" size="18" color="white" />
+                  </div>
+                </div>
+                <div class="onboard-slip-info">
+                  <div class="onboard-slip-filename">{{ slipFile?.name || 'slip.jpg' }}</div>
+                  <div class="onboard-slip-actions">
+                    <button type="button" class="btn-slip-mini" @click="viewFullSlip = true">
+                      <v-icon icon="mdi-eye" size="13" /> {{ l({ lo: 'ເບິ່ງ', th: 'ดู', en: 'View' }) }}
+                    </button>
+                    <label for="onboard-slip" class="btn-slip-mini">
+                      <v-icon icon="mdi-swap-horizontal" size="13" /> {{ l({ lo: 'ປ່ຽນ', th: 'เปลี่ยน', en: 'Change' }) }}
+                    </label>
+                    <button type="button" class="btn-slip-mini text-error" @click="clearSlip">
+                      <v-icon icon="mdi-delete-outline" size="13" /> {{ l({ lo: 'ລຶບ', th: 'ลบ', en: 'Remove' }) }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div v-else class="slip-upload-area">
                 <input id="onboard-slip" type="file" accept="image/*, .jpg, .jpeg, .png, .heic, .heif" class="sr-only" @change="onSlipSelected" />
                 <label for="onboard-slip" class="slip-btn-label">
                   <v-icon :icon="slipUploading ? 'mdi-loading mdi-spin' : 'mdi-cloud-upload'" size="18" />
                   <span v-if="slipUploading">{{ l({ lo: 'ກຳລັງອັບໂຫຼດ...', th: 'กำลังอัปโหลด...', en: 'Uploading...' }) }}</span>
-                  <span v-else-if="slipFile">{{ slipFile.name }} ({{ l({ lo: 'ປ່ຽນ', th: 'เปลี่ยน', en: 'Change' }) }})</span>
                   <span v-else>{{ l({ lo: 'ອັບໂຫຼດຮູບສະລິບ (Slip)', th: 'อัปโหลดสลิป (Slip)', en: 'Upload Payment Slip' }) }}</span>
                 </label>
               </div>
@@ -705,6 +735,17 @@ onMounted(loadData)
         </div>
       </div>
     </main>
+
+    <!-- Slip Fullscreen Viewer Dialog -->
+    <v-dialog v-model="viewFullSlip" max-width="640">
+      <v-card class="pa-2 bg-grey-darken-4 text-center">
+        <div class="d-flex justify-space-between align-center px-2 py-1">
+          <span class="text-subtitle-2 font-weight-bold text-white">{{ l({ lo: 'ຮູບສະລິບໂອນເງິນ', th: 'รูปสลิปโอนเงิน', en: 'Transfer Slip' }) }}</span>
+          <v-btn icon="mdi-close" variant="text" size="small" color="white" @click="viewFullSlip = false" />
+        </div>
+        <img :src="slipPreviewUrl" alt="Full Slip" style="max-height: 80vh; max-width: 100%; object-fit: contain; border-radius: 8px;" />
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
@@ -1119,6 +1160,80 @@ onMounted(loadData)
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.onboard-slip-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  background: #F1F5F9;
+  border: 1px solid #CBD5E1;
+  border-radius: 10px;
+}
+.onboard-slip-thumb-wrap {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  flex-shrink: 0;
+  border: 1px solid #CBD5E1;
+}
+.onboard-slip-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.onboard-slip-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  transition: opacity .15s;
+}
+.onboard-slip-thumb-wrap:hover .onboard-slip-overlay {
+  opacity: 1;
+}
+.onboard-slip-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+.onboard-slip-filename {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #1E293B;
+}
+.onboard-slip-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.btn-slip-mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #0284C7;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+.btn-slip-mini.text-error {
+  color: #DC2626;
 }
 
 .qr-box {

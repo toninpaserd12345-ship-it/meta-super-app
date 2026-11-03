@@ -18,6 +18,16 @@ const uploadingIndex = ref(-1)
 const notice = ref('')
 const noticeType = ref<'success' | 'error'>('success')
 const previewOpen = ref(false)
+const viewerUrl = ref('')
+const viewerType = ref<'image' | 'video'>('image')
+const viewerOpen = ref(false)
+
+function viewFullMedia(url: string, type: 'image' | 'video' = 'image') {
+  if (!url) return
+  viewerUrl.value = url
+  viewerType.value = type
+  viewerOpen.value = true
+}
 
 watch(replySet, (value) => {
   if (!value) return
@@ -299,7 +309,20 @@ async function saveChanges() {
               <v-textarea v-if="item.type==='text'" v-model="item.content" :label="locale==='lo'?'ເນື້ອໃນຂໍ້ຄວາມ':'Message text'" variant="outlined" rows="4" auto-grow maxlength="2000" counter hide-details/>
               <template v-else>
                 <div v-if="item.content" class="media-container mb-3">
-                  <v-img v-if="item.type==='image'" :src="item.content" max-height="240" contain class="media-preview rounded-lg"/>
+                  <div v-if="item.type==='image'" class="position-relative">
+                    <v-img
+                      :src="item.content"
+                      max-height="240"
+                      contain
+                      class="media-preview rounded-lg cursor-pointer"
+                      @click="viewFullMedia(item.content, 'image')"
+                    />
+                    <div class="d-flex justify-end mt-1">
+                      <v-btn variant="text" size="x-small" color="primary" prepend-icon="mdi-magnify-plus" @click="viewFullMedia(item.content, 'image')">
+                        {{ locale==='lo'?'ເບິ່ງຮູບເຕັມ':'View full' }}
+                      </v-btn>
+                    </div>
+                  </div>
                   <div v-else-if="item.type==='video'" class="video-preview-wrapper">
                     <video
                       :key="item.content"
@@ -309,11 +332,19 @@ async function saveChanges() {
                       preload="metadata"
                       class="media-preview media-preview-video"
                     >
-                      <source :src="item.content" type="video/mp4">
+                      <source :src="item.content">
                       {{ locale==='lo'?'ບຣາວເຊີຂອງທ່ານບໍ່ຮອງຮັບການຫຼິ້ນວິດີໂອໂດຍກົງ':'Your browser does not support the video tag.' }}
                     </video>
                     <div class="d-flex align-center justify-space-between mt-1 px-1">
-                      <a :href="item.content" target="_blank" rel="noopener noreferrer" class="text-caption text-primary d-inline-flex align-center gap-1 text-decoration-none">
+                      <button
+                        type="button"
+                        class="text-caption text-primary d-inline-flex align-center gap-1 border-0 bg-transparent cursor-pointer"
+                        @click="viewFullMedia(item.content, 'video')"
+                      >
+                        <v-icon icon="mdi-arrow-expand" size="14"/>
+                        <span>{{ locale==='lo'?'ເບິ່ງເຕັມຈໍ':'View fullscreen' }}</span>
+                      </button>
+                      <a :href="item.content" target="_blank" rel="noopener noreferrer" class="text-caption text-medium-emphasis d-inline-flex align-center gap-1 text-decoration-none">
                         <v-icon icon="mdi-open-in-new" size="14"/>
                         <span>{{ locale==='lo'?'ເປີດເບິ່ງວິດີໂອ / ດາວໂຫຼດ':'Open / Download video' }}</span>
                       </a>
@@ -428,6 +459,47 @@ async function saveChanges() {
           </div>
           <div class="text-caption text-medium-emphasis mt-3 text-center">
             {{ locale==='lo'?'ລະບົບຈະສົ່ງຂໍ້ຄວາມຕາມລຳດັບເທື່ອລະອັນ ພ້ອມສະແດງສະຖານະກຳລັງພິມ...':'Messages send sequentially from top to bottom with natural typing indicators.' }}
+          </div>
+        </v-card>
+      </v-dialog>
+
+      <!-- Media Viewer Dialog -->
+      <v-dialog v-model="viewerOpen" max-width="800">
+        <v-card rounded="xl" class="overflow-hidden bg-black">
+          <div class="d-flex align-center justify-space-between pa-2 bg-grey-darken-4">
+            <span class="text-caption text-white font-weight-bold px-2">
+              {{ viewerType === 'image' ? (locale === 'lo' ? 'ເບິ່ງຮູບພາບ' : 'Image viewer') : (locale === 'lo' ? 'ເບິ່ງວິດີໂອ' : 'Video player') }}
+            </span>
+            <div class="d-flex align-center gap-1">
+              <v-btn
+                icon="mdi-download"
+                variant="text"
+                size="small"
+                color="white"
+                :href="viewerUrl"
+                target="_blank"
+                download
+              />
+              <v-btn icon="mdi-close" variant="text" size="small" color="white" @click="viewerOpen = false"/>
+            </div>
+          </div>
+          <div class="d-flex align-center justify-center pa-2" style="min-height: 280px; max-height: 80vh;">
+            <img
+              v-if="viewerType === 'image'"
+              :src="viewerUrl"
+              class="w-100 h-auto rounded"
+              style="max-height: 75vh; object-fit: contain;"
+              alt="Media full preview"
+            >
+            <video
+              v-else
+              :src="viewerUrl"
+              controls
+              autoplay
+              playsinline
+              class="w-100 rounded"
+              style="max-height: 75vh; object-fit: contain;"
+            />
           </div>
         </v-card>
       </v-dialog>

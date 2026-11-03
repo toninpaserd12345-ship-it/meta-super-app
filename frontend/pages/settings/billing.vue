@@ -15,10 +15,18 @@ const enterpriseExpanded = ref(false)
 
 const checkoutReference = ref('')
 const slipFile = ref<File | null>(null)
+const slipPreviewUrl = ref('')
+const viewFullSlip = ref(false)
 const slipUploading = ref(false)
 const checkoutSubmitting = ref(false)
 const checkoutSuccess = ref(false)
 const checkoutError = ref('')
+
+const clearSlip = () => {
+  slipFile.value = null
+  slipPreviewUrl.value = ''
+  checkoutReference.value = ''
+}
 
 const activePlans = computed(() => plans.value.filter(plan => plan.isActive))
 const currentPlan = computed(() => subscription.value?.plan || activePlans.value.find(plan => plan.id === subscription.value?.planId))
@@ -126,6 +134,7 @@ const onSlipSelected = async (e: Event) => {
       method: 'POST',
       body: formData,
     })
+    slipPreviewUrl.value = res.url || (typeof window !== 'undefined' ? URL.createObjectURL(file) : '')
     checkoutReference.value = res.url || res.path || file.name
   } catch (err: any) {
     checkoutError.value = err?.data?.message || err?.message || l({
@@ -313,12 +322,33 @@ onMounted(loadBilling)
               <h4>{{ l({ lo: 'ແນບຫຼັກຖານການໂອນເງິນ', th: 'แนบหลักฐานการโอนเงิน', en: 'Attach Transfer Slip' }) }}</h4>
               <p class="upload-desc">{{ l({ lo: 'ຫຼັງຈາກໂອນເງິນແລ້ວ ກະລຸນາອັບໂຫຼດຮູບສະລິບ ຫຼື ປ້ອນເລກທີອ້າງອີງການໂອນ:', th: 'หลังจากโอนเงินแล้ว กรุณาอัปโหลดรูปสลิปหรือระบุเลขอ้างอิง:', en: 'After transferring, please upload the receipt slip or enter the transfer reference:' }) }}</p>
 
-              <div class="file-dropzone">
+              <div v-if="slipPreviewUrl" class="slip-uploaded-preview">
+                <div class="slip-thumb-wrap" @click="viewFullSlip = true">
+                  <img :src="slipPreviewUrl" alt="Slip Preview" class="slip-thumb" />
+                  <div class="slip-overlay">
+                    <v-icon icon="mdi-magnify-plus" size="20" color="white" />
+                  </div>
+                </div>
+                <div class="slip-info">
+                  <div class="slip-filename">{{ slipFile?.name || 'slip.jpg' }}</div>
+                  <div class="slip-actions">
+                    <button type="button" class="btn-slip-action" @click="viewFullSlip = true">
+                      <v-icon icon="mdi-eye" size="14" /> {{ l({ lo: 'ເບິ່ງຮູບເຕັມ', th: 'ดูรูปเต็ม', en: 'View full' }) }}
+                    </button>
+                    <label for="slip-file" class="btn-slip-action">
+                      <v-icon icon="mdi-swap-horizontal" size="14" /> {{ l({ lo: 'ປ່ຽນຮູບ', th: 'เปลี่ยนรูป', en: 'Change' }) }}
+                    </label>
+                    <button type="button" class="btn-slip-action text-error" @click="clearSlip">
+                      <v-icon icon="mdi-delete-outline" size="14" /> {{ l({ lo: 'ລຶບ', th: 'ลบ', en: 'Remove' }) }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div v-else class="file-dropzone">
                 <input id="slip-file" type="file" accept="image/*, .jpg, .jpeg, .png, .heic, .heif" @change="onSlipSelected" />
                 <label for="slip-file" class="dropzone-label">
                   <v-icon :icon="slipUploading ? 'mdi-loading mdi-spin' : 'mdi-cloud-upload-outline'" size="32" color="primary" />
                   <span v-if="slipUploading">{{ l({ lo: 'ກຳລັງອັບໂຫຼດຮູບ...', th: 'กำลังอัปโหลดรูป...', en: 'Uploading slip...' }) }}</span>
-                  <span v-else-if="slipFile">{{ slipFile.name }} ({{ l({ lo: 'ປ່ຽນຮູບ', th: 'เปลี่ยนรูป', en: 'Change' }) }})</span>
                   <span v-else>{{ l({ lo: 'ຄລິກເພື່ອເລືອກຮູບສະລິບ (JPG, PNG, HEIC)', th: 'คลิกเพื่อเลือกรูปสลิป (JPG, PNG, HEIC)', en: 'Click to upload slip photo (JPG, PNG, HEIC)' }) }}</span>
                 </label>
               </div>
@@ -361,6 +391,17 @@ onMounted(loadBilling)
         </ol>
         <button type="button" class="close-panel" @click="enterpriseExpanded = false"><v-icon icon="mdi-close" size="18" />{{ l({ lo: 'ປິດຂັ້ນຕອນ', th: 'ปิดขั้นตอน', en: 'Close process' }) }}</button>
       </section>
+
+      <!-- Slip Fullscreen Viewer Dialog -->
+      <v-dialog v-model="viewFullSlip" max-width="640">
+        <v-card class="pa-2 bg-grey-darken-4 text-center">
+          <div class="d-flex justify-space-between align-center px-2 py-1">
+            <span class="text-subtitle-2 font-weight-bold text-white">{{ l({ lo: 'ຮູບສະລິບໂອນເງິນ', th: 'รูปสลิปโอนเงิน', en: 'Transfer Slip' }) }}</span>
+            <v-btn icon="mdi-close" variant="text" size="small" color="white" @click="viewFullSlip = false" />
+          </div>
+          <img :src="slipPreviewUrl" alt="Full Slip" style="max-height: 80vh; max-width: 100%; object-fit: contain; border-radius: 8px;" />
+        </v-card>
+      </v-dialog>
     </template>
   </main>
 </template>
@@ -409,6 +450,16 @@ onMounted(loadBilling)
 .upload-column{display:flex;flex-direction:column;gap:var(--space-3)}
 .upload-column h4{margin:0;font-size:var(--text-md);font-weight:700}
 .upload-desc{margin:0;font-size:var(--text-sm);color:var(--color-text-secondary)}
+.slip-uploaded-preview{display:flex;align-items:center;gap:var(--space-3);padding:var(--space-2);background:var(--color-surface-soft);border:1px solid var(--color-border);border-radius:var(--radius-md)}
+.slip-thumb-wrap{position:relative;width:64px;height:64px;border-radius:var(--radius-sm);overflow:hidden;cursor:pointer;flex-shrink:0;border:1px solid var(--color-border)}
+.slip-thumb{width:100%;height:100%;object-fit:cover;display:block}
+.slip-overlay{position:absolute;inset:0;background:rgba(0,0,0,0.4);display:grid;place-items:center;opacity:0;transition:opacity .15s}
+.slip-thumb-wrap:hover .slip-overlay{opacity:1}
+.slip-info{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1}
+.slip-filename{font-size:var(--text-xs);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.slip-actions{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
+.btn-slip-action{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--color-primary);background:none;border:none;cursor:pointer;padding:0}
+.btn-slip-action.text-error{color:var(--color-error)}
 .file-dropzone{position:relative}
 .file-dropzone input[type="file"]{display:none}
 .dropzone-label{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--space-1);padding:var(--space-4);border:2px dashed var(--color-primary);border-radius:var(--radius-md);background:var(--color-primary-softer);cursor:pointer;text-align:center;font-size:var(--text-sm);font-weight:600;color:var(--color-primary)}

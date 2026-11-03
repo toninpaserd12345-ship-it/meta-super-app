@@ -877,6 +877,16 @@ const sendReply = async (explicitCode?: string, explicitReplySetId?: string) => 
 
 const mediaFileInput = ref<HTMLInputElement | null>(null)
 const uploadingMedia = ref(false)
+const lightboxOpen = ref(false)
+const lightboxUrl = ref('')
+const lightboxType = ref<'image' | 'video'>('image')
+
+const openLightbox = (url: string, type: 'image' | 'video' = 'image') => {
+  if (!url) return
+  lightboxUrl.value = url
+  lightboxType.value = type
+  lightboxOpen.value = true
+}
 
 const triggerMediaPick = () => {
   mediaFileInput.value?.click()
@@ -1328,13 +1338,51 @@ const formatTime = (ts: string) => {
             :class="msg.platform === 'system' ? 'outgoing' : 'incoming'"
           >
             <div class="bubble-content">
-              <img
-                v-if="msg.type === 'image' && msg.message"
-                :src="msg.message"
-                :alt="locale==='lo'?'ຮູບຈາກການສົນທະນາ':'Conversation image'"
-                class="message-image"
-              />
-              <video v-else-if="msg.type === 'video' && msg.message" :src="msg.message" controls playsinline preload="metadata" class="message-video"/>
+              <div v-if="msg.type === 'image' && msg.message" class="chat-media-wrapper">
+                <img
+                  :src="msg.message"
+                  :alt="locale==='lo'?'ຮູບຈາກການສົນທະນາ':'Conversation image'"
+                  class="message-image cursor-pointer"
+                  loading="lazy"
+                  @click="openLightbox(msg.message, 'image')"
+                />
+                <button
+                  type="button"
+                  class="media-view-btn"
+                  :title="locale==='lo'?'ເບິ່ງຮູບໃຫຍ່':'View full image'"
+                  @click.stop="openLightbox(msg.message, 'image')"
+                >
+                  <v-icon icon="mdi-magnify-plus-outline" size="14" />
+                </button>
+              </div>
+              <div v-else-if="msg.type === 'video' && msg.message" class="chat-video-wrapper">
+                <video
+                  :src="msg.message"
+                  controls
+                  playsinline
+                  preload="metadata"
+                  class="message-video"
+                />
+                <div class="video-sub-actions mt-1 d-flex align-center justify-space-between">
+                  <button
+                    type="button"
+                    class="text-caption text-primary d-inline-flex align-center gap-1 border-0 bg-transparent cursor-pointer"
+                    @click="openLightbox(msg.message, 'video')"
+                  >
+                    <v-icon icon="mdi-arrow-expand" size="13" />
+                    <span>{{ locale==='lo'?'ເບິ່ງເຕັມຈໍ':'View Full' }}</span>
+                  </button>
+                  <a
+                    :href="msg.message"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="text-caption text-medium-emphasis d-inline-flex align-center gap-1 text-decoration-none ml-2"
+                  >
+                    <v-icon icon="mdi-open-in-new" size="13" />
+                    <span>{{ locale==='lo'?'ເປີດ / ດາວໂຫຼດ':'Open / Download' }}</span>
+                  </a>
+                </div>
+              </div>
               <audio v-else-if="msg.type === 'audio' && msg.message" :src="msg.message" controls class="message-audio"/>
               <span v-else-if="msg.type === 'image'" class="media-placeholder">{{locale==='lo'?'ຮູບພາບ':'Image'}}</span>
               <span v-else>{{ msg.message }}</span>
@@ -1883,6 +1931,30 @@ const formatTime = (ts: string) => {
             {{ l({lo:'ຢືນຢັນອໍເດີ & ປິດການຂາຍ',th:'ยืนยันออเดอร์ & ปิดการขาย',en:'Confirm & Close Deal'}) }}
           </v-btn>
         </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- Fullscreen Media Lightbox Viewer -->
+    <v-dialog v-model="lightboxOpen" max-width="900" class="chat-media-lightbox">
+      <v-card class="lightbox-card">
+        <div class="lightbox-header">
+          <span class="lightbox-title">
+            <v-icon :icon="lightboxType === 'video' ? 'mdi-video' : 'mdi-image'" class="mr-1" size="20" />
+            {{ lightboxType === 'video' ? (locale === 'lo' ? 'ເບິ່ງວິດີໂອ' : 'Video Viewer') : (locale === 'lo' ? 'ເບິ່ງຮູບພາບ' : 'Image Viewer') }}
+          </span>
+          <div class="lightbox-actions">
+            <a :href="lightboxUrl" target="_blank" rel="noopener noreferrer" class="lightbox-btn" :title="locale === 'lo' ? 'ເປີດໃນແທັບໃໝ່ / ດາວໂຫຼດ' : 'Open in new tab / Download'">
+              <v-icon icon="mdi-open-in-new" size="18" />
+            </a>
+            <button type="button" class="lightbox-btn" @click="lightboxOpen = false">
+              <v-icon icon="mdi-close" size="20" />
+            </button>
+          </div>
+        </div>
+        <div class="lightbox-body">
+          <img v-if="lightboxType === 'image'" :src="lightboxUrl" alt="Preview" class="lightbox-img" />
+          <video v-else-if="lightboxType === 'video'" :src="lightboxUrl" controls autoplay playsinline class="lightbox-video" />
+        </div>
       </v-card>
     </v-dialog>
   </div>
@@ -3417,5 +3489,108 @@ const formatTime = (ts: string) => {
     z-index: 999;
 
   }
+}
+
+.chat-media-wrapper {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+}
+.chat-media-wrapper .message-image {
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+  border-radius: 8px;
+  display: block;
+}
+.chat-media-wrapper .message-image:hover {
+  opacity: 0.92;
+}
+.media-view-btn {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0.85;
+  transition: opacity 0.15s;
+}
+.media-view-btn:hover {
+  opacity: 1;
+}
+.chat-video-wrapper {
+  max-width: 100%;
+}
+.video-sub-actions button,
+.video-sub-actions a {
+  font-size: 11px;
+}
+.lightbox-card {
+  background: #111827 !important;
+  color: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.lightbox-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+.lightbox-title {
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+}
+.lightbox-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.lightbox-btn {
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  color: #fff;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s;
+}
+.lightbox-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+.lightbox-body {
+  padding: 16px;
+  display: grid;
+  place-items: center;
+  background: #030712;
+  min-height: 260px;
+  max-height: 75vh;
+  overflow: auto;
+}
+.lightbox-img {
+  max-width: 100%;
+  max-height: 70vh;
+  object-fit: contain;
+  border-radius: 6px;
+}
+.lightbox-video {
+  max-width: 100%;
+  max-height: 70vh;
+  border-radius: 6px;
+  outline: none;
 }
 </style>
