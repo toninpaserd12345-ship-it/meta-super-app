@@ -67,8 +67,19 @@ func (s *R2StorageService) UploadFile(ctx context.Context, fileHeader *multipart
 		contentType = "application/octet-stream"
 	}
 
+	// Normalize iOS QuickTime video to standard MP4
+	if contentType == "video/quicktime" {
+		contentType = "video/mp4"
+	}
+
 	// Generate a unique filename using UUID
 	ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
+	if ext == ".mov" || ext == ".qt" {
+		ext = ".mp4"
+		if contentType == "application/octet-stream" {
+			contentType = "video/mp4"
+		}
+	}
 	if ext == "" || ext == ".bin" {
 		switch contentType {
 		case "video/mp4":
@@ -76,7 +87,8 @@ func (s *R2StorageService) UploadFile(ctx context.Context, fileHeader *multipart
 		case "video/webm":
 			ext = ".webm"
 		case "video/quicktime":
-			ext = ".mov"
+			ext = ".mp4"
+			contentType = "video/mp4"
 		case "video/3gpp":
 			ext = ".3gp"
 		case "audio/mpeg", "audio/mp3":
