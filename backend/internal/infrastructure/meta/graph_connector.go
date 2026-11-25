@@ -758,8 +758,18 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 
 			customerID := message.Sender.ID
 			isSystem := false
-			if message.Sender.ID == entry.ID || message.Message.IsEcho {
+			if message.Sender.ID == entry.ID {
 				customerID = message.Recipient.ID
+				isSystem = true
+			} else if message.Message.IsEcho {
+				// Meta may orient an echo as customer -> Page even though the Page
+				// authored it. The customer is always the participant that is not
+				// the Page ID.
+				if message.Recipient.ID == entry.ID {
+					customerID = message.Sender.ID
+				} else {
+					customerID = message.Recipient.ID
+				}
 				isSystem = true
 			}
 

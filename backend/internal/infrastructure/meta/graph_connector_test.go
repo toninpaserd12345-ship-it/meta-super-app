@@ -776,6 +776,65 @@ func TestOwnAppEchoDoesNotReTriggerReplySet(t *testing.T) {
 	}
 }
 
+func TestPageAdminReplySetCodeWithReversedEchoOrientation(t *testing.T) {
+	var reqMu sync.Mutex
+	var requestBodies []string
+	transport := roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if req.Body != nil {
+			body, _ := io.ReadAll(req.Body)
+			reqMu.Lock()
+			requestBodies = append(requestBodies, string(body))
+			reqMu.Unlock()
+		}
+		return &http.Response{
+			StatusCode: 200,
+			Body:       io.NopCloser(strings.NewReader(`{"recipient_id":"cust-123","message_id":"mid-echo-res"}`)),
+			Header:     make(http.Header),
+		}, nil
+	})
+
+	const appSecret = "test-secret-reverse-echo"
+	g := NewGraphConnector(GraphConfig{Version: "v22.0", AppSecret: appSecret, AppID: "app-id-main"}, nil)
+	g.client = &http.Client{Transport: transport}
+	g.sessions["acc-reverse-echo"] = &graphSession{
+		Pages: map[string]graphPage{
+			"page-100": {MetaPage: domain.MetaPage{ID: "page-100", Connected: true}, AccessToken: "page-token"},
+		},
+	}
+	g.SetAutomationProvider(&mockMultiAutomationProvider{
+		directSets: map[string]*domain.ReplySet{
+			"code-offer": {ID: "reply-offer", AccountID: "acc-reverse-echo", Source: "admin", Code: "CODE-OFFER", Name: "Offer"},
+		},
+		items: map[string][]domain.ReplyItem{
+			"reply-offer": {{ID: "item-1", ReplySetID: "reply-offer", Type: "text", Content: "Reversed echo offer", IsEnabled: true}},
+		},
+	})
+
+	// When Meta orients the echo with sender=customer and recipient=page
+	payload := []byte(`{"object":"page","entry":[{"id":"page-100","messaging":[{"sender":{"id":"cust-123"},"recipient":{"id":"page-100"},"timestamp":123456789,"message":{"mid":"mid-rev-echo","is_echo":true,"text":"CODE-OFFER"}}]}]}`)
+	if err := g.ReceiveWebhook(context.Background(), payload, signPayload(appSecret, payload)); err != nil {
+		t.Fatalf("webhook error: %v", err)
+	}
+
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		reqMu.Lock()
+		delivered := false
+		for _, body := range requestBodies {
+			if strings.Contains(body, "Reversed echo offer") && strings.Contains(body, "cust-123") {
+				delivered = true
+				break
+			}
+		}
+		reqMu.Unlock()
+		if delivered {
+			return
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	t.Fatalf("Reversed echo Reply Set was not delivered; request bodies: %v", requestBodies)
+}
+
 func TestAdReferralPriorityAndCommentTextReply(t *testing.T) {
 	var reqMu sync.Mutex
 	var sentRequests []string
