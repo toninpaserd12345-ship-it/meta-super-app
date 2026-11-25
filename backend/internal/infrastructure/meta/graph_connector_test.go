@@ -548,8 +548,9 @@ func TestCommentAutoReplyWithKeywordAndPostbackUnlock(t *testing.T) {
 }
 
 type mockMultiAutomationProvider struct {
-	rules map[string]*domain.AutomationRule
-	items map[string][]domain.ReplyItem
+	rules      map[string]*domain.AutomationRule
+	items      map[string][]domain.ReplyItem
+	directSets map[string]*domain.ReplySet
 }
 
 func (m *mockMultiAutomationProvider) FindActiveRuleForTrigger(ctx context.Context, pageID, triggerType, triggerValue string) (*domain.AutomationRule, error) {
@@ -571,7 +572,7 @@ func (m *mockMultiAutomationProvider) GetKeywordRules(ctx context.Context, pageI
 }
 
 func (m *mockMultiAutomationProvider) FindReplySetByTrigger(ctx context.Context, accountID, trigger string) (*domain.ReplySet, error) {
-	return nil, nil
+	return m.directSets[strings.ToLower(strings.TrimSpace(trigger))], nil
 }
 
 func (m *mockMultiAutomationProvider) GetReplySetItems(ctx context.Context, replySetID string, accountID string) ([]domain.ReplyItem, error) {
@@ -585,6 +586,75 @@ func (m *mockMultiAutomationProvider) GetRule(ctx context.Context, id, accountID
 		}
 	}
 	return nil, nil
+}
+
+func TestReplySetCodeCanRunInsideExistingConversation(t *testing.T) {
+	var reqMu sync.Mutex
+	var requestBodies []string
+	transport := roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if req.Body != nil {
+			body, _ := io.ReadAll(req.Body)
+			reqMu.Lock()
+			requestBodies = append(requestBodies, string(body))
+			reqMu.Unlock()
+		}
+		return &http.Response{
+			StatusCode: 200,
+			Body:       io.NopCloser(strings.NewReader(`{"success":true,"message_id":"mid.reply-command"}`)),
+			Header:     make(http.Header),
+		}, nil
+	})
+
+	const appSecret = "test-secret-reply-command"
+	g := NewGraphConnector(GraphConfig{Version: "v22.0", AppSecret: appSecret}, nil)
+	g.client = &http.Client{Transport: transport}
+	g.sessions["acc-command"] = &graphSession{
+		UserToken: "user-token",
+		Pages: map[string]graphPage{
+			"page-command": {
+				MetaPage:    domain.MetaPage{ID: "page-command", Connected: true},
+				AccessToken: "page-token",
+			},
+		},
+	}
+	g.SetAutomationProvider(&mockMultiAutomationProvider{
+		directSets: map[string]*domain.ReplySet{
+			"ad": {ID: "reply-ad", AccountID: "acc-command", Code: "ad", Name: "Ad details"},
+		},
+		items: map[string][]domain.ReplyItem{
+			"reply-ad": {{ID: "reply-ad-text", ReplySetID: "reply-ad", Type: "text", Content: "Reply set delivered", IsEnabled: true}},
+		},
+	})
+
+	// Simulate a customer who already received an ad welcome flow. The explicit
+	// Reply Set command must still work and must not be blocked by old step state.
+	seenKey := "page-command:customer-command"
+	g.firstReplies[seenKey] = time.Now().Add(-time.Minute)
+	g.deliverySteps[seenKey+":reply-ad-text"] = time.Now().Add(-time.Minute)
+	g.conversations[seenKey] = "page-command:ad:1202000111"
+
+	payload := []byte(`{"object":"page","entry":[{"id":"page-command","messaging":[{"sender":{"id":"customer-command"},"recipient":{"id":"page-command"},"timestamp":123456789,"message":{"mid":"mid-command-1","text":"ad"}}]}]}`)
+	if err := g.ReceiveWebhook(context.Background(), payload, signPayload(appSecret, payload)); err != nil {
+		t.Fatalf("webhook error: %v", err)
+	}
+
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		reqMu.Lock()
+		delivered := false
+		for _, body := range requestBodies {
+			if strings.Contains(body, "Reply set delivered") {
+				delivered = true
+				break
+			}
+		}
+		reqMu.Unlock()
+		if delivered {
+			return
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	t.Fatalf("Reply Set code was not delivered; request bodies: %v", requestBodies)
 }
 
 func TestAdReferralPriorityAndCommentTextReply(t *testing.T) {
@@ -814,6 +884,3 @@ func TestUnlinkedCampaignDoesNotTriggerAutoReply(t *testing.T) {
 		}
 	}
 }
-
-
-

@@ -849,7 +849,10 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 				slog.Info("automation reply already in-flight for customer, skipping duplicate", "page_id", entry.ID, "customer_id", customerID)
 				continue
 			}
-			if !isPostback && customerRecentlyReplied && time.Since(lastCustomerReplyTime) < 15*time.Second {
+			// An exact Reply Set code is an explicit customer command. It must remain usable
+			// inside an active conversation; only ordinary messages use the conversation-wide
+			// debounce below. Command duplicates are debounced per Reply Set later.
+			if !isPostback && directSet == nil && customerRecentlyReplied && time.Since(lastCustomerReplyTime) < 15*time.Second {
 				slog.Info("customer received automated reply within last 15s, debouncing", "page_id", entry.ID, "customer_id", customerID)
 				continue
 			}
@@ -1034,7 +1037,28 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 					}
 				} else {
 					// 2. NON-AD TRAFFIC ONLY (Organic messages, manual chat):
-					if sourceID != "" && !hasRepliedCustomer {
+					if directSet != nil {
+						// Exact Reply Set name/code is an explicit command, not a first-message
+						// welcome flow. It may be invoked again later in the conversation.
+						sourceType, sourceID = "reply_set_command", directSet.Name
+						resolvedKey = bindingKey(entry.ID, sourceType, directSet.ID)
+						triggerValue := strings.TrimSpace(directSet.Code)
+						if triggerValue == "" {
+							triggerValue = directSet.Name
+						}
+						rule = &domain.AutomationRule{
+							AccountID:        accountID,
+							PageID:           entry.ID,
+							TriggerType:      sourceType,
+							TriggerValue:     triggerValue,
+							ReplySetID:       directSet.ID,
+							FlowID:           "reply-set-command:" + directSet.ID,
+							FlowName:         directSet.Name,
+							CooldownSeconds:  3,
+							FirstMessageOnly: false,
+							IsActive:         true,
+						}
+					} else if sourceID != "" && !hasRepliedCustomer {
 						// Existing active conversation context
 						rule = findRuleFor(sourceType, sourceID)
 						if rule == nil {
@@ -1043,22 +1067,6 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 								altType = "post"
 							}
 							rule = findRuleFor(altType, sourceID)
-						}
-					} else if directSet != nil && !hasRepliedCustomer {
-						// Exact Reply Set name or command trigger
-						sourceType, sourceID = "reply_set_name", directSet.Name
-						resolvedKey = bindingKey(entry.ID, sourceType, directSet.ID)
-						rule = &domain.AutomationRule{
-							AccountID:        accountID,
-							PageID:           entry.ID,
-							TriggerType:      sourceType,
-							TriggerValue:     directSet.Name,
-							ReplySetID:       directSet.ID,
-							FlowID:           "reply-set-name:" + directSet.ID,
-							FlowName:         directSet.Name,
-							CooldownSeconds:  86400,
-							FirstMessageOnly: true,
-							IsActive:         true,
 						}
 					}
 
@@ -1138,13 +1146,17 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 			}
 
 			lastReplyTime, alreadyReplied := g.firstReplies[seenKey]
-			if !alreadyReplied {
+			if sourceType == "reply_set_command" {
+				lastReplyTime, alreadyReplied = g.firstReplies[replyKey]
+			} else if !alreadyReplied {
 				lastReplyTime, alreadyReplied = g.firstReplies[replyKey]
 			}
 
 			isSpamming := false
 			if sourceType == "comment_unlock" {
 				isSpamming = false
+			} else if sourceType == "reply_set_command" && alreadyReplied {
+				isSpamming = time.Since(lastReplyTime) < 3*time.Second
 			} else if alreadyReplied {
 				if time.Since(lastReplyTime) < 3*time.Second {
 					// 1. Debounce rapid dual webhooks (e.g. referral + text in same second)
@@ -1235,9 +1247,12 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 						continue
 					}
 					stepKey := seenKey + ":" + step.ID
-					g.mu.RLock()
-					stepDone := !g.deliverySteps[stepKey].IsZero()
-					g.mu.RUnlock()
+					stepDone := false
+					if sourceType != "reply_set_command" {
+						g.mu.RLock()
+						stepDone = !g.deliverySteps[stepKey].IsZero()
+						g.mu.RUnlock()
+					}
 					if stepDone {
 						continue
 					}
@@ -1271,9 +1286,11 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 						slog.Error("automatic flow message step failed", "page_id", pageID, "recipient_id", recipientID, "source_id", sourceID, "step", index+1, "type", step.Type, "error", err)
 						continue
 					}
-					g.mu.Lock()
-					g.deliverySteps[stepKey] = time.Now()
-					g.mu.Unlock()
+					if sourceType != "reply_set_command" {
+						g.mu.Lock()
+						g.deliverySteps[stepKey] = time.Now()
+						g.mu.Unlock()
+					}
 				}
 				slog.Info("automatic product reply sent", "page_id", pageID, "recipient_id", recipientID, "source_type", sourceType, "source_id", sourceID)
 			}(rule, items, seenKey, resolvedKey, replyKey, page.ID, customerID, sourceType, sourceID, messageText, hasImage)
@@ -4714,22 +4731,36 @@ func (g *GraphConnector) Demographics(ctx context.Context, _ string, accountID, 
 
 	for _, row := range ageGenderRows {
 		sp := 0.0
-		if s := numberPointer(row.Spend); s != nil { sp = *s }
+		if s := numberPointer(row.Spend); s != nil {
+			sp = *s
+		}
 		imp := 0.0
-		if i := numberPointer(row.Impressions); i != nil { imp = *i }
+		if i := numberPointer(row.Impressions); i != nil {
+			imp = *i
+		}
 		rch := 0.0
-		if r := numberPointer(row.Reach); r != nil { rch = *r }
+		if r := numberPointer(row.Reach); r != nil {
+			rch = *r
+		}
 		clk := 0.0
-		if c := numberPointer(row.InlineLinkClicks); c != nil { clk = *c }
+		if c := numberPointer(row.InlineLinkClicks); c != nil {
+			clk = *c
+		}
 		msgCount, _ := extractMessagingMetric(row.Actions, row.CostPerActionType)
 		msg := 0.0
-		if msgCount != nil { msg = *msgCount }
+		if msgCount != nil {
+			msg = *msgCount
+		}
 		purCount, _ := extractPurchaseMetric(row.Actions, row.CostPerActionType)
 		pur := 0.0
-		if purCount != nil { pur = *purCount }
+		if purCount != nil {
+			pur = *purCount
+		}
 
 		if row.Age != "" {
-			if _, ok := ageMap[row.Age]; !ok { ageMap[row.Age] = &aggMetric{} }
+			if _, ok := ageMap[row.Age]; !ok {
+				ageMap[row.Age] = &aggMetric{}
+			}
 			ageMap[row.Age].Spend += sp
 			ageMap[row.Age].Impressions += imp
 			ageMap[row.Age].Reach += rch
@@ -4739,7 +4770,9 @@ func (g *GraphConnector) Demographics(ctx context.Context, _ string, accountID, 
 		}
 
 		if row.Gender != "" {
-			if _, ok := genderMap[row.Gender]; !ok { genderMap[row.Gender] = &aggMetric{} }
+			if _, ok := genderMap[row.Gender]; !ok {
+				genderMap[row.Gender] = &aggMetric{}
+			}
 			genderMap[row.Gender].Spend += sp
 			genderMap[row.Gender].Impressions += imp
 			genderMap[row.Gender].Reach += rch
@@ -4750,7 +4783,9 @@ func (g *GraphConnector) Demographics(ctx context.Context, _ string, accountID, 
 
 		if row.Age != "" && row.Gender != "" {
 			comboKey := row.Age + " " + row.Gender
-			if _, ok := ageGenderMap[comboKey]; !ok { ageGenderMap[comboKey] = &aggMetric{} }
+			if _, ok := ageGenderMap[comboKey]; !ok {
+				ageGenderMap[comboKey] = &aggMetric{}
+			}
 			ageGenderMap[comboKey].Spend += sp
 			ageGenderMap[comboKey].Impressions += imp
 			ageGenderMap[comboKey].Reach += rch
@@ -4764,8 +4799,14 @@ func (g *GraphConnector) Demographics(ctx context.Context, _ string, accountID, 
 	for _, a := range ageOrder {
 		if agg, ok := ageMap[a]; ok {
 			var costPerMsg, costPerPur *float64
-			if agg.Messages > 0 { c := agg.Spend / agg.Messages; costPerMsg = &c }
-			if agg.Purchases > 0 { c := agg.Spend / agg.Purchases; costPerPur = &c }
+			if agg.Messages > 0 {
+				c := agg.Spend / agg.Messages
+				costPerMsg = &c
+			}
+			if agg.Purchases > 0 {
+				c := agg.Spend / agg.Purchases
+				costPerPur = &c
+			}
 			spCopy, impCopy, rchCopy, clkCopy, msgCopy, purCopy := agg.Spend, agg.Impressions, agg.Reach, agg.Clicks, agg.Messages, agg.Purchases
 			report.Age = append(report.Age, domain.MetaDemographicMetric{
 				Key:             a,
@@ -4791,10 +4832,18 @@ func (g *GraphConnector) Demographics(ctx context.Context, _ string, accountID, 
 	for _, gKey := range []string{"male", "female", "unknown"} {
 		if agg, ok := genderMap[gKey]; ok {
 			var costPerMsg, costPerPur *float64
-			if agg.Messages > 0 { c := agg.Spend / agg.Messages; costPerMsg = &c }
-			if agg.Purchases > 0 { c := agg.Spend / agg.Purchases; costPerPur = &c }
+			if agg.Messages > 0 {
+				c := agg.Spend / agg.Messages
+				costPerMsg = &c
+			}
+			if agg.Purchases > 0 {
+				c := agg.Spend / agg.Purchases
+				costPerPur = &c
+			}
 			label := genderLabels[gKey]
-			if label == "" { label = gKey }
+			if label == "" {
+				label = gKey
+			}
 			spCopy, impCopy, rchCopy, clkCopy, msgCopy, purCopy := agg.Spend, agg.Impressions, agg.Reach, agg.Clicks, agg.Messages, agg.Purchases
 			report.Gender = append(report.Gender, domain.MetaDemographicMetric{
 				Key:             gKey,
@@ -4822,23 +4871,39 @@ func (g *GraphConnector) Demographics(ctx context.Context, _ string, accountID, 
 	deviceMap := make(map[string]*aggMetric)
 	for _, row := range deviceRows {
 		dev := row.ImpressionDevice
-		if dev == "" { continue }
+		if dev == "" {
+			continue
+		}
 		sp := 0.0
-		if s := numberPointer(row.Spend); s != nil { sp = *s }
+		if s := numberPointer(row.Spend); s != nil {
+			sp = *s
+		}
 		imp := 0.0
-		if i := numberPointer(row.Impressions); i != nil { imp = *i }
+		if i := numberPointer(row.Impressions); i != nil {
+			imp = *i
+		}
 		rch := 0.0
-		if r := numberPointer(row.Reach); r != nil { rch = *r }
+		if r := numberPointer(row.Reach); r != nil {
+			rch = *r
+		}
 		clk := 0.0
-		if c := numberPointer(row.InlineLinkClicks); c != nil { clk = *c }
+		if c := numberPointer(row.InlineLinkClicks); c != nil {
+			clk = *c
+		}
 		msgCount, _ := extractMessagingMetric(row.Actions, row.CostPerActionType)
 		msg := 0.0
-		if msgCount != nil { msg = *msgCount }
+		if msgCount != nil {
+			msg = *msgCount
+		}
 		purCount, _ := extractPurchaseMetric(row.Actions, row.CostPerActionType)
 		pur := 0.0
-		if purCount != nil { pur = *purCount }
+		if purCount != nil {
+			pur = *purCount
+		}
 
-		if _, ok := deviceMap[dev]; !ok { deviceMap[dev] = &aggMetric{} }
+		if _, ok := deviceMap[dev]; !ok {
+			deviceMap[dev] = &aggMetric{}
+		}
 		deviceMap[dev].Spend += sp
 		deviceMap[dev].Impressions += imp
 		deviceMap[dev].Reach += rch
@@ -4848,10 +4913,18 @@ func (g *GraphConnector) Demographics(ctx context.Context, _ string, accountID, 
 	}
 	for devKey, agg := range deviceMap {
 		var costPerMsg, costPerPur *float64
-		if agg.Messages > 0 { c := agg.Spend / agg.Messages; costPerMsg = &c }
-		if agg.Purchases > 0 { c := agg.Spend / agg.Purchases; costPerPur = &c }
+		if agg.Messages > 0 {
+			c := agg.Spend / agg.Messages
+			costPerMsg = &c
+		}
+		if agg.Purchases > 0 {
+			c := agg.Spend / agg.Purchases
+			costPerPur = &c
+		}
 		lbl := deviceLabels[devKey]
-		if lbl == "" { lbl = devKey }
+		if lbl == "" {
+			lbl = devKey
+		}
 		spCopy, impCopy, rchCopy, clkCopy, msgCopy, purCopy := agg.Spend, agg.Impressions, agg.Reach, agg.Clicks, agg.Messages, agg.Purchases
 		report.Devices = append(report.Devices, domain.MetaDemographicMetric{
 			Key:             devKey,
@@ -4871,23 +4944,39 @@ func (g *GraphConnector) Demographics(ctx context.Context, _ string, accountID, 
 	regionMap := make(map[string]*aggMetric)
 	for _, row := range regionRows {
 		reg := row.Region
-		if reg == "" { continue }
+		if reg == "" {
+			continue
+		}
 		sp := 0.0
-		if s := numberPointer(row.Spend); s != nil { sp = *s }
+		if s := numberPointer(row.Spend); s != nil {
+			sp = *s
+		}
 		imp := 0.0
-		if i := numberPointer(row.Impressions); i != nil { imp = *i }
+		if i := numberPointer(row.Impressions); i != nil {
+			imp = *i
+		}
 		rch := 0.0
-		if r := numberPointer(row.Reach); r != nil { rch = *r }
+		if r := numberPointer(row.Reach); r != nil {
+			rch = *r
+		}
 		clk := 0.0
-		if c := numberPointer(row.InlineLinkClicks); c != nil { clk = *c }
+		if c := numberPointer(row.InlineLinkClicks); c != nil {
+			clk = *c
+		}
 		msgCount, _ := extractMessagingMetric(row.Actions, row.CostPerActionType)
 		msg := 0.0
-		if msgCount != nil { msg = *msgCount }
+		if msgCount != nil {
+			msg = *msgCount
+		}
 		purCount, _ := extractPurchaseMetric(row.Actions, row.CostPerActionType)
 		pur := 0.0
-		if purCount != nil { pur = *purCount }
+		if purCount != nil {
+			pur = *purCount
+		}
 
-		if _, ok := regionMap[reg]; !ok { regionMap[reg] = &aggMetric{} }
+		if _, ok := regionMap[reg]; !ok {
+			regionMap[reg] = &aggMetric{}
+		}
 		regionMap[reg].Spend += sp
 		regionMap[reg].Impressions += imp
 		regionMap[reg].Reach += rch
@@ -4897,8 +4986,14 @@ func (g *GraphConnector) Demographics(ctx context.Context, _ string, accountID, 
 	}
 	for regKey, agg := range regionMap {
 		var costPerMsg, costPerPur *float64
-		if agg.Messages > 0 { c := agg.Spend / agg.Messages; costPerMsg = &c }
-		if agg.Purchases > 0 { c := agg.Spend / agg.Purchases; costPerPur = &c }
+		if agg.Messages > 0 {
+			c := agg.Spend / agg.Messages
+			costPerMsg = &c
+		}
+		if agg.Purchases > 0 {
+			c := agg.Spend / agg.Purchases
+			costPerPur = &c
+		}
 		spCopy, impCopy, rchCopy, clkCopy, msgCopy, purCopy := agg.Spend, agg.Impressions, agg.Reach, agg.Clicks, agg.Messages, agg.Purchases
 		report.Regions = append(report.Regions, domain.MetaDemographicMetric{
 			Key:             regKey,
@@ -4916,7 +5011,9 @@ func (g *GraphConnector) Demographics(ctx context.Context, _ string, accountID, 
 	}
 
 	for _, row := range placementRows {
-		if row.PublisherPlatform == "" && row.PlatformPosition == "" { continue }
+		if row.PublisherPlatform == "" && row.PlatformPosition == "" {
+			continue
+		}
 		msgCount, msgCost := extractMessagingMetric(row.Actions, row.CostPerActionType)
 		purCount, purCost := extractPurchaseMetric(row.Actions, row.CostPerActionType)
 		report.Placements = append(report.Placements, domain.MetaPlacementMetric{
@@ -4943,17 +5040,27 @@ func (g *GraphConnector) Demographics(ctx context.Context, _ string, accountID, 
 			continue
 		}
 		sp := 0.0
-		if s := numberPointer(row.Spend); s != nil { sp = *s }
+		if s := numberPointer(row.Spend); s != nil {
+			sp = *s
+		}
 		imp := 0.0
-		if i := numberPointer(row.Impressions); i != nil { imp = *i }
+		if i := numberPointer(row.Impressions); i != nil {
+			imp = *i
+		}
 		clk := 0.0
-		if c := numberPointer(row.InlineLinkClicks); c != nil { clk = *c }
+		if c := numberPointer(row.InlineLinkClicks); c != nil {
+			clk = *c
+		}
 		msgCount, _ := extractMessagingMetric(row.Actions, row.CostPerActionType)
 		msg := 0.0
-		if msgCount != nil { msg = *msgCount }
+		if msgCount != nil {
+			msg = *msgCount
+		}
 		purCount, _ := extractPurchaseMetric(row.Actions, row.CostPerActionType)
 		pur := 0.0
-		if purCount != nil { pur = *purCount }
+		if purCount != nil {
+			pur = *purCount
+		}
 
 		if _, ok := hourlyMap[h]; !ok {
 			hourlyMap[h] = &aggMetric{}
@@ -4972,9 +5079,18 @@ func (g *GraphConnector) Demographics(ctx context.Context, _ string, accountID, 
 			agg = &aggMetric{}
 		}
 		var costPerMsg, costPerPur, linkCtr *float64
-		if agg.Messages > 0 { c := agg.Spend / agg.Messages; costPerMsg = &c }
-		if agg.Purchases > 0 { c := agg.Spend / agg.Purchases; costPerPur = &c }
-		if agg.Impressions > 0 { ctr := (agg.Clicks / agg.Impressions) * 100; linkCtr = &ctr }
+		if agg.Messages > 0 {
+			c := agg.Spend / agg.Messages
+			costPerMsg = &c
+		}
+		if agg.Purchases > 0 {
+			c := agg.Spend / agg.Purchases
+			costPerPur = &c
+		}
+		if agg.Impressions > 0 {
+			ctr := (agg.Clicks / agg.Impressions) * 100
+			linkCtr = &ctr
+		}
 		spCopy, impCopy, msgCopy, purCopy := agg.Spend, agg.Impressions, agg.Messages, agg.Purchases
 		report.Hourly = append(report.Hourly, domain.MetaInsightHourlyPoint{
 			Hour:            hKey,

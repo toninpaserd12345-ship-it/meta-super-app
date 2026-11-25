@@ -1,0 +1,2 @@
+const a=[".sr-only[data-v-594a2c36]{clip:rect(0,0,0,0);white-space:nowrap;border:0;width:1px;height:1px;margin:-1px;padding:0;position:absolute;overflow:hidden}"];export{a as default};
+//# sourceMappingURL=onboarding-styles.DfpSqCAn.mjs.map
