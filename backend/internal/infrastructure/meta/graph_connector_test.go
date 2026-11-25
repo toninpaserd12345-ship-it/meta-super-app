@@ -619,10 +619,12 @@ func TestReplySetCodeCanRunInsideExistingConversation(t *testing.T) {
 	}
 	g.SetAutomationProvider(&mockMultiAutomationProvider{
 		directSets: map[string]*domain.ReplySet{
-			"ad": {ID: "reply-ad", AccountID: "acc-command", Code: "ad", Name: "Ad details"},
+			"ag29-info": {ID: "reply-ag29", AccountID: "acc-command", Code: "AG29-INFO", Name: "AG29 details"},
+			"shoe-size": {ID: "reply-size", AccountID: "acc-command", Code: "SHOE-SIZE", Name: "Available sizes"},
 		},
 		items: map[string][]domain.ReplyItem{
-			"reply-ad": {{ID: "reply-ad-text", ReplySetID: "reply-ad", Type: "text", Content: "Reply set delivered", IsEnabled: true}},
+			"reply-ag29": {{ID: "reply-ag29-text", ReplySetID: "reply-ag29", Type: "text", Content: "Reply set delivered", IsEnabled: true}},
+			"reply-size": {{ID: "reply-size-text", ReplySetID: "reply-size", Type: "text", Content: "Size reply delivered", IsEnabled: true}},
 		},
 	})
 
@@ -630,15 +632,16 @@ func TestReplySetCodeCanRunInsideExistingConversation(t *testing.T) {
 	// Reply Set command must still work and must not be blocked by old step state.
 	seenKey := "page-command:customer-command"
 	g.firstReplies[seenKey] = time.Now().Add(-time.Minute)
-	g.deliverySteps[seenKey+":reply-ad-text"] = time.Now().Add(-time.Minute)
+	g.deliverySteps[seenKey+":reply-ag29-text"] = time.Now().Add(-time.Minute)
 	g.conversations[seenKey] = "page-command:ad:1202000111"
 
-	payload := []byte(`{"object":"page","entry":[{"id":"page-command","messaging":[{"sender":{"id":"customer-command"},"recipient":{"id":"page-command"},"timestamp":123456789,"message":{"mid":"mid-command-1","text":"ad"}}]}]}`)
+	payload := []byte(`{"object":"page","entry":[{"id":"page-command","messaging":[{"sender":{"id":"customer-command"},"recipient":{"id":"page-command"},"timestamp":123456789,"message":{"mid":"mid-command-1","text":"AG29-INFO"}}]}]}`)
 	if err := g.ReceiveWebhook(context.Background(), payload, signPayload(appSecret, payload)); err != nil {
 		t.Fatalf("webhook error: %v", err)
 	}
 
 	deadline := time.Now().Add(5 * time.Second)
+	firstDelivered := false
 	for time.Now().Before(deadline) {
 		reqMu.Lock()
 		delivered := false
@@ -650,11 +653,127 @@ func TestReplySetCodeCanRunInsideExistingConversation(t *testing.T) {
 		}
 		reqMu.Unlock()
 		if delivered {
+			firstDelivered = true
+			break
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	if !firstDelivered {
+		t.Fatalf("first Reply Set code was not delivered; request bodies: %v", requestBodies)
+	}
+
+	secondPayload := []byte(`{"object":"page","entry":[{"id":"page-command","messaging":[{"sender":{"id":"customer-command"},"recipient":{"id":"page-command"},"timestamp":123456999,"message":{"mid":"mid-command-2","text":"shoe-size"}}]}]}`)
+	if err := g.ReceiveWebhook(context.Background(), secondPayload, signPayload(appSecret, secondPayload)); err != nil {
+		t.Fatalf("second webhook error: %v", err)
+	}
+	deadline = time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		reqMu.Lock()
+		delivered := false
+		for _, body := range requestBodies {
+			if strings.Contains(body, "Size reply delivered") {
+				delivered = true
+				break
+			}
+		}
+		reqMu.Unlock()
+		if delivered {
 			return
 		}
 		time.Sleep(25 * time.Millisecond)
 	}
-	t.Fatalf("Reply Set code was not delivered; request bodies: %v", requestBodies)
+	t.Fatalf("second Reply Set code was not delivered; request bodies: %v", requestBodies)
+}
+
+func TestPageAdminEchoCodeSendsReplySetToCustomer(t *testing.T) {
+	var reqMu sync.Mutex
+	var requestBodies []string
+	transport := roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if req.Body != nil {
+			body, _ := io.ReadAll(req.Body)
+			reqMu.Lock()
+			requestBodies = append(requestBodies, string(body))
+			reqMu.Unlock()
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"success":true,"message_id":"mid.page-command"}`)), Header: make(http.Header)}, nil
+	})
+
+	const appSecret = "test-secret-page-command"
+	g := NewGraphConnector(GraphConfig{Version: "v22.0", AppSecret: appSecret, AppID: "app-under-test"}, nil)
+	g.client = &http.Client{Transport: transport}
+	g.sessions["acc-page-command"] = &graphSession{Pages: map[string]graphPage{
+		"page-command": {MetaPage: domain.MetaPage{ID: "page-command", Connected: true}, AccessToken: "page-token"},
+	}}
+	g.SetAutomationProvider(&mockMultiAutomationProvider{
+		directSets: map[string]*domain.ReplySet{
+			"admin-offer": {ID: "reply-admin", AccountID: "acc-page-command", Source: "admin", Code: "ADMIN-OFFER", Name: "Admin offer"},
+		},
+		items: map[string][]domain.ReplyItem{
+			"reply-admin": {{ID: "admin-text", ReplySetID: "reply-admin", Type: "text", Content: "Admin Reply Set delivered", IsEnabled: true}},
+		},
+	})
+
+	// Meta Business Suite/Page Inbox sends manually typed Page messages as an
+	// echo. The original code should be expanded to the selected Reply Set for
+	// the customer recipient.
+	payload := []byte(`{"object":"page","entry":[{"id":"page-command","messaging":[{"sender":{"id":"page-command"},"recipient":{"id":"customer-echo"},"timestamp":123456789,"message":{"mid":"mid-human-page-command","is_echo":true,"text":"ADMIN-OFFER"}}]}]}`)
+	if err := g.ReceiveWebhook(context.Background(), payload, signPayload(appSecret, payload)); err != nil {
+		t.Fatalf("webhook error: %v", err)
+	}
+
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		reqMu.Lock()
+		delivered := false
+		for _, body := range requestBodies {
+			if strings.Contains(body, "Admin Reply Set delivered") && strings.Contains(body, "customer-echo") {
+				delivered = true
+				break
+			}
+		}
+		reqMu.Unlock()
+		if delivered {
+			return
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	t.Fatalf("Page admin Reply Set code was not delivered; request bodies: %v", requestBodies)
+}
+
+func TestOwnAppEchoDoesNotReTriggerReplySet(t *testing.T) {
+	var reqMu sync.Mutex
+	var requestBodies []string
+	transport := roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if req.Body != nil {
+			body, _ := io.ReadAll(req.Body)
+			reqMu.Lock()
+			requestBodies = append(requestBodies, string(body))
+			reqMu.Unlock()
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"success":true}`)), Header: make(http.Header)}, nil
+	})
+	const appSecret = "test-secret-own-echo"
+	g := NewGraphConnector(GraphConfig{Version: "v22.0", AppSecret: appSecret, AppID: "1475667466743089"}, nil)
+	g.client = &http.Client{Transport: transport}
+	g.sessions["acc-own-echo"] = &graphSession{Pages: map[string]graphPage{
+		"page-own-echo": {MetaPage: domain.MetaPage{ID: "page-own-echo", Connected: true}, AccessToken: "page-token"},
+	}}
+	g.SetAutomationProvider(&mockMultiAutomationProvider{
+		directSets: map[string]*domain.ReplySet{"loop-code": {ID: "reply-loop", AccountID: "acc-own-echo", Code: "LOOP-CODE", Name: "Loop guard"}},
+		items: map[string][]domain.ReplyItem{"reply-loop": {{ID: "loop-text", ReplySetID: "reply-loop", Type: "text", Content: "must not resend", IsEnabled: true}}},
+	})
+	payload := []byte(`{"object":"page","entry":[{"id":"page-own-echo","messaging":[{"sender":{"id":"page-own-echo"},"recipient":{"id":"customer-loop"},"message":{"mid":"mid-own-echo","is_echo":true,"app_id":1475667466743089,"text":"LOOP-CODE"}}]}]}`)
+	if err := g.ReceiveWebhook(context.Background(), payload, signPayload(appSecret, payload)); err != nil {
+		t.Fatalf("webhook error: %v", err)
+	}
+	time.Sleep(150 * time.Millisecond)
+	reqMu.Lock()
+	defer reqMu.Unlock()
+	for _, body := range requestBodies {
+		if strings.Contains(body, "must not resend") {
+			t.Fatalf("own app echo re-triggered Reply Set: %v", requestBodies)
+		}
+	}
 }
 
 func TestAdReferralPriorityAndCommentTextReply(t *testing.T) {

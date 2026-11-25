@@ -71,6 +71,29 @@ func TestReplySetFindsTriggerWithPrefix(t *testing.T) {
 	}
 }
 
+func TestReplySetTriggerSupportsAdminAndUserSources(t *testing.T) {
+	service := usecase.NewReply(repository.NewMemory(""))
+	ctx := context.Background()
+	adminSet, err := service.CreateSet(ctx, "account-1", "admin-1", "admin", "ADMIN-OFFER", "Admin offer")
+	if err != nil {
+		t.Fatalf("CreateSet(admin) error = %v", err)
+	}
+	userSet, err := service.CreateSet(ctx, "account-1", "user-1", "user", "USER-OFFER", "User offer")
+	if err != nil {
+		t.Fatalf("CreateSet(user) error = %v", err)
+	}
+
+	for trigger, want := range map[string]*domain.ReplySet{
+		"ADMIN-OFFER": adminSet,
+		"USER-OFFER":  userSet,
+	} {
+		found, findErr := service.FindSetByTrigger(ctx, "account-1", trigger)
+		if findErr != nil || found == nil || found.ID != want.ID || found.Source != want.Source {
+			t.Errorf("FindSetByTrigger(%q) = %#v, %v; want source=%q id=%q", trigger, found, findErr, want.Source, want.ID)
+		}
+	}
+}
+
 func TestReplySetUpdateItemsNormalizesVoiceAndVideo(t *testing.T) {
 	service := usecase.NewReply(repository.NewMemory(""))
 	ctx := context.Background()

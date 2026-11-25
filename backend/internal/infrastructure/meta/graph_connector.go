@@ -456,6 +456,7 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 				Message   struct {
 					MID         string           `json:"mid"`
 					IsEcho      bool             `json:"is_echo"`
+					AppID       json.RawMessage  `json:"app_id"`
 					Text        string           `json:"text"`
 					Referral    *webhookReferral `json:"referral"`
 					Attachments []struct {
@@ -787,6 +788,27 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 			var directSet *domain.ReplySet
 			if g.automation != nil && messageText != "" {
 				directSet, _ = g.automation.FindReplySetByTrigger(ctx, accountID, messageText)
+			}
+
+			// A Page admin can type a Reply Set code in Meta Business Suite or
+			// Messenger. Meta delivers that text as message_echoes (sender=Page,
+			// recipient=customer). Expand the code for the customer, but never
+			// re-process echoes created by this app itself.
+			if isSystem && directSet != nil && messageText != "" {
+				echoAppID := strings.Trim(strings.TrimSpace(string(message.Message.AppID)), `"`)
+				isOwnAppEcho := echoAppID != "" && echoAppID != "null" && echoAppID == strings.TrimSpace(g.cfg.AppID)
+				if !isOwnAppEcho {
+					commandKey := "page-command:" + entry.ID + ":" + customerID + ":" + directSet.ID + ":" + message.Message.MID
+					g.mu.Lock()
+					_, duplicateCommand := g.recentEvents[commandKey]
+					if !duplicateCommand {
+						g.recentEvents[commandKey] = now.Add(24 * time.Hour)
+					}
+					g.mu.Unlock()
+					if !duplicateCommand {
+						g.sendPageCommandReplySet(accountID, entry.ID, customerID, directSet)
+					}
+				}
 			}
 
 			if g.chatStream != nil {
@@ -1297,6 +1319,44 @@ func (g *GraphConnector) ReceiveWebhook(ctx context.Context, body []byte, signat
 		}
 	}
 	return nil
+}
+
+func (g *GraphConnector) sendPageCommandReplySet(accountID, pageID, recipientID string, set *domain.ReplySet) {
+	if g.automation == nil || set == nil || set.ID == "" || pageID == "" || recipientID == "" {
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+
+		items, err := g.automation.GetReplySetItems(ctx, set.ID, accountID)
+		if err != nil {
+			slog.Error("page command Reply Set could not be loaded", "reply_set_id", set.ID, "page_id", pageID, "recipient_id", recipientID, "error", err)
+			return
+		}
+		items = g.resolveReplyItemsContext(ctx, nil, items)
+		sent := 0
+		for _, item := range items {
+			if !item.IsEnabled || strings.TrimSpace(item.Content) == "" {
+				continue
+			}
+			var sendErr error
+			if item.Type == "text" {
+				sendErr = g.SendMessage(ctx, accountID, pageID, recipientID, item.Content)
+			} else {
+				sendErr = g.SendMedia(ctx, accountID, pageID, recipientID, item.Type, item.Content)
+			}
+			if sendErr != nil {
+				slog.Error("page command Reply Set step failed", "reply_set_id", set.ID, "page_id", pageID, "recipient_id", recipientID, "type", item.Type, "error", sendErr)
+				return
+			}
+			sent++
+			if sent < len(items) {
+				time.Sleep(500 * time.Millisecond)
+			}
+		}
+		slog.Info("page command Reply Set sent", "reply_set_id", set.ID, "reply_set_code", set.Code, "page_id", pageID, "recipient_id", recipientID, "items_count", sent)
+	}()
 }
 
 type adHierarchyInfo struct {
@@ -2258,10 +2318,11 @@ func (g *GraphConnector) isPageSubscribed(ctx context.Context, page graphPage) (
 		// If it's in the list, it's virtually connected or we can just say true if we have the token.
 		return page.Connected, nil
 	}
-	query := url.Values{"access_token": {page.AccessToken}}
+	query := url.Values{"access_token": {page.AccessToken}, "fields": {"id,subscribed_fields"}}
 	var response struct {
 		Data []struct {
-			ID string `json:"id"`
+			ID               string   `json:"id"`
+			SubscribedFields []string `json:"subscribed_fields"`
 		} `json:"data"`
 	}
 	if err := g.getJSON(ctx, "https://graph.facebook.com/"+g.cfg.Version+"/"+url.PathEscape(page.ID)+"/subscribed_apps?"+query.Encode(), &response); err != nil {
@@ -2269,7 +2330,14 @@ func (g *GraphConnector) isPageSubscribed(ctx context.Context, page graphPage) (
 	}
 	for _, app := range response.Data {
 		if app.ID == g.cfg.AppID {
-			return true, nil
+			for _, field := range app.SubscribedFields {
+				if field == "message_echoes" {
+					return true, nil
+				}
+			}
+			// The app is subscribed, but an older subscription is missing the
+			// Page-admin echo field required for Reply Set commands.
+			return false, nil
 		}
 	}
 	return false, nil
@@ -2282,10 +2350,13 @@ func (g *GraphConnector) SubscribePageOnMeta(ctx context.Context, pageID, access
 	form := url.Values{"access_token": {accessToken}}
 	fields := strings.TrimSpace(g.cfg.WebhookFields)
 	if fields == "" {
-		fields = "feed,messages,messaging_postbacks,message_deliveries,message_reads,messaging_referrals"
+		fields = "feed,messages,messaging_postbacks,message_deliveries,message_reads,messaging_referrals,message_echoes"
 	}
 	if !strings.Contains(fields, "messaging_referrals") {
 		fields += ",messaging_referrals"
+	}
+	if !strings.Contains(fields, "message_echoes") {
+		fields += ",message_echoes"
 	}
 	form.Set("subscribed_fields", fields)
 
