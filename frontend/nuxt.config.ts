@@ -36,7 +36,6 @@ export default defineNuxtConfig({
     },
   ],
   vite: {
-    build: { cssMinify: false },
     vue: { template: { transformAssetUrls } },
     ssr: { noExternal: ['vuetify'] },
   },

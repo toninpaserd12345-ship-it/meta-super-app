@@ -14,7 +14,7 @@ func TestReplySetCodeIsNormalizedAndUniquePerWorkspace(t *testing.T) {
 	ctx := context.Background()
 	service := usecase.NewReply(repository.NewMemory(""))
 
-	created, err := service.CreateSet(ctx, "account-1", " price-durian_01 ", "Durian price")
+	created, err := service.CreateSet(ctx, "account-1", "user-1", "user", " price-durian_01 ", "Durian price")
 	if err != nil {
 		t.Fatalf("CreateSet() error = %v", err)
 	}
@@ -22,13 +22,13 @@ func TestReplySetCodeIsNormalizedAndUniquePerWorkspace(t *testing.T) {
 		t.Fatalf("CreateSet() code = %q, want normalized code", created.Code)
 	}
 
-	if _, err = service.CreateSet(ctx, "account-1", "price-durian_01", "Duplicate"); !errors.Is(err, usecase.ErrReplySetCodeExists) {
+	if _, err = service.CreateSet(ctx, "account-1", "user-1", "user", "price-durian_01", "Duplicate"); !errors.Is(err, usecase.ErrReplySetCodeExists) {
 		t.Fatalf("CreateSet(duplicate) error = %v, want ErrReplySetCodeExists", err)
 	}
-	if _, err = service.CreateSet(ctx, "account-2", "price-durian_01", "Other workspace"); err != nil {
+	if _, err = service.CreateSet(ctx, "account-2", "user-2", "user", "price-durian_01", "Other workspace"); err != nil {
 		t.Fatalf("CreateSet(same code in another workspace) error = %v", err)
 	}
-	if _, err = service.CreateSet(ctx, "account-1", "bad code!", "Invalid"); !errors.Is(err, usecase.ErrInvalidReplySetCode) {
+	if _, err = service.CreateSet(ctx, "account-1", "user-1", "user", "bad code!", "Invalid"); !errors.Is(err, usecase.ErrInvalidReplySetCode) {
 		t.Fatalf("CreateSet(invalid code) error = %v, want ErrInvalidReplySetCode", err)
 	}
 	found, err := service.FindSetByTrigger(ctx, "account-1", "  durian PRICE ")
@@ -39,10 +39,10 @@ func TestReplySetCodeIsNormalizedAndUniquePerWorkspace(t *testing.T) {
 	if err != nil || notFound != nil {
 		t.Fatalf("FindSetByTrigger(partial sentence) = %#v, %v; want nil exact-match result", notFound, err)
 	}
-	if _, err = service.CreateSet(ctx, "account-1", "ANOTHER-CODE", "durian price"); !errors.Is(err, usecase.ErrReplySetNameExists) {
+	if _, err = service.CreateSet(ctx, "account-1", "user-1", "user", "ANOTHER-CODE", "durian price"); !errors.Is(err, usecase.ErrReplySetNameExists) {
 		t.Fatalf("CreateSet(duplicate name) error = %v, want ErrReplySetNameExists", err)
 	}
-	otherStore, err := service.CreateSet(ctx, "account-2", "STORE-2-DURIAN", "Durian price")
+	otherStore, err := service.CreateSet(ctx, "account-2", "user-2", "user", "STORE-2-DURIAN", "Durian price")
 	if err != nil {
 		t.Fatalf("CreateSet(same name in another workspace) error = %v", err)
 	}
@@ -58,7 +58,7 @@ func TestReplySetCodeIsNormalizedAndUniquePerWorkspace(t *testing.T) {
 func TestReplySetFindsTriggerWithPrefix(t *testing.T) {
 	service := usecase.NewReply(repository.NewMemory(""))
 	ctx := context.Background()
-	created, err := service.CreateSet(ctx, "account-1", "P01", "Set One")
+	created, err := service.CreateSet(ctx, "account-1", "user-1", "user", "P01", "Set One")
 	if err != nil {
 		t.Fatalf("CreateSet() error = %v", err)
 	}
@@ -74,7 +74,7 @@ func TestReplySetFindsTriggerWithPrefix(t *testing.T) {
 func TestReplySetUpdateItemsNormalizesVoiceAndVideo(t *testing.T) {
 	service := usecase.NewReply(repository.NewMemory(""))
 	ctx := context.Background()
-	created, err := service.CreateSet(ctx, "account-1", "MEDIA01", "Media Test")
+	created, err := service.CreateSet(ctx, "account-1", "user-1", "user", "MEDIA01", "Media Test")
 	if err != nil {
 		t.Fatalf("CreateSet() error = %v", err)
 	}

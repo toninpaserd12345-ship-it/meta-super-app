@@ -90,9 +90,23 @@ func (h *Handler) billingCheckout(c fiber.Ctx) error {
 	if body.PlanID == "" {
 		return fiber.NewError(fiber.StatusBadRequest, "planId is required")
 	}
+	accountID := c.Locals("accountID").(string)
+	availablePages, err := h.meta.ListPages(c.Context(), userID(c), accountID)
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadGateway, "could not verify selected Facebook Pages")
+	}
+	allowedPageIDs := make(map[string]struct{}, len(availablePages))
+	for _, page := range availablePages {
+		allowedPageIDs[page.ID] = struct{}{}
+	}
+	for _, pageID := range body.PageIDs {
+		if _, allowed := allowedPageIDs[pageID]; !allowed {
+			return fiber.NewError(fiber.StatusBadRequest, "one or more selected Pages do not belong to this workspace")
+		}
+	}
 
-	if err := h.billing.Checkout(c.Context(), c.Locals("accountID").(string), body); err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	if err := h.billing.Checkout(c.Context(), accountID, body); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}
 	return c.JSON(fiber.Map{"status": "ok"})
 }

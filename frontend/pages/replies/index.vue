@@ -21,10 +21,14 @@ const notice = ref('')
 const noticeType = ref<'success' | 'error'>('success')
 
 const search = ref('')
+const sourceFilter = ref<'all' | 'admin' | 'user'>('all')
 const filteredSets = computed(() => {
   const query = search.value.trim().toLowerCase()
-  if (!query) return sets.value
-  return sets.value.filter(s => s.name.toLowerCase().includes(query))
+  return sets.value.filter(set => {
+    const matchesSource = sourceFilter.value === 'all' || (set.source || 'user') === sourceFilter.value
+    const matchesQuery = !query || set.name.toLowerCase().includes(query)
+    return matchesSource && matchesQuery
+  })
 })
 
 function copyTriggerCode(name: string) {
@@ -129,6 +133,11 @@ async function deleteSet() {
       <v-chip size="small" variant="tonal" color="primary">
         {{ filteredSets.length }} / {{ sets.length }} {{ locale==='lo'?'ລາຍການ':'sets' }}
       </v-chip>
+      <v-btn-toggle v-model="sourceFilter" mandatory density="compact" variant="outlined" divided>
+        <v-btn value="all">{{ locale==='lo'?'ທັງໝົດ':'All' }}</v-btn>
+        <v-btn value="admin">Admin</v-btn>
+        <v-btn value="user">{{ locale==='lo'?'ຜູ້ໃຊ້':'User' }}</v-btn>
+      </v-btn-toggle>
       <v-spacer />
       <span class="text-caption text-medium-emphasis">
         <v-icon icon="mdi-lightbulb-outline" size="small" class="mr-1" />
@@ -151,6 +160,10 @@ async function deleteSet() {
       <div class="set-copy">
         <div class="d-flex align-center gap-2 flex-wrap mb-1">
           <h3 class="mb-0">{{ set.name }}</h3>
+          <v-chip size="x-small" :color="set.source === 'admin' ? 'primary' : 'secondary'" variant="tonal">
+            <v-icon start :icon="set.source === 'admin' ? 'mdi-shield-account-outline' : 'mdi-account-outline'" />
+            {{ set.source === 'admin' ? 'Admin' : (locale==='lo'?'ຜູ້ໃຊ້':'User') }}
+          </v-chip>
           <!-- 1-Click Copy Trigger Code -->
           <v-tooltip :text="locale==='lo'?'ຄລິກເພື່ອຄັດລອກລະຫັດສົ່ງດ່ວນ':'Click to copy trigger code'" location="top">
             <template #activator="{ props: tipProps }">

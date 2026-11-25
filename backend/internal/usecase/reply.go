@@ -27,7 +27,7 @@ func NewReply(repo domain.ReplyRepository) *Reply {
 	return &Reply{repo: repo}
 }
 
-func (u *Reply) CreateSet(ctx context.Context, accountID, code, name string) (*domain.ReplySet, error) {
+func (u *Reply) CreateSet(ctx context.Context, accountID, createdBy, source, code, name string) (*domain.ReplySet, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return nil, fmt.Errorf("set name cannot be empty")
@@ -48,6 +48,8 @@ func (u *Reply) CreateSet(ctx context.Context, accountID, code, name string) (*d
 
 	set := &domain.ReplySet{
 		AccountID: accountID,
+		CreatedBy: createdBy,
+		Source:    source,
 		Code:      code,
 		Name:      name,
 	}

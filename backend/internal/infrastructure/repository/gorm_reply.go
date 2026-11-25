@@ -18,6 +18,8 @@ func (r *GormRepository) CreateSet(ctx context.Context, set *domain.ReplySet) er
 	model := database.ReplySetModel{
 		ID:        id,
 		AccountID: set.AccountID,
+		CreatedBy: set.CreatedBy,
+		Source:    set.Source,
 		Code:      set.Code,
 		Name:      set.Name,
 	}
@@ -110,6 +112,8 @@ func toDomainReplySet(m database.ReplySetModel) domain.ReplySet {
 	set := domain.ReplySet{
 		ID:        m.ID,
 		AccountID: m.AccountID,
+		CreatedBy: m.CreatedBy,
+		Source:    m.Source,
 		Code:      m.Code,
 		Name:      m.Name,
 		CreatedAt: m.CreatedAt,

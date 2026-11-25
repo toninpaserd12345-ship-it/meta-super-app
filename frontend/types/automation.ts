@@ -134,6 +134,8 @@ export interface ReplySet {
   id: string
   code?: string
   accountId?: string
+  createdBy?: string
+  source?: 'admin' | 'user'
   name: string
   items: ReplyItem[]
   createdAt?: string

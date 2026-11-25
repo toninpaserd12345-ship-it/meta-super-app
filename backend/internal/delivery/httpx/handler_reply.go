@@ -50,13 +50,18 @@ func (h *Handler) GetReplySet(c fiber.Ctx) error {
 
 func (h *Handler) CreateReplySet(c fiber.Ctx) error {
 	accountID := c.Locals("accountID").(string)
+	creatorID := userID(c)
+	source := "user"
+	if membership, err := h.auth.Membership(c.Context(), creatorID, accountID); err == nil && membership != nil && (membership.Role == domain.RoleOwner || membership.Role == domain.RoleAdmin) {
+		source = "admin"
+	}
 
 	var req createReplySetRequest
 	if err := c.Bind().JSON(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
-	set, err := h.Reply.CreateSet(c.Context(), accountID, req.Code, req.Name)
+	set, err := h.Reply.CreateSet(c.Context(), accountID, creatorID, source, req.Code, req.Name)
 	if err != nil {
 		if errors.Is(err, usecase.ErrInvalidReplySetCode) || errors.Is(err, usecase.ErrReplySetCodeExists) || errors.Is(err, usecase.ErrReplySetNameExists) {
 			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": err.Error()})

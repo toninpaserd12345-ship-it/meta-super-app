@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -43,6 +44,8 @@ func (r *GormRepository) GetSubscription(ctx context.Context, accountID string) 
 		IsActive: model.Plan.IsActive,
 	}
 
+	var selectedPageIDs []string
+	_ = json.Unmarshal([]byte(model.SelectedPageIDs), &selectedPageIDs)
 	return &domain.Subscription{
 		ID:               model.ID,
 		AccountID:        model.AccountID,
@@ -50,12 +53,14 @@ func (r *GormRepository) GetSubscription(ctx context.Context, accountID string) 
 		Plan:             plan,
 		Status:           model.Status,
 		LockedPrice:      model.LockedPrice,
+		SelectedPageIDs:  selectedPageIDs,
 		CurrentPeriodEnd: model.CurrentPeriodEnd,
 		CreatedAt:        model.CreatedAt,
 	}, nil
 }
 
 func (r *GormRepository) UpsertSubscription(ctx context.Context, sub *domain.Subscription) error {
+	selectedPageIDs, _ := json.Marshal(sub.SelectedPageIDs)
 	var existing database.SubscriptionModel
 	if err := r.db.WithContext(ctx).Where("account_id = ?", sub.AccountID).First(&existing).Error; err == nil {
 		// Update existing subscription for this account
@@ -63,6 +68,7 @@ func (r *GormRepository) UpsertSubscription(ctx context.Context, sub *domain.Sub
 			"plan_id":            sub.PlanID,
 			"status":             sub.Status,
 			"locked_price":       sub.LockedPrice,
+			"selected_page_ids":  string(selectedPageIDs),
 			"current_period_end": sub.CurrentPeriodEnd,
 		}).Error
 	}
@@ -73,6 +79,7 @@ func (r *GormRepository) UpsertSubscription(ctx context.Context, sub *domain.Sub
 		PlanID:           sub.PlanID,
 		Status:           sub.Status,
 		LockedPrice:      sub.LockedPrice,
+		SelectedPageIDs:  string(selectedPageIDs),
 		CurrentPeriodEnd: sub.CurrentPeriodEnd,
 	}
 	if model.ID == "" {

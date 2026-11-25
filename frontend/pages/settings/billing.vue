@@ -3,7 +3,8 @@ import { normalizeMediaFile } from '~/composables/useMediaUpload'
 definePageMeta({ middleware: 'auth' })
 
 type Plan = { id: string; name: string; price: number; maxUsers: number; maxPages: number; isActive: boolean }
-type Subscription = { planId: string; status: string; lockedPrice?: number; currentPeriodEnd: string; plan?: Plan }
+type Subscription = { planId: string; status: string; lockedPrice?: number; selectedPageIds?: string[]; currentPeriodEnd: string; plan?: Plan }
+type MetaPage = { id: string; name: string; category?: string; pictureUrl?: string; connected: boolean }
 
 const { locale, l } = useLocale()
 const plans = ref<Plan[]>([])
@@ -11,6 +12,8 @@ const subscription = ref<Subscription | null>(null)
 const loading = ref(true)
 const loadError = ref('')
 const selectedPlan = ref<Plan | null>(null)
+const pages = ref<MetaPage[]>([])
+const selectedPageIds = ref<string[]>([])
 const enterpriseExpanded = ref(false)
 
 const checkoutReference = ref('')
@@ -38,17 +41,24 @@ const payAmount = computed(() => {
   }
   return selectedPlan.value.price
 })
+const pageLimit = computed(() => Math.max(1, selectedPlan.value?.maxPages || 1))
+const pageLimitReached = computed(() => selectedPageIds.value.length >= pageLimit.value)
 
 const loadBilling = async () => {
   loading.value = true
   loadError.value = ''
   try {
-    const [plansData, subData] = await Promise.all([
+    const [plansData, subData, pageData] = await Promise.all([
       $fetch<Plan[]>('/api/proxy/api/v1/billing/plans'),
-      $fetch<Subscription>('/api/proxy/api/v1/billing/subscription')
+      $fetch<Subscription>('/api/proxy/api/v1/billing/subscription'),
+      $fetch<{ items: MetaPage[] }>('/api/proxy/api/v1/meta/pages').catch(() => ({ items: [] }))
     ])
     plans.value = plansData
     subscription.value = subData
+    pages.value = pageData.items || []
+    selectedPageIds.value = subData.selectedPageIds?.length
+      ? [...subData.selectedPageIds]
+      : pages.value.filter(page => page.connected).map(page => page.id)
   } catch (error: any) {
     loadError.value = error?.data?.message || error?.statusMessage || error?.message || l({
       lo: 'ບໍ່ສາມາດໂຫຼດຂໍ້ມູນແພັກເກດໄດ້.',
@@ -107,6 +117,7 @@ const reviewPlan = (plan: Plan) => {
   checkoutSuccess.value = false
   checkoutError.value = ''
   checkoutReference.value = ''
+  selectedPageIds.value = selectedPageIds.value.slice(0, Math.max(1, plan.maxPages))
   reveal('#activation-details')
 }
 
@@ -150,6 +161,10 @@ const onSlipSelected = async (e: Event) => {
 
 const submitPayment = async () => {
   if (!selectedPlan.value) return
+  if (selectedPageIds.value.length === 0) {
+    checkoutError.value = l({ lo: 'ກະລຸນາເລືອກຢ່າງໜ້ອຍ 1 Page', th: 'กรุณาเลือกอย่างน้อย 1 เพจ', en: 'Select at least one Page.' })
+    return
+  }
   if (!checkoutReference.value.trim()) {
     checkoutError.value = l({
       lo: 'ກະລຸນາອັບໂຫຼດຮູບສະລິບ ຫຼື ປ້ອນເລກທີອ້າງອີງການໂອນເງິນ',
@@ -169,6 +184,7 @@ const submitPayment = async () => {
         planId: selectedPlan.value.id,
         paymentMethod: 'bcel_one',
         reference: checkoutReference.value.trim(),
+        pageIds: selectedPageIds.value,
       },
     })
     checkoutSuccess.value = true
@@ -285,6 +301,30 @@ onMounted(loadBilling)
             </div>
             <button type="button" class="close-panel" @click="selectedPlan = null"><v-icon icon="mdi-close" size="20" /></button>
           </div>
+
+          <section class="page-selection" aria-labelledby="page-selection-title">
+            <div class="page-selection-heading">
+              <div>
+                <h4 id="page-selection-title">{{ l({ lo: 'ເລືອກ Page ສຳລັບແພັກເກດນີ້', th: 'เลือกเพจสำหรับแพ็กเกจนี้', en: 'Choose Pages for this plan' }) }}</h4>
+                <p>{{ l({ lo: `ເລືອກໄດ້ຫຼາຍ Page ສູງສຸດ ${pageLimit} Page`, th: `เลือกได้หลายเพจ สูงสุด ${pageLimit} เพจ`, en: `Select multiple Pages, up to ${pageLimit}.` }) }}</p>
+              </div>
+              <span class="page-selection-count" :class="{ full: pageLimitReached }">{{ selectedPageIds.length }} / {{ pageLimit }}</span>
+            </div>
+            <div v-if="pages.length" class="page-options">
+              <label v-for="page in pages" :key="page.id" class="page-option" :class="{ selected: selectedPageIds.includes(page.id), disabled: pageLimitReached && !selectedPageIds.includes(page.id) }">
+                <input v-model="selectedPageIds" type="checkbox" :value="page.id" :disabled="pageLimitReached && !selectedPageIds.includes(page.id)" />
+                <img v-if="page.pictureUrl" :src="page.pictureUrl" alt="" />
+                <span v-else class="page-avatar"><v-icon icon="mdi-facebook" size="20" /></span>
+                <span><strong>{{ page.name }}</strong><small>{{ page.category || 'Facebook Page' }}</small></span>
+                <v-icon v-if="selectedPageIds.includes(page.id)" icon="mdi-check-circle" color="primary" size="22" />
+              </label>
+            </div>
+            <div v-else class="page-selection-empty">
+              <v-icon icon="mdi-facebook" size="22" />
+              <span>{{ l({ lo: 'ຍັງບໍ່ພົບ Page — ເຊື່ອມຕໍ່ Facebook ກ່ອນ', th: 'ยังไม่พบเพจ — เชื่อมต่อ Facebook ก่อน', en: 'No Pages found — connect Facebook first.' }) }}</span>
+              <NuxtLink to="/meta-pages">{{ l({ lo: 'ໄປຈັດການ Page', th: 'จัดการเพจ', en: 'Manage Pages' }) }}</NuxtLink>
+            </div>
+          </section>
 
           <div v-if="checkoutSuccess" class="success-box">
             <v-icon icon="mdi-check-circle" size="48" color="success" />
@@ -446,7 +486,7 @@ onMounted(loadBilling)
 .account-info label{color:var(--color-text-secondary)}
 .copyable{font-family:monospace;letter-spacing:.5px}
 .price-highlight{color:var(--color-primary);font-size:var(--text-md)}
-.locked-price-note{font-size:11px;font-weight:700;color:#B45309;background:#FEF3C7;padding:3px 6px;border-radius:4px;margin-top:4px}
+.locked-price-note{font-size:var(--text-sm);font-weight:700;color:#B45309;background:#FEF3C7;padding:3px 6px;border-radius:4px;margin-top:4px}
 .upload-column{display:flex;flex-direction:column;gap:var(--space-3)}
 .upload-column h4{margin:0;font-size:var(--text-md);font-weight:700}
 .upload-desc{margin:0;font-size:var(--text-sm);color:var(--color-text-secondary)}
@@ -458,7 +498,7 @@ onMounted(loadBilling)
 .slip-info{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1}
 .slip-filename{font-size:var(--text-xs);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .slip-actions{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
-.btn-slip-action{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--color-primary);background:none;border:none;cursor:pointer;padding:0}
+.btn-slip-action{display:inline-flex;align-items:center;gap:4px;font-size:var(--text-sm);font-weight:600;color:var(--color-primary);background:none;border:none;cursor:pointer;padding:0}
 .btn-slip-action.text-error{color:var(--color-error)}
 .file-dropzone{position:relative}
 .file-dropzone input[type="file"]{display:none}
@@ -473,6 +513,11 @@ onMounted(loadBilling)
 .success-box{display:flex;flex-direction:column;align-items:center;text-align:center;gap:var(--space-2);padding:var(--space-5)}
 .success-box h4{margin:0;font-size:var(--text-xl);font-weight:700;color:var(--color-success)}
 .success-box p{max-width:50ch;margin:0;color:var(--color-text-secondary)}
+.page-selection{display:grid;gap:var(--space-2);margin-bottom:var(--space-3);padding:var(--space-3);background:var(--color-surface-soft);border:1px solid var(--color-border);border-radius:var(--radius-md)}
+.page-selection-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--space-2)}.page-selection-heading h4{margin:0;font-size:var(--text-md)}.page-selection-heading p{margin:.25rem 0 0;color:var(--color-text-secondary);font-size:var(--text-sm)}
+.page-selection-count{flex:0 0 auto;padding:.35rem .7rem;color:var(--color-primary-ink);background:var(--color-primary-soft);border-radius:999px;font-weight:750;font-variant-numeric:tabular-nums}.page-selection-count.full{color:var(--color-text-on-primary);background:var(--color-primary)}
+.page-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-1)}.page-option{display:grid;grid-template-columns:auto 2.5rem minmax(0,1fr) auto;align-items:center;gap:var(--space-1);min-height:4.5rem;padding:var(--space-1);background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-sm);cursor:pointer}.page-option.selected{border-color:var(--color-primary);box-shadow:0 0 0 1px var(--color-primary)}.page-option.disabled{opacity:.55;cursor:not-allowed}.page-option input{width:1.1rem;height:1.1rem;accent-color:var(--color-primary)}.page-option img,.page-avatar{width:2.5rem;height:2.5rem;border-radius:50%;object-fit:cover}.page-avatar{display:grid;place-items:center;color:var(--color-primary);background:var(--color-primary-soft)}.page-option>span:not(.page-avatar){display:grid;min-width:0}.page-option strong,.page-option small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.page-option small{color:var(--color-text-secondary);font-size:var(--text-sm)}
+.page-selection-empty{display:flex;align-items:center;gap:var(--space-1);padding:var(--space-2);color:var(--color-text-secondary);background:var(--color-surface);border-radius:var(--radius-sm)}.page-selection-empty a{margin-left:auto;color:var(--color-primary);font-weight:700;text-decoration:none}
 .enterprise-details{display:grid;gap:var(--space-3);padding:var(--space-3);border-radius:var(--radius-lg);grid-template-columns:minmax(0,.85fr) minmax(18rem,1.15fr) auto;align-items:start;background:var(--color-surface);border:1px solid var(--color-border-strong)}
 .enterprise-details ol{display:grid;gap:var(--space-1);margin:0;padding-left:1.5rem;color:var(--color-text-secondary);line-height:var(--leading-relaxed)}
 .close-panel{display:inline-flex;align-items:center;justify-content:center;min-height:var(--tap-target);padding:var(--space-1);color:var(--color-text-secondary);background:transparent;border:0;border-radius:var(--radius-sm);cursor:pointer}
@@ -481,5 +526,5 @@ onMounted(loadBilling)
 .plans-loading{display:grid;gap:var(--space-3)}.subscription-skeleton,.plan-skeleton{background:linear-gradient(90deg,var(--color-surface-soft),var(--color-surface),var(--color-surface-soft));background-size:220% 100%;animation:pricing-shimmer 1.4s ease-in-out infinite;border-radius:var(--radius-lg)}.subscription-skeleton{height:7rem}.skeleton-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-2)}.plan-skeleton{height:24rem}@keyframes pricing-shimmer{to{background-position:-220% 0}}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 @media(max-width:1100px){.plans-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.enterprise-card{grid-column:1/-1}.payment-grid{grid-template-columns:1fr}}
-@media(max-width:760px){.pricing-page{gap:var(--space-3)}.pricing-header,.section-heading,.subscription-bar{align-items:flex-start;flex-direction:column}.plans-grid{grid-template-columns:1fr}}
+@media(max-width:760px){.pricing-page{gap:var(--space-3)}.pricing-header,.section-heading,.subscription-bar{align-items:flex-start;flex-direction:column}.plans-grid,.page-options{grid-template-columns:1fr}.payment-card{padding:var(--space-2)}.page-selection-empty{align-items:flex-start;flex-wrap:wrap}.page-selection-empty a{width:100%;margin-left:1.85rem}}
 </style>

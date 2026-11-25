@@ -21,6 +21,7 @@ type Subscription struct {
 	Plan             *Plan     `json:"plan,omitempty"`
 	Status           string    `json:"status"` // active, past_due, canceled
 	LockedPrice      int       `json:"lockedPrice"`
+	SelectedPageIDs  []string  `json:"selectedPageIds"`
 	CurrentPeriodEnd time.Time `json:"currentPeriodEnd"`
 	CreatedAt        time.Time `json:"createdAt"`
 }

@@ -56,6 +56,8 @@ type ReplySetModel struct {
 	ID        string           `gorm:"type:uuid;primaryKey"`
 	AccountID string           `gorm:"type:uuid;not null;index"`
 	Account   AccountModel     `gorm:"foreignKey:AccountID;constraint:OnDelete:CASCADE"`
+	CreatedBy string           `gorm:"type:uuid;index"`
+	Source    string           `gorm:"size:20;not null;default:'user';index"`
 	Code      string           `gorm:"size:60"`
 	Name      string           `gorm:"size:255;not null"`
 	Items     []ReplyItemModel `gorm:"foreignKey:ReplySetID;constraint:OnDelete:CASCADE"`
@@ -132,6 +134,7 @@ type SubscriptionModel struct {
 	Plan             PlanModel    `gorm:"foreignKey:PlanID;constraint:OnDelete:RESTRICT"`
 	Status           string       `gorm:"size:50;not null"` // e.g., "active", "expired", "canceled"
 	LockedPrice      int          `gorm:"default:0"`        // Grandfathered / locked subscription price in LAK for this store
+	SelectedPageIDs  string       `gorm:"type:text"`        // JSON array of Pages selected for this plan
 	CurrentPeriodEnd time.Time    `gorm:"not null"`
 	CreatedAt        time.Time
 	UpdatedAt        time.Time

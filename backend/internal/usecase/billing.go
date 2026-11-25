@@ -3,6 +3,8 @@ package usecase
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -122,9 +124,10 @@ func (u *Billing) SelectFree(ctx context.Context, accountID string) (*domain.Sub
 }
 
 type CheckoutInput struct {
-	PlanID        string `json:"planId"`
-	PaymentMethod string `json:"paymentMethod"`
-	Reference     string `json:"reference"` // BCEL One / OnePay transfer slip URL or ref
+	PlanID        string   `json:"planId"`
+	PaymentMethod string   `json:"paymentMethod"`
+	Reference     string   `json:"reference"` // BCEL One / OnePay transfer slip URL or ref
+	PageIDs       []string `json:"pageIds"`
 }
 
 func (u *Billing) Checkout(ctx context.Context, accountID string, in CheckoutInput) error {
@@ -143,11 +146,36 @@ func (u *Billing) Checkout(ctx context.Context, accountID string, in CheckoutInp
 	if selectedPlan == nil {
 		return errors.New("invalid plan id")
 	}
+	seenPages := make(map[string]struct{}, len(in.PageIDs))
+	pageIDs := make([]string, 0, len(in.PageIDs))
+	for _, pageID := range in.PageIDs {
+		pageID = strings.TrimSpace(pageID)
+		if pageID == "" {
+			continue
+		}
+		if _, exists := seenPages[pageID]; exists {
+			continue
+		}
+		seenPages[pageID] = struct{}{}
+		pageIDs = append(pageIDs, pageID)
+	}
+	if len(pageIDs) == 0 {
+		return errors.New("select at least one Facebook Page")
+	}
+	if selectedPlan.MaxPages > 0 && len(pageIDs) > selectedPlan.MaxPages {
+		return fmt.Errorf("selected %d Pages, but %s allows a maximum of %d", len(pageIDs), selectedPlan.Name, selectedPlan.MaxPages)
+	}
 
 	// Grandfathered / locked price check:
 	// If the store already has a lockedPrice > 0 for this plan, keep their locked price!
 	amount := selectedPlan.Price
 	existingSub, _ := u.billing.GetSubscription(ctx, accountID)
+	if existingSub != nil {
+		existingSub.SelectedPageIDs = pageIDs
+		if err := u.billing.UpsertSubscription(ctx, existingSub); err != nil {
+			return err
+		}
+	}
 	if existingSub != nil && existingSub.PlanID == selectedPlan.ID && existingSub.LockedPrice > 0 {
 		amount = existingSub.LockedPrice
 	}
@@ -160,6 +188,7 @@ func (u *Billing) Checkout(ctx context.Context, accountID string, in CheckoutInp
 			PlanID:           selectedPlan.ID,
 			Status:           "active",
 			LockedPrice:      0,
+			SelectedPageIDs:  pageIDs,
 			CurrentPeriodEnd: time.Now().AddDate(100, 0, 0),
 		}
 		if existingSub != nil && existingSub.ID != "" {

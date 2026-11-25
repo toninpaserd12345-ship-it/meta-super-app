@@ -8,6 +8,8 @@ import (
 type ReplySet struct {
 	ID        string      `json:"id"`
 	AccountID string      `json:"accountId"`
+	CreatedBy string      `json:"createdBy,omitempty"`
+	Source    string      `json:"source"` // admin or user
 	Code      string      `json:"code"`
 	Name      string      `json:"name"`
 	Items     []ReplyItem `json:"items"`
