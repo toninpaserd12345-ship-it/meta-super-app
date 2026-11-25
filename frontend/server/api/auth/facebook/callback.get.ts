@@ -35,7 +35,7 @@ export default defineEventHandler(async (event) => {
 
     const isConnect = result.isConnect ?? (query.meta === 'connected')
     if (isConnect) {
-      return sendRedirect(event, '/onboarding?meta=connected')
+      return sendRedirect(event, '/meta-pages?meta=connected')
     }
     return sendRedirect(event, '/')
   } catch (error) {

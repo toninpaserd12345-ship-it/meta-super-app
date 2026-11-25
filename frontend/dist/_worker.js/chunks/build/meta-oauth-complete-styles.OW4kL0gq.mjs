@@ -1,0 +1,2 @@
+const a=[".complete-card[data-v-491a8a74]{text-align:center;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg);width:min(420px,100vw - 32px);margin:auto;padding:32px}.complete-card h1[data-v-491a8a74]{font-size:var(--text-xl);margin:18px 0 8px}.complete-card p[data-v-491a8a74]{color:var(--color-text-secondary);margin:0 0 20px}"];export{a as default};
+//# sourceMappingURL=meta-oauth-complete-styles.OW4kL0gq.mjs.map

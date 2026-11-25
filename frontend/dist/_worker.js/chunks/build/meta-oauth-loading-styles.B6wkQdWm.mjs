@@ -1,0 +1,2 @@
+const a=[".loading-card[data-v-084935eb]{text-align:center;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg);width:min(420px,100vw - 32px);margin:auto;padding:34px}.loading-card h1[data-v-084935eb]{font-size:var(--text-xl);margin:18px 0 8px}.loading-card p[data-v-084935eb]{color:var(--color-text-secondary);margin:0}"];export{a as default};
+//# sourceMappingURL=meta-oauth-loading-styles.B6wkQdWm.mjs.map

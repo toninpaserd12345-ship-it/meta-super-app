@@ -860,7 +860,13 @@ const sendReply = async (explicitCode?: string, explicitReplySetId?: string) => 
     await fetchHistoryAndLeads(true)
     scrollToBottom()
   } catch (error: any) {
-    const detail = error?.data?.detail || error?.data?.message || error?.statusMessage || ''
+    const apiError = error?.data?.error
+    const detail = error?.data?.detail
+      || (typeof apiError === 'string' ? apiError : apiError?.message)
+      || error?.data?.message
+      || error?.statusMessage
+      || error?.message
+      || ''
     if (detail.includes('not found') || detail.includes('not connected')) {
       loadError.value = l({
         lo: 'Page ຍັງບໍ່ໄດ້ເຊື່ອມຕໍ່ ຫຼື Token ໝົດອາຍຸ, ກະລຸນາກວດສອບທີ່ເມນູ Meta Pages',

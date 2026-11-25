@@ -189,7 +189,7 @@ func (h *Handler) sendChatMessage(c fiber.Ctx) error {
 		PageID      string `json:"page_id"`
 		RecipientID string `json:"recipient_id"`
 		Message     string `json:"message"`
-		ReplySetID string `json:"reply_set_id"`
+		ReplySetID  string `json:"reply_set_id"`
 		MediaURL    string `json:"media_url"`
 		MediaType   string `json:"media_type"`
 	}
@@ -203,7 +203,13 @@ func (h *Handler) sendChatMessage(c fiber.Ctx) error {
 	}
 
 	// Check if admin entered a code matching a Reply Set or requested a specific set
-	matchedSet, matchedProd, _ := h.resolveReplySet(c.Context(), accountID, body.ReplySetID, body.Message)
+	matchedSet, matchedProd, resolveErr := h.resolveReplySet(c.Context(), accountID, body.ReplySetID, body.Message)
+	if resolveErr != nil {
+		return fail(c, fiber.StatusBadRequest, "reply_set_not_found", resolveErr.Error())
+	}
+	if strings.TrimSpace(body.ReplySetID) != "" && matchedSet == nil {
+		return fail(c, fiber.StatusNotFound, "reply_set_not_found", "The selected Reply Set was not found in this workspace.")
+	}
 	if matchedSet != nil {
 		var activeItems []domain.ReplyItem
 		if strings.HasPrefix(matchedSet.ID, "synth-product:") && matchedProd != nil {
@@ -252,67 +258,41 @@ func (h *Handler) sendChatMessage(c fiber.Ctx) error {
 		}
 
 		if len(activeItems) > 0 {
-			// Deliver the sequence asynchronously with realistic delays and typing indicators
-			go func(accID, pageID, recipientID string, replyItems []domain.ReplyItem, setName string) {
-				sendCtx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
-				defer cancel()
-
-				_ = h.meta.SendSenderAction(sendCtx, pageID, recipientID, "mark_seen")
-				time.Sleep(500 * time.Millisecond)
-
-				for index, step := range replyItems {
-					if step.Type == "image" {
-						time.Sleep(1000 * time.Millisecond)
-					} else if step.Type == "text" {
-						if index > 0 {
-							time.Sleep(800 * time.Millisecond)
-						}
-						_ = h.meta.SendSenderAction(sendCtx, pageID, recipientID, "typing_on")
-						runeCount := len([]rune(step.Content))
-						delayMs := 1200 + (runeCount * 15)
-						if delayMs < 1500 {
-							delayMs = 1500
-						} else if delayMs > 2800 {
-							delayMs = 2800
-						}
-						time.Sleep(time.Duration(delayMs) * time.Millisecond)
-					} else {
-						time.Sleep(1200 * time.Millisecond)
-					}
-
-					var sendErr error
-					if step.Type == "text" {
-						sendErr = h.meta.SendMessage(sendCtx, accID, pageID, recipientID, step.Content)
-					} else {
-						sendErr = h.meta.SendMedia(sendCtx, accID, pageID, recipientID, step.Type, step.Content)
-					}
-
-					if sendErr != nil {
-						slog.Error("failed to send reply set step from admin", "page_id", pageID, "recipient_id", recipientID, "step", index+1, "type", step.Type, "error", sendErr)
-						continue
-					}
-
-					if h.Stream != nil {
-						h.Stream.Broadcast(accID, usecase.ChatEvent{
-							AccountID: accID,
-							PageID:    pageID,
-							SenderID:  recipientID,
-							Message:   step.Content,
-							Type:      step.Type,
-							Timestamp: fmt.Sprintf("%d", time.Now().UnixMilli()),
-							Platform:  "system",
-						})
-					}
+			if strings.TrimSpace(body.PageID) == "" || strings.TrimSpace(body.RecipientID) == "" {
+				return fail(c, fiber.StatusBadRequest, "missing_chat_target", "Page and recipient are required before sending a Reply Set.")
+			}
+			sendCtx, cancel := context.WithTimeout(c.Context(), 45*time.Second)
+			defer cancel()
+			_ = h.meta.SendSenderAction(sendCtx, body.PageID, body.RecipientID, "mark_seen")
+			sentCount := 0
+			for index, step := range activeItems {
+				if step.Type == "text" {
+					_ = h.meta.SendSenderAction(sendCtx, body.PageID, body.RecipientID, "typing_on")
 				}
-			}(accountID, body.PageID, body.RecipientID, activeItems, matchedSet.Name)
+				var sendErr error
+				if step.Type == "text" {
+					sendErr = h.meta.SendMessage(sendCtx, accountID, body.PageID, body.RecipientID, step.Content)
+				} else {
+					sendErr = h.meta.SendMedia(sendCtx, accountID, body.PageID, body.RecipientID, step.Type, step.Content)
+				}
+				if sendErr != nil {
+					slog.Error("failed to send reply set step", "reply_set_id", matchedSet.ID, "page_id", body.PageID, "recipient_id", body.RecipientID, "step", index+1, "type", step.Type, "error", sendErr)
+					return fail(c, fiber.StatusBadGateway, "reply_set_send_failed", fmt.Sprintf("Reply Set stopped at item %d of %d: %v", index+1, len(activeItems), sendErr))
+				}
+				sentCount++
+				if h.Stream != nil {
+					h.Stream.Broadcast(accountID, usecase.ChatEvent{AccountID: accountID, PageID: body.PageID, SenderID: body.RecipientID, Message: step.Content, Type: step.Type, Timestamp: fmt.Sprintf("%d", time.Now().UnixMilli()), Platform: "system"})
+				}
+			}
 
 			return c.JSON(fiber.Map{
 				"status":         "success",
 				"reply_set_sent": true,
 				"reply_set_name": matchedSet.Name,
-				"items_count":    len(activeItems),
+				"items_count":    sentCount,
 			})
 		}
+		return fail(c, fiber.StatusBadRequest, "reply_set_empty", "This Reply Set has no enabled messages to send.")
 	}
 
 	if strings.TrimSpace(body.MediaURL) != "" {
