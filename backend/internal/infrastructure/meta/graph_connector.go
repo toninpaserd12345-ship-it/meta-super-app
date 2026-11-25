@@ -123,7 +123,34 @@ func NewGraphConnector(cfg GraphConfig, db *gorm.DB) *GraphConnector {
 		slog.Warn("unable to load Meta state", "error", err)
 	}
 	go g.cleanupRoutine()
+	if db != nil {
+		go g.refreshConnectedPageSubscriptions()
+	}
 	return g
+}
+
+func (g *GraphConnector) refreshConnectedPageSubscriptions() {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	var rows []database.MetaPageTokenModel
+	if err := g.db.WithContext(ctx).Where("is_connected = ?", true).Find(&rows).Error; err != nil {
+		slog.Warn("could not load connected Pages for webhook refresh", "error", err)
+		return
+	}
+	for _, row := range rows {
+		if ctx.Err() != nil {
+			return
+		}
+		token := g.decryptToken(row.AccessToken)
+		if token == "" {
+			continue
+		}
+		if err := g.SubscribePageOnMeta(ctx, row.PageID, token); err != nil {
+			slog.Warn("could not refresh Page webhook fields", "page_id", row.PageID, "error", err)
+			continue
+		}
+		slog.Info("refreshed Page webhook fields", "page_id", row.PageID)
+	}
 }
 
 func (g *GraphConnector) cleanupRoutine() {
